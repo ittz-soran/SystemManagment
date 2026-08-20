@@ -1099,13 +1099,33 @@ Cross-check: 2 units net sold, both from B1 @ 10,000 = 20,000 ✓ · revenue 2 �
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |
 | 2026-08-19 | Expense categories table; sale/purchase `status`. **Design complete, no open questions.** | — |
 | 2026-08-19 | Relationship audit: `reference_item_id`, `reverses_movement_id`, batch `source_type`, purchase movements, full FK reference. Added Section 10b acceptance test. | Scaffold Laravel and write migrations |
+| 2026-08-20 | **Build steps 1–5 done.** Laravel 13 + Breeze scaffolded; all 25 migrations with indexes and soft deletes; all models; FIFO engine; purchase, sale, both returns, adjustments, payments and ledger services; permissions, settings, document numbering, SKU/barcode. **Section 10b acceptance test passes — 313 assertions.** Suite: 45 passing, 524 assertions. | Master data CRUD, Bootstrap 5 RTL shell, purchase/sale cart screens |
 
 ---
 
 ## 13. Open Questions
 
-**None. Every design decision is settled.**
+**Three small gaps found during the build.** None blocks progress; each was resolved the conservative way, and each is worth a decision when convenient.
 
-Resolved along the way: negative customer balance (not allowed → cash refund) · negative supplier balance (not allowed → cash back) · roles (admin + user with per-user permissions) · walk-ins (Cash Customer) · editing rights (permission-based) · cash/till tracking (not included) · expense categories (managed list) · full returns (status `returned`, never voided).
+**1. Opening stock has no `source_type` of its own.**
+Section 5 requires a starting batch for products already in the shop, but Section 4 allows a batch to come only from a `purchase` or an `adjustment` — "never both, never neither." Opening stock is neither.
+*Resolved as:* an `in` stock adjustment, which needs no schema change. Section 4's `reason` list has no `opening` value either, so it is recorded as `other` with the note "Opening stock".
+*Worth deciding:* whether to add an `opening` reason so the adjustment report separates real corrections from initial setup. Adding one is a one-line enum change.
+
+**2. `products` has no image column, but Section 9b implies one.**
+Section 9b lists "Product create/edit (has image, opening stock)" as a full-page form, while the Section 4 schema has no image field.
+*Resolved as:* no image. Section 4 wins; Section 9b's parenthesis should be corrected to say "opening stock" only.
+
+**3. Deleting a return: how the refunded cash comes back.**
+Section 10b T5 asserts "30,000 cash back in" when return #3 is deleted, without saying whether that is a new `direction = in` payment or the removal of the original `direction = out` one.
+*Resolved as:* the original outbound payment is soft-deleted, per Section 8b's rule that a soft delete reverses the document's effects. The net till movement is identical, and no phantom inbound payment appears in the cash-in report. The acceptance test asserts the net change rather than a literal `in` row.
+
+### Notes from the build — no decision needed
+
+- **FIFO ordering needs sub-second timestamps.** `received_at` and `occurred_at` are `timestamp(6)`. Laravel formats a date binding as `Y-m-d H:i:s` at the connection, so two purchases entered in the same second tied on `received_at` and fell through to `sequence` — which is only meaningful *within* one purchase. With microseconds, Section 4's "order by `received_at`, `sequence`" rule holds exactly as written.
+- **The permission catalogue was derived, not given.** Section 4 lists the default set and a few example keys but never the full list, so it is generated from the Section 9 page list: view/create/edit/delete per module, plus `settings.manage`, `stock.recheck`, `reports.view` and `activity_logs.view`. Reviewing it is worthwhile.
+- **The concurrency test cannot pass in CI as configured.** The suite runs on SQLite, where `lockForUpdate()` is a silent no-op, so the test skips itself rather than reporting a meaningless pass. Run it against real MySQL before go-live: `DB_CONNECTION=mysql php artisan test --filter=ConcurrencyTest`.
+
+Resolved during design: negative customer balance (not allowed → cash refund) · negative supplier balance (not allowed → cash back) · roles (admin + user with per-user permissions) · walk-ins (Cash Customer) · editing rights (permission-based) · cash/till tracking (not included) · expense categories (managed list) · full returns (status `returned`, never voided).
 
 Add new questions here as they come up during the build.
