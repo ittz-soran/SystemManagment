@@ -30,8 +30,15 @@ class DocumentNumberService
 
     public const PREFIX_ADJUSTMENT = 'ADJ';
 
-    /** Section 4: the SKU counter, whose prefix is configurable via settings. */
+    /**
+     * Section 4: the SKU counter, whose visible prefix is configurable via
+     * settings, and the barcode serial counter. Neither produces a document
+     * number, but both must come from a counter rather than MAX(id) so a
+     * deleted product cannot let a code be reused.
+     */
     public const PREFIX_SKU = 'SKU';
+
+    public const PREFIX_BARCODE = 'BAR';
 
     public const ALL_PREFIXES = [
         self::PREFIX_SALE,
@@ -42,6 +49,7 @@ class DocumentNumberService
         self::PREFIX_EXPENSE,
         self::PREFIX_ADJUSTMENT,
         self::PREFIX_SKU,
+        self::PREFIX_BARCODE,
     ];
 
     /**

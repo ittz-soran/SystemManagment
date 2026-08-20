@@ -9,8 +9,10 @@ use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -42,5 +44,19 @@ class AppServiceProvider extends ServiceProvider
         // Financial code should never silently work with a half-loaded model.
         Model::preventLazyLoading(! app()->isProduction());
         Model::preventAccessingMissingAttributes(! app()->isProduction());
+
+        /**
+         * Section 2: every permission check goes through User::hasPermission(),
+         * where admin short-circuits to true. Registering it as the Gate's
+         * fallback means @can('sales.create') in a view and can:sales.create on
+         * a route both consult that one method — the conditions are never
+         * duplicated.
+         *
+         * Section 9b: nav items use this to hide links the user cannot follow,
+         * so no link ever leads to "access denied".
+         */
+        Gate::before(function (User $user, string $ability) {
+            return $user->hasPermission($ability) ?: null;
+        });
     }
 }
