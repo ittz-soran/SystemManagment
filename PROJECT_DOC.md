@@ -1100,6 +1100,7 @@ Cross-check: 2 units net sold, both from B1 @ 10,000 = 20,000 ✓ · revenue 2 �
 | 2026-08-19 | Expense categories table; sale/purchase `status`. **Design complete, no open questions.** | — |
 | 2026-08-19 | Relationship audit: `reference_item_id`, `reverses_movement_id`, batch `source_type`, purchase movements, full FK reference. Added Section 10b acceptance test. | Scaffold Laravel and write migrations |
 | 2026-08-20 | **Build steps 1–5 done.** Laravel 13 + Breeze scaffolded; all 25 migrations with indexes and soft deletes; all models; FIFO engine; purchase, sale, both returns, adjustments, payments and ledger services; permissions, settings, document numbering, SKU/barcode. **Section 10b acceptance test passes — 313 assertions.** Suite: 45 passing, 524 assertions. | Master data CRUD, Bootstrap 5 RTL shell, purchase/sale cart screens |
+| 2026-08-20 | UI: Bootstrap 5 shell (sidebar, topbar, RTL, dark mode), master-data CRUD, dashboard, sale and purchase cart screens with barcode-first keyboard flow and the USD helper. Verified in a real browser. Suite: 50 passing, 562 assertions, 1 skipped. | Returns screens · payments · expenses · adjustments UI · reports · activity log · settings page · `lang/` files · print views |
 
 ---
 
@@ -1125,6 +1126,16 @@ Section 10b T5 asserts "30,000 cash back in" when return #3 is deleted, without 
 - **FIFO ordering needs sub-second timestamps.** `received_at` and `occurred_at` are `timestamp(6)`. Laravel formats a date binding as `Y-m-d H:i:s` at the connection, so two purchases entered in the same second tied on `received_at` and fell through to `sequence` — which is only meaningful *within* one purchase. With microseconds, Section 4's "order by `received_at`, `sequence`" rule holds exactly as written.
 - **The permission catalogue was derived, not given.** Section 4 lists the default set and a few example keys but never the full list, so it is generated from the Section 9 page list: view/create/edit/delete per module, plus `settings.manage`, `stock.recheck`, `reports.view` and `activity_logs.view`. Reviewing it is worthwhile.
 - **The concurrency test cannot pass in CI as configured.** The suite runs on SQLite, where `lockForUpdate()` is a silent no-op, so the test skips itself rather than reporting a meaningless pass. Run it against real MySQL before go-live: `DB_CONNECTION=mysql php artisan test --filter=ConcurrencyTest`.
+- **The interface is built but not yet translated.** Language switching, RTL direction and the per-user preference all work — Sorani flips the whole layout correctly and numbers stay left-to-right inside it. What is missing is the `lang/` files themselves, so every string still displays in English in all four languages. All UI text is already wrapped in `__()`, so this is a translation job, not a code change.
+- **Never pass a machine value to `__()`.** A bare key resolves to a translation *file*, so `__('auth')` returns Laravel's whole auth array rather than the word. Enum values and permission group names render through `Str::headline()` instead. This cost a broken page during the build.
+
+### What Section 9 still needs
+
+Built: login · dashboard · products (with opening stock, SKU, barcode) · categories · suppliers · customers · users with per-user permission checkboxes · purchase · purchase history · sale · sales history · my preferences.
+
+Not yet built: sale return · purchase return · payments · expenses · expense categories · stock adjustments UI (the service exists and is fully tested; only the screen is missing) · statistics/reports · activity log · settings page · recheck stock · printable invoices.
+
+The domain services behind returns and adjustments are complete and covered by the acceptance test — those screens are forms over logic that already works.
 
 Resolved during design: negative customer balance (not allowed → cash refund) · negative supplier balance (not allowed → cash back) · roles (admin + user with per-user permissions) · walk-ins (Cash Customer) · editing rights (permission-based) · cash/till tracking (not included) · expense categories (managed list) · full returns (status `returned`, never voided).
 
