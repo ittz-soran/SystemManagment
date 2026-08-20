@@ -30,7 +30,22 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+
+            // These have database defaults, but a factory-built model does not
+            // read defaults back, so it would come out of create() missing them.
+            // The app relies on all four on every page.
+            'role' => User::ROLE_USER,
+            'is_active' => true,
+            'language' => 'en',
+            'theme' => 'auto',
+            'items_per_page' => 25,
         ];
+    }
+
+    /** Section 2: an admin has full access and carries no permission rows. */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => User::ROLE_ADMIN]);
     }
 
     /**

@@ -2,18 +2,16 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
-    /**
-     * A basic test example.
-     */
-    public function test_the_application_returns_a_successful_response(): void
+    /** The root URL sends visitors to the dashboard, which requires a login. */
+    public function test_the_root_url_redirects_into_the_application(): void
     {
-        $response = $this->get('/');
+        $this->get('/')->assertRedirect(route('dashboard'));
 
-        $response->assertStatus(200);
+        // Not logged in, so the dashboard bounces to the login screen.
+        $this->get(route('dashboard'))->assertRedirect(route('login'));
     }
 }

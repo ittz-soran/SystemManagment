@@ -1,0 +1,137 @@
+// Section 3: Blade + Bootstrap 5, with the RTL build for Sorani/Arabic/Persian.
+//
+// Section 8c applies the shop's brand by emitting CSS custom properties in the
+// layout head — stylesheets are never regenerated at runtime.
+@use 'bootstrap/scss/bootstrap' as *;
+@use 'bootstrap-icons/font/bootstrap-icons.css';
+
+:root {
+  --app-sidebar-width: 15rem;
+}
+
+body {
+  // Section 8c: the font is chosen for Latin + Arabic-script coverage, so one
+  // stack renders English, Sorani, Arabic and Persian without falling back
+  // mid-sentence.
+  font-family: var(--bs-body-font-family);
+}
+
+// ---------------------------------------------------------------------------
+// Shell — fixed sidebar (right in RTL) plus a slim topbar.
+// ---------------------------------------------------------------------------
+
+.app-sidebar {
+  width: var(--app-sidebar-width);
+  flex: 0 0 var(--app-sidebar-width);
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  background-color: var(--bs-tertiary-bg);
+  // A logical property, so one rule serves both directions.
+  border-inline-end: 1px solid var(--bs-border-color);
+}
+
+.app-sidebar .nav-link {
+  color: var(--bs-body-color);
+  border-radius: var(--bs-border-radius);
+  padding: 0.45rem 0.75rem;
+
+  &:hover {
+    background-color: var(--bs-secondary-bg);
+  }
+
+  &.active {
+    background-color: var(--bs-primary);
+    color: #fff;
+  }
+
+  i {
+    inline-size: 1.25rem;
+  }
+}
+
+.app-sidebar-heading {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bs-secondary-color);
+}
+
+@include media-breakpoint-down(lg) {
+  // Section 9b: the sidebar collapses to icons on narrow screens.
+  .app-sidebar {
+    --app-sidebar-width: 3.5rem;
+
+    .nav-link span,
+    .app-sidebar-heading,
+    .app-sidebar-brand-text {
+      display: none;
+    }
+
+    .nav-link {
+      text-align: center;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Money and numbers
+// ---------------------------------------------------------------------------
+
+// Section 9b: right-align every money column — misaligned digits are genuinely
+// harder to read — and keep numbers left-to-right even inside RTL text.
+.money {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+th.money {
+  text-align: end;
+}
+
+.running-total {
+  font-size: 2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+// ---------------------------------------------------------------------------
+// RTL
+// ---------------------------------------------------------------------------
+
+// Section 9b: icons with direction must mirror; clocks, logos and product
+// images must not.
+[dir='rtl'] .bi-arrow-left,
+[dir='rtl'] .bi-arrow-right,
+[dir='rtl'] .bi-chevron-left,
+[dir='rtl'] .bi-chevron-right,
+[dir='rtl'] .bi-box-arrow-right {
+  transform: scaleX(-1);
+}
+
+// ---------------------------------------------------------------------------
+// Print — Section 9b: a separate minimal layout, black on white.
+// ---------------------------------------------------------------------------
+
+@media print {
+  .app-sidebar,
+  .app-topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .table {
+    --bs-table-color: #000;
+  }
+}

@@ -12,6 +12,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -40,6 +41,10 @@ class AppServiceProvider extends ServiceProvider
             'supplier' => Supplier::class,
             'payment' => Payment::class,
         ]);
+
+        // Section 3: Bootstrap 5, so the paginator emits Bootstrap markup
+        // rather than Laravel's default Tailwind classes.
+        Paginator::useBootstrapFive();
 
         // Financial code should never silently work with a half-loaded model.
         Model::preventLazyLoading(! app()->isProduction());
