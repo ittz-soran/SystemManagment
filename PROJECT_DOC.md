@@ -1101,6 +1101,7 @@ Cross-check: 2 units net sold, both from B1 @ 10,000 = 20,000 ✓ · revenue 2 �
 | 2026-08-19 | Relationship audit: `reference_item_id`, `reverses_movement_id`, batch `source_type`, purchase movements, full FK reference. Added Section 10b acceptance test. | Scaffold Laravel and write migrations |
 | 2026-08-20 | **Build steps 1–5 done.** Laravel 13 + Breeze scaffolded; all 25 migrations with indexes and soft deletes; all models; FIFO engine; purchase, sale, both returns, adjustments, payments and ledger services; permissions, settings, document numbering, SKU/barcode. **Section 10b acceptance test passes — 313 assertions.** Suite: 45 passing, 524 assertions. | Master data CRUD, Bootstrap 5 RTL shell, purchase/sale cart screens |
 | 2026-08-20 | UI: Bootstrap 5 shell (sidebar, topbar, RTL, dark mode), master-data CRUD, dashboard, sale and purchase cart screens with barcode-first keyboard flow and the USD helper. Verified in a real browser. Suite: 50 passing, 562 assertions, 1 skipped. | Returns screens · payments · expenses · adjustments UI · reports · activity log · settings page · `lang/` files · print views |
+| 2026-08-20 | **Section 9 page list complete.** Return screens (both kinds), payments, expenses and expense categories, stock adjustments, recheck stock, reports, activity logging, settings page, printable documents, and the interface translated into Sorani, Arabic and Persian at 100% coverage. Public registration removed. Suite: 73 passing, 751 assertions, 1 skipped. | Edit/delete flows (build step 8) · bulk delete · backups (step 11) · the concurrency test against real MySQL |
 
 ---
 
@@ -1126,16 +1127,23 @@ Section 10b T5 asserts "30,000 cash back in" when return #3 is deleted, without 
 - **FIFO ordering needs sub-second timestamps.** `received_at` and `occurred_at` are `timestamp(6)`. Laravel formats a date binding as `Y-m-d H:i:s` at the connection, so two purchases entered in the same second tied on `received_at` and fell through to `sequence` — which is only meaningful *within* one purchase. With microseconds, Section 4's "order by `received_at`, `sequence`" rule holds exactly as written.
 - **The permission catalogue was derived, not given.** Section 4 lists the default set and a few example keys but never the full list, so it is generated from the Section 9 page list: view/create/edit/delete per module, plus `settings.manage`, `stock.recheck`, `reports.view` and `activity_logs.view`. Reviewing it is worthwhile.
 - **The concurrency test cannot pass in CI as configured.** The suite runs on SQLite, where `lockForUpdate()` is a silent no-op, so the test skips itself rather than reporting a meaningless pass. Run it against real MySQL before go-live: `DB_CONNECTION=mysql php artisan test --filter=ConcurrencyTest`.
-- **The interface is built but not yet translated.** Language switching, RTL direction and the per-user preference all work — Sorani flips the whole layout correctly and numbers stay left-to-right inside it. What is missing is the `lang/` files themselves, so every string still displays in English in all four languages. All UI text is already wrapped in `__()`, so this is a translation job, not a code change.
+- **The interface is translated, but a native speaker should review it.** All 479 strings are at 100% coverage in Sorani, Arabic and Persian, and `php artisan translations:check` keeps it that way — it fails when a new page adds an untranslated string, and `TranslationTest` runs it as an assertion. The accounting vocabulary is where a review matters most: *batch*, *FIFO cost*, *discount share*, *ledger* and *write-off* were each translated to be unambiguous rather than literal, and a shopkeeper's ear will judge them better than a dictionary.
 - **Never pass a machine value to `__()`.** A bare key resolves to a translation *file*, so `__('auth')` returns Laravel's whole auth array rather than the word. Enum values and permission group names render through `Str::headline()` instead. This cost a broken page during the build.
 
 ### What Section 9 still needs
 
-Built: login · dashboard · products (with opening stock, SKU, barcode) · categories · suppliers · customers · users with per-user permission checkboxes · purchase · purchase history · sale · sales history · my preferences.
+**Every page in the Section 9 list is built.**
 
-Not yet built: sale return · purchase return · payments · expenses · expense categories · stock adjustments UI (the service exists and is fully tested; only the screen is missing) · statistics/reports · activity log · settings page · recheck stock · printable invoices.
+What remains is from Section 11's build order rather than Section 9's page list:
 
-The domain services behind returns and adjustments are complete and covered by the acceptance test — those screens are forms over logic that already works.
+- **Step 8 — editing and deleting.** `canBeModified()` and `canBeDeleted()` are written, tested and drive the disabled buttons and lock banners, so the *rules* are enforced everywhere. What is missing is the reverse-and-re-apply edit flow itself, and the Section 8b bulk delete. The doc is explicit that this comes last, for good reason: "Do not build editing before create works."
+- **Step 11 — backups.** Nightly `mysqldump`, retention, and a tested restore. Section 8b is right that an untested backup is not a backup, and this cannot be verified from inside a container that has no MySQL.
+- **The concurrency test**, which needs a real MySQL run (see above).
+
+### Two things worth deciding
+
+- **The permission catalogue is derived, not specified.** Section 4 gives the default set and a few examples; the ~55 keys now in `PermissionSeeder::CATALOGUE` were generated from the Section 9 page list. Since it governs who can do what, it is worth reading once.
+- **Public registration was removed.** Breeze ships a `/register` route; Section 9 makes user creation admin-only, so leaving it would have let anyone reaching the shop's URL create an account. New staff are added at `/users`. Password reset also needs a real mail driver configured before it works — until then, an admin resets a password from the Users screen.
 
 Resolved during design: negative customer balance (not allowed → cash refund) · negative supplier balance (not allowed → cash back) · roles (admin + user with per-user permissions) · walk-ins (Cash Customer) · editing rights (permission-based) · cash/till tracking (not included) · expense categories (managed list) · full returns (status `returned`, never voided).
 
