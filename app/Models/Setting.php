@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -31,10 +32,27 @@ class Setting extends Model
     /** @return array<string, string|null> */
     public static function cached(): array
     {
-        return Cache::rememberForever(
-            self::CACHE_KEY,
-            fn () => self::query()->pluck('value', 'key')->all()
-        );
+        $cached = Cache::get(self::CACHE_KEY);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        try {
+            $values = self::query()->pluck('value', 'key')->all();
+        } catch (QueryException) {
+            // On a fresh checkout the settings table does not exist until
+            // migrations run, and setting() is called from middleware on every
+            // page. Callers fall back to their own defaults rather than the app
+            // failing to boot with a database error on the login screen.
+            //
+            // Deliberately not cached, so it recovers as soon as the table exists.
+            return [];
+        }
+
+        Cache::forever(self::CACHE_KEY, $values);
+
+        return $values;
     }
 
     public static function put(string $key, mixed $value): void
