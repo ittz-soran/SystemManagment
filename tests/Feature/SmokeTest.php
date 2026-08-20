@@ -67,6 +67,14 @@ class SmokeTest extends TestCase
 
             route('sales.print', $sale),
             route('purchases.print', $purchase),
+
+            route('expenses.index'),
+            route('expense-categories.index'),
+            route('stock-adjustments.index'),
+            route('stock.recheck'),
+            route('reports.index'),
+            route('activity-logs.index'),
+            route('settings.edit'),
         ];
 
         foreach ($pages as $url) {
