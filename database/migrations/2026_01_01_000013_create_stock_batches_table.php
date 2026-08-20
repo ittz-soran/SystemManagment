@@ -32,7 +32,10 @@ return new class extends Migration
             // A batch that reaches 0 is NOT finished — a return can refill it.
             $table->unsignedInteger('quantity_remaining');
 
-            $table->timestamp('received_at');
+            // Microsecond precision: two purchases entered in the same second must
+            // still order deterministically. `sequence` is only meant to break ties
+            // WITHIN one purchase, where every line shares one timestamp by design.
+            $table->timestamp('received_at', 6);
 
             // Section 4: line order within the purchase. The same product can appear
             // twice in one purchase at two costs, sharing a timestamp — without this,

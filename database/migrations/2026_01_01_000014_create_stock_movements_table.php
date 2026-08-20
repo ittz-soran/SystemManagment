@@ -40,7 +40,8 @@ return new class extends Migration
             // reversed) so the COGS reversal equals the COGS recorded, to the dinar.
             $table->unsignedBigInteger('unit_cost');
 
-            $table->timestamp('occurred_at');
+            // Microsecond precision, for the same reason as stock_batches.received_at.
+            $table->timestamp('occurred_at', 6);
 
             // Order FIFO by received_at + sequence — NEVER by id. Sale returns walk
             // this column DESC to give units back in reverse order of consumption.
