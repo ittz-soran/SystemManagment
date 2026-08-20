@@ -121,7 +121,7 @@
                                             <x-status-badge :status="$sale->status" />
                                         @endif
                                     </td>
-                                    <td class="text-truncate">{{ $sale->customer->name }}</td>
+                                    <td class="text-truncate">{{ $sale->customer->displayName() }}</td>
                                     <td class="money">{{ money($sale->total_amount, false) }}</td>
                                 </tr>
                             @endforeach

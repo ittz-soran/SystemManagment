@@ -2,7 +2,7 @@
 
 @section('title', $sale->document_no)
 @section('subheading')
-    {{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }} · {{ $sale->customer->name }}
+    {{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }} · {{ $sale->customer->displayName() }}
 @endsection
 
 @section('actions')

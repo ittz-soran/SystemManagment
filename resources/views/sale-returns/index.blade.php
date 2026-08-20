@@ -54,7 +54,7 @@
                                     {{ $return->sale->document_no }}
                                 </a>
                             </td>
-                            <td>{{ $return->customer->name }}</td>
+                            <td>{{ $return->customer->displayName() }}</td>
                             <td class="text-secondary small">{{ $return->reason ?: '—' }}</td>
                             <td class="money">{{ money($return->total_amount, false) }}</td>
                             <td class="text-end">

@@ -8,7 +8,7 @@
 @section('content')
     <div class="mb-3">
         <div class="small text-uppercase">{{ __('Customer') }}</div>
-        <div class="fw-semibold">{{ $return->customer->name }}</div>
+        <div class="fw-semibold">{{ $return->customer->displayName() }}</div>
         <div class="small">
             {{ __('Against invoice :document', ['document' => $return->sale->document_no]) }}
         </div>

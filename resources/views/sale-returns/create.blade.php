@@ -2,7 +2,7 @@
 
 @section('title', __('Return items'))
 @section('subheading')
-    {{ __('Against invoice :document', ['document' => $sale->document_no]) }} · {{ $sale->customer->name }}
+    {{ __('Against invoice :document', ['document' => $sale->document_no]) }} · {{ $sale->customer->displayName() }}
 @endsection
 
 @section('content')

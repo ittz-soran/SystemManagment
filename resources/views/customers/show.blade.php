@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $customer->name)
+@section('title', $customer->displayName())
 {{-- Guarded: @section with a NULL second argument is treated as the
      block form and opens an output buffer that never closes. --}}
 @if($customer->phone)

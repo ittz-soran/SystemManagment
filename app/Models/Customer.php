@@ -38,4 +38,17 @@ class Customer extends Model
     {
         return self::where('is_system', true)->firstOrFail();
     }
+
+    /**
+     * What to show on screen.
+     *
+     * Section 4 forbids renaming the Cash Customer, so the stored name stays
+     * "Cash Customer" in every language — but the label a Sorani or Arabic user
+     * reads should not be the one English word left on the sale screen. Only
+     * the display is localised; the row itself is untouched.
+     */
+    public function displayName(): string
+    {
+        return $this->is_system ? __('Cash Customer') : $this->name;
+    }
 }

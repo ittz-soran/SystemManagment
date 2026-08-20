@@ -46,7 +46,7 @@
                         <tr class="{{ $customer->is_active ? '' : 'opacity-50' }}">
                             <td>
                                 <a href="{{ route('customers.show', $customer) }}" class="text-decoration-none fw-medium">
-                                    {{ $customer->name }}
+                                    {{ $customer->displayName() }}
                                 </a>
                                 @if($customer->is_system ?? false)
                                     <span class="badge text-bg-light">{{ __('System') }}</span>
@@ -60,7 +60,7 @@
                                 <x-row-actions
                                     :view="route('customers.show', $customer)"
                                     :delete="Gate::allows('customers.delete') && ! ($customer->is_system ?? false) ? route('customers.destroy', $customer) : null"
-                                    :delete-label="__('Delete :name?', ['name' => $customer->name])" />
+                                    :delete-label="__('Delete :name?', ['name' => $customer->displayName()])" />
                             </td>
                         </tr>
                     @endforeach

@@ -148,7 +148,7 @@ class PaymentController extends Controller
     {
         return match (true) {
             $payable instanceof Sale => [
-                'party' => $payable->customer->name,
+                'party' => $payable->customer->displayName(),
                 'total' => $payable->total_amount,
                 'paid' => $payable->amountPaid(),
                 'due' => $payable->amountDue(),
@@ -165,7 +165,7 @@ class PaymentController extends Controller
                 'hint' => __('Paying the supplier is money leaving the till, and reduces what you owe them.'),
             ],
             $payable instanceof SaleReturn => [
-                'party' => $payable->customer->name,
+                'party' => $payable->customer->displayName(),
                 'total' => $payable->total_amount,
                 'paid' => 0,
                 'due' => 0,

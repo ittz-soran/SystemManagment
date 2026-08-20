@@ -24,7 +24,7 @@
                     <option value="">{{ __('All') }}</option>
                     @foreach($customers as $customer)
                         <option value="{{ $customer->id }}" @selected(request('customer_id') == $customer->id)>
-                            {{ $customer->name }}
+                            {{ $customer->displayName() }}
                         </option>
                     @endforeach
                 </select>
@@ -80,7 +80,7 @@
                         <tr>
                             <td class="fw-medium" dir="ltr">{{ $sale->document_no }}</td>
                             <td dir="ltr">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</td>
-                            <td>{{ $sale->customer->name }}</td>
+                            <td>{{ $sale->customer->displayName() }}</td>
                             <td><x-status-badge :status="$sale->status" /></td>
                             <td class="money">{{ money($sale->total_amount, false) }}</td>
                             <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">

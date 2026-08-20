@@ -2,7 +2,7 @@
 
 @section('title', $return->document_no)
 @section('subheading')
-    {{ $return->return_date->format(setting('date_format', 'Y-m-d')) }} · {{ $return->customer->name }}
+    {{ $return->return_date->format(setting('date_format', 'Y-m-d')) }} · {{ $return->customer->displayName() }}
     · {{ __('against :document', ['document' => $return->sale->document_no]) }}
 @endsection
 
