@@ -135,7 +135,9 @@ class PurchaseService
                 $this->payments->record(
                     payable: $purchase,
                     amount: $amountPaid,
-                    direction: Payment::DIRECTION_IN,
+                    // Section 4: "direction = out is money leaving the till — a
+                    // cash refund to a customer, or paying a supplier."
+                    direction: Payment::DIRECTION_OUT,
                     user: $user,
                     method: $paymentMethod,
                     paidAt: $receivedAt,

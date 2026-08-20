@@ -63,7 +63,7 @@
                                     <option value="{{ $customer->id }}"
                                             data-system="{{ $customer->is_system ? '1' : '0' }}"
                                             @selected(old('customer_id', $cashCustomer->id) == $customer->id)>
-                                        {{ $customer->name }}@if(! $customer->is_system && $customer->balance > 0)
+                                        {{ $customer->displayName() }}@if(! $customer->is_system && $customer->balance > 0)
                                             — {{ __('owes :amount', ['amount' => money($customer->balance)]) }}
                                         @endif
                                     </option>

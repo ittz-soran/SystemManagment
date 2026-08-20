@@ -1,13 +1,23 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
+use App\Http\Controllers\PrintController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleReturnController;
+use App\Http\Controllers\SettingController;
+use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -104,6 +114,92 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:purchases.create')->name('purchases.store');
     Route::get('purchases/{purchase}', [PurchaseController::class, 'show'])
         ->middleware('permission:purchases.view')->name('purchases.show');
+
+    // ---- Returns ---------------------------------------------------------
+    // Section 7: a return creates a new forward document, so it is never
+    // blocked by the edit lock.
+    Route::get('sale-returns', [SaleReturnController::class, 'index'])
+        ->middleware('permission:sale_returns.view')->name('sale-returns.index');
+    Route::get('sales/{sale}/return', [SaleReturnController::class, 'create'])
+        ->middleware('permission:sale_returns.create')->name('sale-returns.create');
+    Route::post('sales/{sale}/return', [SaleReturnController::class, 'store'])
+        ->middleware('permission:sale_returns.create')->name('sale-returns.store');
+    Route::get('sale-returns/{saleReturn}', [SaleReturnController::class, 'show'])
+        ->middleware('permission:sale_returns.view')->name('sale-returns.show');
+    Route::delete('sale-returns/{saleReturn}', [SaleReturnController::class, 'destroy'])
+        ->middleware('permission:sale_returns.delete')->name('sale-returns.destroy');
+
+    Route::get('purchase-returns', [PurchaseReturnController::class, 'index'])
+        ->middleware('permission:purchase_returns.view')->name('purchase-returns.index');
+    Route::get('purchases/{purchase}/return', [PurchaseReturnController::class, 'create'])
+        ->middleware('permission:purchase_returns.create')->name('purchase-returns.create');
+    Route::post('purchases/{purchase}/return', [PurchaseReturnController::class, 'store'])
+        ->middleware('permission:purchase_returns.create')->name('purchase-returns.store');
+    Route::get('purchase-returns/{purchaseReturn}', [PurchaseReturnController::class, 'show'])
+        ->middleware('permission:purchase_returns.view')->name('purchase-returns.show');
+
+    // ---- Money -----------------------------------------------------------
+    Route::get('payments', [PaymentController::class, 'index'])
+        ->middleware('permission:payments.view')->name('payments.index');
+    Route::get('payments/create', [PaymentController::class, 'create'])
+        ->middleware('permission:payments.create')->name('payments.create');
+    Route::post('payments', [PaymentController::class, 'store'])
+        ->middleware('permission:payments.create')->name('payments.store');
+
+    Route::get('expenses', [ExpenseController::class, 'index'])
+        ->middleware('permission:expenses.view')->name('expenses.index');
+    Route::post('expenses', [ExpenseController::class, 'store'])
+        ->middleware('permission:expenses.create')->name('expenses.store');
+    Route::put('expenses/{expense}', [ExpenseController::class, 'update'])
+        ->middleware('permission:expenses.edit')->name('expenses.update');
+    Route::delete('expenses/{expense}', [ExpenseController::class, 'destroy'])
+        ->middleware('permission:expenses.delete')->name('expenses.destroy');
+
+    Route::middleware('permission:expense_categories.manage')->group(function () {
+        Route::get('expense-categories', [ExpenseCategoryController::class, 'index'])->name('expense-categories.index');
+        Route::post('expense-categories', [ExpenseCategoryController::class, 'store'])->name('expense-categories.store');
+        Route::put('expense-categories/{expenseCategory}', [ExpenseCategoryController::class, 'update'])->name('expense-categories.update');
+        Route::delete('expense-categories/{expenseCategory}', [ExpenseCategoryController::class, 'destroy'])->name('expense-categories.destroy');
+    });
+
+    // ---- Stock adjustments -----------------------------------------------
+    // Section 4: the only way to correct a locked document, so it must exist
+    // before go-live.
+    Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])
+        ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.index');
+    Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])
+        ->middleware('permission:stock_adjustments.create')->name('stock-adjustments.store');
+
+    Route::middleware('permission:stock.recheck')->group(function () {
+        Route::get('stock/recheck', [StockAdjustmentController::class, 'recheckStock'])->name('stock.recheck');
+        Route::post('stock/repair', [StockAdjustmentController::class, 'repairStock'])->name('stock.repair');
+        Route::post('balances/recalculate', [StockAdjustmentController::class, 'recalculateBalances'])->name('balances.recalculate');
+    });
+
+    Route::get('reports', [ReportController::class, 'index'])
+        ->middleware('permission:reports.view')->name('reports.index');
+
+    // ---- System ----------------------------------------------------------
+    Route::get('activity-logs', [ActivityLogController::class, 'index'])
+        ->middleware('permission:activity_logs.view')->name('activity-logs.index');
+
+    // Section 8c: the whole settings page is guarded, because these values
+    // change invoices, costing and the edit window across the entire system.
+    Route::middleware('permission:settings.manage')->group(function () {
+        Route::get('settings', [SettingController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
+        Route::post('settings/reset', [SettingController::class, 'reset'])->name('settings.reset');
+    });
+
+    // ---- Printable documents (Section 9b) --------------------------------
+    Route::get('sales/{sale}/print', [PrintController::class, 'sale'])
+        ->middleware('permission:sales.view')->name('sales.print');
+    Route::get('purchases/{purchase}/print', [PrintController::class, 'purchase'])
+        ->middleware('permission:purchases.view')->name('purchases.print');
+    Route::get('sale-returns/{saleReturn}/print', [PrintController::class, 'saleReturn'])
+        ->middleware('permission:sale_returns.view')->name('sale-returns.print');
+    Route::get('purchase-returns/{purchaseReturn}/print', [PrintController::class, 'purchaseReturn'])
+        ->middleware('permission:purchase_returns.view')->name('purchase-returns.print');
 });
 
 require __DIR__.'/auth.php';
