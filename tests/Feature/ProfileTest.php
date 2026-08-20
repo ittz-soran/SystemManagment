@@ -76,7 +76,18 @@ class ProfileTest extends TestCase
             ->assertRedirect('/');
 
         $this->assertGuest();
-        $this->assertNull($user->fresh());
+
+        // Section 8b: users are soft-deleted, never removed. A hard delete would
+        // erase who made every document, which is why Section 5 makes every FK
+        // pointing at users `restrict`.
+        //
+        // Note fresh() bypasses global scopes, so the scoped query is the one
+        // that actually expresses "gone from normal queries".
+        $this->assertNull(User::find($user->id), 'The account disappears from normal queries');
+        $this->assertNotNull(
+            User::withTrashed()->find($user->id),
+            'but the row survives so its documents keep an author'
+        );
     }
 
     public function test_correct_password_must_be_provided_to_delete_account(): void
