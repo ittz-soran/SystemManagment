@@ -13,6 +13,8 @@
             ['route' => 'purchases.create', 'permission' => 'purchases.create', 'icon' => 'bag-plus', 'label' => __('New purchase')],
             ['route' => 'sales.index', 'permission' => 'sales.view', 'icon' => 'receipt', 'label' => __('Sales history')],
             ['route' => 'purchases.index', 'permission' => 'purchases.view', 'icon' => 'journal-text', 'label' => __('Purchase history')],
+            ['route' => 'sale-returns.index', 'permission' => 'sale_returns.view', 'icon' => 'arrow-return-left', 'label' => __('Sale returns')],
+            ['route' => 'purchase-returns.index', 'permission' => 'purchase_returns.view', 'icon' => 'arrow-return-right', 'label' => __('Purchase returns')],
         ],
         __('Catalogue') => [
             ['route' => 'products.index', 'permission' => 'products.view', 'icon' => 'box-seam', 'label' => __('Products')],
@@ -25,6 +27,7 @@
             ['route' => 'users.index', 'permission' => 'users.view', 'icon' => 'person-badge', 'label' => __('Users')],
         ],
         __('Money') => [
+            ['route' => 'payments.index', 'permission' => 'payments.view', 'icon' => 'cash-coin', 'label' => __('Payments')],
             ['route' => 'expenses.index', 'permission' => 'expenses.view', 'icon' => 'cash-stack', 'label' => __('Expenses')],
             ['route' => 'reports.index', 'permission' => 'reports.view', 'icon' => 'graph-up', 'label' => __('Reports')],
         ],

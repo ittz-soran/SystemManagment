@@ -55,6 +55,18 @@ class SmokeTest extends TestCase
             route('purchases.create'),
             route('purchases.show', $purchase),
             route('profile.edit'),
+
+            route('sale-returns.index'),
+            route('sale-returns.create', $sale),
+            route('purchase-returns.index'),
+            route('purchase-returns.create', $purchase),
+
+            route('payments.index'),
+            route('payments.create', ['payable_type' => 'sale', 'payable_id' => $sale->id]),
+            route('payments.create', ['payable_type' => 'purchase', 'payable_id' => $purchase->id]),
+
+            route('sales.print', $sale),
+            route('purchases.print', $purchase),
         ];
 
         foreach ($pages as $url) {

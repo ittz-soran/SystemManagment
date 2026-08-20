@@ -3,11 +3,15 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
+use App\Http\Controllers\PrintController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -104,6 +108,47 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:purchases.create')->name('purchases.store');
     Route::get('purchases/{purchase}', [PurchaseController::class, 'show'])
         ->middleware('permission:purchases.view')->name('purchases.show');
+
+    // ---- Returns ---------------------------------------------------------
+    // Section 7: a return creates a new forward document, so it is never
+    // blocked by the edit lock.
+    Route::get('sale-returns', [SaleReturnController::class, 'index'])
+        ->middleware('permission:sale_returns.view')->name('sale-returns.index');
+    Route::get('sales/{sale}/return', [SaleReturnController::class, 'create'])
+        ->middleware('permission:sale_returns.create')->name('sale-returns.create');
+    Route::post('sales/{sale}/return', [SaleReturnController::class, 'store'])
+        ->middleware('permission:sale_returns.create')->name('sale-returns.store');
+    Route::get('sale-returns/{saleReturn}', [SaleReturnController::class, 'show'])
+        ->middleware('permission:sale_returns.view')->name('sale-returns.show');
+    Route::delete('sale-returns/{saleReturn}', [SaleReturnController::class, 'destroy'])
+        ->middleware('permission:sale_returns.delete')->name('sale-returns.destroy');
+
+    Route::get('purchase-returns', [PurchaseReturnController::class, 'index'])
+        ->middleware('permission:purchase_returns.view')->name('purchase-returns.index');
+    Route::get('purchases/{purchase}/return', [PurchaseReturnController::class, 'create'])
+        ->middleware('permission:purchase_returns.create')->name('purchase-returns.create');
+    Route::post('purchases/{purchase}/return', [PurchaseReturnController::class, 'store'])
+        ->middleware('permission:purchase_returns.create')->name('purchase-returns.store');
+    Route::get('purchase-returns/{purchaseReturn}', [PurchaseReturnController::class, 'show'])
+        ->middleware('permission:purchase_returns.view')->name('purchase-returns.show');
+
+    // ---- Money -----------------------------------------------------------
+    Route::get('payments', [PaymentController::class, 'index'])
+        ->middleware('permission:payments.view')->name('payments.index');
+    Route::get('payments/create', [PaymentController::class, 'create'])
+        ->middleware('permission:payments.create')->name('payments.create');
+    Route::post('payments', [PaymentController::class, 'store'])
+        ->middleware('permission:payments.create')->name('payments.store');
+
+    // ---- Printable documents (Section 9b) --------------------------------
+    Route::get('sales/{sale}/print', [PrintController::class, 'sale'])
+        ->middleware('permission:sales.view')->name('sales.print');
+    Route::get('purchases/{purchase}/print', [PrintController::class, 'purchase'])
+        ->middleware('permission:purchases.view')->name('purchases.print');
+    Route::get('sale-returns/{saleReturn}/print', [PrintController::class, 'saleReturn'])
+        ->middleware('permission:sale_returns.view')->name('sale-returns.print');
+    Route::get('purchase-returns/{purchaseReturn}/print', [PrintController::class, 'purchaseReturn'])
+        ->middleware('permission:purchase_returns.view')->name('purchase-returns.print');
 });
 
 require __DIR__.'/auth.php';

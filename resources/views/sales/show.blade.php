@@ -6,11 +6,22 @@
 @endsection
 
 @section('actions')
+    <a href="{{ route('sales.print', $sale) }}" class="btn btn-outline-secondary" target="_blank">
+        <i class="bi bi-printer me-1"></i>{{ __('Print') }}
+    </a>
+
+    @can('payments.create')
+        <a href="{{ route('payments.create', ['payable_type' => 'sale', 'payable_id' => $sale->id]) }}"
+           class="btn btn-outline-primary">
+            <i class="bi bi-cash-coin me-1"></i>{{ __('Record payment') }}
+        </a>
+    @endcan
+
     @can('sale_returns.create')
         {{-- Section 7: make RETURN the obvious action on the sale page; keep
-             edit tucked away. --}}
+             edit tucked away. Returns are never blocked by the edit lock. --}}
         @if($sale->status !== 'returned')
-            <a href="#" class="btn btn-primary disabled" aria-disabled="true">
+            <a href="{{ route('sale-returns.create', $sale) }}" class="btn btn-primary">
                 <i class="bi bi-arrow-return-left me-1"></i>{{ __('Return items') }}
             </a>
         @endif

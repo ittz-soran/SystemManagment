@@ -5,6 +5,27 @@
     {{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }} · {{ $purchase->supplier->name }}
 @endsection
 
+@section('actions')
+    <a href="{{ route('purchases.print', $purchase) }}" class="btn btn-outline-secondary" target="_blank">
+        <i class="bi bi-printer me-1"></i>{{ __('Print') }}
+    </a>
+
+    @can('payments.create')
+        <a href="{{ route('payments.create', ['payable_type' => 'purchase', 'payable_id' => $purchase->id]) }}"
+           class="btn btn-outline-primary">
+            <i class="bi bi-cash-coin me-1"></i>{{ __('Record payment') }}
+        </a>
+    @endcan
+
+    @can('purchase_returns.create')
+        @if($purchase->status !== 'returned')
+            <a href="{{ route('purchase-returns.create', $purchase) }}" class="btn btn-primary">
+                <i class="bi bi-arrow-return-left me-1"></i>{{ __('Return to supplier') }}
+            </a>
+        @endif
+    @endcan
+@endsection
+
 @section('content')
     <x-lock-banner :state="$lockState" />
 

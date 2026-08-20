@@ -66,10 +66,19 @@ class Purchase extends Model
             ->where('source_id', $this->id);
     }
 
-    /** Section 4: amount due = grand_total - SUM(amount WHERE direction = 'in'). */
+    /**
+     * What has been paid to the supplier so far.
+     *
+     * Section 4 gives the amount-due formula as
+     * `grand_total - SUM(amount WHERE direction = 'in')`, but that sentence
+     * describes the sale side. The same section also says `direction = out` is
+     * "money leaving the till — a cash refund to a customer, or paying a
+     * supplier", so on a purchase the settling payments are the outbound ones.
+     * Reading `in` here would report every supplier payment as cash arriving.
+     */
     public function amountPaid(): int
     {
-        return (int) $this->payments()->where('direction', Payment::DIRECTION_IN)->sum('amount');
+        return (int) $this->payments()->where('direction', Payment::DIRECTION_OUT)->sum('amount');
     }
 
     public function amountDue(): int
