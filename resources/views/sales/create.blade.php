@@ -1,6 +1,15 @@
 @extends('layouts.app')
 
-@section('title', __('New sale'))
+@php
+    // The edit screen is this same cart with the sale's lines preloaded and the
+    // payment fields hidden — Section 8 keeps payments untouched by an edit.
+    $editing = isset($sale);
+@endphp
+
+@section('title', $editing ? __('Edit sale') : __('New sale'))
+@if($editing)
+    @section('subheading', $sale->document_no)
+@endif
 
 @section('content')
     {{--
@@ -10,8 +19,10 @@
         Layout: product search on top, cart table in the middle, totals panel on
         the right (left in RTL), action buttons fixed at the bottom.
     --}}
-    <form action="{{ route('sales.store') }}" method="POST" id="sale-form" data-guard-submit>
+    <form action="{{ $editing ? route('sales.update', $sale) : route('sales.store') }}"
+          method="POST" id="sale-form" data-guard-submit>
         @csrf
+        @if($editing) @method('PUT') @endif
 
         <div class="row g-3">
             <div class="col-lg-8">
@@ -62,7 +73,7 @@
                                 @foreach($customers as $customer)
                                     <option value="{{ $customer->id }}"
                                             data-system="{{ $customer->is_system ? '1' : '0' }}"
-                                            @selected(old('customer_id', $cashCustomer->id) == $customer->id)>
+                                            @selected(old('customer_id', $editing ? $sale->customer_id : $cashCustomer->id) == $customer->id)>
                                         {{ $customer->displayName() }}@if(! $customer->is_system && $customer->balance > 0)
                                             — {{ __('owes :amount', ['amount' => money($customer->balance)]) }}
                                         @endif
@@ -79,7 +90,7 @@
                         <div class="mb-3">
                             <label for="sale_date" class="form-label">{{ __('Date') }}</label>
                             <input id="sale_date" type="date" name="sale_date" class="form-control"
-                                   value="{{ old('sale_date', today()->toDateString()) }}" required>
+                                   value="{{ old('sale_date', $editing ? $sale->sale_date->toDateString() : today()->toDateString()) }}" required>
                         </div>
                     </div>
                 </div>
@@ -92,6 +103,11 @@
                         <div class="text-secondary small">{{ __('Total') }}</div>
                         <div class="running-total mb-3" id="running-total">0</div>
 
+                        @if($editing)
+                            <div class="alert alert-secondary py-2 small mb-0">
+                                {{ __('Payments are not changed by an edit. The new total must still cover the :paid already paid.', ['paid' => money($sale->amountPaid())]) }}
+                            </div>
+                        @else
                         <div class="mb-3">
                             <label for="amount_paid" class="form-label">{{ __('Paid now') }}</label>
                             <div class="input-group">
@@ -112,6 +128,7 @@
                                 <option value="transfer">{{ __('Transfer') }}</option>
                             </select>
                         </div>
+                        @endif
                     </div>
                 </div>
 
@@ -120,9 +137,10 @@
                 <div class="d-grid gap-2 position-sticky" style="bottom: 1rem">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-sale" disabled
                             data-submitting-text="{{ __('Saving…') }}">
-                        {{ __('Save sale') }} <kbd class="ms-1">F2</kbd>
+                        {{ $editing ? __('Save changes') : __('Save sale') }} <kbd class="ms-1">F2</kbd>
                     </button>
-                    <a href="{{ route('sales.index') }}" class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
+                    <a href="{{ $editing ? route('sales.show', $sale) : route('sales.index') }}"
+                       class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
         </div>
@@ -145,7 +163,9 @@
             const saveButton = document.getElementById('save-sale');
             const customerSelect = document.getElementById('customer_id');
 
-            const cart = [];
+            // Section 8: an edit starts from the sale's current lines.
+            const cart = @json($cartLines ?? []);
+
             let highlighted = -1;
             let searchTimer = null;
 
@@ -202,6 +222,9 @@
             }
 
             function updateDue(total) {
+                // An edit has no payment fields — Section 8 leaves payments alone.
+                if (! paidInput) return;
+
                 const paid = Number(paidInput.value || 0);
                 const due = total - paid;
                 dueNote.textContent = due > 0
@@ -347,22 +370,24 @@
                 searchInput.focus();
             });
 
-            paidInput.addEventListener('input', () => {
-                updateDue(cart.reduce((sum, l) => sum + l.quantity * l.price, 0));
-            });
+            if (paidInput) {
+                paidInput.addEventListener('input', () => {
+                    updateDue(cart.reduce((sum, l) => sum + l.quantity * l.price, 0));
+                });
 
-            document.getElementById('pay-full').addEventListener('click', () => {
-                paidInput.value = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
-                paidInput.dispatchEvent(new Event('input'));
-            });
+                document.getElementById('pay-full').addEventListener('click', () => {
+                    paidInput.value = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
+                    paidInput.dispatchEvent(new Event('input'));
+                });
 
-            // The Cash Customer must be paid in full, so paying in full is
-            // pre-filled when it is selected.
-            customerSelect.addEventListener('change', () => {
-                if (customerSelect.selectedOptions[0]?.dataset.system === '1') {
-                    document.getElementById('pay-full').click();
-                }
-            });
+                // The Cash Customer must be paid in full, so paying in full is
+                // pre-filled when it is selected.
+                customerSelect.addEventListener('change', () => {
+                    if (customerSelect.selectedOptions[0]?.dataset.system === '1') {
+                        document.getElementById('pay-full').click();
+                    }
+                });
+            }
 
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'F2' && ! saveButton.disabled) {

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Blade;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
@@ -120,15 +121,13 @@ class TranslationsCheck extends Command
 
                 $code = file_get_contents($file->getPathname());
 
-                // Both __() and trans_choice(): a pluralised string is just as
-                // much a piece of interface text, and missing it here would let
-                // "3 products moved" ship untranslated with nothing to warn us.
-                preg_match_all("/(?:__|trans_choice)\(\s*'((?:[^'\\\\]|\\\\.)*)'/", $code, $single);
-                preg_match_all('/(?:__|trans_choice)\(\s*"((?:[^"\\\\]|\\\\.)*)"/', $code, $double);
+                // A Blade template's {{ __('…') }} sits in inline HTML, which
+                // the tokeniser skips over, so compile it to PHP first.
+                if (str_ends_with($file->getFilename(), '.blade.php')) {
+                    $code = Blade::compileString($code);
+                }
 
-                foreach (array_merge($single[1], $double[1]) as $match) {
-                    $key = stripcslashes($match);
-
+                foreach ($this->keysIn($code) as $key) {
                     // Dot notation means a PHP lang file — __('auth.password')
                     // resolves from lang/{locale}/auth.php, not from the JSON,
                     // so collecting it here would create a key that never matches.
@@ -145,5 +144,96 @@ class TranslationsCheck extends Command
         sort($keys, SORT_NATURAL | SORT_FLAG_CASE);
 
         return $keys;
+    }
+
+    /**
+     * Both __() and trans_choice(): a pluralised string is just as much a piece
+     * of interface text, and missing it here would let "3 products moved" ship
+     * untranslated with nothing to warn us.
+     *
+     * Tokenised rather than matched with a regex, because a long plural message
+     * is normally written as two literals joined across lines:
+     *
+     *     trans_choice('{1}One thing.'
+     *         .'|[2,*]:count things.', $n)
+     *
+     * A regex reads only the first piece, so the plural branch would silently
+     * never reach the lang files and would fall back to English.
+     *
+     * @return list<string>
+     */
+    private function keysIn(string $code): array
+    {
+        $keys = [];
+        $tokens = token_get_all($code);
+        $count = count($tokens);
+        $skip = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+
+        for ($i = 0; $i < $count; $i++) {
+            $token = $tokens[$i];
+
+            if (! is_array($token) || ! in_array($token[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true)) {
+                continue;
+            }
+
+            if (! in_array(ltrim($token[1], '\\'), ['__', 'trans_choice'], true)) {
+                continue;
+            }
+
+            $j = $i + 1;
+
+            while ($j < $count && is_array($tokens[$j]) && in_array($tokens[$j][0], $skip, true)) {
+                $j++;
+            }
+
+            if ($j >= $count || $tokens[$j] !== '(') {
+                continue;
+            }
+
+            // Read the first argument: one literal, or several joined by ".".
+            $parts = [];
+            $expect = 'string';
+
+            for ($j++; $j < $count; $j++) {
+                $part = $tokens[$j];
+
+                if (is_array($part) && in_array($part[0], $skip, true)) {
+                    continue;
+                }
+
+                if ($expect === 'string' && is_array($part) && $part[0] === T_CONSTANT_ENCAPSED_STRING) {
+                    $parts[] = $this->unquote($part[1]);
+                    $expect = 'operator';
+
+                    continue;
+                }
+
+                if ($expect === 'operator' && $part === '.') {
+                    $expect = 'string';
+
+                    continue;
+                }
+
+                break;
+            }
+
+            // $expect is still 'string' when the argument ended on a "." — the
+            // rest is built at runtime, so there is no literal key to collect.
+            if ($parts !== [] && $expect === 'operator') {
+                $keys[] = implode('', $parts);
+            }
+        }
+
+        return $keys;
+    }
+
+    /** Strip the quotes and undo the escapes PHP itself would have undone. */
+    private function unquote(string $literal): string
+    {
+        $body = substr($literal, 1, -1);
+
+        return $literal[0] === "'"
+            ? strtr($body, ["\\'" => "'", '\\\\' => '\\'])
+            : stripcslashes($body);
     }
 }

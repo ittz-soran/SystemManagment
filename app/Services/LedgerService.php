@@ -110,6 +110,48 @@ class LedgerService
         return $mismatches;
     }
 
+    /**
+     * Undo everything a document ever posted to an account.
+     *
+     * Reads what was *actually applied* rather than recomputing what should
+     * have been. A balance floors at zero, so a posting of -30,000 against a
+     * balance of 20,000 only ever applied -20,000; reversing the intended
+     * figure would invent 10,000 out of nowhere. Section 8's edit and
+     * Section 8b's soft delete both need this, and so does deleting a return.
+     *
+     * @return int the amount put back
+     */
+    public function reverseDocument(
+        Customer|Supplier $account,
+        Model $reference,
+        User $user,
+        ?string $notes = null,
+    ): int {
+        $this->assertInTransaction();
+
+        $applied = (int) AccountTransaction::query()
+            ->where('accountable_type', $account instanceof Customer ? 'customer' : 'supplier')
+            ->where('accountable_id', $account->id)
+            ->where('reference_type', $this->referenceType($reference))
+            ->where('reference_id', $reference->getKey())
+            ->sum('amount');
+
+        if ($applied === 0) {
+            return 0;
+        }
+
+        $this->post(
+            account: $account,
+            type: AccountTransaction::TYPE_REFUND,
+            amount: -$applied,
+            reference: $reference,
+            user: $user,
+            notes: $notes ?? __('Reversal of :document', ['document' => $reference->document_no]),
+        );
+
+        return $applied;
+    }
+
     private function referenceType(Model $reference): string
     {
         return match ($reference::class) {

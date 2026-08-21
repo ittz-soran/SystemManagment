@@ -1,9 +1,16 @@
-@props(['view' => null, 'edit' => null, 'state' => null, 'delete' => null, 'deleteLabel' => null])
+@props(['view' => null, 'edit' => null, 'state' => null, 'deleteState' => null, 'delete' => null, 'deleteLabel' => null])
 
 {{-- Section 9b: "View always; Edit/Delete only when unlocked — otherwise render
      them disabled with the lock reason as a tooltip. Never hide them, or Soran
      will think the feature is missing." --}}
-@php $locked = $state && ! $state['allowed']; @endphp
+@php
+    $locked = $state && ! $state['allowed'];
+
+    // Delete can be locked when edit is not — a purchase whose stock has been
+    // sold may still be corrected, but no longer removed.
+    $deleteState ??= $state;
+    $deleteLocked = $deleteState && ! $deleteState['allowed'];
+@endphp
 
 <div class="btn-group btn-group-sm">
     @if($view)
@@ -25,8 +32,8 @@
     @endif
 
     @if($delete)
-        @if($locked)
-            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $state['reason'] }}">
+        @if($deleteLocked)
+            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $deleteState['reason'] }}">
                 <button class="btn btn-outline-danger" disabled><i class="bi bi-trash"></i></button>
             </span>
         @else

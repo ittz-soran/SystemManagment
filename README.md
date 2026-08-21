@@ -53,3 +53,22 @@ is an assertion drawn from the project doc, and it is the gate before go-live.
 
 > **One caveat:** `lockForUpdate()` is a silent no-op on SQLite, so the concurrency test
 > proves nothing when run there. Run that one against real MySQL before go-live.
+
+## Backups
+
+Financial records are the shop's only proof of who owes what, so this is not optional
+setup. Two things need doing on the server, and both are five minutes:
+
+```bash
+# 1. Point the off-machine copy at a disk that is not this one.
+BACKUP_REMOTE_PATH=/mnt/backup-drive/store-management
+
+# 2. Give Laravel's scheduler its crontab line, or nothing ever fires.
+* * * * * cd /var/www/store-management && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Then `php artisan backup:run` once by hand, and check the Settings page shows it.
+
+**[docs/BACKUP.md](docs/BACKUP.md)** has the rest: retention, restoring with
+`php artisan backup:restore`, and the restore drill to run before go-live. An untested
+backup is not a backup.

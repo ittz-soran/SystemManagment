@@ -71,7 +71,6 @@ class TranslationTest extends TestCase
     {
         $samples = [
             'Not enough stock: :count available.' => [':count'],
-            'Locked: :count units from this purchase have already been used.' => [':count'],
             'Only :count left to return on that line.' => [':count'],
             'Stock cache mismatch: the product row says :cached, the batches say :batches, and the movements say :movements. The batches are the truth.' => [':cached', ':batches', ':movements'],
             'Delete :document? Stock will drop by :units units and the refund will be undone.' => [':document', ':units'],
@@ -98,6 +97,50 @@ class TranslationTest extends TestCase
                 }
             }
         }
+    }
+
+    /**
+     * A long plural message is normally written as two literals joined across
+     * lines. The extractor collected only the first one for a while, so the
+     * plural branch never reached the lang files and quietly fell back to
+     * English the moment a count reached two.
+     */
+    public function test_both_branches_of_a_pluralised_message_are_translated(): void
+    {
+        $sources = [
+            '{1}Locked: :count unit from this purchase has already been used.'
+            .'|[2,*]Locked: :count units from this purchase have already been used.',
+
+            '{1}Cannot undo this: :count unit that came back has since been sold or written off. Return it to stock first, or correct it with a stock adjustment.'
+            .'|[2,*]Cannot undo this: :count units that came back have since been sold or written off. Return them to stock first, or correct it with a stock adjustment.',
+        ];
+
+        foreach (self::TRANSLATED as $language) {
+            foreach ($sources as $source) {
+                foreach ([1, 5] as $count) {
+                    $rendered = trans_choice($source, $count, ['count' => $count], $language);
+
+                    $this->assertStringNotContainsString(
+                        'Locked:',
+                        $rendered,
+                        "[{$language}] left an English branch for :count = {$count}"
+                    );
+
+                    $this->assertStringNotContainsString('Cannot undo this:', $rendered);
+                    $this->assertStringContainsString((string) $count, $rendered);
+                }
+            }
+        }
+    }
+
+    /** The extractor must see a Blade template's strings, not just PHP's. */
+    public function test_a_string_only_a_blade_template_uses_is_collected(): void
+    {
+        // Only resources/views/sales/index.blade.php says this.
+        $this->assertArrayHasKey(
+            'No sales yet. Create your first sale.',
+            json_decode(file_get_contents(lang_path('ckb.json')), true),
+        );
     }
 
     /** The framework's own auth messages need files too, or they show as keys. */
