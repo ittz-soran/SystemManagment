@@ -88,8 +88,8 @@ class BackupService
 
         $remote = $this->copyOffMachine($path, $warnings);
 
-        $this->prune('daily', (int) config('backup.keep_daily', 30));
-        $this->prune('monthly', (int) config('backup.keep_monthly', 12));
+        $this->prune('daily', $this->keep('daily'));
+        $this->prune('monthly', $this->keep('monthly'));
 
         $this->record($startedAt, $path, $bytes, $warnings === [] ? 'ok' : 'warning');
 
@@ -148,9 +148,39 @@ class BackupService
     /** Where the off-machine copy goes, or null when nobody has configured one. */
     public function remotePath(): ?string
     {
-        $path = config('backup.remote');
+        $path = setting('backup_remote_path', config('backup.remote'));
 
         return is_string($path) && $path !== '' ? $path : null;
+    }
+
+    /**
+     * Section 8b: "Retain 30 daily and 12 monthly copies."
+     *
+     * The Settings page owns these now, so an admin can keep more history on a
+     * big drive without editing a file on the server. config/backup.php stays
+     * the fallback for a fresh install whose settings table is not seeded yet.
+     */
+    public function keep(string $kind): int
+    {
+        $default = (int) config('backup.keep_'.$kind, $kind === 'daily' ? 30 : 12);
+
+        return max(1, (int) setting('backup_keep_'.$kind, $default));
+    }
+
+    /** Daily or weekly, and at what time — read by the scheduler. */
+    public function isWeekly(): bool
+    {
+        return setting('backup_frequency', 'daily') === 'weekly';
+    }
+
+    public function scheduledTime(): string
+    {
+        return (string) setting('backup_time', config('backup.schedule', '02:15'));
+    }
+
+    public function scheduledWeekday(): int
+    {
+        return (int) setting('backup_weekday', 5);
     }
 
     public function humanSize(int $bytes): string
@@ -565,7 +595,9 @@ class BackupService
 
     private function directory(string $kind): string
     {
-        $path = rtrim((string) config('backup.local'), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$kind;
+        $base = (string) setting('backup_path', config('backup.local'));
+
+        $path = rtrim($base, '/\\').DIRECTORY_SEPARATOR.$kind;
 
         if (! is_dir($path)) {
             mkdir($path, 0755, true);

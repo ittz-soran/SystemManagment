@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Rules\WritableDirectory;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
 use Database\Seeders\SettingSeeder;
@@ -40,6 +41,13 @@ class SettingController extends Controller
         'low_stock_threshold', 'sku_prefix', 'date_format',
     ];
 
+    /** Section 8b — how, when and where backups run. */
+    private const BACKUP_KEYS = [
+        'backup_frequency', 'backup_time', 'backup_weekday',
+        'backup_path', 'backup_remote_path',
+        'backup_keep_daily', 'backup_keep_monthly',
+    ];
+
     /**
      * Section 8c: "Offer a short vetted list rather than a free-text box."
      * All four render Latin and Arabic script well, so the interface never
@@ -55,6 +63,19 @@ class SettingController extends Controller
 
     public function __construct(private ActivityLogger $logger) {}
 
+    /**
+     * Carbon's day numbering, which is what Schedule::weeklyOn() takes.
+     *
+     * @return array<int, string>
+     */
+    public static function weekdays(): array
+    {
+        return [
+            0 => __('Sunday'), 1 => __('Monday'), 2 => __('Tuesday'), 3 => __('Wednesday'),
+            4 => __('Thursday'), 5 => __('Friday'), 6 => __('Saturday'),
+        ];
+    }
+
     public function edit(): View
     {
         $backups = app(BackupService::class);
@@ -63,7 +84,9 @@ class SettingController extends Controller
             'shopKeys' => self::SHOP_KEYS,
             'appearanceKeys' => self::APPEARANCE_KEYS,
             'operationalKeys' => self::OPERATIONAL_KEYS,
+            'backupKeys' => self::BACKUP_KEYS,
             'fonts' => self::FONTS,
+            'weekdays' => self::weekdays(),
             // Section 8c lists backup status on this page: the last backup time
             // and a manual "Back up now" button.
             'lastBackupAt' => $backups->lastRunAt(),
@@ -99,6 +122,15 @@ class SettingController extends Controller
             'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'sku_prefix' => ['required', 'string', 'max:8'],
             'date_format' => ['required', 'string', 'max:32'],
+
+            'backup_frequency' => ['required', 'in:daily,weekly'],
+            'backup_time' => ['required', 'date_format:H:i'],
+            'backup_weekday' => ['required', 'integer', 'between:0,6'],
+            // Checked now rather than at 02:15 by a cron job nobody is watching.
+            'backup_path' => ['nullable', 'string', 'max:255', new WritableDirectory],
+            'backup_remote_path' => ['nullable', 'string', 'max:255', new WritableDirectory],
+            'backup_keep_daily' => ['required', 'integer', 'min:1', 'max:3650'],
+            'backup_keep_monthly' => ['required', 'integer', 'min:1', 'max:120'],
 
             // Section 8c: store logos as files with only the path in settings —
             // never base64 in the database.

@@ -37,9 +37,14 @@ class BackupTest extends TestCase
         config([
             'backup.local' => $this->local,
             'backup.remote' => $this->remote,
-            'backup.keep_daily' => 3,
-            'backup.keep_monthly' => 2,
         ]);
+
+        // Section 8c: the Settings page owns retention now, and the seeder has
+        // already written the shipped defaults, so these are set the same way
+        // an admin would set them.
+        Setting::put('backup_keep_daily', 3);
+        Setting::put('backup_keep_monthly', 2);
+        Setting::flushCache();
     }
 
     protected function tearDown(): void
@@ -77,6 +82,8 @@ class BackupTest extends TestCase
     public function test_it_warns_when_no_off_machine_copy_is_configured(): void
     {
         config(['backup.remote' => null]);
+        Setting::put('backup_remote_path', null);
+        Setting::flushCache();
 
         $result = app(BackupService::class)->run();
 
@@ -295,12 +302,142 @@ class BackupTest extends TestCase
         $this->assertSame('php', $this->tool('mysql', 'php'));
     }
 
+    /**
+     * Section 8c: an admin changes these from the Settings page, so the setting
+     * has to beat the .env default rather than the other way round.
+     */
+    public function test_the_settings_page_values_beat_the_env_defaults(): void
+    {
+        config(['backup.keep_daily' => 30, 'backup.keep_monthly' => 12, 'backup.remote' => '/from/env']);
+
+        Setting::put('backup_keep_daily', 7);
+        Setting::put('backup_keep_monthly', 4);
+        Setting::put('backup_remote_path', $this->remote);
+        Setting::flushCache();
+
+        $backups = app(BackupService::class);
+
+        $this->assertSame(7, $backups->keep('daily'));
+        $this->assertSame(4, $backups->keep('monthly'));
+        $this->assertSame($this->remote, $backups->remotePath());
+
+        // And an unset one still falls back to .env.
+        Setting::put('backup_remote_path', null);
+        Setting::flushCache();
+
+        $this->assertSame('/from/env', $backups->remotePath());
+    }
+
+    public function test_the_backup_folder_follows_the_setting(): void
+    {
+        $elsewhere = storage_path('framework/testing/chosen-'.uniqid());
+
+        Setting::put('backup_path', $elsewhere);
+        Setting::flushCache();
+
+        try {
+            $path = app(BackupService::class)->run()['path'];
+
+            $this->assertStringStartsWith($elsewhere, $path);
+            $this->assertFileExists($path);
+        } finally {
+            $this->deleteTree($elsewhere);
+        }
+    }
+
+    /** Section 8c: daily or weekly is an admin choice, and the scheduler reads it. */
+    public function test_the_schedule_follows_the_frequency_setting(): void
+    {
+        $this->assertFalse(app(BackupService::class)->isWeekly());
+
+        Setting::put('backup_frequency', 'weekly');
+        Setting::put('backup_weekday', 5);
+        Setting::put('backup_time', '23:30');
+        Setting::flushCache();
+
+        $backups = app(BackupService::class);
+
+        $this->assertTrue($backups->isWeekly());
+        $this->assertSame(5, $backups->scheduledWeekday());
+        $this->assertSame('23:30', $backups->scheduledTime());
+    }
+
+    /** A folder that cannot be written to is refused at save time, not at 02:15. */
+    public function test_an_unwritable_backup_folder_is_refused_when_saved(): void
+    {
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->from(route('settings.edit'))
+            ->put(route('settings.update'), $this->settingsPayload([
+                'backup_path' => '/proc/nope/definitely-not-writable',
+            ]))
+            ->assertSessionHasErrors('backup_path');
+
+        $this->assertNull(setting('backup_path'));
+    }
+
+    public function test_the_backup_schedule_can_be_saved_from_the_settings_page(): void
+    {
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->put(route('settings.update'), $this->settingsPayload([
+                'backup_frequency' => 'weekly',
+                'backup_weekday' => 5,
+                'backup_time' => '23:45',
+                'backup_keep_daily' => 14,
+                'backup_keep_monthly' => 6,
+                'backup_remote_path' => $this->remote,
+            ]))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        Setting::flushCache();
+
+        $backups = app(BackupService::class);
+
+        $this->assertTrue($backups->isWeekly());
+        $this->assertSame('23:45', $backups->scheduledTime());
+        $this->assertSame(14, $backups->keep('daily'));
+        $this->assertSame(6, $backups->keep('monthly'));
+    }
+
     public function test_the_schedule_has_a_nightly_backup(): void
     {
         $events = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())
             ->filter(fn ($event) => str_contains($event->command ?? '', 'backup:run'));
 
         $this->assertCount(1, $events, 'Section 8b asks for a nightly backup on a cron schedule');
+    }
+
+    /**
+     * The settings form saves every layer at once, so a test that changes one
+     * field still has to post the rest.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function settingsPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'shop_name' => 'Soran Store',
+            'primary_color' => '#0d6efd',
+            'secondary_color' => '#6c757d',
+            'font_family' => 'system-ui, sans-serif',
+            'sidebar_style' => 'expanded',
+            'default_theme' => 'light',
+            'timezone' => 'Asia/Baghdad',
+            'usd_rate' => 1320,
+            'low_stock_threshold' => 5,
+            'sku_prefix' => 'SS',
+            'date_format' => 'Y-m-d',
+            'backup_frequency' => 'daily',
+            'backup_time' => '02:15',
+            'backup_weekday' => 5,
+            'backup_keep_daily' => 30,
+            'backup_keep_monthly' => 12,
+        ], $overrides);
     }
 
     /** BackupService::tool() is private; this is the only way to reach it. */

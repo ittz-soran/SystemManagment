@@ -210,24 +210,20 @@
             </div>
         </div>
 
-        <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary" data-submitting-text="{{ __('Saving…') }}">
-                {{ __('Save settings') }}
-            </button>
-        </div>
-    </form>
 
-    {{-- Section 8c: "Backup status — last backup time and a manual 'Back up now'
-         button." Section 8b is the reason it is on this page at all: financial
-         records are the shop's only proof of who owes what. --}}
-    <div class="card mt-4">
-        <div class="card-header d-flex align-items-center gap-2">
-            <i class="bi bi-hdd"></i>{{ __('Backups') }}
-        </div>
-        <div class="card-body">
-            <div class="row g-3 align-items-center">
-                <div class="col-md-8">
-                    <div class="mb-2">
+        {{-- Section 8c: "Backup status — last backup time and a manual 'Back up
+             now' button." Section 8b is the reason it is on this page at all:
+             financial records are the shop's only proof of who owes what.
+
+             The schedule and the folders live here too, so a shopkeeper can
+             change them without a developer editing .env on the server. --}}
+        <div class="card mt-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-hdd"></i>{{ __('Backups') }}
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <div>
                         <span class="text-secondary">{{ __('Last backup') }}:</span>
                         @if($lastBackupAt)
                             <span class="fw-semibold" dir="ltr">{{ $lastBackupAt->format(setting('date_format', 'Y-m-d')).' '.$lastBackupAt->format('H:i') }}</span>
@@ -238,51 +234,121 @@
                         @else
                             <span class="badge text-bg-danger">{{ __('Never') }}</span>
                         @endif
-                    </div>
 
-                    <div class="small text-secondary">
-                        {{ __('Nightly at :time, keeping :daily daily and :monthly monthly copies.', [
-                            'time' => config('backup.schedule'),
-                            'daily' => config('backup.keep_daily'),
-                            'monthly' => config('backup.keep_monthly'),
-                        ]) }}
-                        {{ __('There are :daily daily and :monthly monthly copies now.', [
-                            'daily' => $dailyCopies,
-                            'monthly' => $monthlyCopies,
-                        ]) }}
-                    </div>
-
-                    @if($backupRemote)
-                        <div class="small text-secondary" dir="ltr">{{ $backupRemote }}</div>
-                    @else
-                        {{-- Section 8b: "a dead disk should not take both." --}}
-                        <div class="small text-warning mt-1">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            {{ __('Backups are being kept on the same disk as the database. Set BACKUP_REMOTE_PATH to a drive or share that is not this machine.') }}
+                        <div class="small text-secondary">
+                            {{ __('There are :daily daily and :monthly monthly copies now.', [
+                                'daily' => $dailyCopies,
+                                'monthly' => $monthlyCopies,
+                            ]) }}
                         </div>
-                    @endif
+                    </div>
+
+                    {{-- Its own form, referenced by id: a form cannot be nested
+                         inside another, and pressing this must not discard
+                         whatever is half-typed in the fields below. --}}
+                    <button type="submit" form="backup-now" class="btn btn-outline-primary" id="backup-now-button"
+                            data-submitting-text="{{ __('Backing up… this can take a minute.') }}">
+                        <i class="bi bi-download me-1"></i>{{ __('Back up now') }}
+                    </button>
                 </div>
 
-                <div class="col-md-4 text-md-end">
-                    <form action="{{ route('settings.backup') }}" method="POST" data-guard-submit>
-                        @csrf
-                        <button type="submit" class="btn btn-outline-primary"
-                                data-submitting-text="{{ __('Backing up… this can take a minute.') }}">
-                            <i class="bi bi-download me-1"></i>{{ __('Back up now') }}
-                        </button>
-                    </form>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="backup_frequency" class="form-label">{{ __('How often') }}</label>
+                        <select id="backup_frequency" name="backup_frequency" class="form-select">
+                            <option value="daily" @selected(old('backup_frequency', setting('backup_frequency', 'daily')) === 'daily')>
+                                {{ __('Every night') }}
+                            </option>
+                            <option value="weekly" @selected(old('backup_frequency', setting('backup_frequency', 'daily')) === 'weekly')>
+                                {{ __('Once a week') }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="backup_time" class="form-label">{{ __('At') }}</label>
+                        <input id="backup_time" type="time" name="backup_time" class="form-control @error('backup_time') is-invalid @enderror" dir="ltr"
+                               value="{{ old('backup_time', setting('backup_time', '02:15')) }}" required>
+                        @error('backup_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('In the shop\'s timezone, :zone.', ['zone' => setting('timezone', config('app.timezone'))]) }}</div>
+                    </div>
+
+                    <div class="col-md-4" id="backup-weekday-field">
+                        <label for="backup_weekday" class="form-label">{{ __('On') }}</label>
+                        <select id="backup_weekday" name="backup_weekday" class="form-select">
+                            @foreach($weekdays as $value => $label)
+                                <option value="{{ $value }}" @selected((int) old('backup_weekday', setting('backup_weekday', 5)) === $value)>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="backup_keep_daily" class="form-label">{{ __('Daily copies to keep') }}</label>
+                        <input id="backup_keep_daily" type="number" min="1" max="3650" name="backup_keep_daily"
+                               class="form-control text-end @error('backup_keep_daily') is-invalid @enderror" dir="ltr"
+                               value="{{ old('backup_keep_daily', setting('backup_keep_daily', config('backup.keep_daily'))) }}" required>
+                        @error('backup_keep_daily')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="backup_keep_monthly" class="form-label">{{ __('Monthly copies to keep') }}</label>
+                        <input id="backup_keep_monthly" type="number" min="1" max="120" name="backup_keep_monthly"
+                               class="form-control text-end @error('backup_keep_monthly') is-invalid @enderror" dir="ltr"
+                               value="{{ old('backup_keep_monthly', setting('backup_keep_monthly', config('backup.keep_monthly'))) }}" required>
+                        @error('backup_keep_monthly')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('The first backup of each month is kept as that month\'s copy.') }}</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="backup_path" class="form-label">{{ __('Backup folder') }}</label>
+                        <input id="backup_path" name="backup_path" class="form-control @error('backup_path') is-invalid @enderror" dir="ltr"
+                               placeholder="{{ config('backup.local') }}"
+                               value="{{ old('backup_path', setting('backup_path')) }}">
+                        @error('backup_path')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('Leave blank for the default folder inside the app.') }}</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="backup_remote_path" class="form-label">{{ __('Off-machine folder') }}</label>
+                        <input id="backup_remote_path" name="backup_remote_path" class="form-control @error('backup_remote_path') is-invalid @enderror" dir="ltr"
+                               placeholder="D:/backups/store"
+                               value="{{ old('backup_remote_path', setting('backup_remote_path', config('backup.remote'))) }}">
+                        @error('backup_remote_path')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+                        @if($backupRemote)
+                            <div class="form-text">{{ __('Every backup is copied here as well.') }}</div>
+                        @else
+                            {{-- Section 8b: "a dead disk should not take both." --}}
+                            <div class="form-text text-warning">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                {{ __('Backups are being kept on the same disk as the database. Point this at a drive or share that is not this machine.') }}
+                            </div>
+                        @endif
+                    </div>
                 </div>
-            </div>
 
-            <hr>
+                <hr>
 
-            <div class="small text-secondary">
-                {{-- Section 8b: "An untested backup is not a backup." --}}
-                {{ __('Restoring is a command on the server. Test it before go-live and every few months after — an untested backup is not a backup.') }}
-                <code class="ms-1" dir="ltr">php artisan backup:restore</code>
+                <div class="small text-secondary">
+                    {{-- Section 8b: "An untested backup is not a backup." --}}
+                    {{ __('Restoring is a command on the server. Test it before go-live and every few months after — an untested backup is not a backup.') }}
+                    <code class="ms-1" dir="ltr">php artisan backup:restore</code>
+                </div>
             </div>
         </div>
-    </div>
+
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary" data-submitting-text="{{ __('Saving…') }}">
+                {{ __('Save settings') }}
+            </button>
+        </div>
+    </form>
+
+    <form action="{{ route('settings.backup') }}" method="POST" id="backup-now" class="d-none">
+        @csrf
+    </form>
 
     <div class="card mt-4">
         <div class="card-body d-flex justify-content-between align-items-center">
@@ -298,3 +364,34 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const frequency = document.getElementById('backup_frequency');
+            const weekday = document.getElementById('backup-weekday-field');
+            const button = document.getElementById('backup-now-button');
+
+            // Which day only means anything for a weekly backup.
+            const sync = () => weekday.classList.toggle('invisible', frequency.value !== 'weekly');
+
+            frequency.addEventListener('change', sync);
+            sync();
+
+            // Section 9b: long actions show progress, not a frozen screen. The
+            // shared guard cannot do this one, because the button lives outside
+            // the form it submits.
+            button.addEventListener('click', (event) => {
+                // The form= attribute would submit it natively too; disabling
+                // the button first would then cancel that submission, so this
+                // takes over the whole job.
+                event.preventDefault();
+
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>'
+                    + button.dataset.submittingText;
+                document.getElementById('backup-now').requestSubmit();
+            });
+        })();
+    </script>
+@endpush

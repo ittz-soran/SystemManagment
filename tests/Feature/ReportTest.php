@@ -155,6 +155,13 @@ class ReportTest extends TestCase
             'low_stock_threshold' => 3,
             'sku_prefix' => 'XX',
             'date_format' => 'd/m/Y',
+            // Section 8c: the backup schedule is on this page too, and the form
+            // posts every layer at once.
+            'backup_frequency' => 'daily',
+            'backup_time' => '02:15',
+            'backup_weekday' => 5,
+            'backup_keep_daily' => 30,
+            'backup_keep_monthly' => 12,
         ])->assertSessionHas('success');
 
         $this->assertSame('New Name', setting('shop_name'), 'The helper sees the new value immediately');
