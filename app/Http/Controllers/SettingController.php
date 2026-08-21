@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use App\Services\ActivityLogger;
+use App\Services\BackupService;
 use Database\Seeders\SettingSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,11 +57,19 @@ class SettingController extends Controller
 
     public function edit(): View
     {
+        $backups = app(BackupService::class);
+
         return view('settings.edit', [
             'shopKeys' => self::SHOP_KEYS,
             'appearanceKeys' => self::APPEARANCE_KEYS,
             'operationalKeys' => self::OPERATIONAL_KEYS,
             'fonts' => self::FONTS,
+            // Section 8c lists backup status on this page: the last backup time
+            // and a manual "Back up now" button.
+            'lastBackupAt' => $backups->lastRunAt(),
+            'backupRemote' => $backups->remotePath(),
+            'dailyCopies' => count($backups->copies('daily')),
+            'monthlyCopies' => count($backups->copies('monthly')),
         ]);
     }
 
@@ -126,6 +135,33 @@ class SettingController extends Controller
         );
 
         return back()->with('success', __('Settings saved'));
+    }
+
+    /**
+     * Section 8b's "Back up now" button.
+     *
+     * Runs in the request rather than on a queue, because Section 9b asks long
+     * actions to show progress rather than a frozen screen and the shop has no
+     * worker process — the button reports what happened when it returns.
+     */
+    public function backup(Request $request, BackupService $backups): RedirectResponse
+    {
+        try {
+            $result = $backups->run($request->user());
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $message = __('Backed up :size to :path', [
+            'size' => $backups->humanSize($result['bytes']),
+            'path' => $result['remote'] ?? $result['path'],
+        ]);
+
+        // A backup sitting on the same disk as the database is worth saying out
+        // loud, so the warning is the message rather than a footnote to it.
+        return $result['warnings'] === []
+            ? back()->with('success', $message)
+            : back()->with('warning', $message.' — '.implode(' ', $result['warnings']));
     }
 
     /** Puts every key back to the value the seeder ships. */

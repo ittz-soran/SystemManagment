@@ -217,6 +217,73 @@
         </div>
     </form>
 
+    {{-- Section 8c: "Backup status — last backup time and a manual 'Back up now'
+         button." Section 8b is the reason it is on this page at all: financial
+         records are the shop's only proof of who owes what. --}}
+    <div class="card mt-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi bi-hdd"></i>{{ __('Backups') }}
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-8">
+                    <div class="mb-2">
+                        <span class="text-secondary">{{ __('Last backup') }}:</span>
+                        @if($lastBackupAt)
+                            <span class="fw-semibold" dir="ltr">{{ $lastBackupAt->format(setting('date_format', 'Y-m-d')).' '.$lastBackupAt->format('H:i') }}</span>
+                            <span class="text-secondary small">({{ $lastBackupAt->diffForHumans() }})</span>
+                            @if($lastBackupAt->lt(now()->subDays(2)))
+                                <span class="badge text-bg-warning ms-1">{{ __('Out of date') }}</span>
+                            @endif
+                        @else
+                            <span class="badge text-bg-danger">{{ __('Never') }}</span>
+                        @endif
+                    </div>
+
+                    <div class="small text-secondary">
+                        {{ __('Nightly at :time, keeping :daily daily and :monthly monthly copies.', [
+                            'time' => config('backup.schedule'),
+                            'daily' => config('backup.keep_daily'),
+                            'monthly' => config('backup.keep_monthly'),
+                        ]) }}
+                        {{ __('There are :daily daily and :monthly monthly copies now.', [
+                            'daily' => $dailyCopies,
+                            'monthly' => $monthlyCopies,
+                        ]) }}
+                    </div>
+
+                    @if($backupRemote)
+                        <div class="small text-secondary" dir="ltr">{{ $backupRemote }}</div>
+                    @else
+                        {{-- Section 8b: "a dead disk should not take both." --}}
+                        <div class="small text-warning mt-1">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            {{ __('Backups are being kept on the same disk as the database. Set BACKUP_REMOTE_PATH to a drive or share that is not this machine.') }}
+                        </div>
+                    @endif
+                </div>
+
+                <div class="col-md-4 text-md-end">
+                    <form action="{{ route('settings.backup') }}" method="POST" data-guard-submit>
+                        @csrf
+                        <button type="submit" class="btn btn-outline-primary"
+                                data-submitting-text="{{ __('Backing up… this can take a minute.') }}">
+                            <i class="bi bi-download me-1"></i>{{ __('Back up now') }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="small text-secondary">
+                {{-- Section 8b: "An untested backup is not a backup." --}}
+                {{ __('Restoring is a command on the server. Test it before go-live and every few months after — an untested backup is not a backup.') }}
+                <code class="ms-1" dir="ltr">php artisan backup:restore</code>
+            </div>
+        </div>
+    </div>
+
     <div class="card mt-4">
         <div class="card-body d-flex justify-content-between align-items-center">
             <div>

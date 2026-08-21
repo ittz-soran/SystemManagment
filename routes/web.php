@@ -207,6 +207,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('settings', [SettingController::class, 'edit'])->name('settings.edit');
         Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
         Route::post('settings/reset', [SettingController::class, 'reset'])->name('settings.reset');
+        Route::post('settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
     });
 
     // ---- Printable documents (Section 9b) --------------------------------
