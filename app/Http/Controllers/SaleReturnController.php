@@ -77,6 +77,10 @@ class SaleReturnController extends Controller
         return view('sale-returns.show', [
             'return' => $saleReturn->load('sale', 'customer', 'user', 'items.product'),
             'payments' => $saleReturn->payments()->orderBy('paid_at')->get(),
+            // Section 8: computed live and re-checked inside the transaction.
+            // The view uses it to disable the button and show the reason rather
+            // than letting the attempt fail after the fact.
+            'deleteState' => $saleReturn->canBeDeleted(auth()->user()),
         ]);
     }
 

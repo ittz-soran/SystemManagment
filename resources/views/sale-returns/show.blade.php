@@ -14,7 +14,16 @@
     @can('sale_returns.delete')
         {{-- Section 5: deleting a return is trivial and safe — its movements are
              subtracted from their batches and removed, and reverses_movement_id
-             restores the earlier state exactly. --}}
+             restores the earlier state exactly. That holds only while the units
+             it put back are still in their batch, so the button reports why
+             when they are not. --}}
+        @if(! $deleteState['allowed'])
+            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $deleteState['reason'] }}">
+                <button class="btn btn-outline-danger" disabled>
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete return') }}
+                </button>
+            </span>
+        @else
         <form action="{{ route('sale-returns.destroy', $return) }}" method="POST"
               onsubmit="return confirm(@js(__('Delete :document? Stock will drop by :units units and the refund will be undone.', [
                   'document' => $return->document_no,
@@ -26,6 +35,7 @@
                 <i class="bi bi-trash me-1"></i>{{ __('Delete return') }}
             </button>
         </form>
+        @endif
     @endcan
 @endsection
 

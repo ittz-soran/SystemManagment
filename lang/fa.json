@@ -473,9 +473,17 @@
     "With selected:": "برای موارد انتخابی:",
     "You cannot delete your own account here.": "نمی‌توانید حساب خودتان را از اینجا حذف کنید.",
     "You currently owe": "در حال حاضر بدهکارید",
+    "You do not have permission to delete returns.": "شما اجازه حذف برگشتی‌ها را ندارید.",
     "You do not have permission to do that.": "شما اجازه انجام این کار را ندارید.",
     "You do not have permission to edit purchases.": "شما اجازه ویرایش خرید را ندارید.",
     "You do not have permission to edit sales.": "شما اجازه ویرایش فروش را ندارید.",
     "Your account is not active.": "حساب شما فعال نیست.",
+    "{0}Every balance already matched its ledger|{1}:count balance corrected from the ledger|[2,*]:count balances corrected from the ledger": "{0}همه مانده‌ها با دفتر خود مطابق بودند|{1}:count مانده از روی دفتر کل اصلاح شد|[2,*]:count مانده از روی دفتر کل اصلاح شدند",
+    "{0}No sales yet|{1}:count sale|[2,*]:count sales": "{0}هنوز فروشی نیست|{1}:count فروش|[2,*]:count فروش",
+    "{0}Nothing needed fixing|{1}:count product corrected from its batches|[2,*]:count products corrected from their batches": "{0}چیزی نیاز به اصلاح نداشت|{1}:count کالا از روی دسته‌هایش اصلاح شد|[2,*]:count کالا از روی دسته‌هایشان اصلاح شدند",
+    "{1} :count product moved|[2,*] :count products moved": "{1} :count کالا منتقل شد|[2,*] :count کالا منتقل شدند",
+    "{1}:count product disagrees with its batches.|[2,*]:count products disagree with their batches.": "{1}:count کالا با دسته‌هایش مطابقت ندارد.|[2,*]:count کالا با دسته‌هایشان مطابقت ندارند.",
+    "{1}:count unit that came back has since been sold or written off, so this return can no longer be undone.": "{1}:count واحد که برگشته بود پس از آن فروخته یا ضایع شده است، بنابراین این برگشتی دیگر قابل لغو نیست.|[2,*]:count واحد که برگشته بودند پس از آن فروخته یا ضایع شده‌اند، بنابراین این برگشتی دیگر قابل لغو نیست.",
+    "{1}Cannot undo this: :count unit that came back has since been sold or written off. Return it to stock first, or correct it with a stock adjustment.": "{1}قابل لغو نیست: :count واحد که برگشته بود پس از آن فروخته یا ضایع شده است. ابتدا آن را به موجودی بازگردانید، یا با اصلاح موجودی تصحیح کنید.|[2,*]قابل لغو نیست: :count واحد که برگشته بودند پس از آن فروخته یا ضایع شده‌اند. ابتدا آن‌ها را به موجودی بازگردانید، یا با اصلاح موجودی تصحیح کنید.",
     "…": "…"
 }

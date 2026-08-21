@@ -314,6 +314,8 @@ class FifoService
 
         $products = collect();
 
+        $this->assertStillReversible($movements);
+
         // Delete the newest first so a movement that something else reverses is
         // never removed while its own reversal still points at it.
         foreach ($movements->sortByDesc('id') as $movement) {
@@ -349,6 +351,54 @@ class FifoService
         $product->forceFill(['quantity' => $sum])->save();
 
         return $sum;
+    }
+
+    /**
+     * Refuse to unwind movements whose units are no longer on the shelf.
+     *
+     * Section 5 calls deleting a return "trivial and safe", and it is — but only
+     * while the units it put back are still in their batch. Section 5 is equally
+     * clear that "a batch that reaches 0 is not finished — a return can refill
+     * it", so the moment a return lands, its units are available to the next
+     * sale. Once that sale happens there is nothing left to take back.
+     *
+     * Checked up front, across the whole set, so the refusal is all-or-nothing
+     * and never leaves half a document unwound.
+     */
+    private function assertStillReversible(Collection $movements): void
+    {
+        $needed = $movements
+            ->where('quantity', '>', 0)
+            ->groupBy('stock_batch_id')
+            ->map(fn (Collection $group) => (int) $group->sum('quantity'));
+
+        if ($needed->isEmpty()) {
+            return;
+        }
+
+        $batches = StockBatch::whereIn('id', $needed->keys())
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        $short = 0;
+
+        foreach ($needed as $batchId => $quantity) {
+            $remaining = (int) ($batches[$batchId]->quantity_remaining ?? 0);
+
+            if ($remaining < $quantity) {
+                $short += $quantity - $remaining;
+            }
+        }
+
+        if ($short > 0) {
+            throw new RuntimeException(trans_choice(
+                '{1}Cannot undo this: :count unit that came back has since been sold or written off. Return it to stock first, or correct it with a stock adjustment.'
+                .'|[2,*]Cannot undo this: :count units that came back have since been sold or written off. Return them to stock first, or correct it with a stock adjustment.',
+                $short,
+                ['count' => $short],
+            ));
+        }
     }
 
     /** The next movement sequence within one document. */
