@@ -149,8 +149,15 @@ class SettingController extends Controller
             }
 
             if ($request->hasFile('shop_logo')) {
-                $path = $request->file('shop_logo')->store('branding', 'public');
-                Setting::put('shop_logo', Storage::url($path));
+                $previous = BrandingController::path();
+
+                // The disk path, not a URL: BrandingController serves the file,
+                // so nothing depends on the /storage symlink existing.
+                Setting::put('shop_logo', $request->file('shop_logo')->store('branding', 'local'));
+
+                if ($previous !== null) {
+                    Storage::disk($previous[0])->delete($previous[1]);
+                }
             }
         });
 

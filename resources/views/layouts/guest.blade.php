@@ -11,14 +11,10 @@
          the browser title. --}}
     <title>{{ setting('shop_name', config('app.name')) }}</title>
 
-    <style>
-        :root {
-            --bs-primary: {{ setting('primary_color', '#0d6efd') }};
-            --bs-body-font-family: {{ setting('font_family', 'system-ui, sans-serif') }};
-        }
-    </style>
-
     @vite(['resources/scss/app.scss', 'resources/js/app.js'])
+
+    {{-- After the stylesheet, or Bootstrap's own :root wins on source order. --}}
+    @include('partials.brand')
 
     @if($currentTheme === 'auto')
         <script>
@@ -33,8 +29,8 @@
 <div class="container min-vh-100 d-flex align-items-center justify-content-center py-5">
     <div class="w-100" style="max-width: 26rem">
         <div class="text-center mb-4">
-            @if(setting('shop_logo'))
-                <img src="{{ asset(setting('shop_logo')) }}" alt="" height="56" class="mb-2">
+            @if(shop_logo())
+                <img src="{{ shop_logo() }}" alt="" height="56" class="mb-2">
             @else
                 <i class="bi bi-shop display-5 text-primary"></i>
             @endif

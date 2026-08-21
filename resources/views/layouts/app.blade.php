@@ -14,17 +14,11 @@
 
     <title>@yield('title', __('Dashboard')) · {{ setting('shop_name', config('app.name')) }}</title>
 
-    {{-- Section 8c: brand values are emitted as CSS custom properties and read
-         by Bootstrap. Stylesheets are never regenerated at runtime. --}}
-    <style>
-        :root {
-            --bs-primary: {{ setting('primary_color', '#0d6efd') }};
-            --bs-secondary: {{ setting('secondary_color', '#6c757d') }};
-            --bs-body-font-family: {{ setting('font_family', 'system-ui, sans-serif') }};
-        }
-    </style>
-
     @vite(['resources/scss/app.scss', 'resources/js/app.js'])
+
+    {{-- After the stylesheet, never before: Bootstrap declares the same
+         variables in its own :root, so an earlier override loses to it. --}}
+    @include('partials.brand')
 
     {{-- Section 8c: 'auto' follows the OS. Applied before first paint so the
          page never flashes the wrong theme. --}}

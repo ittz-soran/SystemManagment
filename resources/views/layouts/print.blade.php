@@ -9,11 +9,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title') · {{ setting('shop_name', config('app.name')) }}</title>
 
-    <style>
-        :root { --bs-body-font-family: {{ setting('font_family', 'system-ui, sans-serif') }}; }
-    </style>
-
     @vite(['resources/scss/app.scss'])
+
+    {{-- After the stylesheet, or Bootstrap's own :root wins on source order. --}}
+    @include('partials.brand')
 
     <style>
         /* Black on white, whatever the viewer's theme. */
@@ -47,9 +46,9 @@
 
     <header class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
         <div>
-            @if(setting('shop_logo'))
+            @if(shop_logo())
                 {{-- Logos must not mirror in RTL. --}}
-                <img src="{{ asset(setting('shop_logo')) }}" alt="" height="48" class="mb-2">
+                <img src="{{ shop_logo() }}" alt="" height="48" class="mb-2">
             @endif
             <div class="h5 mb-1">{{ setting('shop_name', config('app.name')) }}</div>
             @if(setting('shop_address'))

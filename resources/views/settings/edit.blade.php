@@ -68,9 +68,9 @@
 
                         <div class="mb-3">
                             <label for="shop_logo" class="form-label">{{ __('Logo') }}</label>
-                            @if(setting('shop_logo'))
+                            @if(shop_logo())
                                 <div class="mb-2">
-                                    <img src="{{ setting('shop_logo') }}" alt="" height="48">
+                                    <img src="{{ shop_logo() }}" alt="" height="48">
                                 </div>
                             @endif
                             <input id="shop_logo" type="file" name="shop_logo" accept="image/*"

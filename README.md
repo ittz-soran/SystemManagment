@@ -70,6 +70,30 @@ and writes nothing until you confirm.
 
 > This is not a backup. To move *everything*, including stock and the ledger, use one.
 
+## Appearance
+
+The shop's colours, font and logo are on the Settings page and take effect
+immediately — no rebuild.
+
+Two things about how that works are worth knowing before changing it:
+
+- The brand `<style>` block is emitted **after** the compiled stylesheet
+  (`resources/views/partials/brand.blade.php`). Bootstrap declares
+  `--bs-primary` and `--bs-body-font-family` in its own `:root`, so moving the
+  block earlier silently reverts every appearance setting.
+- Bootstrap 5.3 compiles component colours at build time — `.btn-primary`
+  carries a literal `--bs-btn-bg`, not `var(--bs-primary)`. That is why the
+  partial sets the component variables one by one rather than just the two
+  top-level ones.
+
+The four offered fonts are self-hosted (`@fontsource/*`, 400 and 600 weights,
+Latin and Arabic subsets). Nothing is fetched from Google at runtime, because
+the shop cannot depend on that being reachable.
+
+The logo is served by `GET /branding/logo` rather than a `/storage/…` URL, so it
+needs no `php artisan storage:link` — a step that requires administrator rights
+on Windows and is missing on most XAMPP installs.
+
 ## Backups
 
 Financial records are the shop's only proof of who owes what, so this is not optional
