@@ -403,6 +403,72 @@ class BackupTest extends TestCase
         $this->assertSame(6, $backups->keep('monthly'));
     }
 
+    // ------------------------------------------------------------- diagnosing
+
+    public function test_the_check_reports_every_link_in_the_chain(): void
+    {
+        $checks = collect(app(BackupService::class)->diagnose())->keyBy('name');
+
+        $this->assertTrue($checks[__('Database')]['ok']);
+        $this->assertTrue($checks[__('Backup folder')]['ok']);
+        $this->assertTrue($checks[__('Off-machine copy')]['ok']);
+
+        // Nothing has run yet in this test, and that is a finding, not a pass.
+        $this->assertFalse($checks[__('Backups have run')]['ok']);
+        $this->assertNotNull($checks[__('Backups have run')]['fix']);
+    }
+
+    /** Section 8b: "a dead disk should not take both" — the check says so too. */
+    public function test_the_check_fails_when_no_off_machine_copy_is_set(): void
+    {
+        config(['backup.remote' => null]);
+        Setting::put('backup_remote_path', null);
+        Setting::flushCache();
+
+        $check = collect(app(BackupService::class)->diagnose())
+            ->firstWhere('name', __('Off-machine copy'));
+
+        $this->assertFalse($check['ok']);
+        $this->assertStringContainsString('dead disk', $check['fix']);
+    }
+
+    public function test_the_check_fails_on_a_folder_it_cannot_write_to(): void
+    {
+        Setting::put('backup_path', '/proc/nope/cannot-write-here');
+        Setting::flushCache();
+
+        $check = collect(app(BackupService::class)->diagnose())
+            ->firstWhere('name', __('Backup folder'));
+
+        $this->assertFalse($check['ok']);
+    }
+
+    public function test_the_check_passes_once_a_backup_has_run(): void
+    {
+        app(BackupService::class)->run();
+
+        $check = collect(app(BackupService::class)->diagnose())
+            ->firstWhere('name', __('Backups have run'));
+
+        $this->assertTrue($check['ok']);
+        $this->assertStringContainsString(__('Every night at :time', ['time' => '02:15']), $check['detail']);
+    }
+
+    public function test_the_command_exits_non_zero_when_something_is_wrong(): void
+    {
+        config(['backup.remote' => null]);
+        Setting::put('backup_remote_path', null);
+        Setting::flushCache();
+
+        $this->artisan('backup:check')->assertFailed();
+
+        app(BackupService::class)->run();
+        Setting::put('backup_remote_path', $this->remote);
+        Setting::flushCache();
+
+        $this->artisan('backup:check')->assertSuccessful();
+    }
+
     public function test_the_schedule_has_a_nightly_backup(): void
     {
         $events = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())

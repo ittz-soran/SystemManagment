@@ -90,7 +90,15 @@ BACKUP_REMOTE_PATH=/mnt/backup-drive/store-management     # or D:\backups\store 
 On Windows that is a Task Scheduler task running `php artisan schedule:run` every
 minute — see [docs/BACKUP.md](docs/BACKUP.md) for the exact fields.
 
-Then `php artisan backup:run` once by hand, and check the Settings page shows it.
+Then check the whole chain in one command:
+
+```
+php artisan backup:check
+```
+
+It reports the database, the tools, whether mysqldump can actually connect, both
+folders and whether backups have ever run — and prints what to do about anything
+that fails. Fix what it names, then run `php artisan backup:run`.
 If it says `'mysqldump' is not recognized`, the tool is not on PATH — XAMPP keeps
 it in `C:\xampp\mysql\bin`. The command looks there itself; set `MYSQLDUMP_PATH`
 if yours lives somewhere else — with forward slashes and no quotes, or `.env` will
