@@ -77,7 +77,8 @@ minute — see [docs/BACKUP.md](docs/BACKUP.md) for the exact fields.
 Then `php artisan backup:run` once by hand, and check the Settings page shows it.
 If it says `'mysqldump' is not recognized`, the tool is not on PATH — XAMPP keeps
 it in `C:\xampp\mysql\bin`. The command looks there itself; set `MYSQLDUMP_PATH`
-if yours lives somewhere else.
+if yours lives somewhere else — with forward slashes and no quotes, or `.env` will
+not parse at all.
 
 **[docs/BACKUP.md](docs/BACKUP.md)** has the rest: retention, restoring with
 `php artisan backup:restore`, and the restore drill to run before go-live. An untested

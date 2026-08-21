@@ -63,13 +63,19 @@ nothing to do. If yours is somewhere else, say where:
 
 ```
 # Windows / XAMPP
-MYSQLDUMP_PATH="C:\xampp\mysql\bin\mysqldump.exe"
-MYSQL_PATH="C:\xampp\mysql\bin\mysql.exe"
+MYSQLDUMP_PATH=C:/xampp/mysql/bin/mysqldump.exe
+MYSQL_PATH=C:/xampp/mysql/bin/mysql.exe
 
 # Linux
 MYSQLDUMP_PATH=/usr/bin/mysqldump
 MYSQL_PATH=/usr/bin/mysql
 ```
+
+> **Forward slashes, and no quotes.** A Windows path does not survive `.env` in the
+> obvious form: dotenv reads the `\x` of `\xampp` inside double quotes as an escape
+> sequence and refuses to parse the file, and every command then fails with *"The
+> environment file is invalid!"* before Laravel boots. Windows accepts forward
+> slashes everywhere, so use those and the question never comes up.
 
 Cron is worth a second thought here even when the command works by hand: its
 PATH is much shorter than a login shell's, which is the classic reason a backup
@@ -142,7 +148,7 @@ date there is itself the alarm: anything older than two days is flagged.
 Common causes, in the order they actually happen:
 
 - `mysqldump` not found, or not on cron's PATH → set `MYSQLDUMP_PATH` to the
-  full path. On XAMPP that is `C:\xampp\mysql\bin\mysqldump.exe`.
+  full path, forward slashes and unquoted: `C:/xampp/mysql/bin/mysqldump.exe`.
 - The off-machine path is a share that unmounted → the local copy is still
   written and the run warns rather than failing.
 - The disk is full → the dump is discarded rather than left half-written, so a
