@@ -7,9 +7,11 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 /**
  * Section 8b: "Financial records are the shop's only proof of who owes what."
@@ -29,6 +31,32 @@ class BackupService
     public const SIZE_KEY = 'last_backup_size';
 
     public const RESULT_KEY = 'last_backup_result';
+
+    /**
+     * Where mysqldump and mysql actually live when they are not on PATH.
+     *
+     * "'mysqldump' is not recognized as an internal or external command" is how
+     * this fails on a stock XAMPP install: the tools ship with the database
+     * server, in C:\xampp\mysql\bin, which XAMPP does not add to PATH. The
+     * same thing bites on cron, whose PATH is much shorter than a login shell's.
+     *
+     * Forward slashes throughout, because PHP's glob() on Windows does not
+     * handle backslashes and Windows accepts either.
+     */
+    private const TOOL_DIRECTORIES = [
+        'C:/xampp/mysql/bin',
+        'C:/laragon/bin/mysql/*/bin',
+        'C:/wamp64/bin/mysql/*/bin',
+        'C:/wamp64/bin/mariadb/*/bin',
+        'C:/Program Files/MySQL/*/bin',
+        'C:/Program Files/MariaDB */bin',
+        '/opt/lampp/bin',
+        '/usr/local/mysql/bin',
+        '/opt/homebrew/opt/mysql-client/bin',
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/usr/bin',
+    ];
 
     /**
      * Dump the database, copy it off the machine, then prune.
@@ -160,7 +188,7 @@ class BackupService
         // --single-transaction dumps InnoDB consistently without locking the
         // shop out mid-sale; without it a nightly backup can block the till.
         $command = [
-            config('backup.mysqldump'),
+            $this->tool('mysqldump', 'mysqldump', 'mariadb-dump'),
             '--single-transaction',
             '--quick',
             '--default-character-set=utf8mb4',
@@ -258,30 +286,99 @@ class BackupService
         }
     }
 
+
+    /**
+     * Find one of the MySQL command-line tools.
+     *
+     * An explicit MYSQLDUMP_PATH/MYSQL_PATH always wins, and is used as given so
+     * that a wrong one is reported rather than quietly worked around. Otherwise
+     * PATH is tried first, then the places these tools are normally installed.
+     *
+     * @param  string  $key  the config key, which names the .env setting to suggest
+     * @param  string  ...$names  the executable, then its MariaDB equivalent
+     */
+    private function tool(string $key, string ...$names): string
+    {
+        $configured = (string) config('backup.'.$key);
+
+        // A full path is a deliberate choice. A bare name is only the default,
+        // so it joins the list of things to look for rather than short-circuiting
+        // the search — otherwise the default would always "win" and the lookup
+        // below could never run.
+        if (str_contains($configured, '/') || str_contains($configured, '\\')) {
+            return $configured;
+        }
+
+        if ($configured !== '' && ! in_array($configured, $names, true)) {
+            array_unshift($names, $configured);
+        }
+
+        foreach ($names as $name) {
+            if ($this->runs($name)) {
+                return $name;
+            }
+
+            foreach (self::TOOL_DIRECTORIES as $pattern) {
+                foreach (glob($pattern, GLOB_NOSORT) ?: [] as $directory) {
+                    foreach ([$name, $name.'.exe'] as $file) {
+                        $candidate = $directory.'/'.$file;
+
+                        if (is_file($candidate)) {
+                            return $candidate;
+                        }
+                    }
+                }
+            }
+        }
+
+        throw new RuntimeException(__(
+            ':tool was not found. It ships with the database server — on XAMPP it is in C:\\xampp\\mysql\\bin. Put that folder on PATH, or set :setting in .env to the full path to it.',
+            ['tool' => $names[0], 'setting' => Str::upper($key).'_PATH'],
+        ));
+    }
+
+    /** Whether a name on PATH is really there and really runs. */
+    private function runs(string $binary): bool
+    {
+        try {
+            $process = new Process([$binary, '--version']);
+            $process->setTimeout(15);
+            $process->run();
+
+            return $process->isSuccessful();
+        } catch (Throwable) {
+            // A missing executable throws on some platforms and returns a
+            // non-zero exit code on others. Both mean the same thing here.
+            return false;
+        }
+    }
+
     // --------------------------------------------------------------- restoring
 
     private function restoreMysql(string $path): void
     {
         $config = DB::connection()->getConfig();
 
-        $process = Process::fromShellCommandline(
-            sprintf(
-                'gunzip -c %s | %s --host=%s --port=%s --user=%s --default-character-set=utf8mb4'
-                .' --init-command=%s %s',
-                escapeshellarg($path),
-                escapeshellarg((string) config('backup.mysql')),
-                escapeshellarg((string) $config['host']),
-                escapeshellarg((string) $config['port']),
-                escapeshellarg((string) $config['username']),
+        $process = new Process(
+            [
+                $this->tool('mysql', 'mysql', 'mariadb'),
+                '--default-character-set=utf8mb4',
                 // Otherwise the dump's DROP TABLE statements fail against a
                 // populated database as soon as one table references another.
-                escapeshellarg('SET FOREIGN_KEY_CHECKS=0'),
-                escapeshellarg((string) $config['database']),
-            ),
+                '--init-command=SET FOREIGN_KEY_CHECKS=0',
+                '--host='.$config['host'],
+                '--port='.$config['port'],
+                '--user='.$config['username'],
+                $config['database'],
+            ],
             base_path(),
             ['MYSQL_PWD' => (string) ($config['password'] ?? '')],
         );
 
+        // Decompressed here and fed in as standard input, rather than piping
+        // `gunzip -c` through a shell: there is no gunzip on Windows, and an
+        // argument list needs no quoting rules that differ per platform.
+        $process->setInput($this->readGzip($path));
         $process->setTimeout((float) config('backup.timeout', 900));
         $process->run();
 
@@ -289,6 +386,29 @@ class BackupService
             throw new RuntimeException(__('The restore failed: :error', [
                 'error' => trim($process->getErrorOutput()) ?: __('mysql could not be run.'),
             ]));
+        }
+    }
+
+    /**
+     * The backup's contents, a chunk at a time — a shop with years of movements
+     * makes a dump far larger than the PHP memory limit.
+     *
+     * @return \Generator<int, string>
+     */
+    private function readGzip(string $path): \Generator
+    {
+        $handle = gzopen($path, 'rb');
+
+        if ($handle === false) {
+            throw new RuntimeException(__('Could not read :path', ['path' => $path]));
+        }
+
+        try {
+            while (! gzeof($handle)) {
+                yield (string) gzread($handle, 262144);
+            }
+        } finally {
+            gzclose($handle);
         }
     }
 

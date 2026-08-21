@@ -1,6 +1,7 @@
 {
     "(never applied to batch costs)": "(لا يُطبق أبداً على تكاليف الدفعات)",
     ":count selected": "تم تحديد :count",
+    ":tool was not found. It ships with the database server — on XAMPP it is in C:\\xampp\\mysql\\bin. Put that folder on PATH, or set :setting in .env to the full path to it.": "لم يُعثر على :tool. يأتي مع خادم قاعدة البيانات — في XAMPP يوجد في C:\\xampp\\mysql\\bin. أضف ذلك المجلد إلى PATH، أو اضبط :setting في .env على المسار الكامل إليه.",
     "A cash refund is money leaving the till.": "الاسترداد النقدي يعني خروج نقد من الصندوق.",
     "A category cannot be its own parent.": "لا يمكن أن تكون الفئة أصلاً لنفسها.",
     "A managed list, so the expense report groups cleanly": "قائمة مُدارة، ليتجمّع تقرير المصروفات بوضوح",

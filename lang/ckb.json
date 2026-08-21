@@ -1,6 +1,7 @@
 {
     "(never applied to batch costs)": "(هەرگیز لەسەر تێچووی بەشەکان جێبەجێ ناکرێت)",
     ":count selected": ":count هەڵبژێردراوە",
+    ":tool was not found. It ships with the database server — on XAMPP it is in C:\\xampp\\mysql\\bin. Put that folder on PATH, or set :setting in .env to the full path to it.": ":tool نەدۆزرایەوە. لەگەڵ ڕاژەی بنکەدراوە دێت — لە XAMPP لە C:\\xampp\\mysql\\bin دایە. ئەو بوخچەیە بخە سەر PATH، یان :setting لە .env بە ڕێڕەوی تەواوی دابنێ.",
     "A cash refund is money leaving the till.": "گەڕاندنەوەی نەقد واتە پارە لە سندوق دەردەچێت.",
     "A category cannot be its own parent.": "پۆلێک ناتوانێت باوانی خۆی بێت.",
     "A managed list, so the expense report groups cleanly": "لیستێکی بەڕێوەبراو، تاکو ڕاپۆرتی خەرجی بە پاکی کۆبکرێتەوە",

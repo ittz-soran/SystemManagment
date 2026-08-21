@@ -250,12 +250,68 @@ class BackupTest extends TestCase
         $this->assertSame(0, Product::count());
     }
 
+    /**
+     * "'mysqldump' is not recognized as an internal or external command" is the
+     * first thing a stock XAMPP install says, because the tools live in
+     * C:\xampp\mysql\bin and XAMPP does not put that on PATH.
+     */
+    public function test_a_missing_tool_says_where_to_find_it_and_what_to_set(): void
+    {
+        config(['backup.mysqldump' => 'mysqldump']);
+
+        try {
+            $this->tool('mysqldump', 'definitely-not-a-real-tool');
+            $this->fail('A missing tool must be reported, not silently skipped.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('xampp', $e->getMessage());
+            $this->assertStringContainsString('MYSQLDUMP_PATH', $e->getMessage());
+        }
+
+        try {
+            $this->tool('mysql', 'definitely-not-a-real-tool');
+            $this->fail('A missing tool must be reported, not silently skipped.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('MYSQL_PATH', $e->getMessage());
+        }
+    }
+
+    /** An explicit path wins, so a wrong one is reported rather than worked around. */
+    public function test_a_configured_path_is_used_as_given(): void
+    {
+        config(['backup.mysqldump' => 'C:\\xampp\\mysql\\bin\\mysqldump.exe']);
+
+        $this->assertSame(
+            'C:\\xampp\\mysql\\bin\\mysqldump.exe',
+            $this->tool('mysqldump', 'mysqldump', 'mariadb-dump'),
+        );
+    }
+
+    /** A tool that is on PATH is found by name, with no configuration at all. */
+    public function test_a_tool_on_the_path_is_found_by_name(): void
+    {
+        config(['backup.mysql' => 'mysql']);
+
+        // php is the one executable this suite can be certain is on PATH.
+        $this->assertSame('php', $this->tool('mysql', 'php'));
+    }
+
     public function test_the_schedule_has_a_nightly_backup(): void
     {
         $events = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())
             ->filter(fn ($event) => str_contains($event->command ?? '', 'backup:run'));
 
         $this->assertCount(1, $events, 'Section 8b asks for a nightly backup on a cron schedule');
+    }
+
+    /** BackupService::tool() is private; this is the only way to reach it. */
+    private function tool(string $key, string ...$names): string
+    {
+        $service = app(BackupService::class);
+
+        $method = (new \ReflectionClass($service))->getMethod('tool');
+        $method->setAccessible(true);
+
+        return $method->invoke($service, $key, ...$names);
     }
 
     private function deleteTree(string $directory): void

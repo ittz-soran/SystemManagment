@@ -38,14 +38,43 @@ something calls it every minute:
 * * * * * cd /var/www/store-management && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-**3. Check `mysqldump` is on the web user's PATH.** Cron's PATH is much shorter
-than a login shell's, which is the classic reason a backup works by hand and
-silently fails at night. If in doubt, set the absolute path:
+On Windows there is no cron. Create a Task Scheduler task that runs every minute:
 
 ```
+Program:   C:\xampp\php\php.exe
+Arguments: artisan schedule:run
+Start in:  C:\xampp\htdocs\SystemManagment
+```
+
+Set it to run whether the user is logged on or not, or backups stop the moment
+Soran signs out for the night.
+
+**3. Check `mysqldump` can be found.** It ships with the database server, but
+not every install puts it on PATH — XAMPP keeps it in `C:\xampp\mysql\bin` and
+adds nothing to PATH, so running the command by hand gives:
+
+```
+'mysqldump' is not recognized as an internal or external command
+```
+
+`backup:run` looks in the usual places itself (XAMPP, Laragon, WAMP, a default
+MySQL or MariaDB install, Homebrew, `/opt/lampp`), so on a normal setup there is
+nothing to do. If yours is somewhere else, say where:
+
+```
+# Windows / XAMPP
+MYSQLDUMP_PATH="C:\xampp\mysql\bin\mysqldump.exe"
+MYSQL_PATH="C:\xampp\mysql\bin\mysql.exe"
+
+# Linux
 MYSQLDUMP_PATH=/usr/bin/mysqldump
 MYSQL_PATH=/usr/bin/mysql
 ```
+
+Cron is worth a second thought here even when the command works by hand: its
+PATH is much shorter than a login shell's, which is the classic reason a backup
+runs fine at the keyboard and silently fails at night. Setting the two absolute
+paths removes the question.
 
 **4. Confirm.** Run it once by hand, then look at the Settings page — it shows
 the last backup time, how many copies exist, and where they go.
@@ -112,7 +141,8 @@ date there is itself the alarm: anything older than two days is flagged.
 
 Common causes, in the order they actually happen:
 
-- `mysqldump` not on cron's PATH → set `MYSQLDUMP_PATH`.
+- `mysqldump` not found, or not on cron's PATH → set `MYSQLDUMP_PATH` to the
+  full path. On XAMPP that is `C:\xampp\mysql\bin\mysqldump.exe`.
 - The off-machine path is a share that unmounted → the local copy is still
   written and the run warns rather than failing.
 - The disk is full → the dump is discarded rather than left half-written, so a
