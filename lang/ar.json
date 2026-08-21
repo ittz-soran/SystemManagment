@@ -473,9 +473,17 @@
     "With selected:": "للمحدد:",
     "You cannot delete your own account here.": "لا يمكنك حذف حسابك من هنا.",
     "You currently owe": "المستحق عليك حالياً",
+    "You do not have permission to delete returns.": "ليس لديك صلاحية حذف المرتجعات.",
     "You do not have permission to do that.": "ليس لديك صلاحية للقيام بذلك.",
     "You do not have permission to edit purchases.": "ليس لديك صلاحية تعديل المشتريات.",
     "You do not have permission to edit sales.": "ليس لديك صلاحية تعديل المبيعات.",
     "Your account is not active.": "حسابك غير نشط.",
+    "{0}Every balance already matched its ledger|{1}:count balance corrected from the ledger|[2,*]:count balances corrected from the ledger": "{0}كل رصيد كان مطابقاً لدفتره|{1}تم تصحيح رصيد واحد من دفتر الأستاذ|[2,*]تم تصحيح :count أرصدة من دفتر الأستاذ",
+    "{0}No sales yet|{1}:count sale|[2,*]:count sales": "{0}لا مبيعات بعد|{1}عملية بيع واحدة|[2,*]:count عمليات بيع",
+    "{0}Nothing needed fixing|{1}:count product corrected from its batches|[2,*]:count products corrected from their batches": "{0}لا شيء يحتاج إصلاحاً|{1}تم تصحيح منتج واحد من دفعاته|[2,*]تم تصحيح :count منتجات من دفعاتها",
+    "{1} :count product moved|[2,*] :count products moved": "{1} تم نقل منتج واحد|[2,*] تم نقل :count منتجات",
+    "{1}:count product disagrees with its batches.|[2,*]:count products disagree with their batches.": "{1}منتج واحد لا يطابق دفعاته.|[2,*]:count منتجات لا تطابق دفعاتها.",
+    "{1}:count unit that came back has since been sold or written off, so this return can no longer be undone.": "{1}وحدة واحدة عادت ثم بيعت أو شُطبت، لذا لم يعد بالإمكان التراجع عن هذا المرتجع.|[2,*]:count وحدات عادت ثم بيعت أو شُطبت، لذا لم يعد بالإمكان التراجع عن هذا المرتجع.",
+    "{1}Cannot undo this: :count unit that came back has since been sold or written off. Return it to stock first, or correct it with a stock adjustment.": "{1}لا يمكن التراجع: وحدة واحدة عادت ثم بيعت أو شُطبت. أعدها إلى المخزون أولاً، أو صحّح ذلك بتسوية مخزون.|[2,*]لا يمكن التراجع: :count وحدات عادت ثم بيعت أو شُطبت. أعدها إلى المخزون أولاً، أو صحّح ذلك بتسوية مخزون.",
     "…": "…"
 }

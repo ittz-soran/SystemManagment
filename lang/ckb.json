@@ -473,9 +473,17 @@
     "With selected:": "بۆ هەڵبژێردراوەکان:",
     "You cannot delete your own account here.": "لێرەدا ناتوانیت هەژماری خۆت بسڕیتەوە.",
     "You currently owe": "ئێستا قەرزاریت بە",
+    "You do not have permission to delete returns.": "دەسەڵاتت نییە بۆ سڕینەوەی گەڕاندنەوەکان.",
     "You do not have permission to do that.": "دەسەڵاتت نییە بۆ ئەوە.",
     "You do not have permission to edit purchases.": "دەسەڵاتت نییە بۆ دەستکاریکردنی کڕین.",
     "You do not have permission to edit sales.": "دەسەڵاتت نییە بۆ دەستکاریکردنی فرۆشتن.",
     "Your account is not active.": "هەژمارەکەت چالاک نییە.",
+    "{0}Every balance already matched its ledger|{1}:count balance corrected from the ledger|[2,*]:count balances corrected from the ledger": "{0}هەموو باڵانسێک پێشتر لەگەڵ دەفتەرەکەی دەگونجا|{1}:count باڵانس لە دەفتەرەکەوە ڕاستکرایەوە|[2,*]:count باڵانس لە دەفتەرەکەوە ڕاستکرانەوە",
+    "{0}No sales yet|{1}:count sale|[2,*]:count sales": "{0}هێشتا هیچ فرۆشتنێک نییە|{1}:count فرۆشتن|[2,*]:count فرۆشتن",
+    "{0}Nothing needed fixing|{1}:count product corrected from its batches|[2,*]:count products corrected from their batches": "{0}هیچ شتێک پێویستی بە چاککردن نەبوو|{1}:count بەرهەم لە بەشەکانییەوە ڕاستکرایەوە|[2,*]:count بەرهەم لە بەشەکانیانەوە ڕاستکرانەوە",
+    "{1} :count product moved|[2,*] :count products moved": "{1} :count بەرهەم گوازرایەوە|[2,*] :count بەرهەم گوازرانەوە",
+    "{1}:count product disagrees with its batches.|[2,*]:count products disagree with their batches.": "{1}:count بەرهەم لەگەڵ بەشەکانی ناگونجێت.|[2,*]:count بەرهەم لەگەڵ بەشەکانیان ناگونجێن.",
+    "{1}:count unit that came back has since been sold or written off, so this return can no longer be undone.": "{1}:count یەکە کە گەڕابووەوە دواتر فرۆشراوە یان نووسراوەتەوە، بۆیە ئەم گەڕاندنەوەیە چیتر هەڵناوەشێتەوە.|[2,*]:count یەکە کە گەڕابوونەوە دواتر فرۆشراون یان نووسراونەتەوە، بۆیە ئەم گەڕاندنەوەیە چیتر هەڵناوەشێتەوە.",
+    "{1}Cannot undo this: :count unit that came back has since been sold or written off. Return it to stock first, or correct it with a stock adjustment.": "{1}ناتوانرێت هەڵبوەشێنرێتەوە: :count یەکە کە گەڕابووەوە دواتر فرۆشراوە یان نووسراوەتەوە. سەرەتا بیگەڕێنەوە کۆگا، یان بە ڕێکخستنی کۆگا ڕاستی بکەرەوە.|[2,*]ناتوانرێت هەڵبوەشێنرێتەوە: :count یەکە کە گەڕابوونەوە دواتر فرۆشراون یان نووسراونەتەوە. سەرەتا بیانگەڕێنەوە کۆگا، یان بە ڕێکخستنی کۆگا ڕاستی بکەرەوە.",
     "…": "…"
 }

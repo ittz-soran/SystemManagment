@@ -120,8 +120,11 @@ class TranslationsCheck extends Command
 
                 $code = file_get_contents($file->getPathname());
 
-                preg_match_all("/__\(\s*'((?:[^'\\\\]|\\\\.)*)'/", $code, $single);
-                preg_match_all('/__\(\s*"((?:[^"\\\\]|\\\\.)*)"/', $code, $double);
+                // Both __() and trans_choice(): a pluralised string is just as
+                // much a piece of interface text, and missing it here would let
+                // "3 products moved" ship untranslated with nothing to warn us.
+                preg_match_all("/(?:__|trans_choice)\(\s*'((?:[^'\\\\]|\\\\.)*)'/", $code, $single);
+                preg_match_all('/(?:__|trans_choice)\(\s*"((?:[^"\\\\]|\\\\.)*)"/', $code, $double);
 
                 foreach (array_merge($single[1], $double[1]) as $match) {
                     $key = stripcslashes($match);
