@@ -33,6 +33,7 @@
         ],
         __('System') => [
             ['route' => 'activity-logs.index', 'permission' => 'activity_logs.view', 'icon' => 'clock-history', 'label' => __('Activity log')],
+            ['route' => 'data.index', 'permission' => 'products.view', 'icon' => 'arrow-down-up', 'label' => __('Import & export')],
             ['route' => 'settings.edit', 'permission' => 'settings.manage', 'icon' => 'gear', 'label' => __('Settings')],
         ],
     ];

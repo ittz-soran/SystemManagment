@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
@@ -208,6 +209,18 @@ Route::middleware(['auth'])->group(function () {
         Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
         Route::post('settings/reset', [SettingController::class, 'reset'])->name('settings.reset');
         Route::post('settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
+    });
+
+    /*
+     * Import and export the master data. Not a backup: this moves the
+     * descriptive rows only, and each route checks the permission for the kind
+     * of data it touches rather than a blanket one.
+     */
+    Route::prefix('data')->name('data.')->group(function () {
+        Route::get('/', [DataTransferController::class, 'index'])->name('index');
+        Route::get('{entity}/export', [DataTransferController::class, 'export'])->name('export');
+        Route::post('{entity}/preview', [DataTransferController::class, 'preview'])->name('preview');
+        Route::post('{entity}/import', [DataTransferController::class, 'import'])->name('import');
     });
 
     // ---- Printable documents (Section 9b) --------------------------------
