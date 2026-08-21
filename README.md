@@ -59,15 +59,25 @@ is an assertion drawn from the project doc, and it is the gate before go-live.
 Financial records are the shop's only proof of who owes what, so this is not optional
 setup. Two things need doing on the server, and both are five minutes:
 
-```bash
-# 1. Point the off-machine copy at a disk that is not this one.
-BACKUP_REMOTE_PATH=/mnt/backup-drive/store-management
+**1. Point the off-machine copy at a disk that is not this one** — in `.env`:
 
-# 2. Give Laravel's scheduler its crontab line, or nothing ever fires.
+```
+BACKUP_REMOTE_PATH=/mnt/backup-drive/store-management     # or D:\backups\store on Windows
+```
+
+**2. Give Laravel's scheduler a way to fire**, or nothing ever runs:
+
+```cron
 * * * * * cd /var/www/store-management && php artisan schedule:run >> /dev/null 2>&1
 ```
 
+On Windows that is a Task Scheduler task running `php artisan schedule:run` every
+minute — see [docs/BACKUP.md](docs/BACKUP.md) for the exact fields.
+
 Then `php artisan backup:run` once by hand, and check the Settings page shows it.
+If it says `'mysqldump' is not recognized`, the tool is not on PATH — XAMPP keeps
+it in `C:\xampp\mysql\bin`. The command looks there itself; set `MYSQLDUMP_PATH`
+if yours lives somewhere else.
 
 **[docs/BACKUP.md](docs/BACKUP.md)** has the rest: retention, restoring with
 `php artisan backup:restore`, and the restore drill to run before go-live. An untested

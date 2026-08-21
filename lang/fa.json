@@ -1,6 +1,7 @@
 {
     "(never applied to batch costs)": "(هرگز بر بهای دسته‌ها اعمال نمی‌شود)",
     ":count selected": ":count انتخاب شده",
+    ":tool was not found. It ships with the database server — on XAMPP it is in C:\\xampp\\mysql\\bin. Put that folder on PATH, or set :setting in .env to the full path to it.": ":tool پیدا نشد. همراه سرور پایگاه داده می‌آید — در XAMPP در C:\\xampp\\mysql\\bin است. آن پوشه را به PATH اضافه کنید، یا :setting را در .env روی مسیر کامل آن تنظیم کنید.",
     "A cash refund is money leaving the till.": "بازپرداخت نقدی یعنی خروج پول از صندوق.",
     "A category cannot be its own parent.": "یک دسته نمی‌تواند والد خودش باشد.",
     "A managed list, so the expense report groups cleanly": "فهرستی مدیریت‌شده، تا گزارش هزینه‌ها تمیز گروه‌بندی شود",
