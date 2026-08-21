@@ -196,6 +196,160 @@ class BackupService
         return $bytes.' B';
     }
 
+    /**
+     * Check every link in the chain, and say what to do about the one that is
+     * broken.
+     *
+     * Written because the failures here are all indirect: a missing folder, a
+     * tool that is not on PATH, a socket error that is really a missing
+     * environment variable. Reading an exception message and guessing is no way
+     * to find out whether the shop's records are safe.
+     *
+     * @return list<array{name: string, ok: bool, detail: string, fix: string|null}>
+     */
+    public function diagnose(): array
+    {
+        $checks = [];
+
+        $driver = DB::connection()->getDriverName();
+        $database = (string) DB::connection()->getConfig('database');
+
+        try {
+            DB::connection()->getPdo();
+            $checks[] = $this->check(__('Database'), true, $driver.' · '.$database);
+        } catch (Throwable $e) {
+            return [$this->check(__('Database'), false, $e->getMessage(), __('Fix the DB_ settings in .env first — nothing else here can work until the application can reach the database.'))];
+        }
+
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            $checks[] = $this->toolCheck(__('mysqldump'), 'mysqldump', 'mysqldump', 'mariadb-dump');
+            $checks[] = $this->toolCheck(__('mysql (for restoring)'), 'mysql', 'mysql', 'mariadb');
+            $checks[] = $this->connectionCheck();
+        }
+
+        $checks[] = $this->folderCheck(__('Backup folder'), rtrim((string) setting('backup_path', config('backup.local')), '/\\'), null);
+
+        $remote = $this->remotePath();
+
+        $checks[] = $remote === null
+            ? $this->check(__('Off-machine copy'), false, __('Not set'), __('Set the off-machine folder on the Settings page to a drive or share that is not this machine. A dead disk should not take both the database and its backups.'))
+            : $this->folderCheck(__('Off-machine copy'), $remote, __('Set the off-machine folder on the Settings page to a folder this account can write to.'));
+
+        $checks[] = $this->scheduleCheck();
+
+        return $checks;
+    }
+
+    /** @return array{name: string, ok: bool, detail: string, fix: string|null} */
+    private function check(string $name, bool $ok, string $detail, ?string $fix = null): array
+    {
+        return ['name' => $name, 'ok' => $ok, 'detail' => $detail, 'fix' => $ok ? null : $fix];
+    }
+
+    /** @return array{name: string, ok: bool, detail: string, fix: string|null} */
+    private function toolCheck(string $name, string $key, string ...$names): array
+    {
+        try {
+            return $this->check($name, true, $this->tool($key, ...$names));
+        } catch (RuntimeException $e) {
+            return $this->check($name, false, $e->getMessage(), __(
+                'Add the database server\'s bin folder to PATH, or set :setting in .env — forward slashes and no quotes.',
+                ['setting' => Str::upper($key).'_PATH'],
+            ));
+        }
+    }
+
+    /**
+     * Run the real tool against the real database, because everything above can
+     * pass and this can still fail — which is exactly what a socket error is.
+     *
+     * @return array{name: string, ok: bool, detail: string, fix: string|null}
+     */
+    private function connectionCheck(): array
+    {
+        $name = __('mysqldump can connect');
+
+        try {
+            $tool = $this->tool('mysqldump', 'mysqldump', 'mariadb-dump');
+        } catch (RuntimeException) {
+            return $this->check($name, false, __('Skipped: mysqldump was not found.'));
+        }
+
+        $credentials = $this->credentialsFile();
+
+        try {
+            $process = new Process([
+                $tool,
+                '--defaults-extra-file='.$credentials,
+                '--no-data',
+                '--skip-lock-tables',
+                DB::connection()->getConfig('database'),
+            ], base_path(), $this->systemEnvironment());
+
+            $process->setTimeout(60);
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                return $this->check($name, true, __('Connected and read the schema'));
+            }
+
+            $error = trim($process->getErrorOutput()) ?: __('mysqldump could not be run.');
+
+            // 10106 is Winsock failing to initialise, which on Windows means the
+            // child process is missing SystemRoot rather than anything being
+            // wrong with the database or the network.
+            $fix = str_contains($error, '10106') || str_contains($error, '2004')
+                ? __('The socket error usually means a missing SystemRoot. Restart the web server so it picks up a full environment; if it persists, run "netsh winsock reset" as administrator and reboot.')
+                : __('Check DB_HOST, DB_PORT, DB_USERNAME and DB_PASSWORD in .env, and that the database server is running.');
+
+            return $this->check($name, false, $error, $fix);
+        } finally {
+            @unlink($credentials);
+        }
+    }
+
+    /** @return array{name: string, ok: bool, detail: string, fix: string|null} */
+    private function folderCheck(string $name, string $path, ?string $fix): array
+    {
+        if (! is_dir($path) && ! @mkdir($path, 0755, true) && ! is_dir($path)) {
+            return $this->check($name, false, __('There is no folder at :path, and it could not be created.', ['path' => $path]), $fix);
+        }
+
+        return is_writable($path)
+            ? $this->check($name, true, $path)
+            : $this->check($name, false, __('The folder :path exists but cannot be written to.', ['path' => $path]), $fix);
+    }
+
+    /** @return array{name: string, ok: bool, detail: string, fix: string|null} */
+    private function scheduleCheck(): array
+    {
+        $when = $this->isWeekly()
+            ? __('Weekly, :day at :time', [
+                'day' => \App\Http\Controllers\SettingController::weekdays()[$this->scheduledWeekday()] ?? '',
+                'time' => $this->scheduledTime(),
+            ])
+            : __('Every night at :time', ['time' => $this->scheduledTime()]);
+
+        $last = $this->lastRunAt();
+
+        if ($last === null) {
+            return $this->check(__('Backups have run'), false, __('Never'), __(
+                'Run "php artisan backup:run" once by hand. If that works but nothing happens overnight, the scheduler is not being called — on Windows that is a Task Scheduler job running "php artisan schedule:run" every minute.'
+            ));
+        }
+
+        // A backup older than two of its own intervals means the schedule is
+        // not firing, whatever the settings say it should do.
+        $stale = $last->lt(now()->subDays($this->isWeekly() ? 14 : 2));
+
+        return $this->check(
+            __('Backups have run'),
+            ! $stale,
+            $when.' · '.__('last :ago', ['ago' => $last->diffForHumans()]),
+            __('The schedule says one thing and the last backup says another, so the scheduler is not being called. On Windows that is a Task Scheduler job running "php artisan schedule:run" every minute; on Linux it is one crontab line.'),
+        );
+    }
+
     // ----------------------------------------------------------------- dumping
 
     private function dump(string $path): void
@@ -213,26 +367,102 @@ class BackupService
 
     private function dumpMysql(string $path): void
     {
+        $credentials = $this->credentialsFile();
+
+        try {
+            // --single-transaction dumps InnoDB consistently without locking the
+            // shop out mid-sale; without it a nightly backup can block the till.
+            //
+            // --defaults-extra-file has to come first; mysqldump ignores it
+            // anywhere else.
+            $this->pipeToGzip([
+                $this->tool('mysqldump', 'mysqldump', 'mariadb-dump'),
+                '--defaults-extra-file='.$credentials,
+                '--single-transaction',
+                '--quick',
+                '--default-character-set=utf8mb4',
+                DB::connection()->getConfig('database'),
+            ], $path);
+        } finally {
+            @unlink($credentials);
+        }
+    }
+
+    /**
+     * The connection details, in a file mysqldump reads and nobody else needs to.
+     *
+     * The password never goes on the command line, where any other user on the
+     * machine could read it out of the process list. It used to travel in
+     * MYSQL_PWD instead, which was worse than it looked on Windows: handing
+     * Symfony a custom environment makes it rebuild the child's environment as
+     * getenv() INTERSECTED WITH $_SERVER, and under Apache $_SERVER is mostly
+     * HTTP variables — so SystemRoot dropped out, Winsock could not initialise,
+     * and mysqldump failed with "Can't create TCP/IP socket (10106)". A file
+     * needs no custom environment at all.
+     */
+    private function credentialsFile(): string
+    {
         $config = DB::connection()->getConfig();
 
-        // --single-transaction dumps InnoDB consistently without locking the
-        // shop out mid-sale; without it a nightly backup can block the till.
-        $command = [
-            $this->tool('mysqldump', 'mysqldump', 'mariadb-dump'),
-            '--single-transaction',
-            '--quick',
-            '--default-character-set=utf8mb4',
-            '--host='.$config['host'],
-            '--port='.$config['port'],
-            '--user='.$config['username'],
-            $config['database'],
-        ];
+        $path = tempnam(sys_get_temp_dir(), 'sm-db');
 
-        // Passed through the environment, never on the command line, where any
-        // other user on the box could read it out of `ps`.
-        $environment = ['MYSQL_PWD' => (string) ($config['password'] ?? '')];
+        if ($path === false) {
+            throw new RuntimeException(__('Could not write to :path', ['path' => sys_get_temp_dir()]));
+        }
 
-        $this->pipeToGzip($command, $environment, $path);
+        // Readable by this account only, on the platforms where that means
+        // anything. tempnam() already creates it 0600 on Unix.
+        @chmod($path, 0600);
+
+        $quote = fn (?string $value) => '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], (string) $value).'"';
+
+        file_put_contents($path, implode("\n", [
+            '[client]',
+            'host='.$quote($config['host'] ?? '127.0.0.1'),
+            'port='.(int) ($config['port'] ?? 3306),
+            'user='.$quote($config['username'] ?? ''),
+            'password='.$quote($config['password'] ?? ''),
+            '',
+        ]));
+
+        return $path;
+    }
+
+    /**
+     * The variables a child process needs on Windows, read straight from the
+     * real process environment.
+     *
+     * Symfony composes the child's environment as getenv() intersected with
+     * $_SERVER (Process::getDefaultEnv()). That is fine under the CLI and wrong
+     * under Apache, where $_SERVER holds request variables rather than machine
+     * ones: SystemRoot disappears, and without it Winsock cannot initialise —
+     * which arrives as mysqldump error 2004, "Can't create TCP/IP socket
+     * (10106)". Naming them explicitly puts them back.
+     *
+     * @return array<string, string>
+     */
+    private function systemEnvironment(): array
+    {
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            return [];
+        }
+
+        $environment = [];
+
+        foreach (['SystemRoot', 'SystemDrive', 'windir', 'COMSPEC', 'PATH', 'PATHEXT', 'TEMP', 'TMP'] as $name) {
+            $value = getenv($name);
+
+            if (is_string($value) && $value !== '') {
+                $environment[$name] = $value;
+            }
+        }
+
+        // Last resort: a Windows box without SystemRoot in its environment at
+        // all is unusual, but the socket error it causes is baffling enough to
+        // be worth guarding against.
+        $environment['SystemRoot'] ??= 'C:\\Windows';
+
+        return $environment;
     }
 
     /**
@@ -282,9 +512,8 @@ class BackupService
 
     /**
      * @param  list<string>  $command
-     * @param  array<string, string>  $environment
      */
-    private function pipeToGzip(array $command, array $environment, string $path): void
+    private function pipeToGzip(array $command, string $path): void
     {
         $handle = gzopen($path, 'wb6');
 
@@ -292,7 +521,7 @@ class BackupService
             throw new RuntimeException(__('Could not write to :path', ['path' => $path]));
         }
 
-        $process = new Process($command, base_path(), $environment);
+        $process = new Process($command, base_path(), $this->systemEnvironment());
         $process->setTimeout((float) config('backup.timeout', 900));
 
         try {
@@ -371,7 +600,7 @@ class BackupService
     private function runs(string $binary): bool
     {
         try {
-            $process = new Process([$binary, '--version']);
+            $process = new Process([$binary, '--version'], null, $this->systemEnvironment());
             $process->setTimeout(15);
             $process->run();
 
@@ -387,35 +616,37 @@ class BackupService
 
     private function restoreMysql(string $path): void
     {
-        $config = DB::connection()->getConfig();
+        $credentials = $this->credentialsFile();
 
-        $process = new Process(
-            [
-                $this->tool('mysql', 'mysql', 'mariadb'),
-                '--default-character-set=utf8mb4',
-                // Otherwise the dump's DROP TABLE statements fail against a
-                // populated database as soon as one table references another.
-                '--init-command=SET FOREIGN_KEY_CHECKS=0',
-                '--host='.$config['host'],
-                '--port='.$config['port'],
-                '--user='.$config['username'],
-                $config['database'],
-            ],
-            base_path(),
-            ['MYSQL_PWD' => (string) ($config['password'] ?? '')],
-        );
+        try {
+            $process = new Process(
+                [
+                    $this->tool('mysql', 'mysql', 'mariadb'),
+                    '--defaults-extra-file='.$credentials,
+                    '--default-character-set=utf8mb4',
+                    // Otherwise the dump's DROP TABLE statements fail against a
+                    // populated database as soon as one table references another.
+                    '--init-command=SET FOREIGN_KEY_CHECKS=0',
+                    DB::connection()->getConfig('database'),
+                ],
+                base_path(),
+                $this->systemEnvironment(),
+            );
 
-        // Decompressed here and fed in as standard input, rather than piping
-        // `gunzip -c` through a shell: there is no gunzip on Windows, and an
-        // argument list needs no quoting rules that differ per platform.
-        $process->setInput($this->readGzip($path));
-        $process->setTimeout((float) config('backup.timeout', 900));
-        $process->run();
+            // Decompressed here and fed in as standard input, rather than piping
+            // `gunzip -c` through a shell: there is no gunzip on Windows, and an
+            // argument list needs no quoting rules that differ per platform.
+            $process->setInput($this->readGzip($path));
+            $process->setTimeout((float) config('backup.timeout', 900));
+            $process->run();
 
-        if (! $process->isSuccessful()) {
-            throw new RuntimeException(__('The restore failed: :error', [
-                'error' => trim($process->getErrorOutput()) ?: __('mysql could not be run.'),
-            ]));
+            if (! $process->isSuccessful()) {
+                throw new RuntimeException(__('The restore failed: :error', [
+                    'error' => trim($process->getErrorOutput()) ?: __('mysql could not be run.'),
+                ]));
+            }
+        } finally {
+            @unlink($credentials);
         }
     }
 

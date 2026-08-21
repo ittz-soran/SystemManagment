@@ -82,8 +82,26 @@ PATH is much shorter than a login shell's, which is the classic reason a backup
 runs fine at the keyboard and silently fails at night. Setting the two absolute
 paths removes the question.
 
-**4. Confirm.** Run it once by hand, then look at the Settings page — it shows
-the last backup time, how many copies exist, and where they go.
+**4. Confirm.** One command checks every link in the chain and names the one
+that is broken:
+
+```
+php artisan backup:check
+```
+
+```
+ OK    Database                  mysql · store_management
+ OK    mysqldump                 C:/xampp/mysql/bin/mysqldump.exe
+ OK    mysql (for restoring)     C:/xampp/mysql/bin/mysql.exe
+ OK    mysqldump can connect     Connected and read the schema
+ OK    Backup folder             C:/xampp/htdocs/SystemManagment/storage/app/backups
+ FAIL  Off-machine copy          Not set
+ FAIL  Backups have run          Never
+```
+
+Every FAIL prints what to do about it. Fix them, then run a real backup and
+look at the Settings page, which shows the last backup time, how many copies
+exist and where they go:
 
 ```
 php artisan backup:run
@@ -145,6 +163,10 @@ The command exits non-zero and writes to `storage/logs/laravel.log`. The
 Settings page keeps showing the *last successful* run, so a stale "last backup"
 date there is itself the alarm: anything older than two days is flagged.
 
+Start with `php artisan backup:check` — it runs mysqldump against the real
+database, so it reproduces the failure and names the cause instead of leaving
+you to read an exception.
+
 Common causes, in the order they actually happen:
 
 - `mysqldump` not found, or not on cron's PATH → set `MYSQLDUMP_PATH` to the
@@ -153,3 +175,9 @@ Common causes, in the order they actually happen:
   written and the run warns rather than failing.
 - The disk is full → the dump is discarded rather than left half-written, so a
   truncated file is never mistaken for a backup.
+- `Can't create TCP/IP socket (10106)`, or error 2004 → Winsock could not
+  initialise in the child process, which on Windows means it was handed an
+  environment without `SystemRoot`. The application now passes those variables
+  explicitly, so this should not happen; if it does, restart the web server, and
+  failing that run `netsh winsock reset` as administrator and reboot. It is not
+  a database or a network problem, despite what the message says.
