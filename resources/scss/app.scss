@@ -5,6 +5,31 @@
 @use 'bootstrap/scss/bootstrap' as *;
 @use 'bootstrap-icons/font/bootstrap-icons.css';
 
+// Section 8c offers four fonts "vetted for Latin + Arabic-script coverage,
+// self-hosted". Self-hosted is the part that matters: the shop cannot depend on
+// Google Fonts being reachable, and a font that fails to load silently falls
+// back to a system one that renders Sorani badly.
+//
+// 400 and 600 only (700 where a family has no 600), in the two subsets this
+// interface needs. Every weight of every family would be several megabytes for
+// nothing. Each needs its own namespace — @use refuses two modules sharing one.
+@use '@fontsource/noto-sans-arabic/latin-400.css' as noto-latin-400;
+@use '@fontsource/noto-sans-arabic/latin-600.css' as noto-latin-600;
+@use '@fontsource/noto-sans-arabic/arabic-400.css' as noto-arabic-400;
+@use '@fontsource/noto-sans-arabic/arabic-600.css' as noto-arabic-600;
+@use '@fontsource/cairo/latin-400.css' as cairo-latin-400;
+@use '@fontsource/cairo/latin-600.css' as cairo-latin-600;
+@use '@fontsource/cairo/arabic-400.css' as cairo-arabic-400;
+@use '@fontsource/cairo/arabic-600.css' as cairo-arabic-600;
+@use '@fontsource/vazirmatn/latin-400.css' as vazir-latin-400;
+@use '@fontsource/vazirmatn/latin-600.css' as vazir-latin-600;
+@use '@fontsource/vazirmatn/arabic-400.css' as vazir-arabic-400;
+@use '@fontsource/vazirmatn/arabic-600.css' as vazir-arabic-600;
+@use '@fontsource/tajawal/latin-400.css' as tajawal-latin-400;
+@use '@fontsource/tajawal/latin-700.css' as tajawal-latin-700;
+@use '@fontsource/tajawal/arabic-400.css' as tajawal-arabic-400;
+@use '@fontsource/tajawal/arabic-700.css' as tajawal-arabic-700;
+
 :root {
   --app-sidebar-width: 15rem;
 }

@@ -41,9 +41,9 @@
 
 <aside class="app-sidebar d-flex flex-column p-2 no-print">
     <a href="{{ route('dashboard') }}" class="d-flex align-items-center gap-2 text-decoration-none text-body p-2 mb-2">
-        @if(setting('shop_logo'))
+        @if(shop_logo())
             {{-- Section 9b: logos must NOT mirror in RTL. --}}
-            <img src="{{ asset(setting('shop_logo')) }}" alt="" height="28">
+            <img src="{{ shop_logo() }}" alt="" height="28">
         @else
             <i class="bi bi-shop fs-4 text-primary"></i>
         @endif

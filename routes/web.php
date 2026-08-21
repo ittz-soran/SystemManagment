@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\CustomerController;
@@ -24,6 +25,14 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'));
+
+/*
+ * Section 8c: the logo is read from disk and sent, rather than linked at
+ * /storage/… which needs `php artisan storage:link` — a step that needs
+ * administrator rights on Windows and is silently missing on most XAMPP
+ * installs. Outside the auth group, because the login page shows it.
+ */
+Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])

@@ -21,6 +21,10 @@
         "@laravel/multiplex": "^0.4.1"
     },
     "dependencies": {
+        "@fontsource/cairo": "^5.3.0",
+        "@fontsource/noto-sans-arabic": "^5.3.0",
+        "@fontsource/tajawal": "^5.3.0",
+        "@fontsource/vazirmatn": "^5.3.0",
         "@popperjs/core": "^2.11.8",
         "bootstrap": "^5.3.8",
         "bootstrap-icons": "^1.13.1",
