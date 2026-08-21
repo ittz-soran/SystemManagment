@@ -43,6 +43,19 @@ class SettingSeeder extends Seeder
         'low_stock_threshold' => '5',
         'sku_prefix' => 'SS',
         'date_format' => 'Y-m-d',
+
+        // Section 8b — backups. These override the .env defaults so an admin can
+        // change them from the Settings page without touching a file on the
+        // server; a null falls back to config/backup.php.
+        'backup_frequency' => 'daily',
+        'backup_time' => '02:15',
+        // Friday, the quiet night of the Iraqi weekend. Only read when the
+        // frequency is weekly.
+        'backup_weekday' => '5',
+        'backup_path' => null,
+        'backup_remote_path' => null,
+        'backup_keep_daily' => '30',
+        'backup_keep_monthly' => '12',
     ];
 
     public function run(): void

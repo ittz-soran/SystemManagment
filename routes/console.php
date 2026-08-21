@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\BackupService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -17,10 +18,17 @@ Artisan::command('inspire', function () {
  *
  *     * * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1
  */
-Schedule::command('backup:run')
-    ->dailyAt((string) config('backup.schedule', '02:15'))
+$backups = app(BackupService::class);
+
+$backup = Schedule::command('backup:run')
     ->timezone(setting('timezone', config('app.timezone')))
     // A backup that overlaps the previous night's is a machine in trouble, not
     // a reason to start a second dump on top of it.
     ->withoutOverlapping()
-    ->onFailure(fn () => Log::error('The nightly backup did not complete.'));
+    ->onFailure(fn () => Log::error('The scheduled backup did not complete.'));
+
+// Section 8c: the frequency is an admin setting, so this is read from the
+// database rather than fixed here.
+$backups->isWeekly()
+    ? $backup->weeklyOn($backups->scheduledWeekday(), $backups->scheduledTime())
+    : $backup->dailyAt($backups->scheduledTime());

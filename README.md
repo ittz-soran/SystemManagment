@@ -54,6 +54,22 @@ is an assertion drawn from the project doc, and it is the gate before go-live.
 > **One caveat:** `lockForUpdate()` is a silent no-op on SQLite, so the concurrency test
 > proves nothing when run there. Run that one against real MySQL before go-live.
 
+## Import & export
+
+**Import & export** (in the sidebar, under System) moves the shop's *descriptive* rows —
+products, categories, suppliers and customers — in and out as CSV files that open in
+Excel. Export a price list, edit it in a spreadsheet, import it back.
+
+It deliberately cannot write stock or a balance. `products.quantity` is a cache of the
+batch sums and a balance is a cache of the ledger, so those move only through a purchase,
+a stock adjustment, a sale or a payment. A file that tries anyway is not ignored quietly:
+the row is reported with the reason.
+
+Every import shows a preview first — added, changed, unchanged, skipped, row by row —
+and writes nothing until you confirm.
+
+> This is not a backup. To move *everything*, including stock and the ledger, use one.
+
 ## Backups
 
 Financial records are the shop's only proof of who owes what, so this is not optional
@@ -77,7 +93,8 @@ minute — see [docs/BACKUP.md](docs/BACKUP.md) for the exact fields.
 Then `php artisan backup:run` once by hand, and check the Settings page shows it.
 If it says `'mysqldump' is not recognized`, the tool is not on PATH — XAMPP keeps
 it in `C:\xampp\mysql\bin`. The command looks there itself; set `MYSQLDUMP_PATH`
-if yours lives somewhere else.
+if yours lives somewhere else — with forward slashes and no quotes, or `.env` will
+not parse at all.
 
 **[docs/BACKUP.md](docs/BACKUP.md)** has the rest: retention, restoring with
 `php artisan backup:restore`, and the restore drill to run before go-live. An untested
