@@ -1,10 +1,21 @@
 @extends('layouts.app')
 
-@section('title', __('New purchase'))
+@php
+    // The edit screen is this same cart with the purchase's lines preloaded and
+    // the payment fields hidden — Section 8 keeps payments untouched by an edit.
+    $editing = isset($purchase);
+@endphp
+
+@section('title', $editing ? __('Edit purchase') : __('New purchase'))
+@if($editing)
+    @section('subheading', $purchase->document_no)
+@endif
 
 @section('content')
-    <form action="{{ route('purchases.store') }}" method="POST" id="purchase-form" data-guard-submit>
+    <form action="{{ $editing ? route('purchases.update', $purchase) : route('purchases.store') }}"
+          method="POST" id="purchase-form" data-guard-submit>
         @csrf
+        @if($editing) @method('PUT') @endif
 
         <div class="row g-3">
             <div class="col-lg-8">
@@ -57,7 +68,8 @@
                             <select id="supplier_id" name="supplier_id" class="form-select" required>
                                 <option value="">{{ __('Choose…') }}</option>
                                 @foreach($suppliers as $supplier)
-                                    <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>
+                                    <option value="{{ $supplier->id }}"
+                                            @selected(old('supplier_id', $editing ? $purchase->supplier_id : null) == $supplier->id)>
                                         {{ $supplier->name }}
                                     </option>
                                 @endforeach
@@ -67,14 +79,14 @@
                         <div class="mb-3">
                             <label for="supplier_invoice_no" class="form-label">{{ __("Supplier's invoice number") }}</label>
                             <input id="supplier_invoice_no" name="supplier_invoice_no" class="form-control" dir="ltr"
-                                   value="{{ old('supplier_invoice_no') }}">
+                                   value="{{ old('supplier_invoice_no', $editing ? $purchase->supplier_invoice_no : null) }}">
                             <div class="form-text">{{ __('Their number on their paperwork. Useful when reconciling.') }}</div>
                         </div>
 
                         <div class="mb-3">
                             <label for="purchase_date" class="form-label">{{ __('Date') }}</label>
                             <input id="purchase_date" type="date" name="purchase_date" class="form-control"
-                                   value="{{ old('purchase_date', today()->toDateString()) }}" required>
+                                   value="{{ old('purchase_date', $editing ? $purchase->purchase_date->toDateString() : today()->toDateString()) }}" required>
                         </div>
 
                         {{-- Section 6b: the USD entry helper. Only IQD is ever
@@ -102,7 +114,8 @@
                         <div class="mb-3">
                             <label for="discount_amount" class="form-label small">{{ __('Invoice discount') }}</label>
                             <input id="discount_amount" type="number" step="1" name="discount_amount"
-                                   class="form-control form-control-sm text-end" dir="ltr" value="0">
+                                   class="form-control form-control-sm text-end" dir="ltr"
+                                   value="{{ old('discount_amount', $editing ? $purchase->discount_amount : 0) }}">
                             {{-- Section 6: signed, because a supplier may round UP.
                                  It never touches item prices or batch costs. --}}
                             <div class="form-text">
@@ -113,33 +126,40 @@
                         <div class="text-secondary small">{{ __('Grand total') }}</div>
                         <div class="running-total mb-3" id="grand-total">0</div>
 
-                        <div class="mb-3">
-                            <label for="amount_paid" class="form-label">{{ __('Paid now') }}</label>
-                            <div class="input-group">
-                                <input id="amount_paid" type="number" step="1" min="0" name="amount_paid"
-                                       class="form-control text-end" dir="ltr" value="0">
-                                <button type="button" class="btn btn-outline-secondary" id="pay-full">{{ __('Full') }}</button>
+                        @if($editing)
+                            <div class="alert alert-secondary py-2 small mb-0">
+                                {{ __('Payments are not changed by an edit. The new total must still cover the :paid already paid.', ['paid' => money($purchase->amountPaid())]) }}
                             </div>
-                            <div class="form-text" id="due-note"></div>
-                        </div>
+                        @else
+                            <div class="mb-3">
+                                <label for="amount_paid" class="form-label">{{ __('Paid now') }}</label>
+                                <div class="input-group">
+                                    <input id="amount_paid" type="number" step="1" min="0" name="amount_paid"
+                                           class="form-control text-end" dir="ltr" value="0">
+                                    <button type="button" class="btn btn-outline-secondary" id="pay-full">{{ __('Full') }}</button>
+                                </div>
+                                <div class="form-text" id="due-note"></div>
+                            </div>
 
-                        <div>
-                            <label for="payment_method" class="form-label">{{ __('Method') }}</label>
-                            <select id="payment_method" name="payment_method" class="form-select">
-                                <option value="cash">{{ __('Cash') }}</option>
-                                <option value="bank">{{ __('Bank') }}</option>
-                                <option value="transfer">{{ __('Transfer') }}</option>
-                            </select>
-                        </div>
+                            <div>
+                                <label for="payment_method" class="form-label">{{ __('Method') }}</label>
+                                <select id="payment_method" name="payment_method" class="form-select">
+                                    <option value="cash">{{ __('Cash') }}</option>
+                                    <option value="bank">{{ __('Bank') }}</option>
+                                    <option value="transfer">{{ __('Transfer') }}</option>
+                                </select>
+                            </div>
+                        @endif
                     </div>
                 </div>
 
                 <div class="d-grid gap-2 position-sticky" style="bottom: 1rem">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-purchase" disabled
                             data-submitting-text="{{ __('Saving…') }}">
-                        {{ __('Save purchase') }} <kbd class="ms-1">F2</kbd>
+                        {{ $editing ? __('Save changes') : __('Save purchase') }} <kbd class="ms-1">F2</kbd>
                     </button>
-                    <a href="{{ route('purchases.index') }}" class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
+                    <a href="{{ $editing ? route('purchases.show', $purchase) : route('purchases.index') }}"
+                       class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
         </div>
@@ -163,7 +183,8 @@
             const saveButton = document.getElementById('save-purchase');
 
             const defaultRate = {{ (int) $usdRate }};
-            const cart = [];
+            // Section 8: an edit starts from the purchase's current lines.
+            const cart = @json($cartLines ?? []);
             let highlighted = -1;
             let searchTimer = null;
 
@@ -229,6 +250,9 @@
 
                 subtotalEl.textContent = format(subtotal);
                 grandTotalEl.textContent = format(grandTotal);
+
+                // An edit has no payment fields — Section 8 leaves payments alone.
+                if (! paidInput) return;
 
                 const due = grandTotal - Number(paidInput.value || 0);
                 dueNote.textContent = due > 0
@@ -406,13 +430,16 @@
             });
 
             discountInput.addEventListener('input', recalculate);
-            paidInput.addEventListener('input', recalculate);
 
-            document.getElementById('pay-full').addEventListener('click', () => {
-                const subtotal = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
-                paidInput.value = Math.max(0, subtotal - Number(discountInput.value || 0));
-                recalculate();
-            });
+            if (paidInput) {
+                paidInput.addEventListener('input', recalculate);
+
+                document.getElementById('pay-full').addEventListener('click', () => {
+                    const subtotal = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
+                    paidInput.value = Math.max(0, subtotal - Number(discountInput.value || 0));
+                    recalculate();
+                });
+            }
 
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'F2' && ! saveButton.disabled) {

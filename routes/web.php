@@ -105,6 +105,16 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:sales.create')->name('sales.store');
     Route::get('sales/{sale}', [SaleController::class, 'show'])
         ->middleware('permission:sales.view')->name('sales.show');
+    // Section 8: editable only within 24 hours and only while nothing
+    // downstream depends on it. The rules live on the model.
+    Route::get('sales/{sale}/edit', [SaleController::class, 'edit'])
+        ->middleware('permission:sales.edit')->name('sales.edit');
+    Route::put('sales/{sale}', [SaleController::class, 'update'])
+        ->middleware('permission:sales.edit')->name('sales.update');
+    Route::delete('sales/{sale}', [SaleController::class, 'destroy'])
+        ->middleware('permission:sales.delete')->name('sales.destroy');
+    Route::delete('sales', [SaleController::class, 'bulkDestroy'])
+        ->middleware('permission:sales.delete')->name('sales.bulk-destroy');
 
     Route::get('purchases', [PurchaseController::class, 'index'])
         ->middleware('permission:purchases.view')->name('purchases.index');
@@ -114,6 +124,14 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:purchases.create')->name('purchases.store');
     Route::get('purchases/{purchase}', [PurchaseController::class, 'show'])
         ->middleware('permission:purchases.view')->name('purchases.show');
+    Route::get('purchases/{purchase}/edit', [PurchaseController::class, 'edit'])
+        ->middleware('permission:purchases.edit')->name('purchases.edit');
+    Route::put('purchases/{purchase}', [PurchaseController::class, 'update'])
+        ->middleware('permission:purchases.edit')->name('purchases.update');
+    Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy'])
+        ->middleware('permission:purchases.delete')->name('purchases.destroy');
+    Route::delete('purchases', [PurchaseController::class, 'bulkDestroy'])
+        ->middleware('permission:purchases.delete')->name('purchases.bulk-destroy');
 
     // ---- Returns ---------------------------------------------------------
     // Section 7: a return creates a new forward document, so it is never

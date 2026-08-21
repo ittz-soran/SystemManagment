@@ -26,6 +26,14 @@
             </a>
         @endif
     @endcan
+
+    {{-- Section 9b: edit and delete are always shown — disabled with the lock
+         reason as a tooltip — so it never looks as though they do not exist. --}}
+    <x-record-actions
+        :state="$lockState"
+        :edit="route('sales.edit', $sale)"
+        :delete="route('sales.destroy', $sale)"
+        :delete-label="__('Delete this sale? Its stock goes back into the batches it came from.')" />
 @endsection
 
 @section('content')

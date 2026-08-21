@@ -66,6 +66,12 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                     <tr>
+                        @can('sales.delete')
+                            <th style="width: 2.5rem">
+                                <input type="checkbox" class="form-check-input" id="bulk-select-all"
+                                       aria-label="{{ __('Select all') }}">
+                            </th>
+                        @endcan
                         <th>{{ __('Invoice') }}</th>
                         <th>{{ __('Date') }}</th>
                         <th>{{ __('Customer') }}</th>
@@ -78,6 +84,12 @@
                     <tbody>
                     @foreach($sales as $sale)
                         <tr>
+                            @can('sales.delete')
+                                <td>
+                                    <input type="checkbox" class="form-check-input" data-bulk-id="{{ $sale->id }}"
+                                           aria-label="{{ __('Select :document', ['document' => $sale->document_no]) }}">
+                                </td>
+                            @endcan
                             <td class="fw-medium" dir="ltr">{{ $sale->document_no }}</td>
                             <td dir="ltr">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</td>
                             <td>{{ $sale->customer->displayName() }}</td>
@@ -97,5 +109,10 @@
         </div>
 
         <div class="mt-3">{{ $sales->links() }}</div>
+
+        @can('sales.delete')
+            <x-bulk-delete :action="route('sales.bulk-destroy')"
+                           :confirm="__('Delete the selected sales? Their stock goes back into the batches it came from.')" />
+        @endcan
     @endif
 @endsection

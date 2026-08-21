@@ -114,12 +114,21 @@ class Sale extends Model
         //    and both are wrong.
         $productIds = $this->items()->pluck('product_id')->unique();
 
+        //    "Later" means later in the movement timeline, which is the order
+        //    FIFO actually runs in — not later than the row was created.
+        //    occurred_at carries microseconds and created_at does not, so
+        //    comparing the two reads a purchase made in the same second as this
+        //    sale as coming after it, and locks a sale nothing has touched.
+        $takenAt = StockMovement::where('reference_type', StockMovement::REF_SALE)
+            ->where('reference_id', $this->id)
+            ->max('occurred_at') ?? $this->created_at;
+
         $laterMovement = StockMovement::whereIn('product_id', $productIds)
             ->where(function ($q) {
                 $q->where('reference_type', '!=', StockMovement::REF_SALE)
                     ->orWhere('reference_id', '!=', $this->id);
             })
-            ->where('occurred_at', '>', $this->created_at)
+            ->where('occurred_at', '>', $takenAt)
             ->exists();
 
         if ($laterMovement) {

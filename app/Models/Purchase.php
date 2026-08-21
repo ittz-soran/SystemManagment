@@ -107,9 +107,11 @@ class Purchase extends Model
             - (int) $this->batches()->sum('quantity_remaining');
 
         if ($consumed > 0) {
-            return $deny(__('Locked: :count units from this purchase have already been used.', [
-                'count' => (int) $consumed,
-            ]));
+            return $deny(trans_choice(
+                '{1}Locked: :count unit from this purchase has already been used.'
+                .'|[2,*]Locked: :count units from this purchase have already been used.',
+                $consumed, ['count' => $consumed],
+            ));
         }
 
         // 3. No purchase returns against it.

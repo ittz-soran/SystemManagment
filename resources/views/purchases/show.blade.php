@@ -24,6 +24,15 @@
             </a>
         @endif
     @endcan
+
+    {{-- Delete carries its own state: a purchase whose stock has been sold can
+         still be corrected, but not removed. --}}
+    <x-record-actions
+        :state="$lockState"
+        :delete-state="$deleteState"
+        :edit="route('purchases.edit', $purchase)"
+        :delete="route('purchases.destroy', $purchase)"
+        :delete-label="__('Delete this purchase? Its batches are removed from stock.')" />
 @endsection
 
 @section('content')
