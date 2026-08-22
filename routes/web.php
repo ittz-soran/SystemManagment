@@ -165,6 +165,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:purchase_returns.create')->name('purchase-returns.store');
     Route::get('purchase-returns/{purchaseReturn}', [PurchaseReturnController::class, 'show'])
         ->middleware('permission:purchase_returns.view')->name('purchase-returns.show');
+    Route::delete('purchase-returns/{purchaseReturn}', [PurchaseReturnController::class, 'destroy'])
+        ->middleware('permission:purchase_returns.delete')->name('purchase-returns.destroy');
 
     // ---- Money -----------------------------------------------------------
     Route::get('payments', [PaymentController::class, 'index'])
