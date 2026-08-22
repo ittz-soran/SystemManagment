@@ -23,9 +23,13 @@ use Tests\TestCase;
  * test: the destination has to be the list the reader actually came from, and
  * the link must not be offered to someone the list would refuse.
  *
- * The scroll position and the remembered filters are the script's half of this
- * and are checked in the browser; what is fixed here is the markup it needs —
- * a real href, plus the data-back-to marker that names the list to restore.
+ * Where the reader came from is the script's half of this: arriving at a sale
+ * from a product, the button says "Product 1" and goes there, using the
+ * browser's own Back so the scroll comes back with it. That is checked in the
+ * browser. What is fixed here is the markup underneath it — a real href to a
+ * real route, so the button works with the script disabled, on a first visit,
+ * and when opened in a new tab; plus the data-back-to marker naming the list
+ * whose filters and scroll the script should restore.
  */
 class BackLinkTest extends TestCase
 {
@@ -149,6 +153,25 @@ class BackLinkTest extends TestCase
             ->get(route('sales.create'))->assertOk()->getContent();
 
         $this->assertBackLink($html, route('sales.index'), 'sales');
+    }
+
+    /**
+     * The href is a route the server resolved, not a guess made from the
+     * referrer: the script only ever swaps in a page it has seen this reader on,
+     * so a link followed from an email or another site cannot decide where the
+     * button goes.
+     */
+    public function test_the_destination_does_not_come_from_the_referrer(): void
+    {
+        $this->buy();
+        $sale = $this->sell();
+
+        $html = $this->actingAs($this->admin)
+            ->withHeader('referer', 'https://somewhere-else.test/anything')
+            ->get(route('sales.show', $sale))->assertOk()->getContent();
+
+        $this->assertBackLink($html, route('sales.index'), 'sales');
+        $this->assertStringNotContainsString('somewhere-else.test', $html);
     }
 
     public function test_it_is_not_offered_to_a_reader_the_list_would_refuse(): void

@@ -126,7 +126,9 @@
                         @foreach($payments as $payment)
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>
-                                    <span class="d-block small" dir="ltr">{{ $payment->document_no }}</span>
+                                    <span class="d-block small">
+                                        <x-document-link :document="$payment" :kind="false" />
+                                    </span>
                                     <span class="small text-secondary">
                                         {{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}
                                         · {{ Str::headline($payment->payment_method) }}

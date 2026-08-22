@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * One place that knows how to turn a polymorphic reference into something a
@@ -33,6 +34,8 @@ final class DocumentLink
      *
      * An alias absent from this list has no page of its own; its number is
      * still worth showing, so it degrades to text rather than disappearing.
+     * Nothing is absent today, but a new kind of document will be, and should
+     * appear as text on every screen the day it is added rather than 404.
      */
     private const PAGES = [
         'sale' => ['sales.show', 'sales.view'],
@@ -42,6 +45,9 @@ final class DocumentLink
         'customer' => ['customers.show', 'customers.view'],
         'supplier' => ['suppliers.show', 'suppliers.view'],
         'product' => ['products.show', 'products.view'],
+        'payment' => ['payments.show', 'payments.view'],
+        'expense' => ['expenses.show', 'expenses.view'],
+        'adjustment' => ['stock-adjustments.show', 'stock_adjustments.view'],
     ];
 
     /**
@@ -80,7 +86,13 @@ final class DocumentLink
             return null;
         }
 
-        [$route, $permission] = self::PAGES[$document->getMorphClass()] ?? [null, null];
+        // Read the alias out of the map rather than asking the model for it:
+        // getMorphClass() throws for a class the enforced map does not name, and
+        // a reference this class cannot place must degrade to text, not to a
+        // 500 on the page that happens to show it.
+        $alias = array_search($document::class, Relation::morphMap(), true);
+
+        [$route, $permission] = self::PAGES[$alias] ?? [null, null];
 
         if ($route === null || ! $viewer?->hasPermission($permission)) {
             return null;

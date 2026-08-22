@@ -4,7 +4,7 @@
 @section('subheading', __('Compares each cached quantity against its batches and movements'))
 
 @section('back')
-    <x-back-link :to="route('stock-adjustments.index')" :label="__('Stock adjustments')" remember="stock-adjustments" permission="adjustments.view" />
+    <x-back-link :to="route('stock-adjustments.index')" :label="__('Stock adjustments')" remember="stock-adjustments" permission="stock_adjustments.view" />
 @endsection
 
 @section('content')

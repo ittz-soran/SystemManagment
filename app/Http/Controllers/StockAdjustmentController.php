@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Exceptions\InsufficientStockException;
 use App\Models\Product;
 use App\Models\StockAdjustment;
+use App\Models\StockBatch;
+use App\Models\StockMovement;
 use App\Services\LedgerService;
 use App\Services\StockAdjustmentService;
 use Illuminate\Http\RedirectResponse;
@@ -52,6 +54,29 @@ class StockAdjustmentController extends Controller
             'archivedCount' => $archivedCount,
             'adjustments' => $adjustments,
             'reasons' => self::REASONS,
+        ]);
+    }
+
+    /**
+     * Section 4: an adjustment is the only way to correct a locked document, so
+     * what it did to the batches is the whole point of reading one. The batch it
+     * created, or the batches it drew down, are shown with it.
+     */
+    public function show(StockAdjustment $stockAdjustment): View
+    {
+        $stockAdjustment->load('product', 'user');
+
+        return view('stock-adjustments.show', [
+            'adjustment' => $stockAdjustment,
+            'movements' => StockMovement::where('reference_type', StockMovement::REF_ADJUSTMENT)
+                ->where('reference_id', $stockAdjustment->id)
+                ->with('batch')
+                ->orderBy('occurred_at')
+                ->orderBy('sequence')
+                ->get(),
+            'batch' => StockBatch::where('source_type', StockBatch::SOURCE_ADJUSTMENT)
+                ->where('source_id', $stockAdjustment->id)
+                ->first(),
         ]);
     }
 

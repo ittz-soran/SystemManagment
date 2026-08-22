@@ -186,6 +186,9 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:payments.create')->name('payments.create');
     Route::post('payments', [PaymentController::class, 'store'])
         ->middleware('permission:payments.create')->name('payments.store');
+    // After payments/create, or "create" is read as a payment to look up.
+    Route::get('payments/{payment}', [PaymentController::class, 'show'])
+        ->middleware('permission:payments.view')->name('payments.show');
 
     Route::get('expenses', [ExpenseController::class, 'index'])
         ->middleware('permission:expenses.view')->name('expenses.index');
@@ -195,6 +198,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:expenses.edit')->name('expenses.update');
     Route::delete('expenses/{expense}', [ExpenseController::class, 'destroy'])
         ->middleware('permission:expenses.delete')->name('expenses.destroy');
+    Route::get('expenses/{expense}', [ExpenseController::class, 'show'])
+        ->middleware('permission:expenses.view')->name('expenses.show');
 
     Route::middleware('permission:expense_categories.manage')->group(function () {
         Route::get('expense-categories', [ExpenseCategoryController::class, 'index'])->name('expense-categories.index');
@@ -210,6 +215,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.index');
     Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])
         ->middleware('permission:stock_adjustments.create')->name('stock-adjustments.store');
+    Route::get('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'show'])
+        ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.show');
 
     Route::middleware('permission:stock.recheck')->group(function () {
         Route::get('stock/recheck', [StockAdjustmentController::class, 'recheckStock'])->name('stock.recheck');

@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Observers\ActivityObserver;
 use App\Services\ActivityLogger;
 use App\Models\Customer;
+use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
@@ -51,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
             // already store this name; mapping it lets those columns be read
             // back as a relation rather than only written as a string.
             'adjustment' => StockAdjustment::class,
+            'expense' => Expense::class,
         ]);
 
         // Section 3: Bootstrap 5, so the paginator emits Bootstrap markup
