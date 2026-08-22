@@ -177,8 +177,9 @@
                 cart.forEach((line, index) => {
                     const row = document.createElement('tr');
 
-                    // Section 9b: qty and price are inline editable in the row —
-                    // no modal to change a number.
+                    // Section 9b: qty and price are edited in the row. Tapping
+                    // either opens the keypad, which a finger can use on a
+                    // touchscreen and a keyboard can drive just as fast.
                     row.innerHTML = `
                         <td>
                             <div class="fw-medium">${line.name}</div>
@@ -193,14 +194,16 @@
                             <input type="number" min="1" step="1" dir="ltr"
                                    class="form-control form-control-sm text-end"
                                    name="lines[${index}][quantity]" value="${line.quantity}"
-                                   data-role="qty" data-index="${index}">
+                                   data-role="qty" data-index="${index}"
+                                   data-numpad="@json(__('Quantity'))" data-numpad-min="1">
                             <div class="small text-secondary text-end">${format(line.stock)} @json(__('in stock'))</div>
                         </td>
                         <td>
                             <input type="number" min="0" step="1" dir="ltr"
                                    class="form-control form-control-sm text-end"
                                    name="lines[${index}][unit_price]" value="${line.price}"
-                                   data-role="price" data-index="${index}">
+                                   data-role="price" data-index="${index}"
+                                   data-numpad="${line.name}">
                         </td>
                         <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
                         <td>
@@ -344,6 +347,27 @@
                 }
             });
 
+            /**
+             * Update one row's derived figures without rebuilding the table.
+             *
+             * render() replaces cartBody.innerHTML, which destroys whichever
+             * input has focus — so calling it from an 'input' handler meant a
+             * price could never be more than one digit long: the field vanished
+             * after the first keystroke.
+             */
+            function refreshRow(index) {
+                const line = cart[index];
+                const row = cartBody.querySelectorAll('tr')[index];
+                if (! line || ! row) return;
+
+                row.querySelector('.money').textContent = format(line.quantity * line.price);
+                row.querySelector('[data-role="below-cost"]').classList.toggle('d-none', ! line.belowCost);
+
+                const total = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
+                totalEl.textContent = format(total);
+                updateDue(total);
+            }
+
             cartBody.addEventListener('input', (event) => {
                 const index = Number(event.target.dataset.index);
                 const line = cart[index];
@@ -358,7 +382,7 @@
                     line.belowCost = line.cost !== null && line.price < line.cost;
                 }
 
-                render();
+                refreshRow(index);
             });
 
             cartBody.addEventListener('click', (event) => {
@@ -390,6 +414,10 @@
             }
 
             document.addEventListener('keydown', (event) => {
+                // Not while the keypad is up, or F2 would save the document
+                // from under a half-typed price.
+                if (document.getElementById('number-pad')?.classList.contains('show')) return;
+
                 if (event.key === 'F2' && ! saveButton.disabled) {
                     event.preventDefault();
                     document.getElementById('sale-form').requestSubmit();

@@ -208,7 +208,8 @@
                             <input type="number" min="1" step="1" dir="ltr"
                                    class="form-control form-control-sm text-end"
                                    name="lines[${index}][quantity]" value="${line.quantity}"
-                                   data-role="qty" data-index="${index}">
+                                   data-role="qty" data-index="${index}"
+                                   data-numpad="@json(__('Quantity'))" data-numpad-min="1">
                         </td>
                         <td>
                             <select class="form-select form-select-sm" data-role="currency" data-index="${index}">
@@ -220,11 +221,13 @@
                             ${line.currency === 'USD'
                                 ? `<input type="number" min="0" step="0.01" dir="ltr"
                                           class="form-control form-control-sm text-end"
-                                          value="${line.enteredAmount}" data-role="usd" data-index="${index}">
-                                   <div class="small text-secondary text-end">= ${format(line.price)} @json(__('IQD'))</div>`
+                                          value="${line.enteredAmount}" data-role="usd" data-index="${index}"
+                                          data-numpad="${line.name} (USD)" data-numpad-decimals="2">
+                                   <div class="small text-secondary text-end" data-role="converted">= ${format(line.price)} @json(__('IQD'))</div>`
                                 : `<input type="number" min="0" step="1" dir="ltr"
                                           class="form-control form-control-sm text-end"
-                                          value="${line.price}" data-role="price" data-index="${index}">`}
+                                          value="${line.price}" data-role="price" data-index="${index}"
+                                          data-numpad="${line.name}">`}
                             <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}">
                         </td>
                         <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
@@ -240,6 +243,26 @@
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
                 saveButton.disabled = cart.length === 0;
+                recalculate();
+            }
+
+            /**
+             * Update one row's figures in place.
+             *
+             * render() replaces cartBody.innerHTML, which destroys the focused
+             * input — calling it from an 'input' handler meant a price could
+             * never be more than one digit long.
+             */
+            function refreshRow(index) {
+                const line = cart[index];
+                const row = cartBody.querySelectorAll('tr')[index];
+                if (! line || ! row) return;
+
+                row.querySelector('.money').textContent = format(line.quantity * line.price);
+
+                // The form posts this, not the visible box, which may be dollars.
+                row.querySelector('input[name$="[unit_price]"]').value = line.price;
+
                 recalculate();
             }
 
@@ -374,17 +397,23 @@
 
                 if (role === 'qty') {
                     line.quantity = Math.max(1, Number(event.target.value || 1));
-                    recalculate();
-                    cartBody.querySelectorAll('tr')[index].querySelector('.money').textContent =
-                        format(line.quantity * line.price);
                 } else if (role === 'price') {
                     line.price = Math.max(0, Number(event.target.value || 0));
-                    render();
                 } else if (role === 'usd') {
                     line.enteredAmount = Number(event.target.value || 0);
                     line.price = usdToIqd(line.enteredAmount);
-                    render();
+
+                    // The converted figure sits beside the dollars box, so it
+                    // has to keep up as the digits arrive.
+                    const converted = cartBody.querySelectorAll('tr')[index]
+                        .querySelector('[data-role="converted"]');
+
+                    if (converted) {
+                        converted.textContent = '= ' + format(line.price) + ' ' + @json(__('IQD'));
+                    }
                 }
+
+                refreshRow(index);
             });
 
             cartBody.addEventListener('change', (event) => {
@@ -442,6 +471,10 @@
             }
 
             document.addEventListener('keydown', (event) => {
+                // Not while the keypad is up, or F2 would save the document
+                // from under a half-typed price.
+                if (document.getElementById('number-pad')?.classList.contains('show')) return;
+
                 if (event.key === 'F2' && ! saveButton.disabled) {
                     event.preventDefault();
                     document.getElementById('purchase-form').requestSubmit();
