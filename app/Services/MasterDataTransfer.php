@@ -70,7 +70,11 @@ class MasterDataTransfer
     public function readOnlyColumns(string $entity): array
     {
         return match ($entity) {
-            'products' => ['quantity'],
+            // kind is read-only for the same reason quantity is: a second-hand
+            // item became one by being bought through its own screen, and a
+            // spreadsheet turning an ordinary product into a service — or the
+            // other way about — would strand batches nothing can consume.
+            'products' => ['quantity', 'kind'],
             'suppliers', 'customers' => ['balance'],
             default => [],
         };

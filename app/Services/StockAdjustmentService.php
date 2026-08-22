@@ -39,6 +39,12 @@ class StockAdjustmentService
             throw new RuntimeException(__('An adjustment needs a quantity above zero.'));
         }
 
+        // There is no stock behind a service to be miscounted, damaged or
+        // stolen, so there is nothing here to correct.
+        if (! $product->tracksStock()) {
+            throw new RuntimeException(__('A service holds no stock, so there is nothing to adjust.'));
+        }
+
         $adjustedAt ??= now();
 
         if (books_closed_on($adjustedAt)) {

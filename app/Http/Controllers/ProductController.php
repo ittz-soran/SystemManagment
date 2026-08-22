@@ -26,6 +26,11 @@ class ProductController extends Controller
     public function index(Request $request): View
     {
         $products = Product::with('category')
+            // Section 4: second-hand items and services are products and sell
+            // like them, but a list of what the shop stocks is not where they
+            // belong — one is a single thing that will never be reordered, the
+            // other is not a thing at all. Each has its own screen.
+            ->stocked()
             ->when($request->filled('search'), fn ($q) => $q->search($request->string('search')->toString()))
             // Section 9: filtering by SEVERAL categories at once is
             // WHERE category_id IN (...) — no pivot table needed.
@@ -158,19 +163,35 @@ class ProductController extends Controller
             return response()->json([]);
         }
 
+        // Which kinds the caller can use. A sale can carry anything the shop
+        // sells; a purchase and an adjustment can only touch ordinary stock,
+        // since a service has no stock and a second-hand item is bought once,
+        // through its own screen, and would otherwise gain a second batch for a
+        // machine there is only one of.
+        $kinds = $request->filled('kinds')
+            ? array_intersect(
+                explode(',', $request->string('kinds')->toString()),
+                [Product::KIND_STOCK, Product::KIND_USED, Product::KIND_SERVICE],
+            )
+            : [Product::KIND_STOCK, Product::KIND_USED, Product::KIND_SERVICE];
+
         $exact = Product::active()
+            ->ofKind($kinds)
             ->where(fn ($q) => $q->where('barcode', $term)->orWhere('sku', $term))
             ->first();
 
         $products = $exact
             ? collect([$exact])
-            : Product::active()->where('name', 'like', '%'.$term.'%')->orderBy('name')->limit(15)->get();
+            : Product::active()->ofKind($kinds)
+                ->where('name', 'like', '%'.$term.'%')->orderBy('name')->limit(15)->get();
 
         return response()->json([
             'exact' => (bool) $exact,
             'products' => $products->map(fn (Product $p) => [
                 'id' => $p->id,
                 'name' => $p->name,
+                'kind' => $p->kind,
+                'condition_note' => $p->condition_note,
                 'sku' => $p->sku,
                 'barcode' => $p->barcode,
                 'unit' => $p->unit,
@@ -179,7 +200,11 @@ class ProductController extends Controller
                 'purchase_price' => $p->purchase_price,
                 // Section 9b: the below-cost warning needs the cost of the batch
                 // that would actually be consumed next.
-                'next_batch_cost' => $p->stockBatches()->withStock()->fifoOrder()->value('unit_cost'),
+                // A service has no batch and no cost, so there is nothing it can
+                // be sold below.
+                'next_batch_cost' => $p->tracksStock()
+                    ? $p->stockBatches()->withStock()->fifoOrder()->value('unit_cost')
+                    : null,
             ]),
         ]);
     }

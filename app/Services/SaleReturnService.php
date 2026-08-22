@@ -67,7 +67,8 @@ class SaleReturnService
             $total = 0;
 
             // Lock the sale lines in a consistent order, same reasoning as sales.
-            $saleItems = SaleItem::whereIn('id', array_column($lines, 'sale_item_id'))
+            $saleItems = SaleItem::with('product')
+                ->whereIn('id', array_column($lines, 'sale_item_id'))
                 ->where('sale_id', $sale->id)
                 ->orderBy('product_id')
                 ->orderBy('sequence')
@@ -107,14 +108,20 @@ class SaleReturnService
                 // The exact algorithm: units go back to the batches they actually
                 // came from, in reverse order of consumption, tracked at the
                 // movement level so repeated partial returns stay exact.
-                $this->fifo->restoreForSaleItem(
-                    saleItem: $saleItem,
-                    quantity: $quantity,
-                    saleReturnId: $return->id,
-                    saleReturnItemId: $returnItem->id,
-                    occurredAt: $occurredAt,
-                    user: $user,
-                );
+                //
+                // A service took nothing off the shelf, so there is nothing to
+                // put back — undoing one is only the money. Asking the engine
+                // would fail looking for movements that were never written.
+                if ($saleItem->product->tracksStock()) {
+                    $this->fifo->restoreForSaleItem(
+                        saleItem: $saleItem,
+                        quantity: $quantity,
+                        saleReturnId: $return->id,
+                        saleReturnItemId: $returnItem->id,
+                        occurredAt: $occurredAt,
+                        user: $user,
+                    );
+                }
 
                 // Cumulative, per line.
                 $saleItem->forceFill([

@@ -193,8 +193,16 @@
                     // touchscreen and a keyboard can drive just as fast.
                     row.innerHTML = `
                         <td>
-                            <div class="fw-medium">${line.name}</div>
+                            <div class="fw-medium">
+                                ${line.name}
+                                ${line.kind === 'service'
+                                    ? `<span class="badge text-bg-light">@json(__('Service'))</span>`
+                                    : line.kind === 'used'
+                                        ? `<span class="badge text-bg-light">@json(__('Second-hand'))</span>`
+                                        : ''}
+                            </div>
                             <div class="small text-secondary" dir="ltr">${line.sku}</div>
+                            ${line.condition ? `<div class="small text-secondary">${line.condition}</div>` : ''}
                             <div class="small text-warning ${line.belowCost ? '' : 'd-none'}" data-role="below-cost">
                                 <i class="bi bi-exclamation-triangle"></i>
                                 @json(__('Below cost: this unit cost')) ${format(line.cost ?? 0)}
@@ -207,7 +215,9 @@
                                    name="lines[${index}][quantity]" value="${line.quantity}"
                                    data-role="qty" data-index="${index}"
                                    data-numpad="@json(__('Quantity'))" data-numpad-min="1">
-                            <div class="small text-secondary text-end">${format(line.stock)} @json(__('in stock'))</div>
+                            ${line.kind === 'service'
+                                ? ''
+                                : `<div class="small text-secondary text-end">${format(line.stock)} @json(__('in stock'))</div>`}
                         </td>
                         <td>
                             <input type="number" min="0" step="1" dir="ltr"
@@ -263,6 +273,8 @@
                         quantity: 1,
                         price: product.sale_price,
                         stock: product.quantity,
+                        kind: product.kind,
+                        condition: product.condition_note,
                         cost: product.next_batch_cost,
                         belowCost: product.next_batch_cost !== null && product.sale_price < product.next_batch_cost,
                     });
@@ -310,7 +322,9 @@
                             <span class="small text-secondary ms-2" dir="ltr">${product.sku}</span>
                         </span>
                         <span class="small">
-                            <span class="text-secondary me-2">${format(product.quantity)} @json(__('in stock'))</span>
+                            ${product.kind === 'service'
+                                ? `<span class="text-secondary me-2">@json(__('service'))</span>`
+                                : `<span class="text-secondary me-2">${format(product.quantity)} @json(__('in stock'))</span>`}
                             <span class="fw-semibold">${format(product.sale_price)}</span>
                         </span>`;
                     item.addEventListener('click', () => addProduct(product));

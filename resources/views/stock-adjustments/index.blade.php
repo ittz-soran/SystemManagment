@@ -224,7 +224,8 @@
 
                 timer = setTimeout(async () => {
                     const response = await fetch(
-                        `{{ route('products.search') }}?q=${encodeURIComponent(term)}`,
+                        // Ordinary stock only: there is no stock behind a service to correct.
+                        `{{ route('products.search') }}?kinds=stock,used&q=${encodeURIComponent(term)}`,
                         { headers: { 'Accept': 'application/json' } },
                     );
                     if (! response.ok) return;

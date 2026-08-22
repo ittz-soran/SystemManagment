@@ -314,6 +314,14 @@ class PurchaseService
         foreach (array_values($lines) as $index => $line) {
             $product = Product::whereKey($line['product_id'])->firstOrFail();
 
+            // Nothing is ever bought into stock for a service, so there would be
+            // no batch to open and the cost of one is a contradiction. Refused
+            // here as well as in the form, because this is where a batch would
+            // be written.
+            if (! $product->tracksStock()) {
+                throw new RuntimeException(__('A service cannot be purchased — it has no stock and no cost.'));
+            }
+
             $item = PurchaseItem::create([
                 'purchase_id' => $purchase->id,
                 'product_id' => $product->id,

@@ -4,6 +4,11 @@
 @section('subheading')
     <span dir="ltr">{{ $product->sku }}@if($product->barcode) · {{ $product->barcode }}@endif</span>
     · {{ $product->category->name }}
+    @if($product->isUsed())
+        · <span class="badge text-bg-light">{{ __('Second-hand') }}</span>
+    @elseif($product->isService())
+        · <span class="badge text-bg-light">{{ __('Service') }}</span>
+    @endif
 @endsection
 
 @section('actions')
@@ -65,6 +70,60 @@
         @endforeach
     </div>
 
+    {{-- A second-hand item is one physical thing, so the questions worth asking
+         of it are about that thing: who it came from, what was paid for it, how
+         long it has been sitting here. --}}
+    @if($product->isUsed())
+        <div class="card mb-4">
+            <div class="card-header">{{ __('Second-hand') }}</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    @if($product->condition_note)
+                        <dt class="col-sm-3 text-secondary fw-normal">{{ __('Condition') }}</dt>
+                        <dd class="col-sm-9">{{ $product->condition_note }}</dd>
+                    @endif
+
+                    @if($product->acquiredFrom)
+                        <dt class="col-sm-3 text-secondary fw-normal">{{ __('Bought from') }}</dt>
+                        <dd class="col-sm-9">
+                            <x-document-link :document="$product->acquiredFrom" :kind="false" />
+                            @if($product->acquiredFrom->phone)
+                                <span class="text-secondary" dir="ltr">· {{ $product->acquiredFrom->phone }}</span>
+                            @endif
+                        </dd>
+                    @endif
+
+                    <dt class="col-sm-3 text-secondary fw-normal">{{ __('Paid for it') }}</dt>
+                    <dd class="col-sm-9 money">{{ money($product->purchase_price, false) }}</dd>
+
+                    <dt class="col-sm-3 text-secondary fw-normal">{{ __('Status') }}</dt>
+                    <dd class="col-sm-9 mb-0">
+                        @if($product->isSold())
+                            <span class="badge text-bg-secondary">{{ __('Sold') }}</span>
+                        @else
+                            <span class="badge text-bg-success">{{ __('In stock') }}</span>
+                            <span class="text-secondary">
+                                {{ trans_choice('{0}bought today|{1}held :count day|[2,*]held :count days',
+                                    (int) $product->created_at->diffInDays(now()),
+                                    ['count' => number_format((int) $product->created_at->diffInDays(now()))]) }}
+                            </span>
+                        @endif
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    @endif
+
+    {{-- A service has no batches and no movements: nothing was ever bought for
+         it, so there is nothing to draw down. Saying so beats two empty tables
+         that look like something has gone wrong. --}}
+    @if($product->isService())
+        <div class="card mb-4">
+            <div class="card-body text-secondary small mb-0">
+                {{ __('A service holds no stock. Nothing is bought for it and nothing is consumed, so it has no batches and no cost — everything it is sold for is profit.') }}
+            </div>
+        </div>
+    @else
     <div class="card mb-4">
         <div class="card-header d-flex align-items-center justify-content-between">
             <span>{{ __('Stock batches (FIFO order)') }}</span>
@@ -155,6 +214,8 @@
             </div>
         @endif
     </div>
+
+    @endif
 
     @if($product->barcode)
         <x-label-modal :product="$product" :sizes="$labelSizes" :fields="$labelFields"
