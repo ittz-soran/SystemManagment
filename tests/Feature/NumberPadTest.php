@@ -49,6 +49,35 @@ class NumberPadTest extends TestCase
         $this->assertStringContainsString('id="number-pad-ok"', $html);
     }
 
+    /** It is a calculator, not only a keypad: 15000 − 500 is a real sum here. */
+    public function test_it_has_the_four_operators_and_equals(): void
+    {
+        $html = $this->actingAs($this->admin)->get(route('dashboard'))->assertOk()->getContent();
+
+        foreach (['+', '-', '*', '/', '='] as $key) {
+            $this->assertStringContainsString('data-pad="'.$key.'"', $html);
+        }
+
+        // The half-finished sum is shown, so "15000 −" is never a mystery.
+        $this->assertStringContainsString('id="number-pad-expression"', $html);
+    }
+
+    /**
+     * A keypad is not text. Without this the grid mirrors in Sorani, Arabic and
+     * Persian and the keys come out 9 8 7 with C on the wrong side.
+     */
+    public function test_the_grid_stays_left_to_right_in_an_rtl_page(): void
+    {
+        $stylesheet = collect(glob(public_path('build/assets/*.css')))
+            ->map(fn (string $file) => file_get_contents($file))
+            ->implode('');
+
+        $this->assertMatchesRegularExpression(
+            '/\.number-pad-grid\{[^}]*direction:ltr/',
+            $stylesheet,
+        );
+    }
+
     public function test_the_sale_cart_opens_it_for_price_and_quantity(): void
     {
         $html = $this->actingAs($this->admin)->get(route('sales.create'))->assertOk()->getContent();
