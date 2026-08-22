@@ -94,6 +94,29 @@ The logo is served by `GET /branding/logo` rather than a `/storage/…` URL, so 
 needs no `php artisan storage:link` — a step that requires administrator rights
 on Windows and is missing on most XAMPP installs.
 
+## Barcode labels
+
+Section 4 gives an auto-generated barcode an internal EAN-13 prefix, so nothing is
+printed on the goods — the shop prints its own. **Print barcode** on a product page
+opens a modal: how many, which label size, and what goes on it (name, SKU, price,
+the number under the bars, shop name). Defaults come from Settings; changes in the
+modal apply to that print run only.
+
+**A web page cannot choose a printer.** `window.print()` hands the job to the
+operating system and the person picks there — no web API exists to target a
+specific printer. So there are two routes:
+
+- **Through the browser** — a page sized exactly to the label stock, one page per
+  copy, `@page { margin: 0 }`. Always works, no setup, works from a phone.
+- **Straight to the printer** — the server sends TSPL to a shared printer, no
+  dialog at all. Only possible because the app runs on the same machine. Name the
+  share in Settings (`\\localhost\XP-365B`); leave it empty to always use the dialog.
+
+The bars never run edge to edge: EAN-13 needs 11 modules of clear background
+before it and 7 after, so they get 95/113 of the usable width and the rest is
+quiet zone. A label too narrow to carry a readable EAN-13 warns rather than
+refusing — a 30 mm label is a legitimate choice for a small item.
+
 ## Starting fresh, and archiving
 
 **Start fresh** (Settings → Danger zone) clears everything entered while testing —

@@ -211,6 +211,80 @@
         </div>
 
 
+        {{-- Section 4: an auto-generated barcode is never printed on the goods,
+             so the shop prints its own label. These are the defaults the print
+             modal opens with. --}}
+        <div class="card mt-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-upc-scan"></i>{{ __('Barcode labels') }}
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-7">
+                        <label for="label_printer" class="form-label">{{ __('Label printer') }}</label>
+
+                        @if($detectedPrinters !== [])
+                            <select id="label_printer" name="label_printer" class="form-select">
+                                <option value="">{{ __('None — use the browser print dialog') }}</option>
+                                @foreach($detectedPrinters as $path => $name)
+                                    <option value="{{ $path }}" @selected(setting('label_printer') === $path)>
+                                        {{ $name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @else
+                            <input id="label_printer" name="label_printer" class="form-control" dir="ltr"
+                                   placeholder="\\localhost\XP-365B"
+                                   value="{{ old('label_printer', setting('label_printer')) }}">
+                        @endif
+
+                        <div class="form-text">
+                            {{-- The honest constraint, said once and plainly. --}}
+                            {{ __('A web page cannot choose a printer on its own — the print dialog does that. Naming a shared printer here lets the server send the label straight to it instead, which only works from this machine.') }}
+                            {{ __('Leave it empty to always use the print dialog.') }}
+                        </div>
+                    </div>
+
+                    <div class="col-md-5">
+                        <label for="label_size" class="form-label">{{ __('Label size') }}</label>
+                        <select id="label_size" name="label_size" class="form-select">
+                            @foreach($labelSizes as $key => $size)
+                                <option value="{{ $key }}" @selected(old('label_size', setting('label_size')) === $key)>
+                                    {{ __($size['label']) }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">{{ __('Can be changed for a single print run.') }}</div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-label">{{ __('Show on the label by default') }}</div>
+
+                        <div class="d-flex flex-wrap gap-3">
+                            @foreach([
+                                'name' => __('Product name'),
+                                'sku' => __('SKU'),
+                                'price' => __('Sale price'),
+                                'barcode_number' => __('The number under the bars'),
+                                'shop' => __('Shop name'),
+                            ] as $field => $caption)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="1"
+                                           name="label_show_{{ $field }}" id="label_show_{{ $field }}"
+                                           @checked($labelFields[$field] ?? false)>
+                                    <label class="form-check-label" for="label_show_{{ $field }}">{{ $caption }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="form-text">
+                            {{ __('A price on the label means relabelling when the price changes.') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- Section 8c: "Backup status — last backup time and a manual 'Back up
              now' button." Section 8b is the reason it is on this page at all:
              financial records are the shop's only proof of who owes what.

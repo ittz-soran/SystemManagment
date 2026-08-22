@@ -6,6 +6,8 @@ use App\Http\Requests\ProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Services\LabelPrinter;
+use App\Services\LabelService;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
 use Illuminate\Http\JsonResponse;
@@ -94,6 +96,12 @@ class ProductController extends Controller
                 ->orderByDesc('sequence')
                 ->limit(100)
                 ->get(),
+
+            // Section 4: the label screen's defaults come from settings, and the
+            // modal lets them be changed for this one print run.
+            'labelSizes' => config('labels.sizes'),
+            'labelFields' => app(LabelService::class)->fields(),
+            'labelPrinter' => app(LabelPrinter::class),
         ]);
     }
 

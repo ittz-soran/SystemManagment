@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DataTransferController;
+use App\Http\Controllers\LabelController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
@@ -49,6 +50,16 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // ---- Catalogue -------------------------------------------------------
+    /*
+     * Section 4: a generated barcode is never printed on the goods, so the shop
+     * prints its own label. Guarded by products.view — a label reveals nothing
+     * that the product page does not.
+     */
+    Route::get('products/{product}/label', [LabelController::class, 'show'])
+        ->middleware('permission:products.view')->name('products.label');
+    Route::post('products/{product}/label', [LabelController::class, 'print'])
+        ->middleware('permission:products.view')->name('products.label.print');
+
     Route::get('products/search', [ProductController::class, 'search'])
         ->middleware('permission:products.view')->name('products.search');
 
