@@ -732,29 +732,29 @@ Cache::rememberForever('settings', fn () => Setting::pluck('value', 'key'));
 
 ## 9. Pages
 
-- [ ] **Login / auth** — Breeze; roles **admin** (full) and **user** (per-user permissions)
-- [ ] **Dashboard** — totals, low-stock alerts, today's sales and expenses
-- [ ] **Products** — CRUD + opening stock (qty + cost), one category each, SKU (typed or auto `SS65`), barcode (typed or auto-generated)
-- [ ] **Categories** — CRUD, sub-categories, **filter products by one or several selected categories at once**, and bulk-move selected products into a category
-- [ ] **Suppliers** — CRUD + balance statement
-- [ ] **Customers** — CRUD + balance statement
-- [ ] **Users** — CRUD, admin only; **per-user permission checkboxes** (role sets defaults, admin adds/removes individually)
-- [ ] **Purchase** — cart interface, one discount column, partial payment, **USD entry helper** (Section 6b)
-- [ ] **Purchase History** — list/filter (including by status); badge for partly-returned and fully-returned; detail shows timeline (created → payments → returns)
-- [ ] **Sale** — cart interface, per-line pricing, no discount, partial payment
-- [ ] **Sales History** — list/filter (including by status); badge for partly-returned and fully-returned; detail shows timeline
-- [ ] **Sale Return** — partial or full, per line
-- [ ] **Purchase Return** — partial or full, per line, editable credit
-- [ ] **Payments** — record money in or out against a specific sale or purchase: a customer paying an invoice (`in`), paying a supplier (`out`), a cash refund to a customer (`out`), or cash back from a supplier (`in`)
-- [ ] **Expenses** — CRUD against a managed category list
-- [ ] **Expense Categories** — CRUD, admin only; deactivate rather than delete
-- [ ] **Stock Adjustments** — manual +/− with reason (damage, theft, miscount, fixing a locked document). Decreases consume FIFO batches; increases create a batch with an entered cost. **Without this, any mistake older than 24h is uncorrectable.**
-- [ ] **Statistics / Reports** — sales, purchases, profit, discounts received, top products, amounts due and owed
-- [ ] **Activity Log** — every login, create, update, delete
-- [ ] **Settings** (admin) — shop info, appearance/branding, timezone, USD rate, `books_closed_before`, backups (Section 8c)
-- [ ] **My preferences** (every user) — language, light/dark/auto theme, rows per page
-- [ ] **Recheck stock** (admin) — compare cached `products.quantity` against batch sums, list mismatches
-- [ ] **Printable invoices** — sale, purchase, sale return, purchase return
+- [x] **Login / auth** — Breeze; roles **admin** (full) and **user** (per-user permissions)
+- [x] **Dashboard** — totals, low-stock alerts, today's sales and expenses
+- [x] **Products** — CRUD + opening stock (qty + cost), one category each, SKU (typed or auto `SS65`), barcode (typed or auto-generated)
+- [x] **Categories** — CRUD, sub-categories, **filter products by one or several selected categories at once**, and bulk-move selected products into a category
+- [x] **Suppliers** — CRUD + balance statement
+- [x] **Customers** — CRUD + balance statement
+- [x] **Users** — CRUD, admin only; **per-user permission checkboxes** (role sets defaults, admin adds/removes individually)
+- [x] **Purchase** — cart interface, one discount column, partial payment, **USD entry helper** (Section 6b)
+- [x] **Purchase History** — list/filter (including by status); badge for partly-returned and fully-returned; detail shows timeline (created → payments → returns)
+- [x] **Sale** — cart interface, per-line pricing, no discount, partial payment
+- [x] **Sales History** — list/filter (including by status); badge for partly-returned and fully-returned; detail shows timeline
+- [x] **Sale Return** — partial or full, per line
+- [x] **Purchase Return** — partial or full, per line, editable credit
+- [x] **Payments** — record money in or out against a specific sale or purchase: a customer paying an invoice (`in`), paying a supplier (`out`), a cash refund to a customer (`out`), or cash back from a supplier (`in`)
+- [x] **Expenses** — CRUD against a managed category list
+- [x] **Expense Categories** — CRUD, admin only; deactivate rather than delete
+- [x] **Stock Adjustments** — manual +/− with reason (damage, theft, miscount, fixing a locked document). Decreases consume FIFO batches; increases create a batch with an entered cost. **Without this, any mistake older than 24h is uncorrectable.**
+- [x] **Statistics / Reports** — sales, purchases, profit, discounts received, top products, amounts due and owed
+- [x] **Activity Log** — every login, create, update, delete
+- [x] **Settings** (admin) — shop info, appearance/branding, timezone, USD rate, `books_closed_before`, backups (Section 8c)
+- [x] **My preferences** (every user) — language, light/dark/auto theme, rows per page
+- [x] **Recheck stock** (admin) — compare cached `products.quantity` against batch sums, list mismatches
+- [x] **Printable invoices** — sale, purchase, sale return, purchase return
 
 ### Cart behaviour (Purchase and Sale — one shared component)
 
