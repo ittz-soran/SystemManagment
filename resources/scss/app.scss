@@ -181,14 +181,33 @@ th.money {
   unicode-bidi: isolate;
 }
 
+.number-pad-expression {
+  min-height: 1.25rem;
+  font-size: 0.85rem;
+  text-align: end;
+  color: var(--bs-secondary-color);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .number-pad-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.5rem;
+
+  // A keypad is not text. Left to right even in Sorani, Arabic and Persian, or
+  // the grid mirrors and the keys come out 9 8 7 with C on the wrong side —
+  // which is not the calculator anybody has used before.
+  direction: ltr;
 
   .btn {
     // Comfortably bigger than the 44px a fingertip needs.
-    min-height: 3.25rem;
+    min-height: 3rem;
     font-size: 1.25rem;
   }
+}
+
+// The tall equals key of every calculator, so the last row has room for 00 and 0.
+.number-pad-equals {
+  grid-row: span 2;
 }
