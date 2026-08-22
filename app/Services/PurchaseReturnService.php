@@ -9,6 +9,7 @@ use App\Models\PurchaseItem;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
 use App\Models\StockBatch;
+use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -129,6 +130,81 @@ class PurchaseReturnService
             $this->purchases->recalculateStatus($purchase->refresh());
 
             return $return->refresh();
+        });
+    }
+
+    /**
+     * Undo a return to a supplier: the goods come back onto the shelf, the
+     * credit comes off, and the cash goes back out.
+     *
+     * The mirror image of deleting a sale return, and easier for a reason worth
+     * writing down. A sale return puts units back on the shelf, so undoing it
+     * has to take them away again — and somebody may already have bought them.
+     * A purchase return sends units away, so undoing it puts them back into the
+     * batch they left, which nobody else can have touched.
+     */
+    public function delete(PurchaseReturn $return, User $user): void
+    {
+        $state = $return->canBeDeleted($user);
+
+        if (! $state['allowed']) {
+            throw new RuntimeException($state['reason']);
+        }
+
+        DB::transaction(function () use ($return, $user) {
+            // Section 8: re-checked inside the transaction. Between the page
+            // loading and this running, someone else may have closed the books.
+            $state = $return->fresh()->canBeDeleted($user);
+
+            if (! $state['allowed']) {
+                throw new RuntimeException($state['reason']);
+            }
+
+            $movements = StockMovement::where('reference_type', StockMovement::REF_PURCHASE_RETURN)
+                ->where('reference_id', $return->id)
+                ->lockForUpdate()
+                ->get();
+
+            // Each movement is negative, so reversing adds the units back to the
+            // batch they were taken from — the specific batch, never the oldest.
+            $this->fifo->reverseMovements($movements);
+
+            foreach ($return->items as $item) {
+                $purchaseItem = PurchaseItem::whereKey($item->purchase_item_id)->lockForUpdate()->firstOrFail();
+
+                $purchaseItem->forceFill([
+                    'quantity_returned' => $purchaseItem->quantity_returned - $item->quantity,
+                ])->save();
+            }
+
+            // Whatever the credit actually came off the supplier's balance goes
+            // back on. Read rather than recomputed, because a balance floors at
+            // zero and the credit may not have applied in full.
+            $this->ledger->reverseDocument(
+                account: $return->supplier()->firstOrFail(),
+                reference: $return,
+                user: $user,
+                notes: __('Reversal of :document', ['document' => $return->document_no]),
+            );
+
+            // The cash the supplier handed back goes out again. Soft-deleting
+            // the inbound payment is the reversal — the till nets to where it was.
+            $return->payments()->get()->each->delete();
+
+            $return->delete();
+
+            $this->purchases->recalculateStatus($return->purchase->refresh());
+
+            // The user is passed rather than left to auth(), so a delete driven
+            // from a command or a test is attributed just as well as one from
+            // the screen.
+            app(ActivityLogger::class)->log(
+                action: 'delete',
+                module: 'purchase_returns',
+                recordId: $return->id,
+                description: __('Deleted purchase return :document', ['document' => $return->document_no]),
+                user: $user,
+            );
         });
     }
 

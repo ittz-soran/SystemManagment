@@ -10,6 +10,30 @@
     <a href="{{ route('purchase-returns.print', $return) }}" class="btn btn-outline-secondary" target="_blank">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}
     </a>
+
+    @can('purchase_returns.delete')
+        {{-- Section 9b: never hidden. Disabled with the reason as its tooltip,
+             so it is obvious the feature exists and why it cannot be used. --}}
+        @if(! $deleteState['allowed'])
+            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $deleteState['reason'] }}">
+                <button class="btn btn-outline-danger" disabled>
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete return') }}
+                </button>
+            </span>
+        @else
+            <form action="{{ route('purchase-returns.destroy', $return) }}" method="POST"
+                  onsubmit="return confirm(@js(__('Delete :document? :units units go back into stock and the supplier credit is undone.', [
+                      'document' => $return->document_no,
+                      'units' => $return->items->sum('quantity'),
+                  ])))">
+                @csrf
+                @method('DELETE')
+                <button class="btn btn-outline-danger">
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete return') }}
+                </button>
+            </form>
+        @endif
+    @endcan
 @endsection
 
 @section('content')

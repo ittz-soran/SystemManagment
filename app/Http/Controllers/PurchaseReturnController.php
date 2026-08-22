@@ -97,7 +97,27 @@ class PurchaseReturnController extends Controller
         return view('purchase-returns.show', [
             'return' => $purchaseReturn->load('purchase', 'supplier', 'user', 'items.product'),
             'payments' => $purchaseReturn->payments()->orderBy('paid_at')->get(),
+            // Section 9b: the button is always shown — disabled with the reason
+            // as its tooltip when it cannot be used.
+            'deleteState' => $purchaseReturn->canBeDeleted(auth()->user()),
         ]);
+    }
+
+    /**
+     * Section 5: undoing a return to a supplier puts the goods back in the batch
+     * they left, takes the credit off, and sends the cash back out.
+     */
+    public function destroy(Request $request, PurchaseReturn $purchaseReturn): RedirectResponse
+    {
+        try {
+            $this->returns->delete($purchaseReturn, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('purchases.show', $purchaseReturn->purchase_id)
+            ->with('success', __('Return deleted and the goods put back'));
     }
 
     /**
