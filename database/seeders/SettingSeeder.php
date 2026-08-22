@@ -57,6 +57,17 @@ class SettingSeeder extends Seeder
         'backup_keep_daily' => '30',
         'backup_keep_monthly' => '12',
 
+        // Section 4: labels for products whose barcode the system generated.
+        // The printer is only reachable when the server runs on the same
+        // machine; blank means the browser's print dialog is the only route.
+        'label_printer' => null,
+        'label_size' => '50x30',
+        'label_show_name' => '1',
+        'label_show_sku' => '1',
+        'label_show_price' => '1',
+        'label_show_barcode_number' => '1',
+        'label_show_shop' => '0',
+
         // Documents dated before this are hidden from the day-to-day lists.
         // Nothing is deleted — see PeriodArchiveService.
         'archived_before' => null,

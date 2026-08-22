@@ -6,6 +6,8 @@ use App\Models\Setting;
 use App\Rules\WritableDirectory;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
+use App\Services\LabelPrinter;
+use App\Services\LabelService;
 use App\Services\SystemResetService;
 use Database\Seeders\SettingSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -41,6 +43,13 @@ class SettingController extends Controller
     private const OPERATIONAL_KEYS = [
         'timezone', 'usd_rate', 'books_closed_before',
         'low_stock_threshold', 'sku_prefix', 'date_format',
+    ];
+
+    /** Section 4 — barcode labels: the printer, the stock, and what is on them. */
+    private const LABEL_KEYS = [
+        'label_printer', 'label_size',
+        'label_show_name', 'label_show_sku', 'label_show_price',
+        'label_show_barcode_number', 'label_show_shop',
     ];
 
     /** Section 8b — how, when and where backups run. */
@@ -87,6 +96,11 @@ class SettingController extends Controller
             'appearanceKeys' => self::APPEARANCE_KEYS,
             'operationalKeys' => self::OPERATIONAL_KEYS,
             'backupKeys' => self::BACKUP_KEYS,
+            'labelKeys' => self::LABEL_KEYS,
+            'labelSizes' => config('labels.sizes'),
+            'labelFields' => app(LabelService::class)->fields(),
+            // Best-effort: a machine that cannot be asked gets the text box.
+            'detectedPrinters' => app(LabelPrinter::class)->available(),
             'fonts' => self::FONTS,
             'weekdays' => self::weekdays(),
             // Section 8c lists backup status on this page: the last backup time
@@ -137,6 +151,9 @@ class SettingController extends Controller
             'backup_keep_daily' => ['required', 'integer', 'min:1', 'max:3650'],
             'backup_keep_monthly' => ['required', 'integer', 'min:1', 'max:120'],
 
+            'label_printer' => ['nullable', 'string', 'max:255'],
+            'label_size' => ['required', Rule::in(array_keys(config('labels.sizes')))],
+
             // Section 8c: store logos as files with only the path in settings —
             // never base64 in the database.
             'shop_logo' => ['nullable', 'image', 'max:2048'],
@@ -151,6 +168,15 @@ class SettingController extends Controller
                 }
 
                 Setting::put($key, $value);
+            }
+
+            // A checkbox posts nothing when it is unticked, so absence has to
+            // be written as off — otherwise a field could never be turned off.
+            foreach (LabelService::FIELDS as $field) {
+                // '0', never null: setting() treats null and '' as "no value
+                // set" and hands back the default, so a null would read as ON
+                // and the field could never be switched off.
+                Setting::put('label_show_'.$field, $request->boolean('label_show_'.$field) ? '1' : '0');
             }
 
             if ($request->hasFile('shop_logo')) {

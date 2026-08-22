@@ -531,6 +531,7 @@ class BackupTest extends TestCase
             'backup_weekday' => 5,
             'backup_keep_daily' => 30,
             'backup_keep_monthly' => 12,
+            'label_size' => '50x30',
         ], $overrides);
     }
 

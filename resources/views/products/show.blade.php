@@ -7,6 +7,15 @@
 @endsection
 
 @section('actions')
+    {{-- Section 4: a generated barcode is never printed on the goods, so the
+         shop prints its own label. --}}
+    @if($product->barcode)
+        <button type="button" class="btn btn-outline-primary"
+                data-bs-toggle="modal" data-bs-target="#label-modal">
+            <i class="bi bi-upc-scan me-1"></i>{{ __('Print barcode') }}
+        </button>
+    @endif
+
     @can('products.edit')
         <a href="{{ route('products.edit', $product) }}" class="btn btn-outline-secondary">
             <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
@@ -140,4 +149,9 @@
             </div>
         @endif
     </div>
+
+    @if($product->barcode)
+        <x-label-modal :product="$product" :sizes="$labelSizes" :fields="$labelFields"
+                       :printer="$labelPrinter" />
+    @endif
 @endsection
