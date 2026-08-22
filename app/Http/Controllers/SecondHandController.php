@@ -54,9 +54,14 @@ class SecondHandController extends Controller
 
     public function create(): View
     {
+        // Resolved rather than looked up: on a shop that upgraded into this
+        // feature the category does not exist yet, and the first item would
+        // land in whichever category happens to sort first.
+        $default = Category::firstOrCreate(['name' => __(SecondHandService::DEFAULT_CATEGORY)]);
+
         return view('second-hand.create', [
             'categories' => Category::orderBy('name')->get(),
-            'defaultCategory' => Category::where('name', __(SecondHandService::DEFAULT_CATEGORY))->first(),
+            'defaultCategory' => $default,
         ]);
     }
 

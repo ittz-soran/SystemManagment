@@ -133,9 +133,11 @@
 
                         <div class="mb-3">
                             <label for="service-category" class="form-label">{{ __('Category') }}</label>
-                            <select id="service-category" name="category_id" class="form-select">
+                            <select id="service-category" name="category_id" class="form-select"
+                                    data-default="{{ $defaultCategory->id }}">
                                 @foreach($categories as $category)
-                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                    <option value="{{ $category->id }}"
+                                        @selected($category->id === $defaultCategory->id)>{{ $category->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -179,11 +181,7 @@
 
                     const category = document.getElementById('service-category');
 
-                    if (button?.dataset.category) {
-                        category.value = button.dataset.category;
-                    } else {
-                        category.selectedIndex = 0;
-                    }
+                    category.value = button?.dataset.category ?? category.dataset.default;
                 });
             </script>
         @endpush

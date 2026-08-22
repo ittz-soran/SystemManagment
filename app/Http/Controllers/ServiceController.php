@@ -51,6 +51,11 @@ class ServiceController extends Controller
             'services' => $services,
             'earned' => $earned,
             'categories' => Category::orderBy('name')->get(),
+            // Same reasoning as the second-hand screen: on a shop that upgraded
+            // into this feature the category does not exist until the first
+            // service is saved, and the modal would default to whichever
+            // category sorts first.
+            'defaultCategory' => $this->defaultCategory(),
         ]);
     }
 

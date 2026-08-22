@@ -198,11 +198,16 @@ class MasterDataTransferTest extends TestCase
             'Cable,CBL1,Flah drives,1000,2000',
         ]);
 
+        // Counted before rather than compared to a literal: the shop is seeded
+        // with categories of its own, and the claim here is only that the
+        // import added none.
+        $before = Category::count();
+
         $result = app(MasterDataTransfer::class)->import('products', $csv, $this->admin);
 
         $this->assertSame(1, $result['skip']);
         $this->assertSame(0, Product::count());
-        $this->assertSame(1, Category::count(), 'No category was invented');
+        $this->assertSame($before, Category::count(), 'No category was invented');
         $this->assertStringContainsString('Flah drives', $result['rows'][0]['note']);
     }
 
