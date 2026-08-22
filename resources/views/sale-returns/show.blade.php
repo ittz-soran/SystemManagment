@@ -3,7 +3,12 @@
 @section('title', $return->document_no)
 @section('subheading')
     {{ $return->return_date->format(setting('date_format', 'Y-m-d')) }} · {{ $return->customer->displayName() }}
-    · {{ __('against :document', ['document' => $return->sale->document_no]) }}
+    · @can('sales.view')
+        {{-- The number is the way back to the document this return came from. --}}
+        {!! __('against :document', ['document' => '<a href="'.e(route('sales.show', $return->sale)).'" class="text-decoration-none" dir="ltr">'.e($return->sale->document_no).'</a>']) !!}
+    @else
+        {{ __('against :document', ['document' => $return->sale->document_no]) }}
+    @endcan
 @endsection
 
 @section('actions')
