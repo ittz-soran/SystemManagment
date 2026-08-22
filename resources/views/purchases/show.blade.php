@@ -145,7 +145,13 @@
                     <ul class="list-group list-group-flush">
                         @foreach($purchase->returns as $return)
                             <li class="list-group-item d-flex justify-content-between">
-                                <span dir="ltr">{{ $return->document_no }}</span>
+                                @can('purchase_returns.view')
+                                    <a href="{{ route('purchase-returns.show', $return) }}" class="text-decoration-none" dir="ltr">
+                                        {{ $return->document_no }}
+                                    </a>
+                                @else
+                                    <span dir="ltr">{{ $return->document_no }}</span>
+                                @endcan
                                 <span class="money">{{ money($return->total_amount, false) }}</span>
                             </li>
                         @endforeach
