@@ -75,7 +75,9 @@
                     <tbody>
                     @foreach($adjustments as $adjustment)
                         <tr>
-                            <td class="fw-medium" dir="ltr">{{ $adjustment->document_no }}</td>
+                            <td class="fw-medium">
+                                <x-document-link :document="$adjustment" :kind="false" />
+                            </td>
                             <td dir="ltr" class="small">{{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}</td>
                             <td>
                                 <a href="{{ route('products.show', $adjustment->product) }}" class="text-decoration-none">

@@ -16,6 +16,7 @@ use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\StockAdjustmentService;
+use App\Support\DocumentLink;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -136,22 +137,26 @@ class DocumentReferenceTest extends TestCase
         $this->assertLinks($html, route('purchase-returns.show', $purchaseReturn), $purchaseReturn->document_no);
     }
 
-    /**
-     * An adjustment has no page of its own yet. Its number is still what the
-     * reader needs to see, so it is printed — but not as a link into a 404.
-     */
-    public function test_an_adjustment_shows_its_number_without_a_link(): void
+    public function test_an_adjustment_leads_to_the_adjustment(): void
     {
         $adjustment = $this->adjust();
 
-        $response = $this->actingAs($this->admin)
-            ->get(route('products.show', $this->product))->assertOk();
+        $html = $this->actingAs($this->admin)
+            ->get(route('products.show', $this->product))->assertOk()->getContent();
 
-        $response->assertSee($adjustment->document_no);
-        $this->assertStringNotContainsString(
-            '/stock-adjustments/'.$adjustment->id,
-            $response->getContent(),
-        );
+        $this->assertLinks($html, route('stock-adjustments.show', $adjustment), $adjustment->document_no);
+    }
+
+    /**
+     * Every kind of document has a page today. The day one does not, its number
+     * must still appear — as text, not as a link into a 404 — so the rule is
+     * kept under test rather than left to be rediscovered.
+     */
+    public function test_a_record_with_no_page_of_its_own_is_not_linked(): void
+    {
+        $this->assertNull(DocumentLink::url($this->admin, $this->admin));
+        $this->assertSame($this->admin->name, DocumentLink::label($this->admin, 'user', $this->admin->id));
+        $this->assertSame('#7', DocumentLink::label(null, 'user', 7), 'A deleted record still says a row was here');
     }
 
     // ---------------------------------------------------------- the ledgers

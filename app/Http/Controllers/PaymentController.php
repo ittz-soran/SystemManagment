@@ -34,7 +34,7 @@ class PaymentController extends Controller
 
     public function index(Request $request): View
     {
-        $payments = Payment::with('user')
+        $payments = Payment::with('user', 'payable')
             // An archived period stays in the database and out of this list,
             // unless the reader asks for it.
             ->visible($request->boolean('archived'))
@@ -80,6 +80,29 @@ class PaymentController extends Controller
             'payableType' => $request->string('payable_type')->toString(),
             'context' => $this->describe($payable),
             'backUrl' => DocumentLink::url($payable, $request->user()),
+        ]);
+    }
+
+    /**
+     * Section 4: a payment is the only record of money actually moving, so it
+     * gets a page of its own — the document it settles, the party it moved
+     * between, and what it left owing.
+     */
+    public function show(Payment $payment): View
+    {
+        // The payable is polymorphic, so the party hanging off it has to be
+        // named per type — preventLazyLoading turns a miss into an exception,
+        // which is the point: a financial page should never half-load.
+        $payment->load(['user', 'payable' => fn ($morph) => $morph->morphWith([
+            Sale::class => ['customer'],
+            SaleReturn::class => ['customer'],
+            Purchase::class => ['supplier'],
+            PurchaseReturn::class => ['supplier'],
+        ])]);
+
+        return view('payments.show', [
+            'payment' => $payment,
+            'party' => $this->party($payment->payable),
         ]);
     }
 
@@ -137,6 +160,16 @@ class PaymentController extends Controller
         return redirect()
             ->to($this->documentUrl($payable))
             ->with('success', __('Payment recorded'));
+    }
+
+    /** The customer or supplier the document belongs to, or null. */
+    private function party(?Model $payable): ?Model
+    {
+        return match (true) {
+            $payable instanceof Sale, $payable instanceof SaleReturn => $payable->customer,
+            $payable instanceof Purchase, $payable instanceof PurchaseReturn => $payable->supplier,
+            default => null,
+        };
     }
 
     private function resolvePayable(string $type, int $id): Model

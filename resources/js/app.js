@@ -240,39 +240,38 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Coming back to a list where you left it.
+ * The way back.
  *
- * A plain link back to /sales lands at the top of page 1 with every filter
- * cleared, which is not where the reader was. Two small pieces fix that:
+ * The button in the page header is a real link to a real route, so it works
+ * with this script disabled and can be opened in a new tab. What the script
+ * adds is memory of where the reader has actually been, kept in sessionStorage
+ * — per tab, because this is where *this* tab was, and it should not leak into
+ * a tab opened tomorrow.
  *
- *  - While a list page is open, its full URL (filters, search, page number) and
- *    its scroll position are kept in sessionStorage under its first path
- *    segment. sessionStorage, not localStorage: this is where *this tab* was,
- *    and it should not leak into a tab opened tomorrow.
+ * Three things come out of that memory:
  *
- *  - A back link carrying data-back-to="sales" is rewritten to that remembered
- *    URL, and the list restores its scroll position when the reader arrives
- *    from one of its own detail pages.
- *
- * The href in the markup is a real route, so this only ever improves on a link
- * that already works — with the script disabled, or on a first visit with
- * nothing remembered, the button still goes to the list.
+ *  - The button goes to the page the reader really came from, named after it:
+ *    arriving at a sale from a product shows "Product 1", not "Sales history".
+ *    Where that page is the previous history entry, the browser's own Back is
+ *    used, so the history does not grow and the browser restores the scroll
+ *    itself.
+ *  - Falling back to the list — a direct visit, a bookmark, a new tab — the
+ *    button goes to that list as the reader last had it, with their search and
+ *    page number intact.
+ *  - Either way it lands at the scroll position they left, not at the top.
  */
 (() => {
-    const segment = (path) => path.split('/').filter(Boolean)[0] ?? '';
+    const PAGES = 'nav:pages';
+    const LAST = 'nav:last';
+    const RESTORE = 'nav:restore';
+    const LIMIT = 40;
 
-    // A list page is a single segment: /sales, but not /sales/2 or /sales/create.
-    const isListPage = () => location.pathname.split('/').filter(Boolean).length === 1;
-
-    const urlKey = (seg) => `list:${seg}`;
-    const scrollKey = (url) => `scroll:${url}`;
-
+    // Private windows and browsers with site data blocked throw rather than
+    // return null. Losing the way back is not worth an error.
     const read = (key) => {
         try {
             return sessionStorage.getItem(key);
         } catch {
-            // Private windows and locked-down browsers throw rather than
-            // return null. Losing the scroll position is not worth an error.
             return null;
         }
     };
@@ -285,26 +284,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const here = () => location.pathname + location.search;
-
-    /** Did the reader arrive from a page belonging to this list? */
-    const cameFromOwnDetailPage = (seg) => {
-        if (! document.referrer) {
-            return false;
-        }
-
-        let referrer;
-
+    const forget = (key) => {
         try {
-            referrer = new URL(document.referrer);
+            sessionStorage.removeItem(key);
         } catch {
-            return false;
+            /* ignore */
         }
-
-        return referrer.origin === location.origin
-            && referrer.pathname.startsWith(`/${seg}/`);
     };
 
+    const here = () => location.pathname + location.search;
+
+    const segment = (path) => path.split('/').filter(Boolean)[0] ?? '';
+
+    // A list page is a single segment: /sales, but not /sales/2 or /sales/create.
+    const isListPage = () => location.pathname.split('/').filter(Boolean).length === 1;
+
+    const pages = () => {
+        try {
+            return JSON.parse(read(PAGES) ?? '{}');
+        } catch {
+            return {};
+        }
+    };
+
+    /**
+     * Remember something about a page, keeping the most recent LIMIT of them.
+     * Unbounded, this would grow for as long as the tab stays open.
+     */
+    const remember = (url, patch) => {
+        const all = pages();
+        const entry = { ...(all[url] ?? {}), ...patch };
+
+        delete all[url];
+        all[url] = entry;
+
+        const urls = Object.keys(all);
+        urls.slice(0, Math.max(0, urls.length - LIMIT)).forEach((old) => delete all[old]);
+
+        write(PAGES, JSON.stringify(all));
+    };
+
+    /** A link's destination, spelled the way here() spells a page. */
+    const target = (link) => {
+        try {
+            const url = new URL(link.href, location.origin);
+
+            return url.origin === location.origin ? url.pathname + url.search : '';
+        } catch {
+            return '';
+        }
+    };
+
+    /** The page the reader came from, if it was one of ours. */
+    const referrer = () => {
+        if (! document.referrer) {
+            return null;
+        }
+
+        let url;
+
+        try {
+            url = new URL(document.referrer);
+        } catch {
+            return null;
+        }
+
+        if (url.origin !== location.origin) {
+            return null;
+        }
+
+        const path = url.pathname + url.search;
+
+        // A form that redirects back to itself is not somewhere to go back to.
+        return path === here() ? null : path;
+    };
 
     /**
      * Put the page back where it was.
@@ -326,7 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
             observer?.disconnect();
         };
 
-        // The reader has said where they want to be; it is not ours any more.
         ['wheel', 'touchstart', 'keydown'].forEach(
             (event) => addEventListener(event, stop, { once: true, passive: true })
         );
@@ -359,32 +411,78 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-        const seg = segment(location.pathname);
+        const url = here();
+        const previous = referrer();
+        const known = pages();
 
-        if (isListPage() && seg) {
-            write(urlKey(seg), here());
+        // The heading is what this page is called, and is what the button on
+        // the next page will say when it offers the way back here.
+        remember(url, { title: document.querySelector('main h1')?.textContent.trim() });
 
-            // pagehide rather than beforeunload: it also fires when the page is
-            // frozen into the back/forward cache, which beforeunload does not.
-            addEventListener('pagehide', () => write(scrollKey(here()), String(window.scrollY)));
+        if (isListPage()) {
+            // Which URL this list was last seen at — the search, the filters and
+            // the page number the reader had open.
+            write(`list:${segment(location.pathname)}`, url);
+        }
 
-            if (cameFromOwnDetailPage(seg)) {
-                const y = parseInt(read(scrollKey(here())) ?? '', 10);
+        addEventListener('pagehide', () => {
+            remember(url, { y: window.scrollY });
+            write(LAST, url);
+        });
 
-                if (Number.isFinite(y) && y > 0) {
-                    restoreScroll(y);
-                }
+        // Only when this page was reached by the button below, so a fresh visit
+        // to a list still starts at the top.
+        if (read(RESTORE) === url) {
+            forget(RESTORE);
+
+            const y = known[url]?.y;
+
+            if (Number.isFinite(y) && y > 0) {
+                restoreScroll(y);
             }
         }
 
-        document.querySelectorAll('a[data-back-to]').forEach((link) => {
-            const remembered = read(urlKey(link.dataset.backTo));
+        document.querySelectorAll('a.back-link').forEach((link) => {
+            const label = link.querySelector('span');
 
-            // Only ever swap in a path on this site, and only for the list the
-            // link already points at.
-            if (remembered && remembered.startsWith(`/${link.dataset.backTo}`)) {
-                link.setAttribute('href', remembered);
+            // 1. Where the reader actually came from, named after it. Without a
+            //    remembered name there is nothing honest to write on the button,
+            //    so the server's own destination is left alone.
+            if (previous && known[previous]?.title) {
+                link.setAttribute('href', previous);
+                label.textContent = known[previous].title;
+
+                // The browser's Back only lands there if it is the entry behind
+                // this one, which is exactly when we arrived from it.
+                link.dataset.backHistory = read(LAST) === previous ? '1' : '';
+            } else if (link.dataset.backTo) {
+                // 2. Otherwise its list, as the reader last had it.
+                const remembered = read(`list:${link.dataset.backTo}`);
+
+                if (remembered && remembered.startsWith(`/${link.dataset.backTo}`)) {
+                    link.setAttribute('href', remembered);
+                }
             }
+
+            link.addEventListener('click', (event) => {
+                // Leave every deliberate "open this elsewhere" alone.
+                if (event.button !== 0 || event.metaKey || event.ctrlKey
+                    || event.shiftKey || event.altKey) {
+                    return;
+                }
+
+                if (link.dataset.backHistory === '1') {
+                    event.preventDefault();
+                    history.back();
+
+                    return;
+                }
+
+                // A plain navigation, so this script has to put the scroll
+                // back. Store it the way here() spells a page, since the href
+                // may be the absolute URL the server wrote.
+                write(RESTORE, target(link));
+            });
         });
     });
 })();

@@ -94,11 +94,14 @@
                     <tbody>
                     @foreach($payments as $payment)
                         <tr>
-                            <td class="fw-medium" dir="ltr">{{ $payment->document_no }}</td>
+                            <td class="fw-medium">
+                                <x-document-link :document="$payment" :kind="false" />
+                            </td>
                             <td dir="ltr">{{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}</td>
                             <td class="small">
-                                <span class="badge text-bg-light">{{ Str::headline($payment->payable_type) }}</span>
-                                <span class="text-secondary">#{{ $payment->payable_id }}</span>
+                                <x-document-link :document="$payment->payable"
+                                                 :type="$payment->payable_type"
+                                                 :id="$payment->payable_id" />
                             </td>
                             <td>{{ Str::headline($payment->payment_method) }}</td>
                             <td class="small text-secondary">{{ $payment->user->name }}</td>

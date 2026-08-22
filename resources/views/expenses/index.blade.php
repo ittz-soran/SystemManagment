@@ -80,7 +80,9 @@
                     <tbody>
                     @foreach($expenses as $expense)
                         <tr>
-                            <td class="fw-medium" dir="ltr">{{ $expense->document_no }}</td>
+                            <td class="fw-medium">
+                                <x-document-link :document="$expense" :kind="false" />
+                            </td>
                             <td dir="ltr">{{ $expense->expense_date->format(setting('date_format', 'Y-m-d')) }}</td>
                             <td>
                                 {{ $expense->title }}
@@ -93,6 +95,7 @@
                             <td class="money">{{ money($expense->amount, false) }}</td>
                             <td class="text-end">
                                 <x-row-actions
+                                    :view="route('expenses.show', $expense)"
                                     :delete="Gate::allows('expenses.delete') ? route('expenses.destroy', $expense) : null"
                                     :delete-label="__('Delete :document?', ['document' => $expense->document_no])" />
                             </td>
