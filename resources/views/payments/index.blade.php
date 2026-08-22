@@ -3,6 +3,8 @@
 @section('title', __('Payments'))
 
 @section('content')
+    <x-archived-notice :count="$archivedCount" />
+
     {{-- Section 4: reports read the direction, so cash in and cash out stay
          separate and legible. --}}
     <div class="row g-3 mb-3">

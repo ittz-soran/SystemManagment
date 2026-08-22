@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use App\Models\Concerns\HidesArchivedPeriod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,13 +17,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class Purchase extends Model
 {
-    use SoftDeletes;
+    use HidesArchivedPeriod, SoftDeletes;
 
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_PARTLY_RETURNED = 'partly_returned';
 
     public const STATUS_RETURNED = 'returned';
+
+    /** Section 8c: the column an archived period is decided by. */
+    public function archivePeriodColumn(): string
+    {
+        return 'purchase_date';
+    }
 
     protected function casts(): array
     {

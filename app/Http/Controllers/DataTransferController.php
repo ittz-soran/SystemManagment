@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Services\MasterDataTransfer;
+use App\Services\PeriodArchiveService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use RuntimeException;
@@ -25,12 +27,97 @@ class DataTransferController extends Controller
 {
     public function __construct(private MasterDataTransfer $transfer) {}
 
-    public function index(): View
+    public function index(PeriodArchiveService $periods): View
     {
         return view('data.index', [
             'entities' => MasterDataTransfer::ENTITIES,
             'transfer' => $this->transfer,
+            'archivedBefore' => $periods->cutoff(),
+            // Everything up to the end of last month is the obvious suggestion.
+            'suggested' => now()->subMonth()->endOfMonth()->toDateString(),
         ]);
+    }
+
+    /**
+     * A period as a ZIP of CSVs. Nothing is changed and nothing is hidden — this
+     * is the copy an accountant asks for.
+     */
+    public function exportPeriod(Request $request, PeriodArchiveService $periods): StreamedResponse|RedirectResponse
+    {
+        Gate::authorize('reports.view');
+
+        $data = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['required', 'date'],
+        ]);
+
+        try {
+            $path = $periods->export(
+                isset($data['from']) ? Carbon::parse($data['from']) : null,
+                Carbon::parse($data['to']),
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return $this->sendAndDelete($path, 'period-'.Carbon::parse($data['to'])->toDateString().'.zip');
+    }
+
+    /**
+     * Export a period and then stop showing it.
+     *
+     * Section 4 and Section 5 are why this hides rather than deletes: a purchase
+     * from months ago may still own stock on the shelf, every sale's movements
+     * are the only record of what its units cost, and a balance is a running
+     * total of the ledger. Removing any of it breaks all three, silently.
+     */
+    public function archivePeriod(Request $request, PeriodArchiveService $periods): StreamedResponse|RedirectResponse
+    {
+        Gate::authorize('settings.manage');
+
+        $data = $request->validate([
+            'through' => ['required', 'date', 'before:today'],
+            'freeze' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            $result = $periods->archive(
+                through: Carbon::parse($data['through']),
+                user: $request->user(),
+                freeze: $request->boolean('freeze', true),
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        session()->flash('success', __('Archived :count documents up to :date. Nothing was deleted — the lists just stop showing them.', [
+            'count' => number_format(array_sum($result['counts'])),
+            'date' => Carbon::parse($data['through'])->toDateString(),
+        ]));
+
+        return $this->sendAndDelete($result['path'], 'archive-'.Carbon::parse($data['through'])->toDateString().'.zip');
+    }
+
+    public function unarchive(Request $request, PeriodArchiveService $periods): RedirectResponse
+    {
+        Gate::authorize('settings.manage');
+
+        $periods->unhide($request->user());
+
+        return back()->with('success', __('The archived period is showing again.'));
+    }
+
+    /** The ZIP lives in the temp folder; it goes as soon as it has been sent. */
+    private function sendAndDelete(string $path, string $name): StreamedResponse
+    {
+        return response()->streamDownload(
+            function () use ($path) {
+                readfile($path);
+                @unlink($path);
+            },
+            $name,
+            ['Content-Type' => 'application/zip'],
+        );
     }
 
     public function export(Request $request, string $entity): StreamedResponse

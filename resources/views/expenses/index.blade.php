@@ -16,6 +16,8 @@
 @endsection
 
 @section('content')
+    <x-archived-notice :count="$archivedCount" />
+
     <div class="card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center">
             <span class="text-secondary">{{ __('Total for this selection') }}</span>

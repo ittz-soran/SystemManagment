@@ -350,7 +350,72 @@
         @csrf
     </form>
 
-    <div class="card mt-4">
+    {{-- Everything below this line destroys something. Kept together, kept last,
+         and each one says what it will do before it offers to do it. --}}
+    <h2 class="h6 text-danger-emphasis mt-5 mb-2">
+        <i class="bi bi-exclamation-octagon me-1"></i>{{ __('Danger zone') }}
+    </h2>
+
+    <div class="card border-danger-subtle">
+        <div class="card-body">
+            <div class="fw-semibold">{{ __('Start fresh') }}</div>
+            <p class="small text-secondary mb-3">
+                {{ __('Clears everything entered while testing — sales, purchases, returns, payments, expenses and all stock movements — and puts invoice numbers back to the beginning.') }}
+                {{ __('Your products, categories, suppliers, customers and settings are kept, with stock set to zero.') }}
+            </p>
+
+            @if($resetBlocker)
+                <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-0">
+                    <i class="bi bi-lock"></i>
+                    <span>{{ $resetBlocker }}</span>
+                </div>
+            @elseif($resetPreview === [])
+                <div class="text-secondary small">{{ __('There is nothing to clear.') }}</div>
+            @else
+                <div class="table-responsive mb-3" style="max-width: 28rem">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                        @foreach($resetPreview as $table => $count)
+                            <tr>
+                                <td class="text-capitalize">{{ str_replace('_', ' ', $table) }}</td>
+                                <td class="money">{{ number_format($count) }}</td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert alert-warning py-2 small">
+                    <i class="bi bi-shield-check me-1"></i>
+                    {{ __('A backup is taken automatically before anything is removed. There is no other way back.') }}
+                </div>
+
+                <form action="{{ route('settings.reset-transactions') }}" method="POST" data-guard-submit
+                      class="row g-2 align-items-end" style="max-width: 32rem">
+                    @csrf
+                    @method('DELETE')
+
+                    <div class="col-sm-7">
+                        <label for="confirmation" class="form-label small">
+                            {{ __('Type :name to confirm', ['name' => setting('shop_name', config('app.name'))]) }}
+                        </label>
+                        <input id="confirmation" name="confirmation" required autocomplete="off"
+                               class="form-control @error('confirmation') is-invalid @enderror">
+                        @error('confirmation')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="col-sm-5">
+                        <button type="submit" class="btn btn-danger w-100"
+                                data-submitting-text="{{ __('Clearing…') }}">
+                            {{ __('Clear all transactions') }}
+                        </button>
+                    </div>
+                </form>
+            @endif
+        </div>
+    </div>
+
+    <div class="card mt-3">
         <div class="card-body d-flex justify-content-between align-items-center">
             <div>
                 <div class="fw-semibold">{{ __('Reset to defaults') }}</div>

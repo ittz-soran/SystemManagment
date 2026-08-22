@@ -34,6 +34,9 @@ class PaymentController extends Controller
     public function index(Request $request): View
     {
         $payments = Payment::with('user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             ->orderByDesc('paid_at')
             ->orderByDesc('id')
             ->when($request->filled('direction'), fn ($q) => $q->where('direction', $request->input('direction')))
@@ -47,10 +50,17 @@ class PaymentController extends Controller
         // Section 4: reports read the direction, so cash in and cash out stay
         // separate and legible.
         $base = fn () => Payment::query()
+            // The same period the list is showing, or the totals would count
+            // rows the reader cannot see.
+            ->visible($request->boolean('archived'))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('paid_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('paid_at', '<=', $request->date('to')));
 
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) Payment::archivedOnly()->count();
+
         return view('payments.index', [
+            'archivedCount' => $archivedCount,
             'payments' => $payments,
             'totalIn' => (int) $base()->where('direction', Payment::DIRECTION_IN)->sum('amount'),
             'totalOut' => (int) $base()->where('direction', Payment::DIRECTION_OUT)->sum('amount'),

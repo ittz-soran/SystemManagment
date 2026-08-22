@@ -17,6 +17,9 @@ class ExpenseController extends Controller
     public function index(Request $request): View
     {
         $expenses = Expense::with('category', 'user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             ->orderByDesc('expense_date')
             ->orderByDesc('id')
             ->when($request->filled('category'), fn ($q) => $q->where('expense_category_id', $request->input('category')))
@@ -29,11 +32,18 @@ class ExpenseController extends Controller
             ->withQueryString();
 
         $filtered = Expense::query()
+            // The same period the list is showing, or the total would count
+            // rows the reader cannot see.
+            ->visible($request->boolean('archived'))
             ->when($request->filled('category'), fn ($q) => $q->where('expense_category_id', $request->input('category')))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('expense_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('expense_date', '<=', $request->date('to')));
 
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) Expense::archivedOnly()->count();
+
         return view('expenses.index', [
+            'archivedCount' => $archivedCount,
             'expenses' => $expenses,
             'total' => (int) $filtered->sum('amount'),
             // Section 4: deactivated categories stay available on old expenses

@@ -33,6 +33,9 @@ class StockAdjustmentController extends Controller
     public function index(Request $request): View
     {
         $adjustments = StockAdjustment::with('product', 'user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             ->orderByDesc('adjusted_at')
             ->orderByDesc('id')
             ->when($request->filled('direction'), fn ($q) => $q->where('direction', $request->input('direction')))
@@ -42,7 +45,11 @@ class StockAdjustmentController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) StockAdjustment::archivedOnly()->count();
+
         return view('stock-adjustments.index', [
+            'archivedCount' => $archivedCount,
             'adjustments' => $adjustments,
             'reasons' => self::REASONS,
         ]);

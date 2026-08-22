@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use App\Models\Concerns\HidesArchivedPeriod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -13,7 +14,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class Expense extends Model
 {
-    use SoftDeletes;
+    use HidesArchivedPeriod, SoftDeletes;
+
+    /** Section 8c: the column an archived period is decided by. */
+    public function archivePeriodColumn(): string
+    {
+        return 'expense_date';
+    }
 
     protected function casts(): array
     {

@@ -18,6 +18,9 @@ class PurchaseReturnController extends Controller
     public function index(Request $request): View
     {
         $returns = PurchaseReturn::with('purchase', 'supplier', 'user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             ->orderByDesc('return_date')
             ->orderByDesc('id')
             ->when($request->filled('search'), fn ($q) => $q->where('document_no', 'like', '%'.$request->input('search').'%'))
@@ -26,7 +29,11 @@ class PurchaseReturnController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
-        return view('purchase-returns.index', ['returns' => $returns]);
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) PurchaseReturn::archivedOnly()->count();
+
+        return view('purchase-returns.index', [
+            'archivedCount' => $archivedCount,'returns' => $returns]);
     }
 
     public function create(Purchase $purchase): View

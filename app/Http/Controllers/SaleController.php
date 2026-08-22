@@ -18,6 +18,9 @@ class SaleController extends Controller
     public function index(Request $request): View
     {
         $sales = Sale::with('customer', 'user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             // Section 9b: sort the newest first on every transactional list.
             ->orderByDesc('sale_date')
             ->orderByDesc('id')
@@ -29,7 +32,11 @@ class SaleController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) Sale::archivedOnly()->count();
+
         return view('sales.index', [
+            'archivedCount' => $archivedCount,
             'sales' => $sales,
             'customers' => Customer::orderByDesc('is_system')->orderBy('name')->get(),
         ]);
