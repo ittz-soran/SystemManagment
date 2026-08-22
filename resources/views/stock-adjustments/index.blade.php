@@ -17,6 +17,8 @@
 @endsection
 
 @section('content')
+    <x-archived-notice :count="$archivedCount" />
+
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">

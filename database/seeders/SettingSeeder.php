@@ -56,6 +56,10 @@ class SettingSeeder extends Seeder
         'backup_remote_path' => null,
         'backup_keep_daily' => '30',
         'backup_keep_monthly' => '12',
+
+        // Documents dated before this are hidden from the day-to-day lists.
+        // Nothing is deleted — see PeriodArchiveService.
+        'archived_before' => null,
     ];
 
     public function run(): void

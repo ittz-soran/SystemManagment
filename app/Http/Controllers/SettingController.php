@@ -6,11 +6,13 @@ use App\Models\Setting;
 use App\Rules\WritableDirectory;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
+use App\Services\SystemResetService;
 use Database\Seeders\SettingSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -90,6 +92,9 @@ class SettingController extends Controller
             // Section 8c lists backup status on this page: the last backup time
             // and a manual "Back up now" button.
             'lastBackupAt' => $backups->lastRunAt(),
+            // The "Start fresh" card shows what would go before it offers to go.
+            'resetPreview' => app(SystemResetService::class)->preview(),
+            'resetBlocker' => app(SystemResetService::class)->blocker(),
             'backupRemote' => $backups->remotePath(),
             'dailyCopies' => count($backups->copies('daily')),
             'monthlyCopies' => count($backups->copies('monthly')),
@@ -201,6 +206,35 @@ class SettingController extends Controller
         return $result['warnings'] === []
             ? back()->with('success', $message)
             : back()->with('warning', $message.' — '.implode(' ', $result['warnings']));
+    }
+
+    /**
+     * "Start fresh": clear everything entered while testing, keep the catalogue.
+     *
+     * Guarded three ways, because there is no undo beyond the backup it takes:
+     * the shop's own name has to be typed, a frozen period blocks it outright,
+     * and it is only reachable by someone who can manage settings.
+     */
+    public function resetTransactions(Request $request, SystemResetService $reset): RedirectResponse
+    {
+        $expected = (string) setting('shop_name', config('app.name'));
+
+        $request->validate([
+            'confirmation' => ['required', 'string', Rule::in([$expected])],
+        ], [
+            'confirmation.in' => __('Type :name exactly to confirm.', ['name' => $expected]),
+        ]);
+
+        try {
+            $result = $reset->run($request->user());
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('Cleared :summary. A backup was saved first as :backup.', [
+            'summary' => $reset->summarise($result['removed']),
+            'backup' => basename($result['backup']),
+        ]));
     }
 
     /** Puts every key back to the value the seeder ships. */

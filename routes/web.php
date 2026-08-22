@@ -218,6 +218,8 @@ Route::middleware(['auth'])->group(function () {
         Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
         Route::post('settings/reset', [SettingController::class, 'reset'])->name('settings.reset');
         Route::post('settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
+        Route::delete('settings/transactions', [SettingController::class, 'resetTransactions'])
+            ->name('settings.reset-transactions');
     });
 
     /*
@@ -227,6 +229,11 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::prefix('data')->name('data.')->group(function () {
         Route::get('/', [DataTransferController::class, 'index'])->name('index');
+        // Before the {entity} routes, or "period" is read as a kind of data.
+        Route::post('period/export', [DataTransferController::class, 'exportPeriod'])->name('period.export');
+        Route::post('period/archive', [DataTransferController::class, 'archivePeriod'])->name('period.archive');
+        Route::delete('period/archive', [DataTransferController::class, 'unarchive'])->name('period.unarchive');
+
         Route::get('{entity}/export', [DataTransferController::class, 'export'])->name('export');
         Route::post('{entity}/preview', [DataTransferController::class, 'preview'])->name('preview');
         Route::post('{entity}/import', [DataTransferController::class, 'import'])->name('import');

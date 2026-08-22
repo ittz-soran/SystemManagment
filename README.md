@@ -94,6 +94,26 @@ The logo is served by `GET /branding/logo` rather than a `/storage/…` URL, so 
 needs no `php artisan storage:link` — a step that requires administrator rights
 on Windows and is missing on most XAMPP installs.
 
+## Starting fresh, and archiving
+
+**Start fresh** (Settings → Danger zone) clears everything entered while testing —
+sales, purchases, returns, payments, expenses, stock batches and movements, and the
+ledger — and puts invoice numbers back to 1. Products, categories, suppliers,
+customers, users and settings are kept, with stock zeroed. It takes a backup first,
+makes you type the shop's name, and refuses once any period has been frozen with
+`books_closed_before`, since nobody freezes test data.
+
+**Archive a period** (Import & export) writes a period to a ZIP of spreadsheets and
+then stops the lists showing it. **It deletes nothing, deliberately.** A purchase from
+months ago may still own stock on the shelf; every sale's movements are the only
+record of what its units cost; a balance is a running total of the ledger. Removing
+old documents breaks all three, silently. So the rows stay, `archived_before` decides
+what the list screens show by default, and every list carries a "Show them" link.
+
+That hiding is a *local* scope (`Model::visible()`), used only by the index screens.
+Making it global would hide the archived period from reports and from the FIFO engine
+too — the exact corruption archiving exists to avoid.
+
 ## Backups
 
 Financial records are the shop's only proof of who owes what, so this is not optional

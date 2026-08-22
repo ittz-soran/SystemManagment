@@ -24,6 +24,9 @@ class SaleReturnController extends Controller
     public function index(Request $request): View
     {
         $returns = SaleReturn::with('sale', 'customer', 'user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             ->orderByDesc('return_date')
             ->orderByDesc('id')
             ->when($request->filled('search'), fn ($q) => $q->where('document_no', 'like', '%'.$request->input('search').'%'))
@@ -32,7 +35,11 @@ class SaleReturnController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
-        return view('sale-returns.index', ['returns' => $returns]);
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) SaleReturn::archivedOnly()->count();
+
+        return view('sale-returns.index', [
+            'archivedCount' => $archivedCount,'returns' => $returns]);
     }
 
     /** The return screen for one sale. */

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use App\Models\Concerns\HidesArchivedPeriod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -21,11 +22,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class Payment extends Model
 {
-    use SoftDeletes;
+    use HidesArchivedPeriod, SoftDeletes;
 
     public const DIRECTION_IN = 'in';
 
     public const DIRECTION_OUT = 'out';
+
+    /** Section 8c: the column an archived period is decided by. */
+    public function archivePeriodColumn(): string
+    {
+        return 'paid_at';
+    }
 
     protected function casts(): array
     {

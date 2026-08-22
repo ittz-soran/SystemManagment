@@ -227,6 +227,34 @@ class BackupTest extends TestCase
         $this->assertNotSame('Wrong name', setting('shop_name'));
     }
 
+    /**
+     * The dump writes every CREATE TABLE before any row.
+     *
+     * One table at a time looks tidier and is wrong: activity_logs sorts before
+     * users and has a foreign key to it, so its rows were being inserted while
+     * the users table did not exist yet — "no such table: main.users". Any real
+     * shop has activity_logs rows, so this made restores fail in practice while
+     * the tests, which had none, passed.
+     */
+    public function test_a_restore_works_when_an_early_table_points_at_a_later_one(): void
+    {
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+
+        app(\App\Services\ActivityLogger::class)->log(
+            action: 'update', module: 'settings', description: 'Something happened', user: $admin,
+        );
+
+        $this->assertGreaterThan(0, \App\Models\ActivityLog::count());
+
+        $path = app(BackupService::class)->run()['path'];
+
+        \App\Models\ActivityLog::query()->delete();
+
+        app(BackupService::class)->restore($path);
+
+        $this->assertGreaterThan(0, \App\Models\ActivityLog::count());
+    }
+
     public function test_restoring_a_file_that_is_not_there_says_so(): void
     {
         $this->expectExceptionMessageMatches('/No backup file at/');

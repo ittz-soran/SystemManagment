@@ -17,6 +17,9 @@ class PurchaseController extends Controller
     public function index(Request $request): View
     {
         $purchases = Purchase::with('supplier', 'user')
+            // An archived period stays in the database and out of this list,
+            // unless the reader asks for it.
+            ->visible($request->boolean('archived'))
             ->orderByDesc('purchase_date')
             ->orderByDesc('id')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
@@ -29,7 +32,11 @@ class PurchaseController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
+        // Section 8c: the toggle only appears when something is hidden.
+        $archivedCount = (int) Purchase::archivedOnly()->count();
+
         return view('purchases.index', [
+            'archivedCount' => $archivedCount,
             'purchases' => $purchases,
             'suppliers' => Supplier::orderBy('name')->get(),
         ]);

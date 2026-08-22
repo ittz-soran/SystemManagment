@@ -486,14 +486,21 @@ class BackupService
              order by case type when 'table' then 0 else 1 end, name"
         );
 
-        foreach ($objects as $object) {
-            gzwrite($handle, $object->sql.";\n");
+        $tables = array_filter($objects, fn ($object) => $object->type === 'table');
 
-            if ($object->type !== 'table') {
-                continue;
-            }
+        // Every CREATE TABLE first, then the rows, then the indexes.
+        //
+        // Not one table at a time: activity_logs sorts before users and has a
+        // foreign key to it, so inserting its rows while the users table does
+        // not exist yet fails with "no such table: main.users". Deferring the
+        // foreign KEYS does not help — a missing parent TABLE is a different
+        // error, raised when the statement is prepared.
+        foreach ($tables as $table) {
+            gzwrite($handle, $table->sql.";\n");
+        }
 
-            foreach (DB::table($object->name)->cursor() as $row) {
+        foreach ($tables as $table) {
+            foreach (DB::table($table->name)->cursor() as $row) {
                 $values = array_map(
                     fn ($value) => match (true) {
                         $value === null => 'NULL',
@@ -503,7 +510,13 @@ class BackupService
                     (array) $row,
                 );
 
-                gzwrite($handle, 'INSERT INTO "'.$object->name.'" VALUES ('.implode(',', $values).");\n");
+                gzwrite($handle, 'INSERT INTO "'.$table->name.'" VALUES ('.implode(',', $values).");\n");
+            }
+        }
+
+        foreach ($objects as $object) {
+            if ($object->type !== 'table') {
+                gzwrite($handle, $object->sql.";\n");
             }
         }
 
