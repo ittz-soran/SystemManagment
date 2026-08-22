@@ -23,13 +23,14 @@ use Tests\TestCase;
  * test: the destination has to be the list the reader actually came from, and
  * the link must not be offered to someone the list would refuse.
  *
- * Where the reader came from is the script's half of this: arriving at a sale
- * from a product, the button says "Product 1" and goes there, using the
- * browser's own Back so the scroll comes back with it. That is checked in the
- * browser. What is fixed here is the markup underneath it — a real href to a
- * real route, so the button works with the script disabled, on a first visit,
- * and when opened in a new tab; plus the data-back-to marker naming the list
- * whose filters and scroll the script should restore.
+ * Where the reader came from is the script's half of this, and is checked in
+ * the browser: the button is the browser's own Back with a name on it, read
+ * from the depth stamped on each history entry. What is fixed here is the
+ * markup underneath it — a real href to a real route, for the one case the
+ * script cannot serve (nothing behind this page: a bookmark, a typed URL, a
+ * link from outside) and for a reader with the script disabled or opening it in
+ * a new tab — plus the data-back-to marker naming the list whose filters and
+ * scroll the script should then restore.
  */
 class BackLinkTest extends TestCase
 {
@@ -156,10 +157,10 @@ class BackLinkTest extends TestCase
     }
 
     /**
-     * The href is a route the server resolved, not a guess made from the
-     * referrer: the script only ever swaps in a page it has seen this reader on,
-     * so a link followed from an email or another site cannot decide where the
-     * button goes.
+     * The href is a route the server resolved. Nothing about where the reader
+     * came from is read from the request — the referrer is a hint the browser
+     * may trim or withhold, and the script uses the tab's own history instead —
+     * so a link followed from another site cannot decide where the button goes.
      */
     public function test_the_destination_does_not_come_from_the_referrer(): void
     {

@@ -242,27 +242,32 @@ document.addEventListener('DOMContentLoaded', () => {
 /**
  * The way back.
  *
- * The button in the page header is a real link to a real route, so it works
- * with this script disabled and can be opened in a new tab. What the script
- * adds is memory of where the reader has actually been, kept in sessionStorage
- * — per tab, because this is where *this* tab was, and it should not leak into
- * a tab opened tomorrow.
+ * The button is the browser's own Back with a name on it. Whatever page the
+ * reader came from is where it goes: opening a payment from the payments list
+ * and then the invoice it settled, the button on that invoice reads "PAY-00008"
+ * and returns there, not to the sales history.
  *
- * Three things come out of that memory:
+ * Which page that is comes from the history itself, not from document.referrer.
+ * A referrer is a hint the browser is free to trim or withhold — and when it
+ * was missing, the button quietly fell back to the list, which is the one thing
+ * it must not do. Instead each history entry is stamped with its depth in
+ * history.state, and the URL at each depth is kept in sessionStorage: per tab,
+ * because this is where *this* tab has been. The entry one step down is the
+ * page behind this one, exactly as the browser counts it, and history.back()
+ * goes there — so the history does not grow and the browser puts the scroll
+ * back itself.
  *
- *  - The button goes to the page the reader really came from, named after it:
- *    arriving at a sale from a product shows "Product 1", not "Sales history".
- *    Where that page is the previous history entry, the browser's own Back is
- *    used, so the history does not grow and the browser restores the scroll
- *    itself.
- *  - Falling back to the list — a direct visit, a bookmark, a new tab — the
- *    button goes to that list as the reader last had it, with their search and
- *    page number intact.
- *  - Either way it lands at the scroll position they left, not at the top.
+ * Only when there is no entry behind this one — a bookmark, a typed URL, a link
+ * from outside — does the button fall back to what the server wrote: the list
+ * this screen belongs to, as the reader last had it, filters and all.
+ *
+ * That href in the markup is a real route, so the button works with this script
+ * disabled and can be opened in a new tab.
  */
 (() => {
     const PAGES = 'nav:pages';
-    const LAST = 'nav:last';
+    const STACK = 'nav:stack';
+    const DEPTH = 'nav:depth';
     const RESTORE = 'nav:restore';
     const LIMIT = 40;
 
@@ -292,37 +297,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const parse = (key, fallback) => {
+        try {
+            return JSON.parse(read(key) ?? '') ?? fallback;
+        } catch {
+            return fallback;
+        }
+    };
+
     const here = () => location.pathname + location.search;
 
     const segment = (path) => path.split('/').filter(Boolean)[0] ?? '';
 
     // A list page is a single segment: /sales, but not /sales/2 or /sales/create.
     const isListPage = () => location.pathname.split('/').filter(Boolean).length === 1;
-
-    const pages = () => {
-        try {
-            return JSON.parse(read(PAGES) ?? '{}');
-        } catch {
-            return {};
-        }
-    };
-
-    /**
-     * Remember something about a page, keeping the most recent LIMIT of them.
-     * Unbounded, this would grow for as long as the tab stays open.
-     */
-    const remember = (url, patch) => {
-        const all = pages();
-        const entry = { ...(all[url] ?? {}), ...patch };
-
-        delete all[url];
-        all[url] = entry;
-
-        const urls = Object.keys(all);
-        urls.slice(0, Math.max(0, urls.length - LIMIT)).forEach((old) => delete all[old]);
-
-        write(PAGES, JSON.stringify(all));
-    };
 
     /** A link's destination, spelled the way here() spells a page. */
     const target = (link) => {
@@ -335,40 +323,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /** The page the reader came from, if it was one of ours. */
-    const referrer = () => {
-        if (! document.referrer) {
-            return null;
+    /**
+     * Remember something about a page, keeping the most recent LIMIT of them.
+     * Unbounded, this would grow for as long as the tab stays open.
+     */
+    const remember = (url, patch) => {
+        const all = parse(PAGES, {});
+        const entry = { ...(all[url] ?? {}), ...patch };
+
+        delete all[url];
+        all[url] = entry;
+
+        const urls = Object.keys(all);
+        urls.slice(0, Math.max(0, urls.length - LIMIT)).forEach((old) => delete all[old]);
+
+        write(PAGES, JSON.stringify(all));
+    };
+
+    /**
+     * Where this page sits in the tab's history, and what came before it.
+     *
+     * A fresh navigation is one whose entry carries no depth yet: it is stamped
+     * with the next one down, and anything the reader had gone forward to is
+     * dropped, because the browser has just dropped it too. Coming back to an
+     * entry, its depth is already on it — which is what makes this survive a
+     * reload, where a referrer would not.
+     */
+    const place = (url) => {
+        const stamped = history.state?.navDepth;
+        let stack = parse(STACK, []);
+        let depth;
+
+        if (typeof stamped === 'number') {
+            depth = stamped;
+        } else {
+            depth = Number(read(DEPTH) ?? 0) + 1;
+
+            try {
+                history.replaceState({ ...history.state, navDepth: depth }, '');
+            } catch {
+                /* ignore */
+            }
+
+            stack.length = depth;
         }
 
-        let url;
+        stack[depth] = url;
+        write(STACK, JSON.stringify(stack));
+        write(DEPTH, String(depth));
 
-        try {
-            url = new URL(document.referrer);
-        } catch {
-            return null;
-        }
-
-        if (url.origin !== location.origin) {
-            return null;
-        }
-
-        const path = url.pathname + url.search;
-
-        // A form that redirects back to itself is not somewhere to go back to.
-        return path === here() ? null : path;
+        // Depth 1 is the first page of the tab: nothing of ours behind it.
+        return depth > 1 ? stack[depth - 1] ?? null : null;
     };
 
     /**
      * Put the page back where it was.
      *
-     * One attempt is not enough: on the first frame the table is laid out but
-     * the web font has not swapped in and the images have no height yet, so the
-     * document is shorter than it will be and the browser clamps the scroll to
-     * whatever fits — landing tens of pixels above the row the reader left. So
-     * the position is re-applied as the page grows, and abandoned the moment
-     * the reader scrolls for themselves, because then they have said where they
-     * want to be and it is not our business any more.
+     * Only needed for the fallback, since the browser restores the scroll on its
+     * own Back. One attempt is not enough: on the first frame the table is laid
+     * out but the web font has not swapped in and the images have no height yet,
+     * so the document is shorter than it will be and the browser clamps the
+     * scroll to whatever fits — landing tens of pixels above the row the reader
+     * left. So the position is re-applied as the page grows, and abandoned the
+     * moment the reader scrolls for themselves, because then they have said
+     * where they want to be and it is not our business any more.
      */
     const restoreScroll = (y) => {
         let settled = false;
@@ -412,8 +430,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('DOMContentLoaded', () => {
         const url = here();
-        const previous = referrer();
-        const known = pages();
+        const previous = place(url);
+        const known = parse(PAGES, {});
 
         // The heading is what this page is called, and is what the button on
         // the next page will say when it offers the way back here.
@@ -425,10 +443,9 @@ document.addEventListener('DOMContentLoaded', () => {
             write(`list:${segment(location.pathname)}`, url);
         }
 
-        addEventListener('pagehide', () => {
-            remember(url, { y: window.scrollY });
-            write(LAST, url);
-        });
+        // pagehide rather than beforeunload: it also fires when the page is
+        // frozen into the back/forward cache, which beforeunload does not.
+        addEventListener('pagehide', () => remember(url, { y: window.scrollY }));
 
         // Only when this page was reached by the button below, so a fresh visit
         // to a list still starts at the top.
@@ -445,18 +462,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('a.back-link').forEach((link) => {
             const label = link.querySelector('span');
 
-            // 1. Where the reader actually came from, named after it. Without a
-            //    remembered name there is nothing honest to write on the button,
-            //    so the server's own destination is left alone.
-            if (previous && known[previous]?.title) {
+            if (previous) {
+                // The page behind this one, named after itself. Without a name
+                // the button still goes there — where it goes is the promise,
+                // and the name is only how it is kept.
                 link.setAttribute('href', previous);
-                label.textContent = known[previous].title;
-
-                // The browser's Back only lands there if it is the entry behind
-                // this one, which is exactly when we arrived from it.
-                link.dataset.backHistory = read(LAST) === previous ? '1' : '';
+                label.textContent = known[previous]?.title || link.dataset.backGeneric || label.textContent;
+                link.dataset.backHistory = '1';
             } else if (link.dataset.backTo) {
-                // 2. Otherwise its list, as the reader last had it.
+                // Nothing behind this page, so the list it belongs to, as the
+                // reader last had it.
                 const remembered = read(`list:${link.dataset.backTo}`);
 
                 if (remembered && remembered.startsWith(`/${link.dataset.backTo}`)) {
@@ -478,9 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // A plain navigation, so this script has to put the scroll
-                // back. Store it the way here() spells a page, since the href
-                // may be the absolute URL the server wrote.
+                // A plain navigation, so this script has to put the scroll back.
                 write(RESTORE, target(link));
             });
         });

@@ -15,6 +15,7 @@
 @if(filled($to) && ($permission === null || auth()->user()?->hasPermission($permission)))
     <a href="{{ $to }}"
        class="back-link d-inline-flex align-items-center gap-1 small text-decoration-none"
+       data-back-generic="{{ __('Back') }}"
        @if($remember) data-back-to="{{ $remember }}" @endif>
         <i class="bi bi-arrow-{{ $isRtl ? 'right' : 'left' }}"></i>
         <span>{{ $label }}</span>
