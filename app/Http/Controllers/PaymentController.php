@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Services\LedgerService;
 use App\Services\PaymentService;
+use App\Support\DocumentLink;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -78,6 +79,7 @@ class PaymentController extends Controller
             'payable' => $payable,
             'payableType' => $request->string('payable_type')->toString(),
             'context' => $this->describe($payable),
+            'backUrl' => DocumentLink::url($payable, $request->user()),
         ]);
     }
 

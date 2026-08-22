@@ -89,9 +89,9 @@ class ProductController extends Controller
     {
         return view('products.show', [
             'product' => $product->load('category'),
-            'batches' => $product->stockBatches()->fifoOrder()->get(),
+            'batches' => $product->stockBatches()->with('source')->fifoOrder()->get(),
             'movements' => StockMovement::where('product_id', $product->id)
-                ->with('batch')
+                ->with(['batch', 'reference'])
                 ->orderByDesc('occurred_at')
                 ->orderByDesc('sequence')
                 ->limit(100)

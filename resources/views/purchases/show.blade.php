@@ -35,6 +35,10 @@
         :delete-label="__('Delete this purchase? Its batches are removed from stock.')" />
 @endsection
 
+@section('back')
+    <x-back-link :to="route('purchases.index')" :label="__('Purchase history')" remember="purchases" permission="purchases.view" />
+@endsection
+
 @section('content')
     <x-lock-banner :state="$lockState" />
 

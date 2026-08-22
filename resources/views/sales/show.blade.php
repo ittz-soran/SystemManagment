@@ -36,6 +36,10 @@
         :delete-label="__('Delete this sale? Its stock goes back into the batches it came from.')" />
 @endsection
 
+@section('back')
+    <x-back-link :to="route('sales.index')" :label="__('Sales history')" remember="sales" permission="sales.view" />
+@endsection
+
 @section('content')
     {{-- Section 9b: header, lines, totals, payments, timeline, actions. --}}
     <x-lock-banner :state="$lockState" />

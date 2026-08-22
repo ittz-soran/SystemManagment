@@ -41,6 +41,10 @@
     @endcan
 @endsection
 
+@section('back')
+    <x-back-link :to="route('purchase-returns.index')" :label="__('Purchase returns')" remember="purchase-returns" permission="purchase_returns.view" />
+@endsection
+
 @section('content')
     <div class="row g-3">
         <div class="col-lg-8">

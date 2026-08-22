@@ -3,6 +3,10 @@
 @section('title', __('Check the import'))
 @section('subheading', $label)
 
+@section('back')
+    <x-back-link :to="route('data.index')" :label="__('Import & export')" remember="data" />
+@endsection
+
 @section('content')
     {{-- Section 9b: see what will happen before it happens. --}}
     <div class="row g-2 mb-3">

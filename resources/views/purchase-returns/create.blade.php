@@ -5,6 +5,10 @@
     {{ __('Against purchase :document', ['document' => $purchase->document_no]) }} · {{ $purchase->supplier->name }}
 @endsection
 
+@section('back')
+    <x-back-link :to="route('purchases.show', $purchase)" :label="$purchase->document_no" permission="purchases.view" />
+@endsection
+
 @section('content')
     @php
         // Section 7: purchase returns are limited by the batch — you can't send

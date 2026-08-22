@@ -34,7 +34,8 @@ class CustomerController extends Controller
     {
         return view('customers.show', [
             'customer' => $customer,
-            'transactions' => AccountTransaction::where('accountable_type', 'customer')
+            'transactions' => AccountTransaction::with('reference')
+                ->where('accountable_type', 'customer')
                 ->where('accountable_id', $customer->id)
                 ->orderByDesc('id')
                 ->paginate($request->user()->items_per_page),
