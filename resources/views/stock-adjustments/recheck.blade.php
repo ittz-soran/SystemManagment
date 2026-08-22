@@ -3,6 +3,10 @@
 @section('title', __('Recheck stock'))
 @section('subheading', __('Compares each cached quantity against its batches and movements'))
 
+@section('back')
+    <x-back-link :to="route('stock-adjustments.index')" :label="__('Stock adjustments')" remember="stock-adjustments" permission="adjustments.view" />
+@endsection
+
 @section('content')
     {{-- Section 4: "Provide an admin Recheck stock action that compares every
          product's cached value against its batch sum and lists mismatches. If

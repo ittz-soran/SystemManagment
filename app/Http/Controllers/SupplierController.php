@@ -34,7 +34,8 @@ class SupplierController extends Controller
         // cached balance column.
         return view('suppliers.show', [
             'supplier' => $supplier,
-            'transactions' => AccountTransaction::where('accountable_type', 'supplier')
+            'transactions' => AccountTransaction::with('reference')
+                ->where('accountable_type', 'supplier')
                 ->where('accountable_id', $supplier->id)
                 ->orderByDesc('id')
                 ->paginate($request->user()->items_per_page),

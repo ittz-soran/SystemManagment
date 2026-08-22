@@ -11,6 +11,17 @@
     @section('subheading', $sale->document_no)
 @endif
 
+{{-- Editing came from the sale; a new sale came from the list. --}}
+@section('back')
+    @if($editing)
+        <x-back-link :to="route('sales.show', $sale)" :label="$sale->document_no"
+                     permission="sales.view" />
+    @else
+        <x-back-link :to="route('sales.index')" :label="__('Sales history')"
+                     remember="sales" permission="sales.view" />
+    @endif
+@endsection
+
 @section('content')
     {{--
         Section 9b: "Soran uses this a hundred times a day. Every other page can

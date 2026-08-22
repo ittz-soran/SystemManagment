@@ -11,6 +11,17 @@
     @section('subheading', $purchase->document_no)
 @endif
 
+{{-- Editing came from the purchase; a new purchase came from the list. --}}
+@section('back')
+    @if($editing)
+        <x-back-link :to="route('purchases.show', $purchase)" :label="$purchase->document_no"
+                     permission="purchases.view" />
+    @else
+        <x-back-link :to="route('purchases.index')" :label="__('Purchase history')"
+                     remember="purchases" permission="purchases.view" />
+    @endif
+@endsection
+
 @section('content')
     <form action="{{ $editing ? route('purchases.update', $purchase) : route('purchases.store') }}"
           method="POST" id="purchase-form" data-guard-submit>

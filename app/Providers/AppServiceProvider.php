@@ -10,6 +10,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Models\StockAdjustment;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Auth\Events\Login;
@@ -45,6 +46,11 @@ class AppServiceProvider extends ServiceProvider
             'customer' => Customer::class,
             'supplier' => Supplier::class,
             'payment' => Payment::class,
+
+            // stock_batches.source_type and stock_movements.reference_type
+            // already store this name; mapping it lets those columns be read
+            // back as a relation rather than only written as a string.
+            'adjustment' => StockAdjustment::class,
         ]);
 
         // Section 3: Bootstrap 5, so the paginator emits Bootstrap markup

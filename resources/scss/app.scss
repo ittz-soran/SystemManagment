@@ -211,3 +211,29 @@ th.money {
 .number-pad-equals {
   grid-row: span 2;
 }
+
+// ---------------------------------------------------------------------------
+// The way back out of a detail page.
+// ---------------------------------------------------------------------------
+
+// Quiet until it is wanted: this is a way out, not an action, so it should not
+// compete with the page's own buttons.
+.back-link {
+  color: var(--bs-secondary-color);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--bs-link-hover-color);
+  }
+
+  // The arrow leans towards its destination on hover — a logical property, so
+  // it leans left in English and right in Kurdish, Arabic and Persian.
+  i {
+    transition: margin 0.12s ease-out;
+  }
+
+  &:hover i {
+    margin-inline-end: 0.15rem;
+    margin-inline-start: -0.15rem;
+  }
+}

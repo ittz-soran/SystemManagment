@@ -39,6 +39,10 @@
         @include('layouts.topbar')
 
         <main class="flex-grow-1 p-3 p-lg-4">
+            @hasSection('back')
+                <div class="mb-2 no-print">@yield('back')</div>
+            @endif
+
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h1 class="h4 mb-0">@yield('heading', View::yieldContent('title'))</h1>

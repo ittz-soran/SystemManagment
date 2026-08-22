@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -52,6 +53,18 @@ class StockMovement extends Model
             get: fn (?string $value) => $value === null ? null : Carbon::parse($value),
             set: fn ($value) => $value === null ? null : Carbon::parse($value)->format('Y-m-d H:i:s.u'),
         );
+    }
+
+    /**
+     * The document this row came from.
+     *
+     * The type column holds a morph alias, so eager loading this resolves every
+     * reference in a list with one query per type instead of one per row — which
+     * matters on the product page, where a hundred movements are shown at once.
+     */
+    public function reference(): MorphTo
+    {
+        return $this->morphTo();
     }
 
     public function product(): BelongsTo

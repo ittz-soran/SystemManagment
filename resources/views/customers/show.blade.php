@@ -7,6 +7,10 @@
     @section('subheading', $customer->phone)
 @endif
 
+@section('back')
+    <x-back-link :to="route('customers.index')" :label="__('Customers')" remember="customers" permission="customers.view" />
+@endsection
+
 @section('content')
     {{-- Section 9: a balance statement, read from the ledger. Section 4:
          account_transactions is the truth; the balance column is a cache. --}}
@@ -38,7 +42,9 @@
                         <tr>
                             <td class="small" dir="ltr">{{ $transaction->created_at->format('Y-m-d H:i') }}</td>
                             <td><span class="badge text-bg-light">{{ Str::headline($transaction->type) }}</span></td>
-                            <td class="small text-secondary" dir="ltr">{{ $transaction->notes ?: '—' }}</td>
+                            <td class="small">
+                                <x-ledger-reference :transaction="$transaction" />
+                            </td>
                             <td class="money {{ $transaction->amount > 0 ? 'text-danger' : 'text-success' }}">
                                 {{ $transaction->amount > 0 ? '+' : '' }}{{ money($transaction->amount, false) }}
                             </td>

@@ -23,6 +23,10 @@
     @endcan
 @endsection
 
+@section('back')
+    <x-back-link :to="route('products.index')" :label="__('Products')" remember="products" permission="products.view" />
+@endsection
+
 @section('content')
     @php
         $batchSum = (int) $product->stockBatches()->sum('quantity_remaining');
@@ -90,8 +94,9 @@
                         <tr class="{{ $batch->quantity_remaining === 0 ? 'opacity-50' : '' }}">
                             <td class="small" dir="ltr">{{ $batch->received_at->format('Y-m-d H:i') }}</td>
                             <td class="small">
-                                <span class="badge text-bg-light">{{ Str::headline($batch->source_type) }}</span>
-                                <span class="text-secondary">#{{ $batch->source_id }}</span>
+                                <x-document-link :document="$batch->source"
+                                                 :type="$batch->source_type"
+                                                 :id="$batch->source_id" />
                             </td>
                             <td class="money">{{ money($batch->unit_cost, false) }}</td>
                             <td class="money text-secondary">{{ number_format($batch->quantity_in) }}</td>
@@ -134,8 +139,9 @@
                         <tr>
                             <td class="small" dir="ltr">{{ $movement->occurred_at->format('Y-m-d H:i') }}</td>
                             <td class="small">
-                                <span class="badge text-bg-light">{{ Str::headline($movement->reference_type) }}</span>
-                                <span class="text-secondary">#{{ $movement->reference_id }}</span>
+                                <x-document-link :document="$movement->reference"
+                                                 :type="$movement->reference_type"
+                                                 :id="$movement->reference_id" />
                             </td>
                             <td class="small text-secondary">#{{ $movement->stock_batch_id }}</td>
                             <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">

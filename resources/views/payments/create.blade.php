@@ -3,6 +3,12 @@
 @section('title', __('Record a payment'))
 @section('subheading', $payable->document_no.' · '.$context['party'])
 
+@section('back')
+    {{-- The payable is a sale, a purchase or either return, so the URL comes
+         from the one place that knows how to link each of them. --}}
+    <x-back-link :to="$backUrl" :label="$payable->document_no" />
+@endsection
+
 @section('content')
     <div class="row g-3">
         <div class="col-lg-6">

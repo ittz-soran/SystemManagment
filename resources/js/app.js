@@ -238,3 +238,153 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('product-search')?.focus();
     });
 });
+
+/**
+ * Coming back to a list where you left it.
+ *
+ * A plain link back to /sales lands at the top of page 1 with every filter
+ * cleared, which is not where the reader was. Two small pieces fix that:
+ *
+ *  - While a list page is open, its full URL (filters, search, page number) and
+ *    its scroll position are kept in sessionStorage under its first path
+ *    segment. sessionStorage, not localStorage: this is where *this tab* was,
+ *    and it should not leak into a tab opened tomorrow.
+ *
+ *  - A back link carrying data-back-to="sales" is rewritten to that remembered
+ *    URL, and the list restores its scroll position when the reader arrives
+ *    from one of its own detail pages.
+ *
+ * The href in the markup is a real route, so this only ever improves on a link
+ * that already works — with the script disabled, or on a first visit with
+ * nothing remembered, the button still goes to the list.
+ */
+(() => {
+    const segment = (path) => path.split('/').filter(Boolean)[0] ?? '';
+
+    // A list page is a single segment: /sales, but not /sales/2 or /sales/create.
+    const isListPage = () => location.pathname.split('/').filter(Boolean).length === 1;
+
+    const urlKey = (seg) => `list:${seg}`;
+    const scrollKey = (url) => `scroll:${url}`;
+
+    const read = (key) => {
+        try {
+            return sessionStorage.getItem(key);
+        } catch {
+            // Private windows and locked-down browsers throw rather than
+            // return null. Losing the scroll position is not worth an error.
+            return null;
+        }
+    };
+
+    const write = (key, value) => {
+        try {
+            sessionStorage.setItem(key, value);
+        } catch {
+            /* ignore */
+        }
+    };
+
+    const here = () => location.pathname + location.search;
+
+    /** Did the reader arrive from a page belonging to this list? */
+    const cameFromOwnDetailPage = (seg) => {
+        if (! document.referrer) {
+            return false;
+        }
+
+        let referrer;
+
+        try {
+            referrer = new URL(document.referrer);
+        } catch {
+            return false;
+        }
+
+        return referrer.origin === location.origin
+            && referrer.pathname.startsWith(`/${seg}/`);
+    };
+
+
+    /**
+     * Put the page back where it was.
+     *
+     * One attempt is not enough: on the first frame the table is laid out but
+     * the web font has not swapped in and the images have no height yet, so the
+     * document is shorter than it will be and the browser clamps the scroll to
+     * whatever fits — landing tens of pixels above the row the reader left. So
+     * the position is re-applied as the page grows, and abandoned the moment
+     * the reader scrolls for themselves, because then they have said where they
+     * want to be and it is not our business any more.
+     */
+    const restoreScroll = (y) => {
+        let settled = false;
+        let observer = null;
+
+        const stop = () => {
+            settled = true;
+            observer?.disconnect();
+        };
+
+        // The reader has said where they want to be; it is not ours any more.
+        ['wheel', 'touchstart', 'keydown'].forEach(
+            (event) => addEventListener(event, stop, { once: true, passive: true })
+        );
+
+        const apply = () => {
+            if (settled) {
+                return;
+            }
+
+            window.scrollTo(0, y);
+
+            if (Math.abs(window.scrollY - y) <= 1) {
+                stop();
+            }
+        };
+
+        requestAnimationFrame(apply);
+
+        // Watching the document's height rather than guessing at a delay: it is
+        // the growing that clamps the scroll, so re-apply each time it grows and
+        // stop the moment the target is reachable.
+        if (typeof ResizeObserver === 'function') {
+            observer = new ResizeObserver(apply);
+            observer.observe(document.documentElement);
+
+            // Nothing should still be settling after this, and an observer left
+            // running would fight the reader on every later reflow.
+            setTimeout(stop, 2000);
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const seg = segment(location.pathname);
+
+        if (isListPage() && seg) {
+            write(urlKey(seg), here());
+
+            // pagehide rather than beforeunload: it also fires when the page is
+            // frozen into the back/forward cache, which beforeunload does not.
+            addEventListener('pagehide', () => write(scrollKey(here()), String(window.scrollY)));
+
+            if (cameFromOwnDetailPage(seg)) {
+                const y = parseInt(read(scrollKey(here())) ?? '', 10);
+
+                if (Number.isFinite(y) && y > 0) {
+                    restoreScroll(y);
+                }
+            }
+        }
+
+        document.querySelectorAll('a[data-back-to]').forEach((link) => {
+            const remembered = read(urlKey(link.dataset.backTo));
+
+            // Only ever swap in a path on this site, and only for the list the
+            // link already points at.
+            if (remembered && remembered.startsWith(`/${link.dataset.backTo}`)) {
+                link.setAttribute('href', remembered);
+            }
+        });
+    });
+})();

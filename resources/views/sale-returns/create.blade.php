@@ -5,6 +5,10 @@
     {{ __('Against invoice :document', ['document' => $sale->document_no]) }} · {{ $sale->customer->displayName() }}
 @endsection
 
+@section('back')
+    <x-back-link :to="route('sales.show', $sale)" :label="$sale->document_no" permission="sales.view" />
+@endsection
+
 @section('content')
     @php
         $returnable = $sale->items->sum(fn ($item) => $item->returnableQuantity());
