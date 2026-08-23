@@ -14,6 +14,7 @@ use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\SecondHandService;
 use App\Services\StockAdjustmentService;
+use App\Services\SystemResetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
@@ -302,6 +303,120 @@ class SecondHandAndServiceTest extends TestCase
         $this->assertCount(1, $found);
         $this->assertSame(Product::KIND_SERVICE, $found[0]['kind']);
         $this->assertNull($found[0]['next_batch_cost'], 'Nothing it can be sold below');
+    }
+
+    // ----------------------------------------- living with the rest of the system
+
+    /**
+     * A returned second-hand item is back on the shelf and can be sold again —
+     * to somebody else, at another price. Its cost does not change, because the
+     * money that bought it did not.
+     */
+    public function test_a_returned_item_goes_back_on_the_shelf_and_can_be_sold_again(): void
+    {
+        $item = $this->buyUsed()['product'];
+
+        $sale = $this->sell($item, 400_000);
+        $this->assertSame(0, $item->refresh()->quantity);
+
+        app(SaleReturnService::class)->create(
+            sale: $sale,
+            lines: [['sale_item_id' => $sale->items()->firstOrFail()->id, 'quantity' => 1]],
+            user: $this->admin, returnDate: now(),
+        );
+
+        $this->assertSame(1, $item->refresh()->quantity, 'Back in the shop');
+
+        $again = $this->sell($item, 360_000);
+
+        $cogs = (int) StockMovement::where('reference_type', StockMovement::REF_SALE)
+            ->where('reference_id', $again->id)
+            ->sum(\Illuminate\Support\Facades\DB::raw('-quantity * unit_cost'));
+
+        $this->assertSame(300_000, $cogs, 'Still what the shop paid for it');
+        $this->assertSame(0, $item->refresh()->quantity);
+    }
+
+    /** Editing a sale that carries a service must not look for stock it never took. */
+    public function test_a_sale_carrying_a_service_can_be_edited(): void
+    {
+        $service = $this->service(5_000);
+        $sale = $this->sell($service, 5_000);
+
+        app(SaleService::class)->update(
+            sale: $sale,
+            customer: $this->customer,
+            lines: [['product_id' => $service->id, 'quantity' => 2, 'unit_price' => 5_000]],
+            user: $this->admin,
+            saleDate: now(),
+        );
+
+        $this->assertSame(10_000, (int) $sale->refresh()->total_amount);
+        $this->assertSame(0, StockMovement::where('reference_id', $sale->id)
+            ->where('reference_type', StockMovement::REF_SALE)->count());
+        $this->assertSame(0, $service->refresh()->quantity);
+    }
+
+    /** Everything a second-hand item does is logged, because it is a product. */
+    public function test_buying_one_is_written_to_the_activity_log(): void
+    {
+        // The log attributes every entry to a person, so it needs one — which
+        // in the shop there always is.
+        $this->actingAs($this->admin);
+
+        $result = $this->buyUsed();
+
+        $this->assertDatabaseHas('activity_logs', [
+            'module' => 'products',
+            'record_id' => $result['product']->id,
+            'action' => 'create',
+        ]);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'module' => 'purchases',
+            'record_id' => $result['purchase']->id,
+            'action' => 'create',
+        ]);
+    }
+
+    /**
+     * Section 8c's "start fresh". A second-hand item is a transaction wearing a
+     * product's clothes: with its purchase gone it can never be sold and never
+     * be bought again, so leaving it behind would fill the book with machines
+     * the shop does not have. Services are catalogue and stay.
+     */
+    public function test_starting_fresh_clears_second_hand_items_and_keeps_services(): void
+    {
+        $item = $this->buyUsed()['product'];
+        $service = $this->service();
+
+        $stock = Product::create([
+            'name' => 'USB 32GB', 'sku' => 'USB32',
+            'category_id' => Category::firstOrCreate(['name' => 'Flash drives'])->id,
+            'unit' => 'pcs', 'purchase_price' => 10_000, 'sale_price' => 15_000, 'quantity' => 0,
+        ]);
+
+        $this->assertArrayHasKey('second_hand_items', app(SystemResetService::class)->preview());
+
+        app(SystemResetService::class)->run($this->admin, 'Soran Store');
+
+        $this->assertDatabaseMissing('products', ['id' => $item->id]);
+        $this->assertDatabaseHas('products', ['id' => $service->id]);
+        $this->assertDatabaseHas('products', ['id' => $stock->id]);
+    }
+
+    /** The cost shown is the batch's, so editing the product row cannot make it lie. */
+    public function test_the_cost_shown_is_the_money_that_actually_left_the_till(): void
+    {
+        $item = $this->buyUsed(['cost' => 300_000])['product'];
+
+        // The product form can change this suggestion; the batch is the truth.
+        $item->forceFill(['purchase_price' => 999_000])->save();
+
+        $this->actingAs($this->admin)->get(route('second-hand.index'))
+            ->assertOk()
+            ->assertSee('300,000')
+            ->assertDontSee('999,000');
     }
 
     // ------------------------------------------------------------ both at once

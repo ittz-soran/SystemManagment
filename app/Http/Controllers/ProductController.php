@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\PurchaseItem;
+use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
@@ -107,6 +109,16 @@ class ProductController extends Controller
             'labelSizes' => config('labels.sizes'),
             'labelFields' => app(LabelService::class)->fields(),
             'labelPrinter' => app(LabelPrinter::class),
+
+            // A second-hand item's life is two lines long: bought on one
+            // document, sold on another. Loaded here so its page can say so
+            // without the reader going to look for them.
+            'boughtOn' => $product->isUsed()
+                ? PurchaseItem::with('purchase')->where('product_id', $product->id)->orderBy('id')->first()
+                : null,
+            'soldOn' => $product->isUsed()
+                ? SaleItem::with('sale')->where('product_id', $product->id)->orderByDesc('id')->first()
+                : null,
         ]);
     }
 
