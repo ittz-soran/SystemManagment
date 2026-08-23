@@ -63,6 +63,10 @@ class SystemResetService
             $counts[$table] = (int) DB::table($table)->count();
         }
 
+        // Counted with the transactions rather than the catalogue, because that
+        // is what it is and that is what happens to it.
+        $counts['second_hand_items'] = (int) Product::used()->count();
+
         return array_filter($counts);
     }
 
@@ -103,6 +107,14 @@ class SystemResetService
             foreach (self::ORDER as $table) {
                 DB::table($table)->delete();
             }
+
+            // A second-hand item is not catalogue: "the Xbox bought from Rebaz
+            // on the 22nd" is a transaction wearing a product's clothes, and
+            // with its purchase gone it can never be sold and never be bought
+            // again. Left behind it would fill the second-hand book with
+            // machines the shop does not have. Ordinary products and services
+            // are catalogue and stay.
+            Product::used()->forceDelete();
 
             // The caches these tables fed. Section 4: products.quantity is
             // SUM(quantity_remaining) and a balance is the ledger's total —

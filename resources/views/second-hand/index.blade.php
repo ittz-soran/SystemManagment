@@ -65,24 +65,34 @@
                     <tr>
                         <th>{{ __('Item') }}</th>
                         <th>{{ __('Bought from') }}</th>
-                        <th dir="ltr">{{ __('Bought') }}</th>
+                        <th>{{ __('History') }}</th>
                         <th class="money">{{ __('Paid for it') }}</th>
                         <th class="money">{{ __('Asking') }}</th>
-                        <th>{{ __('Status') }}</th>
                         <th class="money">{{ __('Profit') }}</th>
                     </tr>
                     </thead>
                     <tbody>
                     @foreach($items as $item)
                         @php
+                            $purchase = $purchases[$item->id] ?? null;
                             $sale = $sales[$item->id] ?? null;
                             $sold = $item->quantity <= 0 && $sale;
+
+                            // What it cost is the batch, not the product row: the
+                            // batch is the money that actually left the till and
+                            // the cost FIFO charges the sale.
+                            $cost = (int) ($item->stockBatches->first()->unit_cost ?? $item->purchase_price);
                         @endphp
                         <tr>
                             <td>
                                 <a href="{{ route('products.show', $item) }}" class="text-decoration-none fw-medium">
                                     {{ $item->name }}
                                 </a>
+                                @if($sold)
+                                    <span class="badge text-bg-secondary">{{ __('Sold') }}</span>
+                                @else
+                                    <span class="badge text-bg-success">{{ __('In stock') }}</span>
+                                @endif
                                 <div class="small text-secondary" dir="ltr">{{ $item->sku }}</div>
                                 @if($item->condition_note)
                                     <div class="small text-secondary">{{ $item->condition_note }}</div>
@@ -98,36 +108,47 @@
                                     <span class="text-secondary">—</span>
                                 @endif
                             </td>
-                            <td class="small" dir="ltr">
-                                {{ $item->created_at->format(setting('date_format', 'Y-m-d')) }}
-                                {{-- How long the shop's money has been sitting in it. --}}
-                                @unless($sold)
-                                    <div class="text-secondary">
+                            {{-- The item's whole life in one cell: the day it
+                                 came in and on which document, the day it left
+                                 and on which. What a second-hand book is for. --}}
+                            <td class="small">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-arrow-down-left text-success"></i>
+                                    <span dir="ltr" class="text-secondary">
+                                        {{ ($purchase?->purchase->purchase_date ?? $item->created_at)->format(setting('date_format', 'Y-m-d')) }}
+                                    </span>
+                                    @if($purchase?->purchase)
+                                        <x-document-link :document="$purchase->purchase" :kind="false" />
+                                    @endif
+                                </div>
+
+                                @if($sold)
+                                    <div class="d-flex align-items-center gap-2 mt-1">
+                                        <i class="bi bi-arrow-up-right text-danger"></i>
+                                        <span dir="ltr" class="text-secondary">
+                                            {{ $sale->sale->sale_date->format(setting('date_format', 'Y-m-d')) }}
+                                        </span>
+                                        <x-document-link :document="$sale->sale" :kind="false" />
+                                    </div>
+                                @else
+                                    {{-- How long the shop's money has been sitting in it. --}}
+                                    <div class="text-secondary mt-1">
+                                        <i class="bi bi-hourglass-split"></i>
                                         {{ trans_choice('{0}today|{1}:count day held|[2,*]:count days held',
                                             (int) $item->created_at->diffInDays(now()),
                                             ['count' => number_format((int) $item->created_at->diffInDays(now()))]) }}
                                     </div>
-                                @endunless
-                            </td>
-                            <td class="money">{{ money($item->purchase_price, false) }}</td>
-                            <td class="money">{{ money($item->sale_price, false) }}</td>
-                            <td>
-                                @if($sold)
-                                    <span class="badge text-bg-secondary">{{ __('Sold') }}</span>
-                                    <div class="small mt-1">
-                                        <x-document-link :document="$sale->sale" :kind="false" />
-                                    </div>
-                                @else
-                                    <span class="badge text-bg-success">{{ __('In stock') }}</span>
                                 @endif
                             </td>
+                            <td class="money">{{ money($cost, false) }}</td>
+                            <td class="money">{{ money($item->sale_price, false) }}</td>
                             {{-- The whole point of the row: this item's own
                                  money. Not an average, not a share of anything —
                                  what was paid for this one thing and what it
                                  sold for. --}}
                             <td class="money fw-semibold">
                                 @if($sold)
-                                    @php($profit = $sale->unit_price - $item->purchase_price)
+                                    @php($profit = $sale->unit_price - $cost)
                                     <span class="{{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
                                     </span>
@@ -137,7 +158,7 @@
                                 @else
                                     <span class="text-secondary fw-normal">
                                         {{ __('if asked: :amount', [
-                                            'amount' => money($item->sale_price - $item->purchase_price, false),
+                                            'amount' => money($item->sale_price - $cost, false),
                                         ]) }}
                                     </span>
                                 @endif

@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\PurchaseItem;
 use App\Models\SaleItem;
+use App\Models\StockBatch;
 use App\Models\Supplier;
 use App\Services\SecondHandService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use RuntimeException;
 
@@ -30,7 +33,10 @@ class SecondHandController extends Controller
         $status = $request->string('status')->toString() ?: 'in_stock';
 
         $items = Product::used()
-            ->with('acquiredFrom', 'category')
+            // The batch, because the batch is what it cost. products.purchase_price
+            // is a suggestion the product form can change; the batch is the money
+            // that actually left the till, and is what FIFO charges the sale.
+            ->with('acquiredFrom', 'category', 'stockBatches')
             ->when($status === 'in_stock', fn ($q) => $q->where('quantity', '>', 0))
             ->when($status === 'sold', fn ($q) => $q->where('quantity', '<=', 0))
             ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
@@ -46,9 +52,18 @@ class SecondHandController extends Controller
             'status' => $status,
             // What each one eventually sold for, so the list can show the profit
             // on the item rather than only what was paid for it.
+            // The two lines of an item's life: what it was bought on, and what
+            // it was sold on.
+            'purchases' => $this->purchasesFor($items->getCollection()),
             'sales' => $this->salesFor($items->getCollection()),
             'held' => (int) Product::used()->where('quantity', '>', 0)->count(),
-            'heldValue' => (int) Product::used()->where('quantity', '>', 0)->sum('purchase_price'),
+
+            // Summed from the batches, like every other stock value in the
+            // system: products.purchase_price is a suggestion the product form
+            // can change, and this figure is the shop's money.
+            'heldValue' => (int) StockBatch::query()
+                ->whereIn('product_id', Product::used()->select('id'))
+                ->sum(DB::raw('quantity_remaining * unit_cost')),
         ]);
     }
 
@@ -117,6 +132,21 @@ class SecondHandController extends Controller
     private function salesFor($items)
     {
         return SaleItem::with('sale')
+            ->whereIn('product_id', $items->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('product_id');
+    }
+
+    /**
+     * The purchase line each item came in on, keyed by product.
+     *
+     * @param  \Illuminate\Support\Collection<int, Product>  $items
+     * @return \Illuminate\Support\Collection<int, PurchaseItem>
+     */
+    private function purchasesFor($items)
+    {
+        return PurchaseItem::with('purchase')
             ->whereIn('product_id', $items->pluck('id'))
             ->orderBy('id')
             ->get()
