@@ -3,6 +3,7 @@
 @section('title', __('Second-hand'))
 @section('subheading', __('One row for one thing: what was paid, what is asked, what it made'))
 
+
 @section('actions')
     @can('suppliers.view')
         <a href="{{ route('second-hand.sellers') }}" class="btn btn-outline-secondary">
@@ -43,9 +44,17 @@
             <div class="col-md-3">
                 <label for="status" class="form-label small">{{ __('Status') }}</label>
                 <select id="status" name="status" class="form-select form-select-sm">
-                    <option value="in_stock" @selected($status === 'in_stock')>{{ __('In stock') }}</option>
-                    <option value="sold" @selected($status === 'sold')>{{ __('Sold') }}</option>
-                    <option value="all" @selected($status === 'all')>{{ __('All') }}</option>
+                    {{-- Counted, so an item that has been sold reads as moved
+                         rather than missing. --}}
+                    <option value="all" @selected($status === 'all')>
+                        {{ __('All') }} ({{ number_format($counts['all']) }})
+                    </option>
+                    <option value="in_stock" @selected($status === 'in_stock')>
+                        {{ __('In stock') }} ({{ number_format($counts['in_stock']) }})
+                    </option>
+                    <option value="sold" @selected($status === 'sold')>
+                        {{ __('Sold') }} ({{ number_format($counts['sold']) }})
+                    </option>
                 </select>
             </div>
             <div class="col-md-2">

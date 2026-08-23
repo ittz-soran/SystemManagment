@@ -181,12 +181,37 @@ class SecondHandAndServiceTest extends TestCase
 
         $this->assertSame(0, $item->refresh()->quantity);
 
-        // The second-hand list separates what is held from what is gone.
+        // The second-hand list can separate what is held from what is gone...
         $this->actingAs($this->admin)->get(route('second-hand.index', ['status' => 'sold']))
             ->assertOk()->assertSee($item->name);
 
         $this->actingAs($this->admin)->get(route('second-hand.index', ['status' => 'in_stock']))
             ->assertOk()->assertDontSee($item->name);
+    }
+
+    /**
+     * ...but not by default. Selling an item is the moment its row becomes
+     * worth reading — what it made — and a default that hid it made a sale look
+     * like the item had been lost.
+     */
+    public function test_selling_an_item_does_not_remove_it_from_the_book(): void
+    {
+        $item = $this->buyUsed()['product'];
+        $sale = $this->sell($item, 400_000);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->assertOk();
+
+        $response->assertSee($item->name);
+        $response->assertSee($sale->document_no);
+        $response->assertSee('+100,000');
+
+        // And the purchase it came in on is still named beside it.
+        $purchase = $item->stockBatches()->firstOrFail();
+        $this->assertStringContainsString(
+            'href="'.route('purchases.show', $purchase->source_id).'"',
+            $response->getContent(),
+        );
     }
 
     public function test_a_used_item_is_kept_out_of_the_ordinary_product_list(): void

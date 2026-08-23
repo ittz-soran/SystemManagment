@@ -30,7 +30,11 @@ class SecondHandController extends Controller
 
     public function index(Request $request): View
     {
-        $status = $request->string('status')->toString() ?: 'in_stock';
+        // Everything by default. This is a book, not a shelf: an item that has
+        // been sold is the half of it worth reading — what it made — and
+        // filtering it out meant a sale made the item disappear from the page
+        // the moment it became interesting.
+        $status = $request->string('status')->toString() ?: 'all';
 
         $items = Product::used()
             // The batch, because the batch is what it cost. products.purchase_price
@@ -56,6 +60,14 @@ class SecondHandController extends Controller
             // it was sold on.
             'purchases' => $this->purchasesFor($items->getCollection()),
             'sales' => $this->salesFor($items->getCollection()),
+            // Counted for the filter, so it is plain where an item went rather
+            // than looking like it was lost.
+            'counts' => [
+                'all' => (int) Product::used()->count(),
+                'in_stock' => (int) Product::used()->where('quantity', '>', 0)->count(),
+                'sold' => (int) Product::used()->where('quantity', '<=', 0)->count(),
+            ],
+
             'held' => (int) Product::used()->where('quantity', '>', 0)->count(),
 
             // Summed from the batches, like every other stock value in the
