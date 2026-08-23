@@ -149,6 +149,78 @@ class SecondHandAndServiceTest extends TestCase
         $this->assertNotSame($first['seller']->id, $second['seller']->id);
     }
 
+    /**
+     * The buy screen itself, over HTTP.
+     *
+     * Everything else here calls the service directly, which left the form and
+     * its route untested — and a controller can be broken while every one of
+     * those still passes.
+     */
+    public function test_the_buy_screen_records_the_item_and_the_purchase(): void
+    {
+        $this->actingAs($this->admin)->get(route('second-hand.create'))
+            ->assertOk()
+            ->assertSee(__('Buy a second-hand item'));
+
+        $this->actingAs($this->admin)->post(route('second-hand.store'), [
+            'name' => 'Dell Latitude 5490',
+            'condition_note' => 'i5, 8GB, scratched lid',
+            'cost' => 500_000,
+            'sale_price' => 620_000,
+            'amount_paid' => 300_000,
+            'payment_method' => 'cash',
+            'seller_name' => 'Hawkar',
+            'seller_phone' => '0770 999 8877',
+            'bought_at' => now()->toDateString(),
+        ])->assertSessionHasNoErrors()->assertRedirect(route('second-hand.index'));
+
+        $item = Product::used()->where('name', 'Dell Latitude 5490')->firstOrFail();
+
+        $this->assertSame(1, $item->quantity);
+        $this->assertSame('i5, 8GB, scratched lid', $item->condition_note);
+        $this->assertSame(500_000, (int) $item->stockBatches()->firstOrFail()->unit_cost);
+        $this->assertSame(200_000, (int) Supplier::walkIns()->firstOrFail()->balance);
+    }
+
+    /** Paying more than the price agreed is a typo, not a deposit. */
+    public function test_the_buy_screen_refuses_more_paid_than_agreed(): void
+    {
+        $this->actingAs($this->admin)->post(route('second-hand.store'), [
+            'name' => 'Xbox',
+            'cost' => 300_000,
+            'sale_price' => 400_000,
+            'amount_paid' => 400_000,
+            'seller_name' => 'Rebaz',
+            'bought_at' => now()->toDateString(),
+        ])->assertSessionHasErrors('amount_paid');
+
+        $this->assertSame(0, Product::used()->count());
+    }
+
+    /**
+     * The default category is a stored name, not a label. Read through __() it
+     * would find nothing in Kurdish and make a second category, and the shop
+     * would end up with one of everything per language it was opened in.
+     */
+    public function test_the_default_category_does_not_multiply_per_language(): void
+    {
+        $this->actingAs($this->admin)->get(route('second-hand.create'))->assertOk();
+
+        app()->setLocale('ckb');
+        $this->actingAs($this->admin)->get(route('second-hand.create'))->assertOk();
+        $this->buyUsed();
+
+        app()->setLocale('ar');
+        $this->actingAs($this->admin)->get(route('second-hand.create'))->assertOk();
+
+        app()->setLocale('en');
+
+        $this->assertSame(1, Category::where('name', SecondHandService::DEFAULT_CATEGORY)->count());
+        $this->assertSame(1, Category::whereIn('name', [
+            SecondHandService::DEFAULT_CATEGORY, __('Second-hand'),
+        ])->count(), 'One category, whatever language it was opened in');
+    }
+
     // ------------------------------------------------------- second-hand: selling
 
     /**
@@ -251,19 +323,21 @@ class SecondHandAndServiceTest extends TestCase
         $this->assertSame(2, $figures['held']);
         $this->assertSame(800_000, $figures['held_value'], 'The money in the shelf, from the batches');
         $this->assertSame(220_000, $figures['expected'], '1,020,000 asked less 800,000 paid');
-        $this->assertSame(1, $figures['sold_this_month']);
-        $this->assertSame(50_000, $figures['made_this_month'], '430,000 less what that machine cost');
+        $this->assertSame(1, $figures['sold']);
+        $this->assertSame(50_000, $figures['made'], '430,000 less what that machine cost');
+        $this->assertSame(3, $figures['bought'], 'All three came in this month');
+        $this->assertSame(1_180_000, $figures['spent'], 'And this much went out for them');
     }
 
     /** An item sold and given back made nothing, and must say so. */
-    public function test_a_returned_item_nets_out_of_what_the_month_made(): void
+    public function test_a_returned_item_nets_out_of_what_the_period_made(): void
     {
         $item = $this->buyUsed()['product'];
         $sale = $this->sell($item, 400_000);
 
         $before = $this->actingAs($this->admin)
             ->get(route('second-hand.index'))->viewData('figures');
-        $this->assertSame(100_000, $before['made_this_month']);
+        $this->assertSame(100_000, $before['made']);
 
         app(SaleReturnService::class)->create(
             sale: $sale,
@@ -274,8 +348,8 @@ class SecondHandAndServiceTest extends TestCase
         $after = $this->actingAs($this->admin)
             ->get(route('second-hand.index'))->viewData('figures');
 
-        $this->assertSame(0, $after['made_this_month'], 'Both sides came off');
-        $this->assertSame(0, $after['sold_this_month']);
+        $this->assertSame(0, $after['made'], 'Both sides came off');
+        $this->assertSame(0, $after['sold']);
         $this->assertSame(1, $after['held'], 'And it is back on the shelf');
     }
 
@@ -506,6 +580,59 @@ class SecondHandAndServiceTest extends TestCase
             ->assertOk()
             ->assertSee('300,000')
             ->assertDontSee('999,000');
+    }
+
+    /**
+     * The report separates the three trades, because they behave nothing alike:
+     * stock turns over on a thin margin, a used machine is a few large bets, and
+     * a service is all margin. One gross-profit figure hides which is carrying
+     * the month.
+     */
+    public function test_the_report_shows_where_the_profit_came_from(): void
+    {
+        $stock = Product::create([
+            'name' => 'USB 32GB', 'sku' => 'USB32',
+            'category_id' => Category::firstOrCreate(['name' => 'Flash drives'])->id,
+            'unit' => 'pcs', 'purchase_price' => 10_000, 'sale_price' => 15_000, 'quantity' => 0,
+        ]);
+
+        app(\App\Services\PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'Bazaar Mobile']),
+            lines: [['product_id' => $stock->id, 'quantity' => 10, 'unit_price' => 10_000]],
+            user: $this->admin, purchaseDate: now(), amountPaid: 0,
+        );
+
+        $used = $this->buyUsed(['cost' => 300_000, 'sale_price' => 400_000])['product'];
+        $service = $this->service(5_000);
+
+        $this->sell($stock, 15_000, quantity: 4);
+        $this->sell($used, 400_000);
+        $this->sell($service, 5_000);
+
+        $rows = collect($this->actingAs($this->admin)
+            ->get(route('reports.index'))->assertOk()->viewData('byKind'))
+            ->keyBy('label');
+
+        $this->assertSame(60_000, $rows['Products']['revenue']);
+        $this->assertSame(40_000, $rows['Products']['cost']);
+        $this->assertSame(20_000, $rows['Products']['profit']);
+        $this->assertSame(33, $rows['Products']['margin']);
+
+        $this->assertSame(400_000, $rows['Second-hand']['revenue']);
+        $this->assertSame(300_000, $rows['Second-hand']['cost']);
+        $this->assertSame(100_000, $rows['Second-hand']['profit']);
+
+        // Costs nothing to give, so all of it is profit.
+        $this->assertSame(5_000, $rows['Services']['revenue']);
+        $this->assertSame(0, $rows['Services']['cost']);
+        $this->assertSame(5_000, $rows['Services']['profit']);
+        $this->assertSame(100, $rows['Services']['margin']);
+
+        // And the three add up to the gross profit above them.
+        $profit = $this->actingAs($this->admin)
+            ->get(route('reports.index'))->viewData('profit');
+
+        $this->assertSame($profit['gross_profit'], $rows->sum('profit'));
     }
 
     // ------------------------------------------------------------ both at once

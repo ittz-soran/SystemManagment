@@ -63,6 +63,12 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    /** The lines this product has been sold on. */
+    public function saleItems(): HasMany
+    {
+        return $this->hasMany(SaleItem::class);
+    }
+
     /**
      * Whether this row has stock at all.
      *

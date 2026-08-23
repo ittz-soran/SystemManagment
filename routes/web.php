@@ -191,6 +191,8 @@ Route::middleware(['auth'])->group(function () {
     // After payments/create, or "create" is read as a payment to look up.
     Route::get('payments/{payment}', [PaymentController::class, 'show'])
         ->middleware('permission:payments.view')->name('payments.show');
+    Route::delete('payments/{payment}', [PaymentController::class, 'destroy'])
+        ->middleware('permission:payments.delete')->name('payments.destroy');
 
     Route::get('expenses', [ExpenseController::class, 'index'])
         ->middleware('permission:expenses.view')->name('expenses.index');
@@ -242,6 +244,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_adjustments.create')->name('stock-adjustments.store');
     Route::get('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'show'])
         ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.show');
+    Route::delete('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'destroy'])
+        ->middleware('permission:stock_adjustments.delete')->name('stock-adjustments.destroy');
 
     Route::middleware('permission:stock.recheck')->group(function () {
         Route::get('stock/recheck', [StockAdjustmentController::class, 'recheckStock'])->name('stock.recheck');

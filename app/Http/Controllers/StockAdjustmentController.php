@@ -115,6 +115,20 @@ class StockAdjustmentController extends Controller
         return back()->with('success', __('Adjustment saved'));
     }
 
+    public function destroy(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
+    {
+        try {
+            $this->adjustments->delete($stockAdjustment, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        // The adjustment's own page has just stopped existing.
+        return redirect()
+            ->route('stock-adjustments.index')
+            ->with('success', __('Adjustment deleted'));
+    }
+
     /**
      * Section 4: the admin "Recheck stock" action. Compares every product's
      * cached value against its batch sum and lists mismatches.

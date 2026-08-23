@@ -7,6 +7,7 @@ use App\Models\StockAdjustment;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -102,6 +103,53 @@ class StockAdjustmentService
             }
 
             return $adjustment->refresh();
+        });
+    }
+
+    /**
+     * Undo an adjustment.
+     *
+     * Section 8b: a delete is a reversal plus a hidden record, never a way to
+     * skip the reversal — so the units go back exactly where they came from.
+     * The movements say which batches those were and how many, so nothing is
+     * recomputed and nothing is guessed.
+     *
+     * An outgoing one is always safe to undo: putting units back on a shelf
+     * takes nothing from anybody. An incoming one opened a batch, and the engine
+     * refuses if anything has since been sold out of it — those units are on a
+     * customer's invoice now, and taking them back would leave that sale costed
+     * against stock that never existed.
+     */
+    public function delete(StockAdjustment $adjustment, User $user): void
+    {
+        if (books_closed_on($adjustment->adjusted_at)) {
+            throw new RuntimeException(__('Locked: this date is in a closed period.'));
+        }
+
+        DB::transaction(function () use ($adjustment, $user) {
+            $movements = StockMovement::where('reference_type', StockMovement::REF_ADJUSTMENT)
+                ->where('reference_id', $adjustment->id)
+                ->lockForUpdate()
+                ->get();
+
+            $this->fifo->reverseMovements($movements);
+
+            // The batch an incoming one opened goes with it. Nothing ever drew
+            // on it — the reversal above would have refused — so this removes an
+            // empty layer rather than stock.
+            StockBatch::where('source_type', StockBatch::SOURCE_ADJUSTMENT)
+                ->where('source_id', $adjustment->id)
+                ->delete();
+
+            $this->fifo->syncProductQuantity($adjustment->product()->firstOrFail());
+
+            app(ActivityLogger::class)->logModel(
+                'delete',
+                $adjustment,
+                __('Deleted adjustment :document', ['document' => $adjustment->document_no]),
+            );
+
+            $adjustment->delete();
         });
     }
 

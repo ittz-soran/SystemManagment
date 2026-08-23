@@ -122,6 +122,8 @@ class ServiceController extends Controller
 
     private function defaultCategory(): Category
     {
-        return Category::firstOrCreate(['name' => __(self::DEFAULT_CATEGORY)]);
+        // Not translated, for the reason SecondHandService gives: a stored
+        // name read through __() makes a second row per language.
+        return Category::firstOrCreate(['name' => self::DEFAULT_CATEGORY]);
     }
 }

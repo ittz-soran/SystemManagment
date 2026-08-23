@@ -18,20 +18,20 @@
 @endsection
 
 @section('content')
-    {{-- Two about now, two about whether the trade is worth doing, and one
-         about money that has not left the till yet. --}}
+    {{-- Three about where things stand whatever period is being read, three
+         about what happened between the dates chosen below. --}}
     @php
         $cards = [
             [
                 'label' => __('Items held'),
                 'value' => number_format($figures['held']),
-                'note' => null,
+                'note' => __('right now'),
                 'tone' => '',
             ],
             [
                 'label' => __('Money tied up in them'),
                 'value' => money($figures['held_value'], false),
-                'note' => null,
+                'note' => __('right now'),
                 'tone' => '',
             ],
             [
@@ -41,22 +41,22 @@
                 'tone' => 'text-secondary',
             ],
             [
-                'label' => __('Sold this month'),
-                'value' => number_format($figures['sold_this_month']),
+                'label' => __('Bought'),
+                'value' => number_format($figures['bought']),
+                'note' => __('for :amount', ['amount' => money($figures['spent'], false)]),
+                'tone' => '',
+            ],
+            [
+                'label' => __('Sold'),
+                'value' => number_format($figures['sold']),
                 'note' => null,
                 'tone' => '',
             ],
             [
-                'label' => __('Made this month'),
-                'value' => money($figures['made_this_month'], false),
+                'label' => __('Made'),
+                'value' => money($figures['made'], false),
                 'note' => __('what those sales actually made'),
-                'tone' => $figures['made_this_month'] >= 0 ? 'text-success' : 'text-danger',
-            ],
-            [
-                'label' => __('Still owed to sellers'),
-                'value' => money($figures['owed_to_sellers'], false),
-                'note' => null,
-                'tone' => $figures['owed_to_sellers'] > 0 ? 'text-danger' : '',
+                'tone' => $figures['made'] >= 0 ? 'text-success' : 'text-danger',
             ],
         ];
     @endphp
@@ -75,15 +75,32 @@
         @endforeach
     </div>
 
+    {{-- Money the shop is holding that is not its own. It belongs beside the
+         figures rather than inside them: it is owed whatever period is read. --}}
+    @if($figures['owed_to_sellers'] > 0)
+        <div class="alert alert-warning d-flex align-items-center justify-content-between py-2">
+            <span>
+                <i class="bi bi-cash-coin me-1"></i>
+                {{ __('Still owed to the people you bought from') }}
+            </span>
+            <span class="d-flex align-items-center gap-3">
+                <span class="fw-semibold money">{{ money($figures['owed_to_sellers']) }}</span>
+                @can('suppliers.view')
+                    <a href="{{ route('second-hand.sellers') }}" class="small">{{ __('Who') }}</a>
+                @endcan
+            </span>
+        </div>
+    @endif
+
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-3">
                 <label for="search" class="form-label small">{{ __('Item') }}</label>
                 <input id="search" type="search" name="search" value="{{ request('search') }}"
                        class="form-control form-control-sm"
                        placeholder="{{ __('Name, stock code or condition') }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="status" class="form-label small">{{ __('Status') }}</label>
                 <select id="status" name="status" class="form-select form-select-sm">
                     {{-- Counted, so an item that has been sold reads as moved
@@ -100,7 +117,19 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <button class="btn btn-sm btn-outline-secondary w-100">{{ __('Filter') }}</button>
+                <label for="from" class="form-label small">{{ __('From') }}</label>
+                <input id="from" type="date" name="from" dir="ltr" value="{{ $from->toDateString() }}"
+                       class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label for="to" class="form-label small">{{ __('To') }}</label>
+                <input id="to" type="date" name="to" dir="ltr" value="{{ $to->toDateString() }}"
+                       class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary flex-fill">{{ __('Filter') }}</button>
+                <a href="{{ route('second-hand.index') }}" class="btn btn-sm btn-outline-secondary"
+                   title="{{ __('Clear') }}"><i class="bi bi-x-lg"></i></a>
             </div>
         </div>
     </form>

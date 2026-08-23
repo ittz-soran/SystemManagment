@@ -62,7 +62,12 @@ class Sale extends Model
 
     public function amountPaid(): int
     {
-        return (int) $this->payments()->where('direction', Payment::DIRECTION_IN)->sum('amount');
+        // What has actually been paid on this document: money in settles it,
+        // and money the other way is money handed back — change across the
+        // counter when the cart is edited down. Netted, or a document could
+        // read as paid with the cash already returned.
+        return (int) $this->payments()->where('direction', Payment::DIRECTION_IN)->sum('amount')
+            - (int) $this->payments()->where('direction', Payment::DIRECTION_OUT)->sum('amount');
     }
 
     public function amountDue(): int

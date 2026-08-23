@@ -89,6 +89,7 @@
                         <th>{{ __('Method') }}</th>
                         <th>{{ __('By') }}</th>
                         <th class="money">{{ __('Amount') }}</th>
+                        <th class="text-end">{{ __('Actions') }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -107,6 +108,15 @@
                             <td class="small text-secondary">{{ $payment->user->name }}</td>
                             <td class="money fw-semibold {{ $payment->direction === 'in' ? 'text-success' : 'text-danger' }}">
                                 {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, false) }}
+                            </td>
+                            <td class="text-end">
+                                <x-row-actions
+                                    :view="route('payments.show', $payment)"
+                                    :delete="Gate::allows('payments.delete') ? route('payments.destroy', $payment) : null"
+                                    :delete-label="__('Delete :document? :amount goes back onto what is owed.', [
+                                        'document' => $payment->document_no,
+                                        'amount' => money($payment->amount),
+                                    ])" />
                             </td>
                         </tr>
                     @endforeach

@@ -13,8 +13,16 @@ class CategoryController extends Controller
 {
     public function index(Request $request): View
     {
+        // Counted by kind, because the count has to lead somewhere. Products,
+        // second-hand items and services each live on their own screen, so a
+        // single total would send the reader to a list that filters most of it
+        // out and looks empty.
         $categories = Category::with('parent')
-            ->withCount('products')
+            ->withCount([
+                'products as stocked_count' => fn ($q) => $q->where('kind', Product::KIND_STOCK),
+                'products as used_count' => fn ($q) => $q->where('kind', Product::KIND_USED),
+                'products as service_count' => fn ($q) => $q->where('kind', Product::KIND_SERVICE),
+            ])
             ->orderBy('name')
             ->paginate($request->user()->items_per_page)
             ->withQueryString();

@@ -158,18 +158,20 @@ class SaleService
 
             $alreadyPaid = $sale->amountPaid();
 
-            // Section 8 rule 4.
-            if ($totalAmount < $alreadyPaid) {
+            // Section 4: the Cash Customer is settled across the counter, so
+            // "paid in full" is not a condition to check on the way in — it is
+            // the outcome to arrange. Adding a line means more money handed
+            // over; removing one means change handed back. Refusing the edit
+            // and asking for a refund first describes a customer who owes
+            // something, which this one never does.
+            $settleInCash = $customer->is_system;
+
+            // Section 8 rule 4, for everyone the rule is about.
+            if (! $settleInCash && $totalAmount < $alreadyPaid) {
                 throw new RuntimeException(__(
                     'The new total of :total is less than the :paid already paid. Record a refund first.',
                     ['total' => money($totalAmount), 'paid' => money($alreadyPaid)],
                 ));
-            }
-
-            if ($customer->is_system && $alreadyPaid < $totalAmount) {
-                throw new RuntimeException(
-                    __('The Cash Customer must be paid in full. Choose a named customer to sell on loan.')
-                );
             }
 
             $before = $this->snapshot($sale);
@@ -190,6 +192,24 @@ class SaleService
             ]);
 
             $this->applyLines($sale, $lines, $user, $saleDate);
+
+            // Section 4: the Cash Customer walks out square, so the till moves
+            // by the difference and nothing is left owing either way.
+            if ($settleInCash && $totalAmount !== $alreadyPaid) {
+                $difference = $totalAmount - $alreadyPaid;
+
+                $this->payments->record(
+                    payable: $sale,
+                    amount: abs($difference),
+                    direction: $difference > 0 ? Payment::DIRECTION_IN : Payment::DIRECTION_OUT,
+                    user: $user,
+                    method: 'cash',
+                    paidAt: $saleDate->copy()->setTimeFrom(now()),
+                    notes: __('Edit of :document', ['document' => $sale->document_no]),
+                );
+
+                $alreadyPaid = $totalAmount;
+            }
 
             // What the customer still owes after the edit.
             $this->ledger->post(
