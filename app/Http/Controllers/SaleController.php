@@ -176,7 +176,9 @@ class SaleController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('sales.index')->with('success', __('Sale deleted and its stock put back'));
+        return redirect()
+            ->to(after_delete(route('sales.show', $sale), route('sales.index')))
+            ->with('success', __('Sale deleted and its stock put back'));
     }
 
     public function show(Sale $sale): View

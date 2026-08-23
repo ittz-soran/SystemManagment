@@ -1,23 +1,35 @@
 {{--
-    The way out of a detail page.
+    The way out of a page.
 
-    It names its destination instead of saying "Back", so it is clear where it
-    lands before it is clicked, and the arrow follows the reading direction.
+    It is the browser's own Back with a name on it: it goes to whatever page the
+    reader came from, named after that page, and the arrow follows the reading
+    direction. app.js does the naming, from the tab's own history.
 
-    `remember` carries the first path segment of a list page ("sales"). The
-    script in app.js swaps the href for the last URL actually visited under that
-    segment, so the filters, search and page number the reader had open survive
-    the round trip — and it restores the scroll position on arrival, which is the
-    part the browser's own Back button gets right and a plain link does not.
+    Given `to`, the link also has a destination the server can name — the list a
+    detail page belongs to — which is what it falls back to when there is nothing
+    behind this page: a bookmark, a typed URL, a link from outside. That href is
+    a real route, so the button works with this script disabled and can be opened
+    in a new tab. `remember` carries the first path segment of that list, so the
+    filters and page number the reader had open survive the round trip.
+
+    Given no `to`, there is no such fallback — a page reached from the sidebar is
+    not "inside" anything — so the link starts hidden and appears only if the
+    reader has somewhere to go back to. Every page gets one of these, which is
+    why it has to be silent when it has nothing to offer.
 --}}
-@props(['to', 'label', 'remember' => null, 'permission' => null])
+@props(['to' => null, 'label' => null, 'remember' => null, 'permission' => null])
 
-@if(filled($to) && ($permission === null || auth()->user()?->hasPermission($permission)))
-    <a href="{{ $to }}"
-       class="back-link d-inline-flex align-items-center gap-1 small text-decoration-none"
-       data-back-generic="{{ __('Back') }}"
-       @if($remember) data-back-to="{{ $remember }}" @endif>
-        <i class="bi bi-arrow-{{ $isRtl ? 'right' : 'left' }}"></i>
-        <span>{{ $label }}</span>
-    </a>
-@endif
+@php
+    // A named destination is only offered to someone the destination would let
+    // in. Where the reader came from needs no such check: they were just there.
+    $named = filled($to) && ($permission === null || auth()->user()?->hasPermission($permission));
+@endphp
+
+<a href="{{ $named ? $to : '' }}"
+   class="back-link d-inline-flex align-items-center gap-1 small text-decoration-none mb-2 {{ $named ? '' : 'd-none' }}"
+   data-back-generic="{{ __('Back') }}"
+   @unless($named) data-back-auto @endunless
+   @if($remember) data-back-to="{{ $remember }}" @endif>
+    <i class="bi bi-arrow-{{ $isRtl ? 'right' : 'left' }}"></i>
+    <span>{{ $named ? $label : __('Back') }}</span>
+</a>

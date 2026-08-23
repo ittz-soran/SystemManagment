@@ -159,7 +159,9 @@ class ProductController extends Controller
 
         $product->delete();
 
-        return back()->with('success', __('Product deleted'));
+        return redirect()
+            ->to(after_delete(route('products.show', $product), route('products.index')))
+            ->with('success', __('Product deleted'));
     }
 
     /**

@@ -123,9 +123,11 @@ class StockAdjustmentController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        // The adjustment's own page has just stopped existing.
         return redirect()
-            ->route('stock-adjustments.index')
+            ->to(after_delete(
+                route('stock-adjustments.show', $stockAdjustment),
+                route('stock-adjustments.index'),
+            ))
             ->with('success', __('Adjustment deleted'));
     }
 

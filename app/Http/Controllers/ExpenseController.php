@@ -100,12 +100,9 @@ class ExpenseController extends Controller
         // nothing — the soft delete is the whole reversal.
         $expense->delete();
 
-        // Deleting from the expense's own page cannot go back to it: the row is
-        // gone and the route would 404. From the list, back keeps the reader's
-        // filters and page.
-        return url()->previous() === route('expenses.show', $expense)
-            ? redirect()->route('expenses.index')->with('success', __('Expense deleted'))
-            : back()->with('success', __('Expense deleted'));
+        return redirect()
+            ->to(after_delete(route('expenses.show', $expense), route('expenses.index')))
+            ->with('success', __('Expense deleted'));
     }
 
     /** @return array<string, mixed> */
