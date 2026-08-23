@@ -39,9 +39,17 @@
         @include('layouts.topbar')
 
         <main class="flex-grow-1 p-3 p-lg-4">
-            @hasSection('back')
-                <div class="mb-2 no-print">@yield('back')</div>
-            @endif
+            {{-- Every page has a way back. A screen that belongs to a list
+                 names it; anywhere else the link stays hidden until the reader
+                 has somewhere to return to, which app.js decides from the tab's
+                 own history. --}}
+            <div class="no-print">
+                @hasSection('back')
+                    @yield('back')
+                @else
+                    <x-back-link />
+                @endif
+            </div>
 
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>

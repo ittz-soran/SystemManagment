@@ -459,6 +459,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // A document's own page cannot be gone back to once it is deleted, so
+        // the forms that delete one carry the page behind it and the server
+        // sends the reader there instead of guessing at a list.
+        document.querySelectorAll('input[data-return-to]').forEach((input) => {
+            input.value = previous ?? '';
+        });
+
         document.querySelectorAll('a.back-link').forEach((link) => {
             const label = link.querySelector('span');
 
@@ -469,6 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.setAttribute('href', previous);
                 label.textContent = known[previous]?.title || link.dataset.backGeneric || label.textContent;
                 link.dataset.backHistory = '1';
+
+                // A link with no destination of its own waits until it has one.
+                link.classList.remove('d-none');
             } else if (link.dataset.backTo) {
                 // Nothing behind this page, so the list it belongs to, as the
                 // reader last had it.

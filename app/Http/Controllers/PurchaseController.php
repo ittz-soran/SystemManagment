@@ -177,7 +177,8 @@ class PurchaseController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('purchases.index')
+        return redirect()
+            ->to(after_delete(route('purchases.show', $purchase), route('purchases.index')))
             ->with('success', __('Purchase deleted and its stock removed'));
     }
 

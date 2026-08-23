@@ -41,6 +41,7 @@
               onsubmit="return confirm(@js($deleteLabel ?? __('Delete this record?')))">
             @csrf
             @method('DELETE')
+            <x-return-to />
             <button type="submit" class="btn btn-outline-danger">
                 <i class="bi bi-trash me-1"></i>{{ __('Delete') }}
             </button>

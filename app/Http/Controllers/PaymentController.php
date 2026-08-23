@@ -219,10 +219,14 @@ class PaymentController extends Controller
             $payment->delete();
         });
 
-        // Back to the document if there is one to go back to — the payment's own
-        // page has just stopped existing.
+        // The payment's own page has just stopped existing. The document it
+        // was against is the natural place to land, and the reader's own
+        // previous page beats it when they came from somewhere else.
         return redirect()
-            ->to($payable ? $this->documentUrl($payable) : route('payments.index'))
+            ->to(after_delete(
+                route('payments.show', $payment),
+                $payable ? $this->documentUrl($payable) : route('payments.index'),
+            ))
             ->with('success', __('Payment deleted'));
     }
 

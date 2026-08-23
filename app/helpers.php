@@ -112,3 +112,50 @@ if (! function_exists('shop_logo')) {
         return \App\Http\Controllers\BrandingController::url();
     }
 }
+
+if (! function_exists('after_delete')) {
+    /**
+     * Where to send the reader once a document is deleted.
+     *
+     * Deleting from a list leaves the list standing, so they stay on it, filters
+     * and page intact. Deleting from the document's own page is the awkward one:
+     * that page has just stopped existing, and the list it belonged to is a
+     * guess — opening an invoice from the second-hand book and deleting it
+     * should not land on the sales history. So the form carries the page behind
+     * it, filled in by app.js from the tab's own history, and that is where they
+     * go. The list is the fallback for a bookmark, or a browser with scripting
+     * off.
+     *
+     * Only a path on this site is ever followed. The carried value comes from
+     * the page, so it is treated as something a visitor typed: an absolute URL,
+     * a protocol-relative one, or anything that is not a plain path is dropped
+     * rather than turned into a redirect off the shop's own site.
+     *
+     * @param  string  $gone      the URL of the page that no longer exists
+     * @param  string  $fallback  the list it belonged to
+     */
+    function after_delete(string $gone, string $fallback): string
+    {
+        $previous = url()->previous();
+
+        // previous() answers with the site root when the browser sent no
+        // referer at all, which is not a page in this shop and not somewhere to
+        // put anybody.
+        $hasPrevious = $previous !== url('/')
+            && $previous !== $gone
+            && $previous !== url()->current();
+
+        if ($hasPrevious) {
+            return $previous;
+        }
+
+        $carried = (string) request()->input('return_to');
+
+        $safe = str_starts_with($carried, '/')
+            && ! str_starts_with($carried, '//')
+            && ! str_contains($carried, '\\')
+            && $carried !== parse_url($gone, PHP_URL_PATH);
+
+        return $safe ? $carried : $fallback;
+    }
+}
