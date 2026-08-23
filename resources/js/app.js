@@ -564,3 +564,196 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 })();
+
+/**
+ * The wall clock in the topbar.
+ *
+ * The machine's own time rather than the server's, because it sits beside a
+ * real clock on a real wall and has to agree with it. Twelve hours with am/pm,
+ * which is how the shop reads the time, and Latin digits whatever the interface
+ * language is, since the rest of the system writes its numbers that way.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const time = document.getElementById('app-clock-time');
+    const date = document.getElementById('app-clock-date');
+
+    if (! time) {
+        return;
+    }
+
+    const tick = () => {
+        const now = new Date();
+
+        time.textContent = now.toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+        });
+
+        date.textContent = now.toLocaleDateString('en-GB', {
+            weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+        });
+    };
+
+    tick();
+    setInterval(tick, 1000);
+});
+
+/**
+ * The search box in the topbar.
+ *
+ * The same shape as the cart's product lookup, over the whole shop: type, wait
+ * for the typing to stop, ask the server, show what came back grouped by what
+ * it is. The server decides what a reader may see, so nothing here filters
+ * anything — it draws what it is given.
+ *
+ * Keyboard first, because the person using it has one hand on a barcode scanner:
+ * Ctrl+K from anywhere, arrows to move, Enter to open, Escape to leave.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('app-search');
+    const panel = document.getElementById('app-search-results');
+
+    if (! input || ! panel) {
+        return;
+    }
+
+    let items = [];
+    let active = -1;
+    let pending = null;
+    let lastTerm = '';
+
+    const close = () => {
+        panel.classList.remove('show');
+        input.setAttribute('aria-expanded', 'false');
+        active = -1;
+    };
+
+    const open = () => {
+        panel.classList.add('show');
+        input.setAttribute('aria-expanded', 'true');
+    };
+
+    const highlight = () => {
+        items.forEach((item, index) => item.classList.toggle('active', index === active));
+        items[active]?.scrollIntoView({ block: 'nearest' });
+    };
+
+    const draw = (groups) => {
+        panel.innerHTML = '';
+        items = [];
+        active = -1;
+
+        if (! groups.length) {
+            panel.innerHTML = `<div class="px-3 py-2 text-secondary small">${panel.dataset.empty}</div>`;
+            open();
+
+            return;
+        }
+
+        groups.forEach((group) => {
+            const heading = document.createElement('div');
+            heading.className = 'app-search-heading px-3 pt-2 pb-1 small text-secondary';
+            heading.textContent = group.label;
+            panel.appendChild(heading);
+
+            group.items.forEach((entry) => {
+                const row = document.createElement('a');
+                row.className = 'dropdown-item d-flex align-items-center gap-2 py-2';
+                row.href = entry.url;
+                row.setAttribute('role', 'option');
+                row.innerHTML = `
+                    <i class="bi bi-${entry.icon} text-secondary"></i>
+                    <span class="flex-grow-1 min-w-0">
+                        <span class="d-block text-truncate">${entry.label}</span>
+                        ${entry.note ? `<span class="d-block small text-secondary text-truncate">${entry.note}</span>` : ''}
+                    </span>`;
+                panel.appendChild(row);
+                items.push(row);
+            });
+        });
+
+        open();
+    };
+
+    const search = async (term) => {
+        const response = await fetch(
+            `${panel.dataset.url}?q=${encodeURIComponent(term)}`,
+            { headers: { Accept: 'application/json' } },
+        );
+
+        if (! response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+
+        // A slow answer to an old term must not replace a newer one.
+        if (term === lastTerm) {
+            draw(data.groups);
+        }
+    };
+
+    input.addEventListener('input', () => {
+        const term = input.value.trim();
+        lastTerm = term;
+        clearTimeout(pending);
+
+        if (term.length < 2) {
+            close();
+
+            return;
+        }
+
+        pending = setTimeout(() => search(term), 180);
+    });
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            close();
+            input.blur();
+
+            return;
+        }
+
+        if (! panel.classList.contains('show') || ! items.length) {
+            return;
+        }
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            active = event.key === 'ArrowDown'
+                ? (active + 1) % items.length
+                : (active <= 0 ? items.length : active) - 1;
+            highlight();
+        }
+
+        if (event.key === 'Enter') {
+            // Nothing chosen yet: the first result is what the reader meant.
+            event.preventDefault();
+            (items[active] ?? items[0]).click();
+        }
+    });
+
+    input.addEventListener('focus', () => {
+        if (items.length) {
+            open();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (! input.contains(event.target) && ! panel.contains(event.target)) {
+            close();
+        }
+    });
+
+    // Ctrl+K, or / with nothing else focused — a hand already on the keyboard
+    // should not have to find the mouse.
+    document.addEventListener('keydown', (event) => {
+        const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '');
+
+        if ((event.key === 'k' && (event.ctrlKey || event.metaKey)) || (event.key === '/' && ! typing)) {
+            event.preventDefault();
+            input.focus();
+            input.select();
+        }
+    });
+});

@@ -48,10 +48,16 @@ body {
 .app-sidebar {
   width: var(--app-sidebar-width);
   flex: 0 0 var(--app-sidebar-width);
-  min-height: 100vh;
+
+  // A fixed height, not a minimum. With a minimum the sidebar grew past the
+  // window instead of scrolling, and on a short screen — a laptop, or a till
+  // with the browser bar showing — Settings at the bottom could not be reached
+  // at all. Now the nav scrolls inside it while the page scrolls behind.
+  height: 100vh;
   position: sticky;
   top: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background-color: var(--bs-tertiary-bg);
   // A logical property, so one rule serves both directions.
   border-inline-end: 1px solid var(--bs-border-color);
@@ -236,4 +242,38 @@ th.money {
     margin-inline-end: 0.15rem;
     margin-inline-start: -0.15rem;
   }
+}
+
+// ---------------------------------------------------------------------------
+// The search box in the topbar, and the wall clock beside it.
+// ---------------------------------------------------------------------------
+
+.app-search-results {
+  // Tall enough for a few groups, short enough to leave the page visible.
+  max-height: min(28rem, 70vh);
+
+  .app-search-heading {
+    // Sticky, so the reader can still see which kind of thing they are looking
+    // at after scrolling into a long group.
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--bs-body-bg);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: .7rem;
+  }
+
+  // A row is two lines of text; the name must not push the note off the edge.
+  .min-w-0 {
+    min-width: 0;
+  }
+}
+
+.app-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: .8rem;
+
+  // A clock reads left to right in every language the shop speaks.
+  unicode-bidi: isolate;
 }

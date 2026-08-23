@@ -19,6 +19,7 @@ use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SecondHandController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
@@ -38,6 +39,12 @@ Route::get('/', fn () => redirect()->route('dashboard'));
 Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
 
 Route::middleware(['auth'])->group(function () {
+    /**
+     * One box for the whole shop. No permission of its own: it holds none, and
+     * every group inside it is behind the permission of the screen it leads to.
+     */
+    Route::get('search', SearchController::class)->name('search');
+
     Route::get('dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:dashboard.view')
         ->name('dashboard');
