@@ -225,6 +225,70 @@ class SecondHandAndServiceTest extends TestCase
             ->assertOk()->assertSee($item->sku);
     }
 
+    /**
+     * The figures at the top of the book.
+     *
+     * Money, so they are read from the batches and the movements rather than
+     * from products.purchase_price, which the product form can change — the
+     * same reason the per-item cost is.
+     */
+    public function test_the_figures_read_from_the_batches_and_the_movements(): void
+    {
+        // Two on the shelf: 300,000 and 500,000 paid, asked at 400,000 and 620,000.
+        $held = $this->buyUsed(['cost' => 300_000, 'sale_price' => 400_000])['product'];
+        $this->buyUsed(['name' => 'Dell Latitude', 'cost' => 500_000, 'sale_price' => 620_000]);
+
+        // And one bought and sold this month for 430,000 against 380,000.
+        $sold = $this->buyUsed(['name' => 'Xbox (B)', 'cost' => 380_000, 'sale_price' => 430_000])['product'];
+        $this->sell($sold, 430_000);
+
+        // A suggestion the product form can change must not move any of them.
+        $held->forceFill(['purchase_price' => 999_000])->save();
+
+        $figures = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->assertOk()->viewData('figures');
+
+        $this->assertSame(2, $figures['held']);
+        $this->assertSame(800_000, $figures['held_value'], 'The money in the shelf, from the batches');
+        $this->assertSame(220_000, $figures['expected'], '1,020,000 asked less 800,000 paid');
+        $this->assertSame(1, $figures['sold_this_month']);
+        $this->assertSame(50_000, $figures['made_this_month'], '430,000 less what that machine cost');
+    }
+
+    /** An item sold and given back made nothing, and must say so. */
+    public function test_a_returned_item_nets_out_of_what_the_month_made(): void
+    {
+        $item = $this->buyUsed()['product'];
+        $sale = $this->sell($item, 400_000);
+
+        $before = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->viewData('figures');
+        $this->assertSame(100_000, $before['made_this_month']);
+
+        app(SaleReturnService::class)->create(
+            sale: $sale,
+            lines: [['sale_item_id' => $sale->items()->firstOrFail()->id, 'quantity' => 1]],
+            user: $this->admin, returnDate: now(),
+        );
+
+        $after = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->viewData('figures');
+
+        $this->assertSame(0, $after['made_this_month'], 'Both sides came off');
+        $this->assertSame(0, $after['sold_this_month']);
+        $this->assertSame(1, $after['held'], 'And it is back on the shelf');
+    }
+
+    public function test_what_is_still_owed_to_sellers_is_on_the_page(): void
+    {
+        $this->buyUsed(['amount_paid' => 200_000]);
+
+        $figures = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->viewData('figures');
+
+        $this->assertSame(100_000, $figures['owed_to_sellers']);
+    }
+
     // --------------------------------------------------------------- services
 
     public function test_a_service_sells_without_touching_stock(): void
