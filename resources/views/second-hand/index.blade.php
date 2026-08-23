@@ -3,6 +3,7 @@
 @section('title', __('Second-hand'))
 @section('subheading', __('One row for one thing: what was paid, what is asked, what it made'))
 
+
 @section('actions')
     @can('suppliers.view')
         <a href="{{ route('second-hand.sellers') }}" class="btn btn-outline-secondary">
@@ -17,19 +18,61 @@
 @endsection
 
 @section('content')
-    <div class="row g-3 mb-3">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-body">
-                <div class="text-secondary small">{{ __('Items held') }}</div>
-                <div class="fs-4 fw-semibold">{{ number_format($held) }}</div>
+    {{-- Two about now, two about whether the trade is worth doing, and one
+         about money that has not left the till yet. --}}
+    @php
+        $cards = [
+            [
+                'label' => __('Items held'),
+                'value' => number_format($figures['held']),
+                'note' => null,
+                'tone' => '',
+            ],
+            [
+                'label' => __('Money tied up in them'),
+                'value' => money($figures['held_value'], false),
+                'note' => null,
+                'tone' => '',
+            ],
+            [
+                'label' => __('Expected profit'),
+                'value' => money($figures['expected'], false),
+                'note' => __('if they sell at the asking price'),
+                'tone' => 'text-secondary',
+            ],
+            [
+                'label' => __('Sold this month'),
+                'value' => number_format($figures['sold_this_month']),
+                'note' => null,
+                'tone' => '',
+            ],
+            [
+                'label' => __('Made this month'),
+                'value' => money($figures['made_this_month'], false),
+                'note' => __('what those sales actually made'),
+                'tone' => $figures['made_this_month'] >= 0 ? 'text-success' : 'text-danger',
+            ],
+            [
+                'label' => __('Still owed to sellers'),
+                'value' => money($figures['owed_to_sellers'], false),
+                'note' => null,
+                'tone' => $figures['owed_to_sellers'] > 0 ? 'text-danger' : '',
+            ],
+        ];
+    @endphp
+
+    <div class="row g-2 mb-3">
+        @foreach($cards as $card)
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="card card-body h-100 py-2">
+                    <div class="text-secondary small">{{ $card['label'] }}</div>
+                    <div class="fs-5 fw-semibold money {{ $card['tone'] }}">{{ $card['value'] }}</div>
+                    @if($card['note'])
+                        <div class="text-secondary" style="font-size: .75rem">{{ $card['note'] }}</div>
+                    @endif
+                </div>
             </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card card-body">
-                <div class="text-secondary small">{{ __('Money tied up in them') }}</div>
-                <div class="fs-4 fw-semibold money">{{ money($heldValue, false) }}</div>
-            </div>
-        </div>
+        @endforeach
     </div>
 
     <form method="GET" class="card card-body mb-3">
@@ -43,9 +86,17 @@
             <div class="col-md-3">
                 <label for="status" class="form-label small">{{ __('Status') }}</label>
                 <select id="status" name="status" class="form-select form-select-sm">
-                    <option value="in_stock" @selected($status === 'in_stock')>{{ __('In stock') }}</option>
-                    <option value="sold" @selected($status === 'sold')>{{ __('Sold') }}</option>
-                    <option value="all" @selected($status === 'all')>{{ __('All') }}</option>
+                    {{-- Counted, so an item that has been sold reads as moved
+                         rather than missing. --}}
+                    <option value="all" @selected($status === 'all')>
+                        {{ __('All') }} ({{ number_format($counts['all']) }})
+                    </option>
+                    <option value="in_stock" @selected($status === 'in_stock')>
+                        {{ __('In stock') }} ({{ number_format($counts['in_stock']) }})
+                    </option>
+                    <option value="sold" @selected($status === 'sold')>
+                        {{ __('Sold') }} ({{ number_format($counts['sold']) }})
+                    </option>
                 </select>
             </div>
             <div class="col-md-2">

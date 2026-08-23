@@ -181,12 +181,37 @@ class SecondHandAndServiceTest extends TestCase
 
         $this->assertSame(0, $item->refresh()->quantity);
 
-        // The second-hand list separates what is held from what is gone.
+        // The second-hand list can separate what is held from what is gone...
         $this->actingAs($this->admin)->get(route('second-hand.index', ['status' => 'sold']))
             ->assertOk()->assertSee($item->name);
 
         $this->actingAs($this->admin)->get(route('second-hand.index', ['status' => 'in_stock']))
             ->assertOk()->assertDontSee($item->name);
+    }
+
+    /**
+     * ...but not by default. Selling an item is the moment its row becomes
+     * worth reading — what it made — and a default that hid it made a sale look
+     * like the item had been lost.
+     */
+    public function test_selling_an_item_does_not_remove_it_from_the_book(): void
+    {
+        $item = $this->buyUsed()['product'];
+        $sale = $this->sell($item, 400_000);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->assertOk();
+
+        $response->assertSee($item->name);
+        $response->assertSee($sale->document_no);
+        $response->assertSee('+100,000');
+
+        // And the purchase it came in on is still named beside it.
+        $purchase = $item->stockBatches()->firstOrFail();
+        $this->assertStringContainsString(
+            'href="'.route('purchases.show', $purchase->source_id).'"',
+            $response->getContent(),
+        );
     }
 
     public function test_a_used_item_is_kept_out_of_the_ordinary_product_list(): void
@@ -198,6 +223,70 @@ class SecondHandAndServiceTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('second-hand.index'))
             ->assertOk()->assertSee($item->sku);
+    }
+
+    /**
+     * The figures at the top of the book.
+     *
+     * Money, so they are read from the batches and the movements rather than
+     * from products.purchase_price, which the product form can change — the
+     * same reason the per-item cost is.
+     */
+    public function test_the_figures_read_from_the_batches_and_the_movements(): void
+    {
+        // Two on the shelf: 300,000 and 500,000 paid, asked at 400,000 and 620,000.
+        $held = $this->buyUsed(['cost' => 300_000, 'sale_price' => 400_000])['product'];
+        $this->buyUsed(['name' => 'Dell Latitude', 'cost' => 500_000, 'sale_price' => 620_000]);
+
+        // And one bought and sold this month for 430,000 against 380,000.
+        $sold = $this->buyUsed(['name' => 'Xbox (B)', 'cost' => 380_000, 'sale_price' => 430_000])['product'];
+        $this->sell($sold, 430_000);
+
+        // A suggestion the product form can change must not move any of them.
+        $held->forceFill(['purchase_price' => 999_000])->save();
+
+        $figures = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->assertOk()->viewData('figures');
+
+        $this->assertSame(2, $figures['held']);
+        $this->assertSame(800_000, $figures['held_value'], 'The money in the shelf, from the batches');
+        $this->assertSame(220_000, $figures['expected'], '1,020,000 asked less 800,000 paid');
+        $this->assertSame(1, $figures['sold_this_month']);
+        $this->assertSame(50_000, $figures['made_this_month'], '430,000 less what that machine cost');
+    }
+
+    /** An item sold and given back made nothing, and must say so. */
+    public function test_a_returned_item_nets_out_of_what_the_month_made(): void
+    {
+        $item = $this->buyUsed()['product'];
+        $sale = $this->sell($item, 400_000);
+
+        $before = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->viewData('figures');
+        $this->assertSame(100_000, $before['made_this_month']);
+
+        app(SaleReturnService::class)->create(
+            sale: $sale,
+            lines: [['sale_item_id' => $sale->items()->firstOrFail()->id, 'quantity' => 1]],
+            user: $this->admin, returnDate: now(),
+        );
+
+        $after = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->viewData('figures');
+
+        $this->assertSame(0, $after['made_this_month'], 'Both sides came off');
+        $this->assertSame(0, $after['sold_this_month']);
+        $this->assertSame(1, $after['held'], 'And it is back on the shelf');
+    }
+
+    public function test_what_is_still_owed_to_sellers_is_on_the_page(): void
+    {
+        $this->buyUsed(['amount_paid' => 200_000]);
+
+        $figures = $this->actingAs($this->admin)
+            ->get(route('second-hand.index'))->viewData('figures');
+
+        $this->assertSame(100_000, $figures['owed_to_sellers']);
     }
 
     // --------------------------------------------------------------- services
