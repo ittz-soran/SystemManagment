@@ -1,20 +1,38 @@
 {{-- Section 9b: a slim topbar holding global search, language switch, theme
      toggle and the user menu. --}}
 <header class="app-topbar bg-body border-bottom px-3 py-2 d-flex align-items-center gap-3 no-print">
-    @can('products.view')
-        <form action="{{ route('products.index') }}" method="GET" class="flex-grow-1" style="max-width: 26rem">
-            <div class="input-group input-group-sm">
-                <span class="input-group-text bg-body-tertiary border-end-0">
-                    <i class="bi bi-search"></i>
-                </span>
-                <input type="search" name="search" class="form-control border-start-0"
-                       placeholder="{{ __('Search products by name, SKU or barcode') }}"
-                       value="{{ request('search') }}" aria-label="{{ __('Search') }}">
-            </div>
-        </form>
-    @endcan
+    {{-- One box for the whole shop: a product, a person, a document number off a
+         printed invoice, or the name of a screen. What it finds is decided by
+         the server, which shows a reader only what they may open. --}}
+    <div class="app-search flex-grow-1 position-relative" style="max-width: 30rem">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text bg-body-tertiary border-end-0">
+                <i class="bi bi-search"></i>
+            </span>
+            <input id="app-search" type="search" class="form-control border-start-0"
+                   placeholder="{{ __('Search anything — a product, a name, INV-00005…') }}"
+                   aria-label="{{ __('Search') }}" autocomplete="off"
+                   role="combobox" aria-expanded="false" aria-controls="app-search-results">
+            <span class="input-group-text bg-body-tertiary text-secondary small d-none d-lg-inline">
+                {{-- The shortcut, where a keyboard user will look for it. --}}
+                Ctrl K
+            </span>
+        </div>
+
+        <div id="app-search-results" class="app-search-results dropdown-menu w-100 p-0 overflow-auto"
+             role="listbox" aria-label="{{ __('Search') }}"
+             data-url="{{ route('search') }}"
+             data-empty="{{ __('Nothing found.') }}"></div>
+    </div>
 
     <div class="ms-auto d-flex align-items-center gap-2">
+        {{-- The wall clock. Twelve hours, because that is how the shop reads the
+             time, and the machine's own so it agrees with the wall. --}}
+        <div class="app-clock text-end d-none d-md-block lh-sm" dir="ltr">
+            <div class="fw-semibold" id="app-clock-time">&nbsp;</div>
+            <div class="text-secondary" id="app-clock-date">&nbsp;</div>
+        </div>
+
         {{-- Language switch. Section 2: text and direction change together. --}}
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"

@@ -4,41 +4,8 @@
     which resolves through User::hasPermission() where admin short-circuits.
 --}}
 @php
-    $nav = [
-        null => [
-            ['route' => 'dashboard', 'permission' => 'dashboard.view', 'icon' => 'speedometer2', 'label' => __('Dashboard')],
-        ],
-        __('Sell & buy') => [
-            ['route' => 'sales.create', 'permission' => 'sales.create', 'icon' => 'cart-plus', 'label' => __('New sale')],
-            ['route' => 'purchases.create', 'permission' => 'purchases.create', 'icon' => 'bag-plus', 'label' => __('New purchase')],
-            ['route' => 'sales.index', 'permission' => 'sales.view', 'icon' => 'receipt', 'label' => __('Sales history')],
-            ['route' => 'purchases.index', 'permission' => 'purchases.view', 'icon' => 'journal-text', 'label' => __('Purchase history')],
-            ['route' => 'sale-returns.index', 'permission' => 'sale_returns.view', 'icon' => 'arrow-return-left', 'label' => __('Sale returns')],
-            ['route' => 'purchase-returns.index', 'permission' => 'purchase_returns.view', 'icon' => 'arrow-return-right', 'label' => __('Purchase returns')],
-        ],
-        __('Catalogue') => [
-            ['route' => 'products.index', 'permission' => 'products.view', 'icon' => 'box-seam', 'label' => __('Products')],
-            ['route' => 'categories.index', 'permission' => 'categories.view', 'icon' => 'tags', 'label' => __('Categories')],
-            ['route' => 'second-hand.index', 'permission' => 'products.view', 'icon' => 'arrow-repeat', 'label' => __('Second-hand')],
-            ['route' => 'services.index', 'permission' => 'products.view', 'icon' => 'magic', 'label' => __('Services')],
-            ['route' => 'stock-adjustments.index', 'permission' => 'stock_adjustments.view', 'icon' => 'sliders', 'label' => __('Stock adjustments')],
-        ],
-        __('People') => [
-            ['route' => 'customers.index', 'permission' => 'customers.view', 'icon' => 'people', 'label' => __('Customers')],
-            ['route' => 'suppliers.index', 'permission' => 'suppliers.view', 'icon' => 'truck', 'label' => __('Suppliers')],
-            ['route' => 'users.index', 'permission' => 'users.view', 'icon' => 'person-badge', 'label' => __('Users')],
-        ],
-        __('Money') => [
-            ['route' => 'payments.index', 'permission' => 'payments.view', 'icon' => 'cash-coin', 'label' => __('Payments')],
-            ['route' => 'expenses.index', 'permission' => 'expenses.view', 'icon' => 'cash-stack', 'label' => __('Expenses')],
-            ['route' => 'reports.index', 'permission' => 'reports.view', 'icon' => 'graph-up', 'label' => __('Reports')],
-        ],
-        __('System') => [
-            ['route' => 'activity-logs.index', 'permission' => 'activity_logs.view', 'icon' => 'clock-history', 'label' => __('Activity log')],
-            ['route' => 'data.index', 'permission' => 'products.view', 'icon' => 'arrow-down-up', 'label' => __('Import & export')],
-            ['route' => 'settings.edit', 'permission' => 'settings.manage', 'icon' => 'gear', 'label' => __('Settings')],
-        ],
-    ];
+    // Shared with the search box, which lets a reader jump to a screen by name.
+    $nav = App\Support\Navigation::groups();
 @endphp
 
 <aside class="app-sidebar d-flex flex-column p-2 no-print">
