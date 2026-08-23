@@ -10,6 +10,7 @@ use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Services\SecondHandService;
+use App\Support\TradeProfit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -37,11 +38,23 @@ class SecondHandController extends Controller
         // the moment it became interesting.
         $status = $request->string('status')->toString() ?: 'all';
 
+        // The period the figures are read over, and the period the list is cut
+        // to. Defaults to this month because that is what a shopkeeper checks,
+        // but it is a range like any other rather than a fixed word in a label.
+        $from = $request->date('from') ?: now()->startOfMonth();
+        $to = ($request->date('to') ?: now())->endOfDay();
+
         $items = Product::used()
             // The batch, because the batch is what it cost. products.purchase_price
             // is a suggestion the product form can change; the batch is the money
             // that actually left the till, and is what FIFO charges the sale.
             ->with('acquiredFrom', 'category', 'stockBatches')
+            // Bought in the period, or sold in it — either way it is part of
+            // what happened between those dates.
+            ->when($request->filled('from') || $request->filled('to'), fn ($q) => $q
+                ->where(fn ($w) => $w
+                    ->whereBetween('created_at', [$from, $to])
+                    ->orWhereHas('saleItems.sale', fn ($sale) => $sale->whereBetween('sale_date', [$from, $to]))))
             ->when($status === 'in_stock', fn ($q) => $q->where('quantity', '>', 0))
             ->when($status === 'sold', fn ($q) => $q->where('quantity', '<=', 0))
             ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
@@ -67,7 +80,9 @@ class SecondHandController extends Controller
                 'sold' => (int) Product::used()->where('quantity', '<=', 0)->count(),
             ],
 
-            'figures' => $this->figures(),
+            'figures' => $this->figures($from, $to),
+            'from' => $from,
+            'to' => $to,
         ]);
     }
 
@@ -83,7 +98,7 @@ class SecondHandController extends Controller
      *
      * @return array<string, int>
      */
-    private function figures(): array
+    private function figures(Carbon $from, Carbon $to): array
     {
         $used = Product::used()->select('id');
         $held = Product::used()->where('quantity', '>', 0);
@@ -99,47 +114,28 @@ class SecondHandController extends Controller
         // fact, and labelled as one.
         $asking = (int) $held->clone()->sum('sale_price');
 
-        $month = [now()->startOfMonth(), now()->endOfMonth()];
+        $bought = Product::used()->whereBetween('created_at', [$from, $to]);
 
-        $soldThisMonth = (int) SaleItem::query()
+        $sold = (int) SaleItem::query()
             ->whereIn('product_id', $used->clone())
-            ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', $month))
+            ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
             ->sum(DB::raw('quantity - quantity_returned'));
 
         return [
+            // Where things stand, whatever period is being read.
             'held' => (int) $held->clone()->count(),
             'held_value' => $heldValue,
             'expected' => $asking - $heldValue,
-            'sold_this_month' => $soldThisMonth,
-            'made_this_month' => $this->profitBetween(...$month),
+
+            // And what happened in the period.
+            'bought' => (int) $bought->count(),
+            'spent' => (int) StockBatch::query()
+                ->whereIn('product_id', $bought->clone()->select('id'))
+                ->sum(DB::raw('quantity_in * unit_cost')),
+            'sold' => $sold,
+            'made' => TradeProfit::between(Product::used(), $from, $to)['profit'],
             'owed_to_sellers' => (int) Supplier::walkIns()->sum('balance'),
         ];
-    }
-
-    /**
-     * What the second-hand trade made in a period.
-     *
-     * The same arithmetic as the profit report, narrowed to these items:
-     * revenue from the lines, cost from the movements those lines consumed —
-     * never from products.purchase_price — and both sides of a return taken
-     * off, so an item sold and given back nets to nothing.
-     */
-    private function profitBetween(Carbon $from, Carbon $to): int
-    {
-        $used = Product::used()->select('id');
-
-        $revenue = (int) SaleItem::query()
-            ->whereIn('product_id', $used->clone())
-            ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
-            ->sum(DB::raw('(quantity - quantity_returned) * unit_price'));
-
-        $cost = fn (string $reference, string $sign) => (int) StockMovement::query()
-            ->whereIn('product_id', $used->clone())
-            ->where('reference_type', $reference)
-            ->whereBetween('occurred_at', [$from, $to])
-            ->sum(DB::raw($sign.'quantity * unit_cost'));
-
-        return $revenue - ($cost(StockMovement::REF_SALE, '-') - $cost(StockMovement::REF_SALE_RETURN, ''));
     }
 
     public function create(): View
@@ -147,7 +143,7 @@ class SecondHandController extends Controller
         // Resolved rather than looked up: on a shop that upgraded into this
         // feature the category does not exist yet, and the first item would
         // land in whichever category happens to sort first.
-        $default = Category::firstOrCreate(['name' => __(SecondHandService::DEFAULT_CATEGORY)]);
+        $default = Category::firstOrCreate(['name' => SecondHandService::DEFAULT_CATEGORY]);
 
         return view('second-hand.create', [
             'categories' => Category::orderBy('name')->get(),

@@ -4,10 +4,11 @@
 @section('subheading')
     <span dir="ltr">{{ $product->sku }}@if($product->barcode) · {{ $product->barcode }}@endif</span>
     · {{ $product->category->name }}
-    {{-- Skipped when the category already says it, which it does by default. --}}
-    @if($product->isUsed() && $product->category->name !== __('Second-hand'))
+    {{-- Skipped when the category already says it, which it does by default.
+         Compared against the stored name, which is not translated. --}}
+    @if($product->isUsed() && $product->category->name !== App\Services\SecondHandService::DEFAULT_CATEGORY)
         · <span class="badge text-bg-light">{{ __('Second-hand') }}</span>
-    @elseif($product->isService() && $product->category->name !== __('Services'))
+    @elseif($product->isService() && $product->category->name !== App\Http\Controllers\ServiceController::DEFAULT_CATEGORY)
         · <span class="badge text-bg-light">{{ __('Service') }}</span>
     @endif
 @endsection

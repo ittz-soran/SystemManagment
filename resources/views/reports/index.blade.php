@@ -12,6 +12,26 @@
 @endsection
 
 @section('content')
+    {{-- A printed page leaves the screen behind: no sidebar, no heading, no
+         idea which shop or which dates. This says all three, on paper only. --}}
+    <div class="d-none d-print-block mb-3 border-bottom pb-2">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="fs-5 fw-semibold">{{ setting('shop_name', config('app.name')) }}</div>
+                <div>{{ __('Reports') }}</div>
+            </div>
+            <div class="text-end small">
+                <div dir="ltr">
+                    {{ $from->format(setting('date_format', 'Y-m-d')) }}
+                    → {{ $to->format(setting('date_format', 'Y-m-d')) }}
+                </div>
+                <div class="text-secondary" dir="ltr">
+                    {{ __('Printed :when', ['when' => now()->format(setting('date_format', 'Y-m-d').' H:i')]) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <form method="GET" class="card card-body mb-3 no-print">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
@@ -58,21 +78,29 @@
                     {{-- The Section 10b profit table, line for line. --}}
                     <table class="table table-sm align-middle mb-0">
                         <tbody>
+                        {{-- The sign is its own column so the page can be read
+                             down like a sum done on paper: the pluses and
+                             minuses lead to each bold line, and each bold line
+                             is a total that can be checked by adding up the
+                             ones above it. --}}
                         @foreach([
-                            [__('Sales'), $profit['sales'], false],
-                            [__('Less returns'), -$profit['sale_returns'], false],
-                            [__('Revenue'), $profit['revenue'], true],
-                            [__('FIFO cost of goods sold'), -$profit['cogs'], false],
-                            [__('Cost reversed by returns'), $profit['cogs_reversed'], false],
-                            [__('Gross profit'), $profit['gross_profit'], true],
-                            [__('Discounts received'), $profit['discounts_received'], false],
-                            [__('Stock written off'), -$profit['write_offs'], false],
-                            [__('Expenses'), -$profit['expenses'], false],
-                            [__('Net'), $profit['net'], true],
-                        ] as [$label, $value, $strong])
+                            ['+', __('Sales'), $profit['sales'], false],
+                            ['−', __('Less returns'), $profit['sale_returns'], false],
+                            ['=', __('Revenue'), $profit['revenue'], true],
+                            ['−', __('FIFO cost of goods sold'), $profit['cogs'], false],
+                            ['+', __('Cost reversed by returns'), $profit['cogs_reversed'], false],
+                            ['=', __('Gross profit'), $profit['gross_profit'], true],
+                            ['+', __('Discounts received'), $profit['discounts_received'], false],
+                            ['−', __('Stock written off'), $profit['write_offs'], false],
+                            ['−', __('Expenses'), $profit['expenses'], false],
+                            ['=', __('Net'), $profit['net'], true],
+                        ] as [$sign, $label, $value, $strong])
                             <tr class="{{ $strong ? 'fw-semibold border-top' : '' }}">
+                                <td class="text-secondary" style="width: 1.5rem">{{ $sign }}</td>
                                 <td>{{ $label }}</td>
-                                <td class="money {{ $value < 0 ? 'text-danger' : '' }}">{{ money($value, false) }}</td>
+                                <td class="money {{ $strong && $value < 0 ? 'text-danger' : '' }}">
+                                    {{ money($value, false) }}
+                                </td>
                             </tr>
                         @endforeach
                         </tbody>
@@ -126,6 +154,58 @@
                 </table>
             </div>
         </div>
+
+        {{-- The three trades, side by side. Stock turns over on a thin margin,
+             a second-hand machine is a few large bets, and a service is all
+             margin because it costs nothing to give — one gross-profit figure
+             hides which of the three is carrying the month. --}}
+        @if($byKind !== [])
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">{{ __('Where the profit came from') }}</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>{{ __('Kind') }}</th>
+                                <th class="money">{{ __('Sold') }}</th>
+                                <th class="money">{{ __('Revenue') }}</th>
+                                <th class="money">{{ __('Cost') }}</th>
+                                <th class="money">{{ __('Profit') }}</th>
+                                <th class="money">{{ __('Margin') }}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach($byKind as $row)
+                                <tr>
+                                    <td class="fw-medium">{{ $row['label'] }}</td>
+                                    <td class="money text-secondary">{{ number_format($row['units']) }}</td>
+                                    <td class="money">{{ money($row['revenue'], false) }}</td>
+                                    <td class="money text-secondary">{{ money($row['cost'], false) }}</td>
+                                    <td class="money fw-semibold {{ $row['profit'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                        {{ money($row['profit'], false) }}
+                                    </td>
+                                    {{-- What is left of every 100 taken, so the
+                                         three can be compared without dividing. --}}
+                                    <td class="money text-secondary">{{ $row['margin'] }}%</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                            <tfoot>
+                            <tr class="fw-semibold border-top">
+                                <td>{{ __('Together') }}</td>
+                                <td class="money">{{ number_format(collect($byKind)->sum('units')) }}</td>
+                                <td class="money">{{ money(collect($byKind)->sum('revenue'), false) }}</td>
+                                <td class="money">{{ money(collect($byKind)->sum('cost'), false) }}</td>
+                                <td class="money">{{ money(collect($byKind)->sum('profit'), false) }}</td>
+                                <td></td>
+                            </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <div class="col-lg-6">
             <div class="card h-100">

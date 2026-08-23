@@ -70,6 +70,7 @@
                         <th>{{ __('By') }}</th>
                         <th class="money">{{ __('Quantity') }}</th>
                         <th class="money">{{ __('Cost each') }}</th>
+                        <th class="text-end">{{ __('Actions') }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -99,6 +100,15 @@
                                  it consumed. --}}
                             <td class="money text-secondary">
                                 {{ $adjustment->unit_cost !== null ? money($adjustment->unit_cost, false) : __('FIFO') }}
+                            </td>
+                            <td class="text-end">
+                                <x-row-actions
+                                    :view="route('stock-adjustments.show', $adjustment)"
+                                    :delete="Gate::allows('stock_adjustments.delete') ? route('stock-adjustments.destroy', $adjustment) : null"
+                                    :delete-label="__('Delete :document? :count units go back the way they came.', [
+                                        'document' => $adjustment->document_no,
+                                        'count' => $adjustment->quantity,
+                                    ])" />
                             </td>
                         </tr>
                     @endforeach
@@ -224,8 +234,11 @@
 
                 timer = setTimeout(async () => {
                     const response = await fetch(
-                        // Ordinary stock only: there is no stock behind a service to correct.
-                        `{{ route('products.search') }}?kinds=stock,used&q=${encodeURIComponent(term)}`,
+                        // Ordinary stock only. A service has no stock behind it to
+                        // correct, and a second-hand item is one machine bought on
+                        // one document — what happens to it belongs on that
+                        // document, not in a quantity correction.
+                        `{{ route('products.search') }}?kinds=stock&q=${encodeURIComponent(term)}`,
                         { headers: { 'Accept': 'application/json' } },
                     );
                     if (! response.ok) return;

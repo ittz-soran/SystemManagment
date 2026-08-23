@@ -10,6 +10,16 @@
     @endcan
 @endsection
 
+{{-- Arrived from a category, so there is somewhere to go back to. The script
+     turns this into the browser's own Back, which is where the reader came
+     from whether that was the category list or anywhere else. --}}
+@if(request()->filled('categories'))
+    @section('back')
+        <x-back-link :to="route('categories.index')" :label="__('Categories')"
+                     remember="categories" permission="categories.view" />
+    @endsection
+@endif
+
 @section('content')
     {{-- Section 9b: filters row, results table, pagination. --}}
     <form method="GET" class="card card-body mb-3">

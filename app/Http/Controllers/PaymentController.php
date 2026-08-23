@@ -133,14 +133,7 @@ class PaymentController extends Controller
                     notes: $data['notes'] ?? null,
                 );
 
-                // The ledger only moves for the two cases that settle a debt:
-                // a customer paying their invoice, or the shop paying a supplier.
-                // A refund's ledger effect was already recorded by the return.
-                $account = match (true) {
-                    $payable instanceof Sale => $payable->customer()->firstOrFail(),
-                    $payable instanceof Purchase => $payable->supplier()->firstOrFail(),
-                    default => null,
-                };
+                $account = $this->settlingAccount($payable, $data['direction']);
 
                 if ($account) {
                     $this->ledger->post(
@@ -162,6 +155,29 @@ class PaymentController extends Controller
             ->with('success', __('Payment recorded'));
     }
 
+    /**
+     * The account a payment moves, or null when it moves none.
+     *
+     * The ledger only follows the two cases that settle a debt: a customer
+     * paying their invoice, or the shop paying a supplier. A refund's effect was
+     * already recorded by the return that caused it, and money going the other
+     * way on a document — change handed back when a cart is edited down — is
+     * the till moving, not the debt.
+     *
+     * Both recording and deleting a payment read this one method, so a deletion
+     * reverses exactly what the recording posted and never a penny else.
+     */
+    private function settlingAccount(?Model $payable, string $direction): ?Model
+    {
+        return match (true) {
+            $payable instanceof Sale && $direction === Payment::DIRECTION_IN
+                => $payable->customer()->firstOrFail(),
+            $payable instanceof Purchase && $direction === Payment::DIRECTION_OUT
+                => $payable->supplier()->firstOrFail(),
+            default => null,
+        };
+    }
+
     /** The customer or supplier the document belongs to, or null. */
     private function party(?Model $payable): ?Model
     {
@@ -170,6 +186,44 @@ class PaymentController extends Controller
             $payable instanceof Purchase, $payable instanceof PurchaseReturn => $payable->supplier,
             default => null,
         };
+    }
+
+    /**
+     * Section 8b: a delete is a reversal plus a hidden record, never a way to
+     * skip the reversal. A payment that settled a debt put money against it;
+     * removing the payment puts the debt back.
+     */
+    public function destroy(Request $request, Payment $payment): RedirectResponse
+    {
+        if (books_closed_on($payment->paid_at)) {
+            return back()->with('error', __('Locked: this date is in a closed period.'));
+        }
+
+        $payable = $payment->payable;
+
+        DB::transaction(function () use ($payment, $payable, $request) {
+            $account = $this->settlingAccount($payable, $payment->direction);
+
+            if ($account) {
+                $this->ledger->post(
+                    account: $account,
+                    type: AccountTransaction::TYPE_PAYMENT,
+                    // The opposite of what recording it posted.
+                    amount: (int) $payment->amount,
+                    reference: $payable,
+                    user: $request->user(),
+                    notes: __('Reversal of :document', ['document' => $payment->document_no]),
+                );
+            }
+
+            $payment->delete();
+        });
+
+        // Back to the document if there is one to go back to — the payment's own
+        // page has just stopped existing.
+        return redirect()
+            ->to($payable ? $this->documentUrl($payable) : route('payments.index'))
+            ->with('success', __('Payment deleted'));
     }
 
     private function resolvePayable(string $type, int $id): Model

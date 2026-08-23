@@ -3,7 +3,26 @@
 @section('title', $adjustment->document_no)
 @section('subheading')
     {{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}
-    · {{ $adjustment->product->name }}
+    · <x-document-link :document="$adjustment->product" :kind="false" />
+@endsection
+
+@section('actions')
+    @can('stock_adjustments.delete')
+        {{-- Section 8b: the units go back where they came from. The engine
+             refuses if they have since been sold, so the button can be offered
+             plainly and the refusal explains itself. --}}
+        <form action="{{ route('stock-adjustments.destroy', $adjustment) }}" method="POST"
+              onsubmit="return confirm(@js(__('Delete :document? :count units go back the way they came.', [
+                  'document' => $adjustment->document_no,
+                  'count' => $adjustment->quantity,
+              ])))">
+            @csrf
+            @method('DELETE')
+            <button class="btn btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>{{ __('Delete adjustment') }}
+            </button>
+        </form>
+    @endcan
 @endsection
 
 @section('back')

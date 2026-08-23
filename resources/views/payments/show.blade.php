@@ -6,6 +6,23 @@
     · {{ Str::headline($payment->payment_method) }}
 @endsection
 
+@section('actions')
+    @can('payments.delete')
+        {{-- Section 8b: removing the payment puts the debt back. --}}
+        <form action="{{ route('payments.destroy', $payment) }}" method="POST"
+              onsubmit="return confirm(@js(__('Delete :document? :amount goes back onto what is owed.', [
+                  'document' => $payment->document_no,
+                  'amount' => money($payment->amount),
+              ])))">
+            @csrf
+            @method('DELETE')
+            <button class="btn btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>{{ __('Delete payment') }}
+            </button>
+        </form>
+    @endcan
+@endsection
+
 @section('back')
     <x-back-link :to="route('payments.index')" :label="__('Payments')" remember="payments" permission="payments.view" />
 @endsection

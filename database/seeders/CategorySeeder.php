@@ -22,7 +22,7 @@ class CategorySeeder extends Seeder
     public function run(): void
     {
         foreach ([SecondHandService::DEFAULT_CATEGORY, ServiceController::DEFAULT_CATEGORY] as $name) {
-            Category::firstOrCreate(['name' => __($name)]);
+            Category::firstOrCreate(['name' => $name]);
         }
     }
 }

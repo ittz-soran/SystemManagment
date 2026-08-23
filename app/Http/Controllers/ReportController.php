@@ -15,6 +15,7 @@ use App\Models\SaleReturn;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Support\TradeProfit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,7 @@ class ReportController extends Controller
             'topProducts' => $this->topProducts($from, $to),
             'cash' => $this->cash($from, $to),
             'expensesByCategory' => $this->expensesByCategory($from, $to),
+            'byKind' => $this->byKind($from, $to),
             'position' => $this->position(),
         ]);
     }
@@ -107,6 +109,49 @@ class ReportController extends Controller
             'purchases' => (int) Purchase::whereBetween('purchase_date', [$from, $to])->sum('grand_total'),
             'purchase_returns' => (int) PurchaseReturn::whereBetween('return_date', [$from, $to])->sum('total_amount'),
         ];
+    }
+
+    /**
+     * The three trades, side by side.
+     *
+     * The shop sells ordinary stock, second-hand things and its own time, and
+     * they behave nothing alike: stock turns over on a thin margin, a used
+     * machine is a few large bets, and a service is all margin because it costs
+     * nothing to give. A single gross-profit figure hides which of the three is
+     * carrying the month.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function byKind(Carbon $from, Carbon $to): array
+    {
+        $kinds = [
+            Product::KIND_STOCK => __('Products'),
+            Product::KIND_USED => __('Second-hand'),
+            Product::KIND_SERVICE => __('Services'),
+        ];
+
+        $rows = [];
+
+        foreach ($kinds as $kind => $label) {
+            $figures = TradeProfit::between(Product::ofKind($kind), $from, $to);
+
+            // A kind the shop does not deal in is not worth a row of zeros.
+            if ($figures['units'] === 0 && $figures['revenue'] === 0) {
+                continue;
+            }
+
+            $rows[] = [
+                'label' => $label,
+                ...$figures,
+                // What is left of every 100 taken. The number a shopkeeper
+                // compares between the three without doing the division.
+                'margin' => $figures['revenue'] > 0
+                    ? (int) round($figures['profit'] / $figures['revenue'] * 100)
+                    : 0,
+            ];
+        }
+
+        return $rows;
     }
 
     /** Ranked by units actually sold, net of what came back. */

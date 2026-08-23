@@ -7,6 +7,7 @@ use App\Services\ActivityLogger;
 use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\Payment;
+use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
@@ -53,6 +54,11 @@ class AppServiceProvider extends ServiceProvider
             // back as a relation rather than only written as a string.
             'adjustment' => StockAdjustment::class,
             'expense' => Expense::class,
+
+            // Not stored in any polymorphic column, but named here so the map
+            // can be read the other way: DocumentLink resolves a model to its
+            // alias through it, and an unmapped class silently loses its link.
+            'product' => Product::class,
         ]);
 
         // Section 3: Bootstrap 5, so the paginator emits Bootstrap markup

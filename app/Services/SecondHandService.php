@@ -141,6 +141,10 @@ class SecondHandService
 
     private function defaultCategory(): Category
     {
-        return Category::firstOrCreate(['name' => __(self::DEFAULT_CATEGORY)]);
+        // Not translated: this is a row's name, not a label on a screen. Read
+        // through __() it would find nothing in Kurdish and make a second
+        // category, and the shop would have two of everything. It is seeded in
+        // English and the shopkeeper can rename it to whatever they like.
+        return Category::firstOrCreate(['name' => self::DEFAULT_CATEGORY]);
     }
 }
