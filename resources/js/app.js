@@ -269,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const STACK = 'nav:stack';
     const DEPTH = 'nav:depth';
     const RESTORE = 'nav:restore';
+    const SIDEBAR = 'nav:sidebar';
     const LIMIT = 40;
 
     // Private windows and browsers with site data blocked throw rather than
@@ -372,8 +373,27 @@ document.addEventListener('DOMContentLoaded', () => {
         write(STACK, JSON.stringify(stack));
         write(DEPTH, String(depth));
 
-        // Depth 1 is the first page of the tab: nothing of ours behind it.
-        return depth > 1 ? stack[depth - 1] ?? null : null;
+        if (depth <= 1) {
+            // The first page of the tab: nothing of ours behind it.
+            return null;
+        }
+
+        // A circle: here, away, and back again by a link rather than by going
+        // back. Reading an invoice, opening one of its payments, then following
+        // that payment's own link to the invoice leaves the entry behind this
+        // one pointing at the payment the reader has just left. What they want
+        // is where the invoice led from before — the sales history — so the
+        // step before the circle is handed back instead.
+        //
+        // Two steps, and only two. Any page visited earlier in the tab would
+        // reach back into an excursion that has nothing to do with this one:
+        // arriving at an invoice from a product, having read that invoice half
+        // an hour ago, must lead back to the product.
+        if (depth > 2 && stack[depth - 2] === url) {
+            return { url: stack[depth - 3] ?? null, looped: true };
+        }
+
+        return { url: stack[depth - 1] ?? null, looped: false };
     };
 
     /**
@@ -430,8 +450,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('DOMContentLoaded', () => {
         const url = here();
-        const previous = place(url);
+        const behind = place(url);
+        const previous = behind?.url ?? null;
         const known = parse(PAGES, {});
+
+        // Arriving from the sidebar is moving sideways, not going into
+        // something: the reader chose a section rather than opening a thing, so
+        // there is nothing to come back out of and no button for it.
+        const fromSidebar = read(SIDEBAR) === url;
+
+        if (fromSidebar) {
+            forget(SIDEBAR);
+        }
+
+        // Remembered on the way out rather than worked out on the way in, since
+        // only the click itself knows it came from the sidebar.
+        document.querySelectorAll('.app-sidebar a[href]').forEach((link) => {
+            link.addEventListener('click', () => write(SIDEBAR, target(link)));
+        });
 
         // The heading is what this page is called, and is what the button on
         // the next page will say when it offers the way back here.
@@ -469,13 +505,32 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('a.back-link').forEach((link) => {
             const label = link.querySelector('span');
 
+            if (fromSidebar) {
+                // Nothing to come back out of. Hidden even where the page names
+                // a list of its own, because the reader did not come through it.
+                link.classList.add('d-none');
+
+                return;
+            }
+
+            // An unnamed link needs a page this script has actually seen the
+            // reader on. Signing in is not one of those: the dashboard is where
+            // the day starts, not somewhere to come back out of.
+            if (link.hasAttribute('data-back-auto') && ! known[previous]?.title) {
+                return;
+            }
+
             if (previous) {
                 // The page behind this one, named after itself. Without a name
                 // the button still goes there — where it goes is the promise,
                 // and the name is only how it is kept.
                 link.setAttribute('href', previous);
                 label.textContent = known[previous]?.title || link.dataset.backGeneric || label.textContent;
-                link.dataset.backHistory = '1';
+                // The browser's own Back only lands there when it really is the
+                // entry behind this one. After a circle it is not — that entry
+                // is the page the reader just came from — so this walks out
+                // through the door it came in by instead.
+                link.dataset.backHistory = behind.looped ? '' : '1';
 
                 // A link with no destination of its own waits until it has one.
                 link.classList.remove('d-none');
