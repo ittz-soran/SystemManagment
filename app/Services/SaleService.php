@@ -298,8 +298,18 @@ class SaleService
             ?: $a->sequence <=> $b->sequence);
 
         foreach ($items as $item) {
+            $product = Product::whereKey($item->product_id)->firstOrFail();
+
+            // A service is sold, not stocked: nothing was ever bought, so there
+            // is no batch to draw down and no cost to record. Its whole price is
+            // profit, which is what the absence of a movement means to the
+            // report — revenue with no COGS against it.
+            if (! $product->tracksStock()) {
+                continue;
+            }
+
             $this->fifo->consume(
-                product: Product::whereKey($item->product_id)->firstOrFail(),
+                product: $product,
                 quantity: $item->quantity,
                 referenceType: StockMovement::REF_SALE,
                 referenceId: $sale->id,

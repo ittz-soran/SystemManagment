@@ -19,6 +19,8 @@ use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
+use App\Http\Controllers\SecondHandController;
+use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\SupplierController;
@@ -211,6 +213,29 @@ Route::middleware(['auth'])->group(function () {
     // ---- Stock adjustments -----------------------------------------------
     // Section 4: the only way to correct a locked document, so it must exist
     // before go-live.
+    /**
+     * Second-hand goods and services (Section 4's two kinds of row that are not
+     * ordinary stock). Buying a second-hand item creates the item and buys it in
+     * one act, and the act is a purchase — so that is the permission it takes.
+     */
+    Route::get('second-hand', [SecondHandController::class, 'index'])
+        ->middleware('permission:products.view')->name('second-hand.index');
+    Route::get('second-hand/sellers', [SecondHandController::class, 'sellers'])
+        ->middleware('permission:suppliers.view')->name('second-hand.sellers');
+    Route::get('second-hand/create', [SecondHandController::class, 'create'])
+        ->middleware('permission:purchases.create')->name('second-hand.create');
+    Route::post('second-hand', [SecondHandController::class, 'store'])
+        ->middleware('permission:purchases.create')->name('second-hand.store');
+
+    Route::get('services', [ServiceController::class, 'index'])
+        ->middleware('permission:products.view')->name('services.index');
+    Route::post('services', [ServiceController::class, 'store'])
+        ->middleware('permission:products.create')->name('services.store');
+    Route::put('services/{service}', [ServiceController::class, 'update'])
+        ->middleware('permission:products.edit')->name('services.update');
+    Route::delete('services/{service}', [ServiceController::class, 'destroy'])
+        ->middleware('permission:products.delete')->name('services.destroy');
+
     Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])
         ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.index');
     Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])

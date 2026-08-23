@@ -328,7 +328,10 @@
             }
 
             async function runSearch(term) {
-                const response = await fetch(`{{ route('products.search') }}?q=${encodeURIComponent(term)}`, {
+                // Ordinary stock only: a service has nothing to buy into stock, and a
+                // second-hand item is bought once through its own screen.
+                const response = await fetch(
+                    `{{ route('products.search') }}?kinds=stock&q=${encodeURIComponent(term)}`, {
                     headers: { 'Accept': 'application/json' },
                 });
 

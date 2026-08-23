@@ -34,7 +34,12 @@ class DashboardController extends Controller
 
             // Section 8c: a product with no reorder_level falls back to the
             // global low_stock_threshold.
+            //
+            // Ordinary stock only. A service sits at zero forever and a sold
+            // second-hand item is gone for good — neither is running low, and
+            // between them they would bury the shelf that actually is.
             'lowStock' => Product::active()
+                ->stocked()
                 ->with('category')
                 ->whereColumn('quantity', '<=', DB::raw("COALESCE(reorder_level, {$threshold})"))
                 ->orderBy('quantity')

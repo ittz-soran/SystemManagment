@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             SettingSeeder::class,
             ExpenseCategorySeeder::class,
+            CategorySeeder::class,
             CustomerSeeder::class,
             DocumentCounterSeeder::class,
         ]);

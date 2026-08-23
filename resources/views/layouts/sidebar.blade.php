@@ -19,6 +19,8 @@
         __('Catalogue') => [
             ['route' => 'products.index', 'permission' => 'products.view', 'icon' => 'box-seam', 'label' => __('Products')],
             ['route' => 'categories.index', 'permission' => 'categories.view', 'icon' => 'tags', 'label' => __('Categories')],
+            ['route' => 'second-hand.index', 'permission' => 'products.view', 'icon' => 'arrow-repeat', 'label' => __('Second-hand')],
+            ['route' => 'services.index', 'permission' => 'products.view', 'icon' => 'magic', 'label' => __('Services')],
             ['route' => 'stock-adjustments.index', 'permission' => 'stock_adjustments.view', 'icon' => 'sliders', 'label' => __('Stock adjustments')],
         ],
         __('People') => [
