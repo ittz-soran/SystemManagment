@@ -813,14 +813,19 @@ document.addEventListener('DOMContentLoaded', () => {
  * Enter pressed on the reorder level or any other box — a half-finished product
  * saved by a keystroke nobody meant as an instruction.
  *
- * The button carrying data-hold-submit is a plain button rather than a submit,
- * which takes Enter out of the picture altogether, and it has to be held down
- * for three seconds before the form goes. Letting go early cancels it and the
- * fill runs back to nothing, so a mis-press costs nothing but the press.
+ * So the Save button has to be held down for three seconds. Let go early and it
+ * counts for nothing; the fill runs back and the count starts again next time.
  *
- * Held with the mouse, a finger, or the keyboard: Space or Enter while the
- * button itself has focus. A scanner's Enter is a tap, not a hold, so it dies
- * on the keyup a few milliseconds later.
+ * The release is listened for on the window rather than on the button, and that
+ * is the whole trick. A release only reaches the button if the pointer is still
+ * over it and the element under it still exists — and neither is safe to assume,
+ * since the label changes while the hold runs and a finger or mouse drifts. A
+ * missed release leaves the count running after the shopkeeper has let go, and
+ * the form saves itself three seconds later. The window sees every release.
+ *
+ * The markup ships as an ordinary submit button and is demoted here. If this
+ * script never arrives — a stale build, a blocked file — the shopkeeper gets a
+ * Save button that works rather than a form that cannot be saved at all.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const HOLD_MS = 3000;
@@ -830,38 +835,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (! form) return;
 
-        // Written as a submit button and demoted here. Until this line runs the
-        // form saves the ordinary way, which is the right thing to fall back to.
         button.type = 'button';
 
-        const label = button.querySelector('.btn-hold-label') ?? button;
+        // Only this element's text changes while the hold runs. The icon and
+        // every wrapper stay put, so whatever the pointer is resting on is
+        // still there when it is lifted.
+        const text = button.querySelector('.btn-hold-text');
         const fill = button.querySelector('.btn-hold-fill');
-        const resting = label.innerHTML;
+        const resting = text?.textContent ?? '';
+        const holdingWord = button.dataset.holdHolding ?? 'Keep holding…';
 
         let frame = null;
         let startedAt = 0;
-        let done = false;
+        let holding = false;
+        let saving = false;
+
+        const say = (words) => { if (text) text.textContent = words; };
 
         const paint = (fraction) => {
             if (fill) fill.style.width = `${Math.round(fraction * 100)}%`;
         };
 
         const stop = () => {
+            if (! holding) return;
+
+            holding = false;
+
             if (frame) cancelAnimationFrame(frame);
+
             frame = null;
             startedAt = 0;
             paint(0);
             button.classList.remove('is-holding');
-            label.innerHTML = resting;
+            say(resting);
         };
 
         const finish = () => {
+            holding = false;
+            frame = null;
+
             // Validation first, and asked rather than assumed: a required box
             // still empty must leave the button usable, not stranded saying
-            // "Saving…" over a form that never went anywhere. reportValidity
-            // also puts the caret in the offending field and says why.
+            // "Saving…" over a form that never went anywhere.
             if (typeof form.reportValidity === 'function' && ! form.reportValidity()) {
-                stop();
+                paint(0);
+                button.classList.remove('is-holding');
+                say(resting);
 
                 // Held for three seconds and nothing happened reads as a broken
                 // button, not as a missing field — so the field that stopped it
@@ -877,53 +896,78 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            done = true;
+            saving = true;
             button.disabled = true;
             paint(1);
-            label.textContent = button.dataset.holdDone ?? 'Saving…';
+            say(button.dataset.holdDone ?? 'Saving…');
 
             if (typeof form.requestSubmit === 'function') form.requestSubmit();
             else form.submit();
         };
 
         const tick = () => {
+            // Checked every frame as well as on release: if a release is ever
+            // missed the count still cannot outlive the press by more than one
+            // frame, because nothing else sets this back to true.
+            if (! holding) return;
+
             const elapsed = Date.now() - startedAt;
 
             if (elapsed >= HOLD_MS) return finish();
 
             paint(elapsed / HOLD_MS);
+
+            // Counted down out loud, so three seconds reads as three seconds
+            // rather than as a button that has not responded yet.
+            say(`${holdingWord} ${Math.ceil((HOLD_MS - elapsed) / 1000)}`);
+
             frame = requestAnimationFrame(tick);
         };
 
-        const start = () => {
-            if (done || startedAt) return;
+        const begin = (event) => {
+            if (saving || holding) return;
 
+            // Left button only: a right-click opens a menu, and the release
+            // that closes it is not a release of this button.
+            if (event.button !== undefined && event.button !== 0) return;
+
+            // Keeps the pointer stream on this button even if the finger or the
+            // mouse drifts off it while pressed.
+            if (event.pointerId !== undefined && button.setPointerCapture) {
+                try { button.setPointerCapture(event.pointerId); } catch { /* not fatal */ }
+            }
+
+            holding = true;
             startedAt = Date.now();
             button.classList.add('is-holding');
-            label.textContent = button.dataset.holdHolding ?? 'Keep holding…';
             frame = requestAnimationFrame(tick);
         };
 
-        button.addEventListener('pointerdown', start);
-        button.addEventListener('pointerup', stop);
-        button.addEventListener('pointerleave', stop);
-        button.addEventListener('pointercancel', stop);
+        button.addEventListener('pointerdown', begin);
 
+        // On the window, and in the capture phase, so nothing can swallow it
+        // before it arrives. Every way a press can end is listened for.
+        ['pointerup', 'pointercancel', 'mouseup', 'touchend', 'touchcancel', 'dragstart', 'contextmenu']
+            .forEach((name) => window.addEventListener(name, stop, true));
+
+        // Alt-tabbing away, or the tab going to the background, is letting go.
+        window.addEventListener('blur', stop);
+        document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+
+        // The keyboard holds it too: Space or Enter while the button has focus.
+        // A scanner's Enter is a tap, so it dies on the keyup milliseconds later.
         button.addEventListener('keydown', (event) => {
             // Not event.repeat: a held key repeats, and each repeat would
             // otherwise restart a hold that is already running.
             if ((event.key === ' ' || event.key === 'Enter') && ! event.repeat) {
                 event.preventDefault();
-                start();
+                begin(event);
             }
         });
 
-        button.addEventListener('keyup', (event) => {
+        window.addEventListener('keyup', (event) => {
             if (event.key === ' ' || event.key === 'Enter') stop();
-        });
-
-        // Nothing should leave this page mid-hold with a half-drawn button.
-        window.addEventListener('blur', stop);
+        }, true);
 
         /**
          * The same protection for the keyboard, stated rather than relied upon.
@@ -957,5 +1001,4 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
-
 });
