@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Exceptions\InsufficientStockException;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
@@ -57,11 +58,22 @@ class ProveLocking extends Command
 
     // ---- The racer ------------------------------------------------------
 
+    /** The sale went through. */
+    private const SOLD = 0;
+
+    /** Something went wrong that has nothing to do with stock. */
+    private const BROKE = 1;
+
+    /** Refused for want of stock — which is the correct answer for all but one. */
+    private const REFUSED = 3;
+
     /**
      * One till, trying to take its units at the agreed instant.
      *
-     * Exit 0 means the sale went through, 1 means it was refused. Refused is a
-     * correct answer here — better than correct, it is the whole point.
+     * The three endings are kept apart on purpose. A racer that crashes and a
+     * racer that is correctly refused both simply "did not sell", and a tool
+     * that cannot tell them apart will one day report a healthy lock as broken,
+     * or — far worse — a broken one as healthy.
      */
     private function race(): int
     {
@@ -89,9 +101,15 @@ class ProveLocking extends Command
                 amountPaid: 0,
             );
 
-            return self::SUCCESS;
-        } catch (Throwable) {
-            return self::FAILURE;
+            return self::SOLD;
+        } catch (InsufficientStockException $e) {
+            $this->line('refused: '.$e->getMessage());
+
+            return self::REFUSED;
+        } catch (Throwable $e) {
+            $this->line('broke: '.$e::class.': '.$e->getMessage());
+
+            return self::BROKE;
         }
     }
 
@@ -173,7 +191,35 @@ class ProveLocking extends Command
             $process->wait();
         }
 
-        $won = count(array_filter($processes, fn (Process $p) => $p->getExitCode() === 0));
+        $endings = array_map(fn (Process $p) => $p->getExitCode(), $processes);
+
+        // A racer that never got as far as trying makes the whole run
+        // meaningless, so it is reported as that and not as a verdict.
+        $broken = array_filter($processes, fn (Process $p) => $p->getExitCode() !== self::SOLD
+            && $p->getExitCode() !== self::REFUSED);
+
+        if ($broken !== []) {
+            $this->newLine();
+            $this->components->error('The check could not run. This says nothing about the lock.');
+            $this->line('  '.count($broken).' of '.$racers.' tills never got as far as trying. What they said:');
+            $this->newLine();
+
+            foreach ($broken as $process) {
+                foreach (preg_split('/\R/', trim($process->getOutput()."\n".$process->getErrorOutput())) as $line) {
+                    if (trim($line) !== '') {
+                        $this->line('    <fg=yellow>'.$line.'</>');
+                    }
+                }
+
+                $this->newLine();
+            }
+
+            $this->line('  Send that to whoever maintains this and it will be obvious.');
+
+            return self::FAILURE;
+        }
+
+        $won = count(array_filter($endings, fn (?int $code) => $code === self::SOLD));
 
         return $this->verdict($product, $won, $stock, $want);
     }
@@ -223,19 +269,47 @@ class ProveLocking extends Command
             ['products.quantity cache', $cached, $remaining],
         ]);
 
-        if ($won === $allowed && $remaining === $stock - ($allowed * $want) && $cached === $remaining) {
+        $expected = $stock - ($allowed * $want);
+
+        if ($won === $allowed && $remaining === $expected && $cached === $remaining) {
             $this->components->info('The lock holds. Two tills cannot oversell the same item on this database.');
 
             return self::SUCCESS;
         }
 
-        $this->components->error('THE LOCK DID NOT HOLD. Do not go live on this database.');
-        $this->line('  Stock went where it should not have. Check that the tables are InnoDB,');
-        $this->line('  not MyISAM: MyISAM has no row locks and no transactions, and Laravel');
-        $this->line('  will not tell you — it simply ignores both.');
-        $this->newLine();
-        $this->line('  <fg=cyan>SELECT table_name, engine FROM information_schema.tables</>');
-        $this->line('  <fg=cyan>WHERE table_schema = DATABASE();</>');
+        // Which way it went wrong decides what to go and look at, so the two
+        // are never reported as the same thing.
+        if ($won > $allowed || $remaining < $expected) {
+            $this->components->error('THE LOCK DID NOT HOLD. Do not go live on this database.');
+            $this->line('  More was sold than there was to sell, which is what happens when');
+            $this->line('  the row lock does nothing. The usual cause is MyISAM tables: no row');
+            $this->line('  locks, no transactions, and MySQL does not complain — it ignores');
+            $this->line('  both silently, and Laravel cannot tell.');
+            $this->newLine();
+            $this->line('  <fg=cyan>SELECT table_name, engine FROM information_schema.tables</>');
+            $this->line('  <fg=cyan>WHERE table_schema = DATABASE();</>');
+            $this->newLine();
+            $this->line('  Anything that is not InnoDB needs converting:');
+            $this->line('  <fg=cyan>ALTER TABLE stock_batches ENGINE=InnoDB;</>');
+
+            return self::FAILURE;
+        }
+
+        if ($won < $allowed) {
+            $this->components->warn('Nothing was oversold, but too few sales went through.');
+            $this->line('  '.$won.' of a possible '.$allowed.' succeeded, and the stock is untouched.');
+            $this->line('  The lock is not letting anything past rather than letting too much');
+            $this->line('  past — a deadlock or a lock timeout, which is a stalled till rather');
+            $this->line('  than a corrupted ledger. Safer than the other way round, but wrong.');
+            $this->newLine();
+            $this->line('  <fg=cyan>SHOW ENGINE INNODB STATUS;</> — look at LATEST DETECTED DEADLOCK.');
+
+            return self::FAILURE;
+        }
+
+        $this->components->error('The stock cache disagrees with the batches.');
+        $this->line('  The right number of sales went through, but products.quantity says');
+        $this->line('  '.$cached.' where the batches say '.$remaining.'. Run <fg=cyan>php artisan stock:recheck</>.');
 
         return self::FAILURE;
     }

@@ -53,7 +53,22 @@
 
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
-                    <h1 class="h4 mb-0">@yield('heading', View::yieldContent('title'))</h1>
+                    {{-- Printed raw on purpose, and only safe because of what
+                         is on the other end: every page sets its title with
+                         @section('title', $value), and Laravel escapes a section
+                         given a value. Passing that already-escaped string as
+                         @yield's default escaped it a second time, so a product
+                         called "Tom & Jerry" was titled "Tom &amp;amp; Jerry" on
+                         its own page. Nobody in this shop sells anything with an
+                         ampersand in it yet — but Import & export is a page, and
+                         it read wrong from the day it was written. --}}
+                    <h1 class="h4 mb-0">
+                        @hasSection('heading')
+                            @yield('heading')
+                        @else
+                            {!! View::yieldContent('title') !!}
+                        @endif
+                    </h1>
                     @hasSection('subheading')
                         <div class="text-secondary small">@yield('subheading')</div>
                     @endif
