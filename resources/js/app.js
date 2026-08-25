@@ -210,7 +210,16 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.addEventListener('hidden.bs.modal', () => {
             const next = nextField(target);
 
-            if (! next) return;
+            // The last figure on the form has been entered, so the run ends
+            // where it was always going to end: on the button that saves it.
+            // Holding Enter there finishes the job without a hand leaving the
+            // keyboard — and a tap of Enter, which is all a scanner sends,
+            // still does nothing at all.
+            if (! next) {
+                target.closest('form')?.querySelector('.btn-hold')?.focus();
+
+                return;
+            }
 
             if (next.dataset.numpad !== undefined) {
                 open(next);
@@ -1032,7 +1041,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     && typeof event.target.select === 'function') {
                     event.target.select();
                 }
+
+                // Holding Enter saves, so the last figure can be typed and the
+                // form finished without leaving the keyboard.
+                //
+                // Started on the first REPEAT rather than the first press, and
+                // that is the whole point: a key being held down repeats, and a
+                // scanner's Enter never does. A tap cannot start the count, so
+                // it cannot finish it either — which is the accidental save
+                // this whole mechanism exists to stop.
+                if (event.repeat) begin(event);
             });
+
+            window.addEventListener('keyup', (event) => {
+                if (event.key === 'Enter') stop();
+            }, true);
         }
     }
 });

@@ -48,13 +48,25 @@
                 </span>
             </a>
         </div>
-        <div class="col-12 col-lg-6">
+        <div class="col-6 col-lg-3">
             {{-- Not quantity times the suggested price: the money that actually
                  left the till for the units still on the shelf. --}}
             <div class="stat-tile">
                 <span class="stat-tile-label">{{ __('Stock value') }}</span>
                 <span class="stat-tile-value">{{ money($stockValue) }}</span>
                 <span class="stat-tile-note">{{ __('what the unsold batches cost') }}</span>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            {{-- The same units at the other price. Not money the shop has: money
+                 it would have if every one of them sold at today's price and
+                 none were discounted, returned or written off. --}}
+            <div class="stat-tile">
+                <span class="stat-tile-label">{{ __('At sale price') }}</span>
+                <span class="stat-tile-value">{{ money($stockRetail) }}</span>
+                <span class="stat-tile-note">
+                    {{ __(':amount profit if it all sells', ['amount' => money($stockRetail - $stockValue, false)]) }}
+                </span>
             </div>
         </div>
     </div>

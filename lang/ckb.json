@@ -1,5 +1,6 @@
 {
     "(never applied to batch costs)": "(هەرگیز لەسەر تێچووی بەشەکان جێبەجێ ناکرێت)",
+    ":amount profit if it all sells": "‏:amount قازانج ئەگەر هەمووی بفرۆشرێت",
     ":count selected": ":count هەڵبژێردراوە",
     ":item bought from :seller": "‏:item لە :seller کڕدرا",
     ":label: :created added, :updated changed, :unchanged already the same, :skipped skipped": ":label: :created زیادکران، :updated گۆڕدران، :unchanged پێشتر وەک یەکن، :skipped تێپەڕێندران",
@@ -71,6 +72,7 @@
     "At :width mm the bars get thin enough that a cheap scanner may miss them. Test one before printing a roll.": "لە :width ملم هێڵەکان ئەوەندە باریک دەبن کە لەوانەیە سکانەرێکی هەرزان نەیانبینێت. پێش چاپکردنی تۆمارێک یەکێک تاقی بکەرەوە.",
     "At FIFO cost": "بە تێچووی FIFO",
     "At FIFO cost, right now": "بە تێچووی FIFO، ئێستا",
+    "At sale price": "بە نرخی فرۆشتن",
     "Auto": "خۆکار",
     "Auto — follow the system": "خۆکار — بەدوای سیستەمدا",
     "Auto-generated codes look like :example.": "کۆدە خۆکارەکان وەک :example دەردەکەون.",

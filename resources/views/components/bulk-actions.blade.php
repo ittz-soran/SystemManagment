@@ -91,15 +91,60 @@
             const boxes = () => [...document.querySelectorAll('[data-bulk-id]')];
             const checked = () => boxes().filter((b) => b.checked);
 
-            function refresh() {
-                const selected = checked();
+            /**
+             * What is ticked, remembered across pages.
+             *
+             * Twenty rows to a page and forty to delete used to mean doing it
+             * twice: turning to page two dropped everything ticked on page one,
+             * silently, and the bar came back saying nothing was selected.
+             *
+             * The ids live in this tab's own storage, under the path of the
+             * list they belong to, so the products list and the sales list do
+             * not borrow each other's ticks. They last until the selection is
+             * used or cleared, and they die with the tab.
+             */
+            const KEY = 'bulk:' + location.pathname;
 
-                bar.classList.toggle('d-none', selected.length === 0);
-                countEl.textContent = @json(__(':count selected')).replace(':count', selected.length);
+            function remembered() {
+                try {
+                    return new Set(JSON.parse(sessionStorage.getItem(KEY) ?? '[]'));
+                } catch {
+                    return new Set();
+                }
+            }
+
+            function remember(ids) {
+                try {
+                    if (ids.size === 0) sessionStorage.removeItem(KEY);
+                    else sessionStorage.setItem(KEY, JSON.stringify([...ids]));
+                } catch { /* a private window; the page still works */ }
+            }
+
+            function forget() {
+                remember(new Set());
+            }
+
+            function refresh() {
+                const onPage = boxes();
+                const held = remembered();
+
+                // What is on screen decides what is remembered, for these rows
+                // only; anything ticked on another page is left alone.
+                onPage.forEach((box) => {
+                    if (box.checked) held.add(box.dataset.bulkId);
+                    else held.delete(box.dataset.bulkId);
+                });
+
+                remember(held);
+
+                bar.classList.toggle('d-none', held.size === 0);
+                countEl.textContent = @json(__(':count selected')).replace(':count', held.size);
+
+                const here = onPage.filter((b) => b.checked).length;
 
                 if (selectAll) {
-                    selectAll.checked = selected.length > 0 && selected.length === boxes().length;
-                    selectAll.indeterminate = selected.length > 0 && selected.length < boxes().length;
+                    selectAll.checked = here > 0 && here === onPage.length;
+                    selectAll.indeterminate = here > 0 && here < onPage.length;
                 }
             }
 
@@ -114,61 +159,67 @@
 
             document.getElementById('bulk-clear').addEventListener('click', () => {
                 boxes().forEach((box) => { box.checked = false; });
+                forget();
                 refresh();
             });
 
-            /** Copy the ticked ids into a form's hidden fields. */
-            function carry(into) {
+            // Arriving on page two with page one still ticked.
+            (() => {
+                const held = remembered();
+
+                boxes().forEach((box) => {
+                    if (held.has(box.dataset.bulkId)) box.checked = true;
+                });
+            })();
+
+            /**
+             * Copy the whole selection into a form's hidden fields — everything
+             * remembered, not only the rows that happen to be on screen.
+             */
+            function carry(into, name = 'ids[]') {
                 into.innerHTML = '';
 
-                checked().forEach((source) => {
+                remembered().forEach((id) => {
                     const field = document.createElement('input');
                     field.type = 'hidden';
-                    field.name = 'ids[]';
-                    field.value = source.dataset.bulkId;
+                    field.name = name;
+                    field.value = id;
                     into.appendChild(field);
                 });
             }
 
             document.querySelectorAll('[data-move-to]').forEach((choice) => {
                 choice.addEventListener('click', () => {
-                    if (checked().length === 0) return;
+                    if (remembered().size === 0) return;
 
                     // The move form wants product_ids[], not ids[] — it is the
                     // same endpoint the category screen posts to.
-                    const into = document.getElementById('bulk-move-ids');
-                    into.innerHTML = '';
-
-                    checked().forEach((source) => {
-                        const field = document.createElement('input');
-                        field.type = 'hidden';
-                        field.name = 'product_ids[]';
-                        field.value = source.dataset.bulkId;
-                        into.appendChild(field);
-                    });
-
+                    carry(document.getElementById('bulk-move-ids'), 'product_ids[]');
                     document.getElementById('bulk-move-category').value = choice.dataset.moveTo;
+                    forget();
                     document.getElementById('bulk-move-form').requestSubmit();
                 });
             });
 
             document.getElementById('bulk-export')?.addEventListener('click', () => {
-                if (checked().length === 0) return;
+                if (remembered().size === 0) return;
 
+                // Taking a copy changes nothing, so the ticks stay put.
                 carry(document.getElementById('bulk-export-ids'));
                 document.getElementById('bulk-export-form').requestSubmit();
             });
 
             document.getElementById('bulk-delete')?.addEventListener('click', () => {
-                const selected = checked();
-                if (selected.length === 0) return;
+                if (remembered().size === 0) return;
 
-                const question = @json($confirm ?? __('Delete the selected records?'));
+                const question = @json($confirm ?? __('Delete the selected records?'))
+                    .replace(':count', remembered().size);
 
                 if (! confirm(question + '\n\n' +
                     @json(__('Locked records are skipped and reported, not deleted.')))) return;
 
                 carry(idsBox);
+                forget();
                 form.requestSubmit();
             });
 
