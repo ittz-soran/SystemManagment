@@ -12,7 +12,12 @@ class SupplierController extends Controller
 {
     public function index(Request $request): View
     {
-        $suppliers = Supplier::query()
+        // Section 9: someone who walked in once to sell their old console is
+        // recorded so what they are owed is tracked like anyone else's, but
+        // they are not a supplier the shop deals with. Two hundred of them
+        // would bury the six that are. They have their own screen, under
+        // Second-hand.
+        $suppliers = Supplier::companies()
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
             ->orderBy('name')
             ->paginate($request->user()->items_per_page)

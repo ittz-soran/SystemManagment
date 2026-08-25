@@ -100,7 +100,10 @@ class MasterDataTransfer
      * renders every Kurdish and Arabic name as mojibake — which is most of the
      * names in this shop.
      */
-    public function export(string $entity): string
+    /**
+     * @param  list<int>|null  $only  Restrict to these ids; null exports everything.
+     */
+    public function export(string $entity, ?array $only = null): string
     {
         $columns = [...$this->columns($entity), ...$this->readOnlyColumns($entity)];
 
@@ -109,7 +112,15 @@ class MasterDataTransfer
         fwrite($handle, "\u{FEFF}");
         fputcsv($handle, $columns);
 
-        foreach ($this->query($entity)->cursor() as $model) {
+        // A handful of rows chosen on a list page, or the lot. Same columns,
+        // same encoding, same file either way — one export, narrowed.
+        $query = $this->query($entity);
+
+        if ($only !== null) {
+            $query->whereKey($only);
+        }
+
+        foreach ($query->cursor() as $model) {
             fputcsv($handle, array_map(
                 fn (string $column) => $this->read($model, $column),
                 $columns,

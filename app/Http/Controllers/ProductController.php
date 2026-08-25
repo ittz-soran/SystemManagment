@@ -11,6 +11,7 @@ use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
+use App\Services\MasterDataTransfer;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
@@ -164,6 +166,71 @@ class ProductController extends Controller
         return redirect()
             ->route('products.index')
             ->with('success', __('Product saved'));
+    }
+
+    /**
+     * Section 8b: a bulk delete is a loop of the single delete, and it reports
+     * what it skipped. Section 5 decides each one: a product with stock history
+     * is deactivated rather than deleted, because its movements are somebody's
+     * invoice.
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:products,id'],
+        ]);
+
+        $deleted = 0;
+        $deactivated = 0;
+
+        foreach (Product::whereIn('id', $data['ids'])->get() as $product) {
+            if ($product->stockMovements()->exists()) {
+                $product->update(['is_active' => false]);
+                $deactivated++;
+
+                continue;
+            }
+
+            $product->delete();
+            $deleted++;
+        }
+
+        $said = [];
+
+        if ($deleted > 0) {
+            $said[] = trans_choice('{1}:count product deleted|[2,*]:count products deleted', $deleted, ['count' => $deleted]);
+        }
+
+        if ($deactivated > 0) {
+            $said[] = trans_choice(
+                '{1}:count had stock history and was deactivated instead|[2,*]:count had stock history and were deactivated instead',
+                $deactivated,
+                ['count' => $deactivated],
+            );
+        }
+
+        return back()->with('success', implode(' · ', $said));
+    }
+
+    /**
+     * The rows chosen on the list, as the same CSV the import/export screen
+     * writes — so a file taken out of here can be edited and brought back in.
+     */
+    public function bulkExport(Request $request, MasterDataTransfer $transfer): StreamedResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:products,id'],
+        ]);
+
+        $csv = $transfer->export('products', $data['ids']);
+
+        return response()->streamDownload(
+            fn () => print $csv,
+            'products-'.now()->format('Y-m-d').'.csv',
+            ['Content-Type' => 'text/csv; charset=UTF-8'],
+        );
     }
 
     public function destroy(Product $product): RedirectResponse

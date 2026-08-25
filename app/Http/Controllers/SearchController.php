@@ -142,7 +142,7 @@ class SearchController extends Controller
 
         if ($user->hasPermission('suppliers.view')) {
             $hits = $hits->concat(
-                Supplier::where('name', 'like', "%{$term}%")
+                Supplier::companies()->where('name', 'like', "%{$term}%")
                     ->orWhere('phone', 'like', "%{$term}%")
                     ->orderBy('name')->limit(self::PER_GROUP)->get()
                     ->map(fn (Supplier $s) => [

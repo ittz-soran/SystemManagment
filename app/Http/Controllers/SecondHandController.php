@@ -11,6 +11,7 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Services\SecondHandService;
 use App\Support\TradeProfit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -167,6 +168,9 @@ class SecondHandController extends Controller
 
             'seller_name' => ['required', 'string', 'max:255'],
             'seller_phone' => ['nullable', 'string', 'max:32'],
+            // Set only when the shopkeeper picked somebody from the list. Blank
+            // means a new person, whatever the name happens to match.
+            'seller_id' => ['nullable', 'integer', 'exists:suppliers,id'],
 
             'bought_at' => ['required', 'date'],
         ], [
@@ -222,6 +226,42 @@ class SecondHandController extends Controller
             ->orderBy('id')
             ->get()
             ->keyBy('product_id');
+    }
+
+    /**
+     * The people already bought from, as the shopkeeper types.
+     *
+     * Searched by name and by number, because the number is what somebody gives
+     * twice the same way while a name gets spelled three ways by three hands.
+     * Nothing here matches anybody automatically — it only offers, and the
+     * shopkeeper picks.
+     */
+    public function sellerSearch(Request $request): JsonResponse
+    {
+        $term = $request->string('q')->trim()->toString();
+
+        if ($term === '') {
+            return response()->json([]);
+        }
+
+        return response()->json(
+            Supplier::walkIns()
+                ->where(fn ($q) => $q->where('name', 'like', "%{$term}%")->orWhere('phone', 'like', "%{$term}%"))
+                ->orderBy('name')
+                ->limit(10)
+                ->get()
+                ->map(fn (Supplier $seller) => [
+                    'id' => $seller->id,
+                    'name' => $seller->name,
+                    'phone' => $seller->phone,
+                    // What the shop still owes them, so the shopkeeper can see
+                    // an outstanding balance before agreeing another price.
+                    'balance' => (int) $seller->balance,
+                    'balance_label' => $seller->balance > 0
+                        ? __('You still owe :amount', ['amount' => money($seller->balance)])
+                        : null,
+                ]),
+        );
     }
 
     /** The walk-in sellers, kept off the supplier list but reachable. */

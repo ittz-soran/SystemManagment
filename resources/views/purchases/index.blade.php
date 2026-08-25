@@ -118,7 +118,7 @@
         <div class="mt-3">{{ $purchases->links() }}</div>
 
         @can('purchases.delete')
-            <x-bulk-delete :action="route('purchases.bulk-destroy')"
+            <x-bulk-actions :action="route('purchases.bulk-destroy')"
                            :confirm="__('Delete the selected purchases? Their batches are removed from stock.')" />
         @endcan
     @endif

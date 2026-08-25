@@ -5,7 +5,7 @@
 
     <x-auth-session-status class="mb-3" :status="session('status')" />
 
-    <form method="POST" action="{{ route('password.email') }}" data-guard-submit>
+    <form method="POST" action="{{ route('password.email') }}" data-guard-submit data-hold-exempt>
         @csrf
 
         <div class="mb-3">

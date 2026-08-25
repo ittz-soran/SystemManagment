@@ -350,13 +350,23 @@ a.stat-tile {
     z-index: 1;
   }
 
+  // Tinted with the button's own text colour, so the fill reads as progress on
+  // a solid primary button and on an outline danger one alike, without either
+  // needing a rule of its own.
   .btn-hold-fill {
     position: absolute;
     inset-block: 0;
     inset-inline-start: 0;
     width: 0;
-    background-color: rgba(0, 0, 0, .28);
+    background-color: currentColor;
+    opacity: .22;
     pointer-events: none;
+  }
+
+  // Counted down after the button's own words, in figures that do not jump
+  // about as the number changes.
+  .btn-hold-text {
+    font-variant-numeric: tabular-nums;
   }
 
   // Nothing selects, and a long press on a touchscreen does not turn into a

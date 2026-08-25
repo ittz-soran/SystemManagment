@@ -148,22 +148,11 @@
      The barcode field is read by a scanner, and a scanner types the code and
      then presses Enter. Scan twice and the second Enter used to submit the
      form; so did Enter pressed anywhere else, on the reorder level or any other
-     box. app.js turns this into a plain button that has to be held for three
-     seconds, which takes Enter out of the picture entirely.
-
-     It is written as an ordinary submit button and changed by the script,
-     rather than the other way round. If the script never arrives — a stale
-     build, a blocked file — the shopkeeper gets a Save button that works,
-     instead of a form that cannot be saved at all. --}}
+     box. app.js turns every save button in the shop into one that has to be
+     held for two seconds, which takes Enter out of the picture entirely. --}}
 <div class="d-flex gap-2 mt-4">
-    <button type="submit" class="btn btn-primary btn-hold" data-hold-submit
-            data-hold-holding="{{ __('Keep holding…') }}"
-            data-hold-done="{{ __('Saving…') }}">
-        <span class="btn-hold-fill" aria-hidden="true"></span>
-        <span class="btn-hold-label">
-            <i class="bi bi-check-lg me-1"></i>{{-- the icon never moves --}}
-            <span class="btn-hold-text">{{ __('Hold to save product') }}</span>
-        </span>
+    <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-lg me-1"></i>{{ __('Save product') }}
     </button>
     <a href="{{ route('products.index') }}" class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
 </div>

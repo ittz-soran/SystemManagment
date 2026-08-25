@@ -86,6 +86,10 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:products.edit')->name('products.update');
     Route::delete('products/{product}', [ProductController::class, 'destroy'])
         ->middleware('permission:products.delete')->name('products.destroy');
+    Route::delete('products', [ProductController::class, 'bulkDestroy'])
+        ->middleware('permission:products.delete')->name('products.bulk-destroy');
+    Route::post('products/export', [ProductController::class, 'bulkExport'])
+        ->middleware('permission:products.view')->name('products.bulk-export');
 
     Route::get('categories', [CategoryController::class, 'index'])
         ->middleware('permission:categories.view')->name('categories.index');
@@ -231,6 +235,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:products.view')->name('second-hand.index');
     Route::get('second-hand/sellers', [SecondHandController::class, 'sellers'])
         ->middleware('permission:suppliers.view')->name('second-hand.sellers');
+    Route::get('second-hand/sellers/search', [SecondHandController::class, 'sellerSearch'])
+        ->middleware('permission:purchases.create')->name('second-hand.sellers.search');
     Route::get('second-hand/create', [SecondHandController::class, 'create'])
         ->middleware('permission:purchases.create')->name('second-hand.create');
     Route::post('second-hand', [SecondHandController::class, 'store'])

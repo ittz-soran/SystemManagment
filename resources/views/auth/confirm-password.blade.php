@@ -3,7 +3,7 @@
         {{ __('This is a secure area. Please confirm your password before continuing.') }}
     </p>
 
-    <form method="POST" action="{{ route('password.confirm') }}" data-guard-submit>
+    <form method="POST" action="{{ route('password.confirm') }}" data-guard-submit data-hold-exempt>
         @csrf
 
         <div class="mb-3">

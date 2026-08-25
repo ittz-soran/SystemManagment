@@ -10,7 +10,7 @@
     @endif
 
     <div class="d-flex gap-2">
-        <form method="POST" action="{{ route('verification.send') }}" class="flex-grow-1" data-guard-submit>
+        <form method="POST" action="{{ route('verification.send') }}" class="flex-grow-1" data-guard-submit data-hold-exempt>
             @csrf
             <button type="submit" class="btn btn-primary w-100">{{ __('Resend verification email') }}</button>
         </form>

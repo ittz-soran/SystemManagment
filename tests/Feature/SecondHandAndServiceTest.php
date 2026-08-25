@@ -130,15 +130,65 @@ class SecondHandAndServiceTest extends TestCase
             ->assertSee($result['purchase']->document_no);
     }
 
-    /** The same phone is the same person, so what they are owed adds up. */
-    public function test_selling_twice_from_one_phone_is_one_person(): void
+    /**
+     * Nobody is recognised behind the shopkeeper's back.
+     *
+     * Matching on the phone by itself was wrong twice over: it attached a buy
+     * to somebody who had not been named, and since the matched record keeps
+     * its own name, the second person's name simply vanished. Typing a name
+     * now always makes a new person, whatever the number.
+     */
+    public function test_typing_a_seller_makes_a_new_person_even_on_a_repeated_number(): void
     {
         $first = $this->buyUsed(['amount_paid' => 0]);
         $second = $this->buyUsed(['name' => 'Dell Latitude', 'cost' => 500_000, 'amount_paid' => 0]);
 
+        $this->assertNotSame($first['seller']->id, $second['seller']->id);
+        $this->assertSame(2, Supplier::walkIns()->count());
+    }
+
+    /** Picking somebody from the list is what makes it them, and it adds up. */
+    public function test_choosing_a_seller_reuses_them_and_their_balance_adds_up(): void
+    {
+        $first = $this->buyUsed(['amount_paid' => 0]);
+
+        $second = $this->buyUsed([
+            'name' => 'Dell Latitude',
+            'cost' => 500_000,
+            'amount_paid' => 0,
+            'seller_id' => $first['seller']->id,
+        ]);
+
         $this->assertSame($first['seller']->id, $second['seller']->id);
         $this->assertSame(800_000, (int) $first['seller']->refresh()->balance);
         $this->assertSame(1, Supplier::walkIns()->count());
+    }
+
+    /** Section 9: they are not suppliers, and the supplier list does not show them. */
+    public function test_a_walk_in_seller_never_appears_on_the_supplier_list(): void
+    {
+        $result = $this->buyUsed();
+
+        $this->actingAs($this->admin)->get(route('suppliers.index'))
+            ->assertOk()
+            ->assertDontSee($result['seller']->name);
+
+        // Their own screen still has them, and their statement still opens.
+        $this->actingAs($this->admin)->get(route('second-hand.sellers'))
+            ->assertOk()
+            ->assertSee($result['seller']->name);
+    }
+
+    public function test_the_seller_lookup_finds_them_by_name_and_by_number(): void
+    {
+        $result = $this->buyUsed();
+
+        foreach ([$result['seller']->name, $result['seller']->phone] as $term) {
+            $this->actingAs($this->admin)
+                ->getJson(route('second-hand.sellers.search', ['q' => $term]))
+                ->assertOk()
+                ->assertJsonFragment(['id' => $result['seller']->id]);
+        }
     }
 
     public function test_two_people_with_no_phone_stay_two_people(): void
