@@ -279,12 +279,11 @@ th.money {
 }
 
 // ---------------------------------------------------------------------------
-// The product screens.
+// The figures above a list.
 //
-// A small design system rather than a set of one-off tweaks: a figure, a chip,
-// a sortable heading, a table row. Written against Bootstrap's own variables so
-// the shop's chosen colour and font still reach every part of it, and in logical
-// properties so it mirrors in Kurdish, Arabic and Persian without a second rule.
+// Three numbers worth knowing before reading the table, and one of them is
+// worth acting on — so that one is a filter as well as a figure, and says so by
+// behaving like a control.
 // ---------------------------------------------------------------------------
 
 .stat-tile {
@@ -315,9 +314,11 @@ th.money {
   }
 }
 
-// A figure that is also a filter says so by behaving like a control.
-.stat-tile-action {
-  cursor: pointer;
+// A figure that is also a filter. It is a link, so it works the way the rest of
+// this page works: press it, the page reloads showing only those rows.
+a.stat-tile {
+  text-decoration: none;
+  color: inherit;
   transition: border-color .12s ease-out, background-color .12s ease-out;
 
   &:hover {
@@ -330,185 +331,40 @@ th.money {
   }
 }
 
-// Categories as chips rather than a multi-select nobody can work out how to use
-// without holding Ctrl.
-.filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .35rem;
-  // Three rows of chips, then it scrolls — a shop with forty categories should
-  // not push the table off the screen.
-  max-height: 7.1rem;
-  overflow-y: auto;
-}
+// ---------------------------------------------------------------------------
+// Hold to save.
+//
+// The fill is the whole explanation: it grows for three seconds and the form
+// goes when it reaches the far edge. Letting go sends it back to nothing, so a
+// mis-press is visibly harmless. It grows from the leading edge, which mirrors
+// with the writing direction.
+// ---------------------------------------------------------------------------
 
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: .2rem .6rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 2rem;
-  font-size: .8rem;
-  cursor: pointer;
-  user-select: none;
-  transition: background-color .12s ease-out, border-color .12s ease-out;
+.btn-hold {
+  position: relative;
+  overflow: hidden;
 
-  input {
-    // The checkbox is the state, not the decoration.
+  // The label sits above the fill, never behind it.
+  .btn-hold-label {
+    position: relative;
+    z-index: 1;
+  }
+
+  .btn-hold-fill {
     position: absolute;
-    opacity: 0;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 0;
+    background-color: rgba(0, 0, 0, .28);
     pointer-events: none;
   }
 
-  &:hover {
-    border-color: var(--bs-primary);
+  &.is-holding {
+    // Nothing selects while a finger or the mouse is held down on it.
+    user-select: none;
   }
 
-  &.is-on {
-    border-color: var(--bs-primary);
-    background-color: var(--bs-primary);
-    color: #fff;
-  }
-}
-
-// The bar that appears when rows are selected. Dark, so it reads as a mode the
-// reader is in rather than another part of the page.
-.bulk-bar {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  padding: .6rem .9rem;
-  border-radius: var(--bs-border-radius-lg);
-  background-color: var(--bs-emphasis-color);
-  color: var(--bs-body-bg);
-}
-
-.data-table {
-  th {
-    // Quieter than the rows: a heading is a label, not content.
-    font-size: .75rem;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--bs-secondary-color);
-    font-weight: 600;
-  }
-
-  tbody tr.is-selected > * {
-    background-color: var(--bs-primary-bg-subtle);
-  }
-
-  tbody tr.is-inactive {
-    opacity: .55;
-  }
-
-  // Row actions stay out of the way until the row is under the cursor, which
-  // leaves the numbers to be read. They stay put for a keyboard.
-  .row-actions {
-    opacity: 0;
-    transition: opacity .12s ease-out;
-  }
-
-  tbody tr:hover .row-actions,
-  .row-actions:focus-within {
+  &:disabled {
     opacity: 1;
-  }
-}
-
-.th-sort {
-  display: inline-flex;
-  align-items: center;
-  gap: .3rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  // A button does not inherit these on its own, and a sortable heading that
-  // looks different from the one beside it reads as a different kind of thing.
-  text-transform: inherit;
-  letter-spacing: inherit;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--bs-body-color);
-  }
-}
-
-.th-sort-icon {
-  opacity: .35;
-
-  &.is-on {
-    opacity: 1;
-    color: var(--bs-primary);
-  }
-}
-
-.badge-soft {
-  display: inline-block;
-  padding: .15rem .5rem;
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-tertiary-bg);
-  color: var(--bs-secondary-color);
-  font-size: .78rem;
-}
-
-// While the server is answering, the table steps back rather than freezing.
-.is-busy {
-  opacity: .55;
-  transition: opacity .12s ease-out;
-  pointer-events: none;
-}
-
-// A form field is a group; the space belongs between groups, not inside them.
-.field {
-  margin-bottom: 1.1rem;
-
-  .form-text {
-    margin-top: .25rem;
-    font-size: .78rem;
-  }
-}
-
-.form-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: .4rem;
-  margin-top: .4rem;
-  padding: .4rem .6rem;
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-tertiary-bg);
-  color: var(--bs-secondary-color);
-  font-size: .78rem;
-
-  &-warning {
-    background-color: var(--bs-warning-bg-subtle);
-    color: var(--bs-warning-text-emphasis);
-  }
-}
-
-// What the two prices are actually for.
-.margin-readout {
-  display: flex;
-  align-items: baseline;
-  gap: .5rem;
-  margin-top: .25rem;
-  padding: .5rem .75rem;
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-success-bg-subtle);
-  color: var(--bs-success-text-emphasis);
-  font-size: .85rem;
-
-  strong {
-    font-size: 1.05rem;
-    margin-inline-start: auto;
-  }
-
-  &-pct {
-    opacity: .75;
-  }
-
-  &.is-negative {
-    background-color: var(--bs-danger-bg-subtle);
-    color: var(--bs-danger-text-emphasis);
   }
 }

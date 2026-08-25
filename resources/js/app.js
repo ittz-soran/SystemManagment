@@ -34,36 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * The same toast, for a page that never reloaded.
- *
- * A Livewire screen has no next request to flash a message into, so it says so
- * over the wire instead. It lands in the container the server-rendered toasts
- * use, looks identical, and clears itself up afterwards.
- */
-document.addEventListener('livewire:init', () => {
-    const container = document.querySelector('.toast-container');
-
-    if (! container) return;
-
-    Livewire.on('toast', (event) => {
-        const { message, variant = 'success' } = Array.isArray(event) ? event[0] : event;
-
-        const el = document.createElement('div');
-        el.className = `toast align-items-center text-bg-${variant} border-0`;
-        el.setAttribute('role', 'alert');
-        el.setAttribute('aria-live', 'polite');
-        el.innerHTML =
-            '<div class="d-flex"><div class="toast-body"></div>' +
-            '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
-        el.querySelector('.toast-body').textContent = message;
-
-        container.appendChild(el);
-        el.addEventListener('hidden.bs.toast', () => el.remove());
-        bootstrap.Toast.getOrCreateInstance(el, { delay: 4000 }).show();
-    });
-});
-
-/**
  * The number keypad (Section 9b).
  *
  * Any input carrying data-numpad opens it when tapped. The counter is a
@@ -192,21 +162,58 @@ document.addEventListener('DOMContentLoaded', () => {
         show();
     }
 
+    /**
+     * The next box a person would fill in, in reading order.
+     *
+     * Anything hidden, disabled or read-only is skipped, as is anything inside
+     * the pad itself. Buttons are not offered: the end of the last field is the
+     * end of the run, and saving is a decision, not the next keystroke.
+     */
+    function nextField(from) {
+        const fields = [...document.querySelectorAll(
+            'form input:not([type=hidden]):not([type=checkbox]):not([type=radio]), form select, form textarea'
+        )].filter((el) =>
+            ! el.disabled && ! el.readOnly && ! modal.contains(el) && el.offsetParent !== null
+        );
+
+        const at = fields.indexOf(from);
+
+        return at === -1 ? null : (fields[at + 1] ?? null);
+    }
+
     function apply() {
         if (! field) return;
 
         // Pressing OK on "15000 − 500" means 14500, not 500.
         resolve();
 
-        const minimum = Number(field.dataset.numpadMin ?? 0);
+        // Kept, because `field` is cleared before the modal finishes hiding.
+        const target = field;
+
+        const minimum = Number(target.dataset.numpadMin ?? 0);
         const value = Math.max(minimum, Number(entry === '' ? 0 : entry));
 
-        field.value = decimals() > 0 ? value.toFixed(decimals()) : String(Math.round(value));
+        target.value = decimals() > 0 ? value.toFixed(decimals()) : String(Math.round(value));
 
         // The carts listen for 'input', so this is what makes the line total,
         // the below-cost warning and the running total follow along.
-        field.dispatchEvent(new Event('input', { bubbles: true }));
-        field.dispatchEvent(new Event('change', { bubbles: true }));
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // A price and a quantity are entered one after the other, so the caret
+        // moves on by itself rather than waiting to be put there. Bootstrap
+        // moves focus about while it hides, so this waits until it has stopped.
+        modal.addEventListener('hidden.bs.modal', () => {
+            const next = nextField(target);
+
+            if (! next) return;
+
+            next.focus();
+
+            // Selected, not just focused: the next figure replaces the old one
+            // rather than being typed onto the end of it.
+            if (typeof next.select === 'function') next.select();
+        }, { once: true });
 
         instance.hide();
     }
@@ -786,4 +793,144 @@ document.addEventListener('DOMContentLoaded', () => {
             input.select();
         }
     });
+});
+
+/**
+ * Hold to save (Section 9b).
+ *
+ * A barcode scanner types the code and then presses Enter. Scanning the same
+ * item twice used to submit the product form on the second Enter, and so did
+ * Enter pressed on the reorder level or any other box — a half-finished product
+ * saved by a keystroke nobody meant as an instruction.
+ *
+ * The button carrying data-hold-submit is a plain button rather than a submit,
+ * which takes Enter out of the picture altogether, and it has to be held down
+ * for three seconds before the form goes. Letting go early cancels it and the
+ * fill runs back to nothing, so a mis-press costs nothing but the press.
+ *
+ * Held with the mouse, a finger, or the keyboard: Space or Enter while the
+ * button itself has focus. A scanner's Enter is a tap, not a hold, so it dies
+ * on the keyup a few milliseconds later.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const HOLD_MS = 3000;
+
+    document.querySelectorAll('[data-hold-submit]').forEach((button) => {
+        const form = button.closest('form');
+
+        if (! form) return;
+
+        const label = button.querySelector('.btn-hold-label') ?? button;
+        const fill = button.querySelector('.btn-hold-fill');
+        const resting = label.innerHTML;
+
+        let frame = null;
+        let startedAt = 0;
+        let done = false;
+
+        const paint = (fraction) => {
+            if (fill) fill.style.width = `${Math.round(fraction * 100)}%`;
+        };
+
+        const stop = () => {
+            if (frame) cancelAnimationFrame(frame);
+            frame = null;
+            startedAt = 0;
+            paint(0);
+            button.classList.remove('is-holding');
+            label.innerHTML = resting;
+        };
+
+        const finish = () => {
+            // Validation first, and asked rather than assumed: a required box
+            // still empty must leave the button usable, not stranded saying
+            // "Saving…" over a form that never went anywhere. reportValidity
+            // also puts the caret in the offending field and says why.
+            if (typeof form.reportValidity === 'function' && ! form.reportValidity()) {
+                stop();
+
+                return;
+            }
+
+            done = true;
+            button.disabled = true;
+            paint(1);
+            label.textContent = button.dataset.holdDone ?? 'Saving…';
+
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.submit();
+        };
+
+        const tick = () => {
+            const elapsed = Date.now() - startedAt;
+
+            if (elapsed >= HOLD_MS) return finish();
+
+            paint(elapsed / HOLD_MS);
+            frame = requestAnimationFrame(tick);
+        };
+
+        const start = () => {
+            if (done || startedAt) return;
+
+            startedAt = Date.now();
+            button.classList.add('is-holding');
+            label.textContent = button.dataset.holdHolding ?? 'Keep holding…';
+            frame = requestAnimationFrame(tick);
+        };
+
+        button.addEventListener('pointerdown', start);
+        button.addEventListener('pointerup', stop);
+        button.addEventListener('pointerleave', stop);
+        button.addEventListener('pointercancel', stop);
+
+        button.addEventListener('keydown', (event) => {
+            // Not event.repeat: a held key repeats, and each repeat would
+            // otherwise restart a hold that is already running.
+            if ((event.key === ' ' || event.key === 'Enter') && ! event.repeat) {
+                event.preventDefault();
+                start();
+            }
+        });
+
+        button.addEventListener('keyup', (event) => {
+            if (event.key === ' ' || event.key === 'Enter') stop();
+        });
+
+        // Nothing should leave this page mid-hold with a half-drawn button.
+        window.addEventListener('blur', stop);
+
+        /**
+         * The same protection for the keyboard, stated rather than relied upon.
+         *
+         * A form whose only button is a hold button has no submit control, so
+         * most browsers will not submit it on Enter anyway. This says so out
+         * loud, and covers the one-field case where a browser still would.
+         */
+        if (! form.dataset.holdGuarded) {
+            form.dataset.holdGuarded = '1';
+
+            form.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') return;
+
+                // A textarea is somewhere Enter means a new line, and a button
+                // is somewhere it means press me. Elsewhere it means nothing.
+                const tag = event.target.tagName;
+
+                if (tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'A') return;
+
+                event.preventDefault();
+
+                // A scanner ends every read with Enter. Selecting the box it
+                // just filled means a second read of the same label replaces
+                // the code rather than being typed onto the end of it, which
+                // is how one scan too many used to become a 26-digit barcode.
+                if (event.target.dataset?.rescan !== undefined
+                    && typeof event.target.select === 'function') {
+                    event.target.select();
+                }
+            });
+        }
+    });
+
 });
