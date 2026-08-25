@@ -23,10 +23,37 @@
         </button>
     @endif
 
+    {{-- Correcting what is on the shelf belongs next to the product it is
+         about, not three screens away. A service holds no stock, so there is
+         nothing about it to adjust. --}}
+    @can('stock_adjustments.create')
+        @unless($product->isService())
+            <a href="{{ route('stock-adjustments.index', ['product' => $product->id]) }}"
+               class="btn btn-outline-secondary">
+                <i class="bi bi-sliders me-1"></i>{{ __('New adjustment') }}
+            </a>
+        @endunless
+    @endcan
+
     @can('products.edit')
         <a href="{{ route('products.edit', $product) }}" class="btn btn-outline-secondary">
             <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
         </a>
+    @endcan
+
+    {{-- Section 5: a product with stock history is deactivated, never deleted —
+         its movements are somebody's invoice. The button says so before it is
+         pressed rather than surprising the reader afterwards. --}}
+    @can('products.delete')
+        <form action="{{ route('products.destroy', $product) }}" method="POST" class="d-inline"
+              onsubmit="return confirm(@js(__('Delete :name? Products with stock history are deactivated instead.', ['name' => $product->name])))">
+            @csrf
+            @method('DELETE')
+            <x-return-to />
+            <button type="submit" class="btn btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>{{ __('Delete') }}
+            </button>
+        </form>
     @endcan
 @endsection
 

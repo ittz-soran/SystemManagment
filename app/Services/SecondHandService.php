@@ -47,7 +47,7 @@ class SecondHandService
     /**
      * @param  array{
      *     name: string, cost: int, sale_price: int,
-     *     seller_name: string, seller_phone?: string|null,
+     *     seller_name: string, seller_phone?: string|null, seller_id?: int|null,
      *     condition_note?: string|null, category_id?: int|null,
      *     unit?: string|null, amount_paid?: int|null, payment_method?: string|null,
      * }  $input
@@ -62,7 +62,11 @@ class SecondHandService
         }
 
         return DB::transaction(function () use ($input, $user, $boughtAt) {
-            $seller = $this->seller($input['seller_name'], $input['seller_phone'] ?? null);
+            $seller = $this->seller(
+                $input['seller_name'],
+                $input['seller_phone'] ?? null,
+                $input['seller_id'] ?? null,
+            );
 
             $codes = $this->codes->resolve([]);
 
@@ -107,14 +111,20 @@ class SecondHandService
     }
 
     /**
-     * The same person, recognised.
+     * The person the shop bought it from — the one that was chosen, or a new one.
      *
-     * Matched on phone, because that is what someone gives twice the same way —
-     * a name is spelled three ways by three different hands. With no phone
-     * there is nothing to match on, so a new record is made rather than
-     * guessing that two people with one common name are one person.
+     * This used to match on phone by itself, and that was wrong twice over. It
+     * quietly attached a buy to somebody the shopkeeper had not named, and
+     * because the matched record keeps its own name, the second person's name
+     * simply vanished — every later buy came out under the first person's name
+     * with no way to say otherwise.
+     *
+     * So nothing is matched behind anyone's back. The form searches the people
+     * already bought from, by name and by number; picking one sends its id here
+     * and that is who it is. Typing instead makes a new person. The shopkeeper
+     * decides, every time.
      */
-    public function seller(string $name, ?string $phone): Supplier
+    public function seller(string $name, ?string $phone, ?int $sellerId = null): Supplier
     {
         $name = trim($name);
         $phone = filled($phone) ? trim($phone) : null;
@@ -123,12 +133,18 @@ class SecondHandService
             throw new RuntimeException(__('The seller needs a name.'));
         }
 
-        $existing = $phone === null
-            ? null
-            : Supplier::walkIns()->where('phone', $phone)->first();
+        if ($sellerId !== null) {
+            $chosen = Supplier::walkIns()->find($sellerId);
 
-        if ($existing) {
-            return $existing;
+            if ($chosen) {
+                // A number added on a later visit is worth keeping; a name is
+                // not overwritten, since this is the person who was chosen.
+                if ($phone !== null && blank($chosen->phone)) {
+                    $chosen->update(['phone' => $phone]);
+                }
+
+                return $chosen;
+            }
         }
 
         return Supplier::create([

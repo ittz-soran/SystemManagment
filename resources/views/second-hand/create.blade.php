@@ -61,21 +61,50 @@
                 <div class="card">
                     <div class="card-header">{{ __('Who you bought it from') }}</div>
                     <div class="card-body">
-                        <div class="row g-3">
+                        {{-- Not a supplier. Somebody who walked in once with an
+                             old console, whose own screen is under Second-hand
+                             and who never appears on the supplier list.
+
+                             Nothing is matched behind the shopkeeper's back:
+                             this searches the people already bought from, and
+                             picking one is what makes it that person. Typing a
+                             name and leaving the list alone makes a new one. --}}
+                        <div class="mb-3 position-relative">
+                            <label for="seller-search" class="form-label">{{ __('Bought from') }}</label>
+                            <input id="seller-search" type="text" class="form-control"
+                                   placeholder="{{ __('Type a name or number to find someone you have bought from…') }}"
+                                   autocomplete="off">
+                            <div id="seller-results" class="list-group position-absolute w-100 shadow-sm d-none"
+                                 style="z-index: 5"></div>
+                        </div>
+
+                        <div id="seller-chosen" class="alert alert-secondary py-2 d-none">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-person-check"></i>
+                                <span class="fw-medium" id="seller-chosen-name"></span>
+                                <span class="small text-secondary" id="seller-chosen-owed"></span>
+                                <button type="button" class="btn btn-sm btn-link text-decoration-none ms-auto"
+                                        id="seller-clear">{{ __('Someone else') }}</button>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="seller_id" id="seller_id" value="{{ old('seller_id') }}">
+
+                        <div class="row g-3" id="seller-new">
                             <div class="col-sm-6">
                                 <label for="seller_name" class="form-label">{{ __('Name') }}</label>
                                 <input id="seller_name" name="seller_name" value="{{ old('seller_name') }}" required
+                                       autocomplete="off"
                                        class="form-control @error('seller_name') is-invalid @enderror">
                                 @error('seller_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-sm-6">
                                 <label for="seller_phone" class="form-label">{{ __('Phone') }}</label>
                                 <input id="seller_phone" name="seller_phone" value="{{ old('seller_phone') }}" dir="ltr"
+                                       autocomplete="off"
                                        class="form-control @error('seller_phone') is-invalid @enderror">
-                                {{-- Matched on the phone, because that is what a
-                                     person gives twice the same way. --}}
                                 <div class="form-text">
-                                    {{ __('If you have bought from this number before, it is the same person — what you still owe them adds up.') }}
+                                    {{ __('A number makes them easy to find next time. It is not required.') }}
                                 </div>
                                 @error('seller_phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
@@ -150,3 +179,123 @@
         </div>
     </form>
 @endsection
+
+@push('scripts')
+    <script>
+        /**
+         * The people already bought from, offered as the shopkeeper types.
+         *
+         * It offers; it never decides. Picking somebody sends their id with the
+         * form and that is who the buy belongs to. Ignoring the list and typing
+         * a name makes a new person — which is what "I bought this off someone
+         * new today" should do, and what the old phone matching would not let
+         * it do.
+         */
+        (() => {
+            const search = document.getElementById('seller-search');
+
+            if (! search) return;
+
+            const results = document.getElementById('seller-results');
+            const chosen = document.getElementById('seller-chosen');
+            const chosenName = document.getElementById('seller-chosen-name');
+            const chosenOwed = document.getElementById('seller-chosen-owed');
+            const idField = document.getElementById('seller_id');
+            const nameField = document.getElementById('seller_name');
+            const phoneField = document.getElementById('seller_phone');
+            const newBlock = document.getElementById('seller-new');
+            const url = @json(route('second-hand.sellers.search'));
+
+            let timer = null;
+
+            const hide = () => results.classList.add('d-none');
+
+            function forget() {
+                idField.value = '';
+                chosen.classList.add('d-none');
+                newBlock.classList.remove('d-none');
+                nameField.required = true;
+                search.value = '';
+                hide();
+                nameField.focus();
+            }
+
+            function choose(seller) {
+                idField.value = seller.id;
+                chosenName.textContent = seller.phone ? `${seller.name} · ${seller.phone}` : seller.name;
+                chosenOwed.textContent = seller.balance_label ?? '';
+                chosen.classList.remove('d-none');
+
+                // The new-person boxes are filled and put away rather than
+                // cleared: the server still wants a name, and if the reader
+                // changes their mind the values are already there.
+                nameField.value = seller.name;
+                phoneField.value = seller.phone ?? '';
+                newBlock.classList.add('d-none');
+
+                search.value = '';
+                hide();
+            }
+
+            document.getElementById('seller-clear').addEventListener('click', forget);
+
+            search.addEventListener('input', () => {
+                clearTimeout(timer);
+
+                const term = search.value.trim();
+
+                if (term === '') return hide();
+
+                timer = setTimeout(async () => {
+                    const response = await fetch(`${url}?q=${encodeURIComponent(term)}`, {
+                        headers: { Accept: 'application/json' },
+                    });
+
+                    if (! response.ok) return hide();
+
+                    const sellers = await response.json();
+
+                    results.innerHTML = '';
+
+                    if (sellers.length === 0) {
+                        const empty = document.createElement('div');
+                        empty.className = 'list-group-item small text-secondary';
+                        empty.textContent = @json(__('Nobody yet — type the name below to add them.'));
+                        results.appendChild(empty);
+                        results.classList.remove('d-none');
+
+                        return;
+                    }
+
+                    sellers.forEach((seller) => {
+                        const row = document.createElement('button');
+                        row.type = 'button';
+                        row.className = 'list-group-item list-group-item-action';
+                        row.innerHTML =
+                            `<span class="fw-medium"></span>` +
+                            `<span class="small text-secondary ms-2" dir="ltr"></span>` +
+                            `<span class="small text-danger ms-2"></span>`;
+                        row.children[0].textContent = seller.name;
+                        row.children[1].textContent = seller.phone ?? '';
+                        row.children[2].textContent = seller.balance_label ?? '';
+                        row.addEventListener('click', () => choose(seller));
+                        results.appendChild(row);
+                    });
+
+                    results.classList.remove('d-none');
+                }, 250);
+            });
+
+            document.addEventListener('click', (event) => {
+                if (! results.contains(event.target) && event.target !== search) hide();
+            });
+
+            // Coming back from a failed save with somebody already picked.
+            @if(old('seller_id'))
+                chosenName.textContent = @json(old('seller_name'));
+                chosen.classList.remove('d-none');
+                newBlock.classList.add('d-none');
+            @endif
+        })();
+    </script>
+@endpush

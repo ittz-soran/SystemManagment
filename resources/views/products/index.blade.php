@@ -114,14 +114,15 @@
                            :action-label="__('New product')" />
         </div>
     @else
-        <form action="{{ route('categories.bulk-assign') }}" method="POST">
-            @csrf
-            <div class="card">
+        <div class="card">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead>
                         <tr>
-                            <th style="width: 2rem"></th>
+                            <th style="width: 2rem">
+                                <input type="checkbox" class="form-check-input" id="bulk-select-all"
+                                       aria-label="{{ __('Select all') }}">
+                            </th>
                             <th>{{ __('Product') }}</th>
                             <th>{{ __('Category') }}</th>
                             <th class="money">{{ __('In stock') }}</th>
@@ -134,8 +135,9 @@
                         @foreach($products as $product)
                             <tr class="{{ $product->is_active ? '' : 'opacity-50' }}">
                                 <td>
-                                    <input type="checkbox" class="form-check-input" name="product_ids[]"
-                                           value="{{ $product->id }}" aria-label="{{ $product->name }}">
+                                    <input type="checkbox" class="form-check-input"
+                                           data-bulk-id="{{ $product->id }}"
+                                           aria-label="{{ $product->name }}">
                                 </td>
                                 <td>
                                     <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-medium">
@@ -166,22 +168,17 @@
                         </tbody>
                     </table>
                 </div>
-
-                @can('products.edit')
-                    {{-- Section 9: bulk-move selected products into a category. --}}
-                    <div class="card-footer d-flex flex-wrap align-items-center gap-2">
-                        <span class="small text-secondary">{{ __('With selected:') }}</span>
-                        <select name="category_id" class="form-select form-select-sm" style="max-width: 14rem">
-                            <option value="">{{ __('Move to category…') }}</option>
-                            @foreach($categories as $category)
-                                <option value="{{ $category->id }}">{{ $category->name }}</option>
-                            @endforeach
-                        </select>
-                        <button class="btn btn-sm btn-outline-primary">{{ __('Apply') }}</button>
-                    </div>
-                @endcan
             </div>
-        </form>
+
+        {{-- Section 8b: moving, exporting and deleting the ticked rows. The bar
+             carries the ids into its own forms, so nothing here wraps the table
+             — a form around it would swallow each row's delete form. --}}
+        <x-bulk-actions
+            :action="Gate::allows('products.delete') ? route('products.bulk-destroy') : null"
+            :export="route('products.bulk-export')"
+            :move="Gate::allows('products.edit') ? route('categories.bulk-assign') : null"
+            :categories="$categories"
+            :confirm="__('Delete the selected products?')" />
 
         <div class="mt-3">{{ $products->links() }}</div>
     @endif

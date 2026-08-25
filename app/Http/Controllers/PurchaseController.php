@@ -38,14 +38,14 @@ class PurchaseController extends Controller
         return view('purchases.index', [
             'archivedCount' => $archivedCount,
             'purchases' => $purchases,
-            'suppliers' => Supplier::orderBy('name')->get(),
+            'suppliers' => Supplier::companies()->orderBy('name')->get(),
         ]);
     }
 
     public function create(): View
     {
         return view('purchases.create', [
-            'suppliers' => Supplier::where('is_active', true)->orderBy('name')->get(),
+            'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
             // Section 6b: pre-filled from settings, editable per purchase,
             // because the rate you actually paid at is the one that matters.
             'usdRate' => (int) setting('usd_rate', 0),
@@ -105,7 +105,7 @@ class PurchaseController extends Controller
         return view('purchases.edit', [
             'purchase' => $purchase,
             'cartLines' => $this->cartLines($purchase),
-            'suppliers' => Supplier::where('is_active', true)->orderBy('name')->get(),
+            'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
             // Section 6b: the rate this purchase was actually entered at, so
             // re-saving it does not silently reprice the USD lines.
             'usdRate' => (int) ($purchase->exchange_rate ?: setting('usd_rate', 0)),

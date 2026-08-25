@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}" data-guard-submit>
+    <form method="POST" action="{{ route('password.store') }}" data-guard-submit data-hold-exempt>
         @csrf
 
         <input type="hidden" name="token" value="{{ $request->route('token') }}">

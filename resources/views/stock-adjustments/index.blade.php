@@ -223,6 +223,22 @@
             direction.addEventListener('change', syncDirection);
             syncDirection();
 
+            // Arrived from a product's own page: the product is already chosen
+            // and the form is open, so the only thing left is the number.
+            @if($startWith)
+                hidden.value = @json($startWith->id);
+                chosen.textContent = @json($startWith->name);
+                search.value = @json($startWith->name);
+
+                // app.js is a module, so it is deferred and window.bootstrap
+                // does not exist yet while this inline script runs.
+                document.addEventListener('DOMContentLoaded', () => {
+                    bootstrap.Modal.getOrCreateInstance(
+                        document.getElementById('adjustment-modal')
+                    ).show();
+                });
+            @endif
+
             search.addEventListener('input', () => {
                 clearTimeout(timer);
                 const term = search.value.trim();

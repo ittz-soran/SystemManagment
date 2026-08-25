@@ -136,14 +136,32 @@ if (! function_exists('after_delete')) {
      */
     function after_delete(string $gone, string $fallback): string
     {
+        // Compared by path, never by the whole address.
+        //
+        // The shop answers to more than one address — the same machine is
+        // http://localhost:8000 to whoever set it up and http://127.0.0.1:8000
+        // to whoever typed that instead, and over the counter it is the
+        // machine's name on the network. The referer carries whichever the
+        // reader actually typed; route() builds whichever APP_URL happens to
+        // say. Compared as strings those two never match, so the guard below
+        // used to think the deleted record's own page was somewhere else worth
+        // going — and sent the reader to a row that no longer exists. A 404,
+        // every time, for a delete that had worked perfectly.
+        $path = static function (string $url): string {
+            $path = parse_url($url, PHP_URL_PATH);
+
+            return $path === false || $path === null || $path === '' ? '/' : $path;
+        };
+
         $previous = url()->previous();
+        $gonePath = $path($gone);
 
         // previous() answers with the site root when the browser sent no
         // referer at all, which is not a page in this shop and not somewhere to
         // put anybody.
-        $hasPrevious = $previous !== url('/')
-            && $previous !== $gone
-            && $previous !== url()->current();
+        $hasPrevious = $path($previous) !== '/'
+            && $path($previous) !== $gonePath
+            && $path($previous) !== $path(url()->current());
 
         if ($hasPrevious) {
             return $previous;
@@ -154,7 +172,7 @@ if (! function_exists('after_delete')) {
         $safe = str_starts_with($carried, '/')
             && ! str_starts_with($carried, '//')
             && ! str_contains($carried, '\\')
-            && $carried !== parse_url($gone, PHP_URL_PATH);
+            && $path($carried) !== $gonePath;
 
         return $safe ? $carried : $fallback;
     }

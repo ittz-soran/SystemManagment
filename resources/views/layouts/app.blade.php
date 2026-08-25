@@ -31,7 +31,7 @@
         </script>
     @endif
 </head>
-<body class="bg-body-tertiary">
+<body class="bg-body-tertiary" data-hold-hint="{{ __('Hold to save') }}">
 <div class="d-flex">
     @include('layouts.sidebar')
 

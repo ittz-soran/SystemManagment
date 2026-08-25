@@ -54,6 +54,14 @@ class StockAdjustmentController extends Controller
             'archivedCount' => $archivedCount,
             'adjustments' => $adjustments,
             'reasons' => self::REASONS,
+
+            // Arrived from a product's own page, which is where the shopkeeper
+            // noticed the shelf and the screen disagreeing. The form opens with
+            // that product already chosen rather than asking them to find it
+            // again in a box they have just come from.
+            'startWith' => $request->filled('product')
+                ? Product::ofKind([Product::KIND_STOCK, Product::KIND_USED])->find($request->integer('product'))
+                : null,
         ]);
     }
 

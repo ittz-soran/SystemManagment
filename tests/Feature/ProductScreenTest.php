@@ -127,9 +127,18 @@ class ProductScreenTest extends TestCase
 
             $this->assertNotEmpty($form, 'The product form was not found on '.$url);
 
-            $this->assertStringContainsString('data-hold-submit', $form[0]);
+            $this->assertStringContainsString('data-guard-submit', $form[0]);
             $this->assertStringContainsString('type="submit"', $form[0]);
         }
+    }
+
+    /** Signing in is not saving a record, and holding a button to log in is grim. */
+    public function test_the_login_form_is_exempt_from_holding(): void
+    {
+        $this->assertStringContainsString(
+            'data-hold-exempt',
+            $this->get(route('login'))->assertOk()->getContent(),
+        );
     }
 
     /** The form itself is untouched by the guard — saving still works. */

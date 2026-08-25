@@ -813,47 +813,82 @@ document.addEventListener('DOMContentLoaded', () => {
  * Enter pressed on the reorder level or any other box — a half-finished product
  * saved by a keystroke nobody meant as an instruction.
  *
- * So the Save button has to be held down for three seconds. Let go early and it
- * counts for nothing; the fill runs back and the count starts again next time.
+ * So a save has to be held down for two seconds. Let go early and it counts for
+ * nothing; the fill runs back and the count starts again next time.
+ *
+ * Every form that writes something carries data-guard-submit already, so that
+ * is what this reads rather than a mark added to twenty-eight files one at a
+ * time. Signing in is not writing something, and holding a button to log in
+ * would be miserable, so the auth forms opt out with data-hold-exempt.
  *
  * The release is listened for on the window rather than on the button, and that
  * is the whole trick. A release only reaches the button if the pointer is still
  * over it and the element under it still exists — and neither is safe to assume,
- * since the label changes while the hold runs and a finger or mouse drifts. A
- * missed release leaves the count running after the shopkeeper has let go, and
- * the form saves itself three seconds later. The window sees every release.
+ * since the label changes while the hold runs and a hand drifts. A missed
+ * release leaves the count running after the shopkeeper has let go, and the form
+ * saves itself two seconds later. The window sees every release.
  *
- * The markup ships as an ordinary submit button and is demoted here. If this
- * script never arrives — a stale build, a blocked file — the shopkeeper gets a
- * Save button that works rather than a form that cannot be saved at all.
+ * Buttons are left as ordinary submits in the markup and demoted here. If this
+ * script never arrives — a stale build, a blocked file — the shop gets Save
+ * buttons that work rather than forms that cannot be saved at all.
  */
 document.addEventListener('DOMContentLoaded', () => {
-    const HOLD_MS = 3000;
+    const HOLD_MS = 2000;
 
-    document.querySelectorAll('[data-hold-submit]').forEach((button) => {
-        const form = button.closest('form');
+    // The words come from the layout, which is where translation happens.
+    const HINT = document.body.dataset.holdHint ?? 'Hold to save';
 
-        if (! form) return;
+    document.querySelectorAll('form[data-guard-submit]:not([data-hold-exempt])').forEach((form) => {
+        form.querySelectorAll('button[type="submit"], button:not([type])').forEach((button) => {
+            hold(form, button);
+        });
+    });
 
+    function hold(form, button) {
         button.type = 'button';
+        button.classList.add('btn-hold');
 
-        // Only this element's text changes while the hold runs. The icon and
-        // every wrapper stay put, so whatever the pointer is resting on is
-        // still there when it is lifted.
-        const text = button.querySelector('.btn-hold-text');
-        const fill = button.querySelector('.btn-hold-fill');
-        const resting = text?.textContent ?? '';
-        const holdingWord = button.dataset.holdHolding ?? 'Keep holding…';
+        // The words and the fill are built here rather than written into every
+        // template. Only the text node changes while the hold runs, so whatever
+        // the pointer is resting on is still there when it is lifted.
+        const label = document.createElement('span');
+        label.className = 'btn-hold-label';
+
+        while (button.firstChild) label.appendChild(button.firstChild);
+
+        // Only this span's text changes while the hold runs. The words, the
+        // icon and every wrapper stay put, so whatever the pointer is resting
+        // on is still there when it is lifted.
+        const text = document.createElement('span');
+        text.className = 'btn-hold-text';
+        label.appendChild(text);
+
+        const fill = document.createElement('span');
+        fill.className = 'btn-hold-fill';
+        fill.setAttribute('aria-hidden', 'true');
+
+        button.append(fill, label);
+
+        // The button keeps its own words — Save product, Record payment,
+        // Delete selected — and gains a countdown after them. Twenty-three
+        // buttons all renamed "Hold to save" would say less, not more.
+        button.title = HINT;
 
         let frame = null;
         let startedAt = 0;
         let holding = false;
         let saving = false;
 
-        const say = (words) => { if (text) text.textContent = words; };
+        const say = (words) => { text.textContent = words; };
 
         const paint = (fraction) => {
-            if (fill) fill.style.width = `${Math.round(fraction * 100)}%`;
+            fill.style.width = `${Math.round(fraction * 100)}%`;
+        };
+
+        const rest = () => {
+            paint(0);
+            button.classList.remove('is-holding');
+            say('');
         };
 
         const stop = () => {
@@ -865,9 +900,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             frame = null;
             startedAt = 0;
-            paint(0);
-            button.classList.remove('is-holding');
-            say(resting);
+            rest();
         };
 
         const finish = () => {
@@ -878,11 +911,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // still empty must leave the button usable, not stranded saying
             // "Saving…" over a form that never went anywhere.
             if (typeof form.reportValidity === 'function' && ! form.reportValidity()) {
-                paint(0);
-                button.classList.remove('is-holding');
-                say(resting);
+                rest();
 
-                // Held for three seconds and nothing happened reads as a broken
+                // Held for two seconds and nothing happened reads as a broken
                 // button, not as a missing field — so the field that stopped it
                 // is brought on screen and asked to say why.
                 const missing = form.querySelector('input:invalid, select:invalid, textarea:invalid');
@@ -899,8 +930,11 @@ document.addEventListener('DOMContentLoaded', () => {
             saving = true;
             button.disabled = true;
             paint(1);
-            say(button.dataset.holdDone ?? 'Saving…');
+            say(' · …');
 
+            // Without an argument: this button has just been demoted to a
+            // plain one, and requestSubmit refuses anything that is not a
+            // submit control as its submitter.
             if (typeof form.requestSubmit === 'function') form.requestSubmit();
             else form.submit();
         };
@@ -917,9 +951,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             paint(elapsed / HOLD_MS);
 
-            // Counted down out loud, so three seconds reads as three seconds
-            // rather than as a button that has not responded yet.
-            say(`${holdingWord} ${Math.ceil((HOLD_MS - elapsed) / 1000)}`);
+            // Counted down out loud, so two seconds reads as two seconds rather
+            // than as a button that has not responded yet.
+            say(` · ${Math.ceil((HOLD_MS - elapsed) / 1000)}`);
 
             frame = requestAnimationFrame(tick);
         };
@@ -1000,5 +1034,5 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-    });
+    }
 });
