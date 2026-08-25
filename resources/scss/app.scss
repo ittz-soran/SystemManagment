@@ -3,7 +3,7 @@
 // Section 8c applies the shop's brand by emitting CSS custom properties in the
 // layout head — stylesheets are never regenerated at runtime.
 @use 'bootstrap/scss/bootstrap' as *;
-@use 'bootstrap-icons/font/bootstrap-icons.css';
+@use 'icons';   // only the icons this shop draws — see tools/subset-icons.py
 
 // Section 8c offers four fonts "vetted for Latin + Arabic-script coverage,
 // self-hosted". Self-hosted is the part that matters: the shop cannot depend on

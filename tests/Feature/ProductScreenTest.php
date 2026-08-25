@@ -141,6 +141,30 @@ class ProductScreenTest extends TestCase
         $this->assertSame($counted, $shown->total());
     }
 
+    /**
+     * A name with an ampersand in it reads as it was typed.
+     *
+     * The page heading took the title section as @yield's default, and Laravel
+     * escapes a default — but the title had already been escaped when the
+     * section was set. So everything was escaped twice and "Tom & Jerry" was
+     * drawn as "Tom &amp; Jerry" on its own page. The shop's own Import &
+     * export screen read that way from the day it was written.
+     */
+    public function test_a_name_with_an_ampersand_is_not_escaped_twice(): void
+    {
+        $product = $this->product(['name' => 'Tom & Jerry cable']);
+
+        $html = $this->actingAs($this->admin)->get(route('products.show', $product))
+            ->assertOk()
+            ->getContent();
+
+        preg_match('/<h1[^>]*>(.*?)<\/h1>/s', $html, $heading);
+
+        $this->assertNotEmpty($heading, 'No heading on the page');
+        $this->assertStringContainsString('Tom &amp; Jerry cable', $heading[1]);
+        $this->assertStringNotContainsString('&amp;amp;', $heading[1]);
+    }
+
     // ---- The button -----------------------------------------------------
 
     /**
