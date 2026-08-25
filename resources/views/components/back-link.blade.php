@@ -23,6 +23,11 @@
     // A named destination is only offered to someone the destination would let
     // in. Where the reader came from needs no such check: they were just there.
     $named = filled($to) && ($permission === null || auth()->user()?->hasPermission($permission));
+
+    // The shared $isRtl comes from the request's middleware. A Livewire screen
+    // re-renders this outside that, so the direction is worked out from the
+    // locale when nobody has shared it.
+    $rtl = $isRtl ?? in_array(app()->getLocale(), \App\Http\Middleware\SetUserPreferences::RTL_LANGUAGES, true);
 @endphp
 
 <a href="{{ $named ? $to : '' }}"
@@ -30,6 +35,6 @@
    data-back-generic="{{ __('Back') }}"
    @unless($named) data-back-auto @endunless
    @if($remember) data-back-to="{{ $remember }}" @endif>
-    <i class="bi bi-arrow-{{ $isRtl ? 'right' : 'left' }}"></i>
+    <i class="bi bi-arrow-{{ $rtl ? 'right' : 'left' }}"></i>
     <span>{{ $named ? $label : __('Back') }}</span>
 </a>
