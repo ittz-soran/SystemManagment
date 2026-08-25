@@ -1,5 +1,6 @@
 {
     "(never applied to batch costs)": "(لا يُطبق أبداً على تكاليف الدفعات)",
+    ":amount profit if it all sells": "‏:amount ربح إذا بيع كله",
     ":count selected": "تم تحديد :count",
     ":item bought from :seller": "تم شراء :item من :seller",
     ":label: :created added, :updated changed, :unchanged already the same, :skipped skipped": ":label: أُضيف :created، وتغيّر :updated، و:unchanged كما هي، وتم تجاوز :skipped",
@@ -71,6 +72,7 @@
     "At :width mm the bars get thin enough that a cheap scanner may miss them. Test one before printing a roll.": "عند :width ملم تصبح الخطوط رفيعة لدرجة قد يخطئها ماسح رخيص. جرّب واحدًا قبل طباعة لفة كاملة.",
     "At FIFO cost": "بتكلفة الوارد أولاً",
     "At FIFO cost, right now": "بتكلفة الوارد أولاً، الآن",
+    "At sale price": "بسعر البيع",
     "Auto": "تلقائي",
     "Auto — follow the system": "تلقائي — حسب النظام",
     "Auto-generated codes look like :example.": "الرموز المولّدة تلقائياً تبدو مثل :example.",

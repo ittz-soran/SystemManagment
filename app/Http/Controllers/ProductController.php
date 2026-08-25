@@ -66,6 +66,16 @@ class ProductController extends Controller
             // left the till for the units still on the shelf.
             'stockValue' => (int) StockBatch::whereIn('product_id', Product::stocked()->select('id'))
                 ->sum(DB::raw('quantity_remaining * unit_cost')),
+
+            // The other side of the same shelf: what those units would fetch at
+            // today's sale price. Read off the batches too, so the two figures
+            // count the same units and the difference between them is a real
+            // number rather than two different stock counts subtracted.
+            'stockRetail' => (int) StockBatch::query()
+                ->join('products', 'products.id', '=', 'stock_batches.product_id')
+                ->where('products.kind', Product::KIND_STOCK)
+                ->whereNull('products.deleted_at')
+                ->sum(DB::raw('stock_batches.quantity_remaining * products.sale_price')),
         ]);
     }
 

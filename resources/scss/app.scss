@@ -379,3 +379,33 @@ a.stat-tile {
     opacity: 1;
   }
 }
+
+// ---------------------------------------------------------------------------
+// A table inside a card.
+//
+// The scroll box is square and paints right over the card's rounded corners,
+// so the top of every list looked snipped off. Giving the box the card's own
+// radius fixes it everywhere at once — and because the box already scrolls
+// sideways, the radius clips its content rather than being drawn behind it.
+//
+// Only the corners that are actually exposed: a table with a footer under it
+// keeps its bottom edge square, which is what the footer's own radius is for.
+// ---------------------------------------------------------------------------
+
+.card > .table-responsive {
+  &:first-child {
+    border-start-start-radius: inherit;
+    border-start-end-radius: inherit;
+  }
+
+  &:last-child {
+    border-end-start-radius: inherit;
+    border-end-end-radius: inherit;
+  }
+
+  // Bootstrap draws a line under the last row, which lands on the card's own
+  // border and reads as a double edge once the corners are round.
+  > .table:last-child > tbody > tr:last-child > * {
+    border-bottom: 0;
+  }
+}

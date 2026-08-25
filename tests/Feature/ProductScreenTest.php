@@ -84,6 +84,37 @@ class ProductScreenTest extends TestCase
             ->assertViewHas('stockValue', 8_000);
     }
 
+    /**
+     * The two money figures count the same units, so the difference between
+     * them is a real number rather than two stock counts subtracted.
+     */
+    public function test_the_sale_price_figure_reads_the_same_units_as_the_cost_one(): void
+    {
+        $product = $this->product(['purchase_price' => 800, 'sale_price' => 1_500]);
+
+        app(StockAdjustmentService::class)->recordOpeningStock(
+            product: $product, quantity: 10, unitCost: 800, user: $this->admin,
+        );
+
+        $response = $this->actingAs($this->admin)->get(route('products.index'))->assertOk();
+
+        $response->assertViewHas('stockValue', 8_000);
+        $response->assertViewHas('stockRetail', 15_000);
+    }
+
+    /** A second-hand item has its own screen and its own figures. */
+    public function test_the_sale_price_figure_leaves_second_hand_out(): void
+    {
+        $used = $this->product(['name' => 'Xbox', 'kind' => Product::KIND_USED, 'sale_price' => 400_000]);
+
+        app(StockAdjustmentService::class)->recordOpeningStock(
+            product: $used, quantity: 1, unitCost: 300_000, user: $this->admin,
+        );
+
+        $this->actingAs($this->admin)->get(route('products.index'))
+            ->assertViewHas('stockRetail', 0);
+    }
+
     public function test_a_second_hand_item_is_not_counted_among_the_stock(): void
     {
         $this->product(['name' => 'Ordinary cable']);
