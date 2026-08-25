@@ -269,6 +269,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports', [ReportController::class, 'index'])
         ->middleware('permission:reports.view')->name('reports.index');
 
+    /*
+     * Set the dates, press the report, and what opens is the paper: the shop's
+     * own letterhead on the layout every invoice already prints through.
+     */
+    Route::middleware('permission:reports.view')->prefix('reports')->name('reports.')->group(function () {
+        Route::get('summary', [ReportController::class, 'summary'])->name('summary');
+        Route::get('sales', [ReportController::class, 'sales'])->name('sales');
+        Route::get('purchases', [ReportController::class, 'purchases'])->name('purchases');
+        Route::get('customers', [ReportController::class, 'customers'])->name('customers');
+        Route::get('suppliers', [ReportController::class, 'suppliers'])->name('suppliers');
+    });
+
     // ---- System ----------------------------------------------------------
     Route::get('activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('permission:activity_logs.view')->name('activity-logs.index');

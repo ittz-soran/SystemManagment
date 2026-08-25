@@ -34,15 +34,29 @@ use Illuminate\View\View;
  */
 class ReportController extends Controller
 {
+    /**
+     * The period every report is about.
+     *
+     * One reading of the dates, so a figure on the summary and the same figure
+     * on the printed sheet can never come from two different fortnights.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function range(Request $request): array
+    {
+        return [
+            $request->filled('from')
+                ? Carbon::parse($request->date('from'))->startOfDay()
+                : today()->startOfMonth(),
+            $request->filled('to')
+                ? Carbon::parse($request->date('to'))->endOfDay()
+                : today()->endOfDay(),
+        ];
+    }
+
     public function index(Request $request): View
     {
-        $from = $request->filled('from')
-            ? Carbon::parse($request->date('from'))->startOfDay()
-            : today()->startOfMonth();
-
-        $to = $request->filled('to')
-            ? Carbon::parse($request->date('to'))->endOfDay()
-            : today()->endOfDay();
+        [$from, $to] = $this->range($request);
 
         return view('reports.index', [
             'from' => $from,
@@ -54,6 +68,210 @@ class ReportController extends Controller
             'byKind' => $this->byKind($from, $to),
             'position' => $this->position(),
         ]);
+    }
+
+    // ---- Printed reports ------------------------------------------------
+    //
+    // Set the dates, press the report, and what opens is the paper: the shop's
+    // own letterhead, the period across the top, and nothing on it that a
+    // printer would waste ink on. The same layout every invoice already uses.
+
+    /** Every sale in the period, and what each one was made of. */
+    public function sales(Request $request): View
+    {
+        [$from, $to] = $this->range($request);
+
+        $sales = Sale::with(['customer', 'items.product', 'returns'])
+            ->whereBetween('sale_date', [$from, $to])
+            ->orderBy('sale_date')
+            ->orderBy('id')
+            ->get();
+
+        return view('reports.print.sales', [
+            'from' => $from,
+            'to' => $to,
+            'sales' => $sales,
+            'detailed' => $request->boolean('detailed', true),
+            // Section 5: the cost of a sale is what its movements recorded, not
+            // the product's purchase price and not an average.
+            'cost' => $this->costPerDocument(StockMovement::REF_SALE, $sales->pluck('id')),
+            // And what came back put its cost back on the shelf. Subtracting the
+            // returned money without adding this back charges the sale twice for
+            // the same unit, and the figure at the bottom of this sheet stops
+            // agreeing with the one on the summary.
+            'costReversed' => $this->costReturnedPerSale($sales->pluck('id')),
+        ]);
+    }
+
+    /** Every purchase in the period, and what each one was made of. */
+    public function purchases(Request $request): View
+    {
+        [$from, $to] = $this->range($request);
+
+        return view('reports.print.purchases', [
+            'from' => $from,
+            'to' => $to,
+            'purchases' => Purchase::with(['supplier', 'items.product', 'returns'])
+                ->whereBetween('purchase_date', [$from, $to])
+                ->orderBy('purchase_date')
+                ->orderBy('id')
+                ->get(),
+            'detailed' => $request->boolean('detailed', true),
+        ]);
+    }
+
+    /** What each customer bought, paid, and still owes. */
+    public function customers(Request $request): View
+    {
+        [$from, $to] = $this->range($request);
+
+        return view('reports.print.people', [
+            'from' => $from,
+            'to' => $to,
+            'title' => __('Customers'),
+            'owedLabel' => __('Owes the shop'),
+            'tradeLabel' => __('Sold'),
+            'people' => $this->people(Customer::query(), $from, $to, 'customer'),
+        ]);
+    }
+
+    /** What each supplier sold the shop, was paid, and is still owed. */
+    public function suppliers(Request $request): View
+    {
+        [$from, $to] = $this->range($request);
+
+        return view('reports.print.people', [
+            'from' => $from,
+            'to' => $to,
+            'title' => __('Suppliers'),
+            'owedLabel' => __('The shop owes'),
+            'tradeLabel' => __('Bought'),
+            'people' => $this->people(Supplier::query(), $from, $to, 'supplier'),
+        ]);
+    }
+
+    /** The whole period on one sheet. */
+    public function summary(Request $request): View
+    {
+        [$from, $to] = $this->range($request);
+
+        return view('reports.print.summary', [
+            'from' => $from,
+            'to' => $to,
+            'profit' => $this->profit($from, $to),
+            'cash' => $this->cash($from, $to),
+            'byKind' => $this->byKind($from, $to),
+            'position' => $this->position(),
+            'expensesByCategory' => $this->expensesByCategory($from, $to),
+            'topProducts' => $this->topProducts($from, $to),
+        ]);
+    }
+
+    /**
+     * The FIFO cost each document consumed, keyed by document.
+     *
+     * One query for the whole report rather than one per row. Outgoing
+     * movements are stored negative, so the sign is turned here.
+     *
+     * @param  \Illuminate\Support\Collection<int, int>  $ids
+     * @return array<int, int>
+     */
+    private function costPerDocument(string $type, $ids): array
+    {
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return StockMovement::where('reference_type', $type)
+            ->whereIn('reference_id', $ids)
+            ->groupBy('reference_id')
+            ->selectRaw('reference_id, SUM(-quantity * unit_cost) as cost')
+            ->pluck('cost', 'reference_id')
+            ->map(fn ($cost) => (int) $cost)
+            ->all();
+    }
+
+    /**
+     * The FIFO cost each sale got back when something was returned to it.
+     *
+     * The movements belong to the return, not to the sale, so the returns are
+     * asked which sale they undo.
+     *
+     * @param  \Illuminate\Support\Collection<int, int>  $saleIds
+     * @return array<int, int>
+     */
+    private function costReturnedPerSale($saleIds): array
+    {
+        if ($saleIds->isEmpty()) {
+            return [];
+        }
+
+        $returns = SaleReturn::whereIn('sale_id', $saleIds)->pluck('sale_id', 'id');
+
+        if ($returns->isEmpty()) {
+            return [];
+        }
+
+        $byReturn = StockMovement::where('reference_type', StockMovement::REF_SALE_RETURN)
+            ->whereIn('reference_id', $returns->keys())
+            ->groupBy('reference_id')
+            ->selectRaw('reference_id, SUM(quantity * unit_cost) as cost')
+            ->pluck('cost', 'reference_id');
+
+        $bySale = [];
+
+        foreach ($byReturn as $returnId => $cost) {
+            $saleId = $returns[$returnId];
+            $bySale[$saleId] = ($bySale[$saleId] ?? 0) + (int) $cost;
+        }
+
+        return $bySale;
+    }
+
+    /**
+     * One row per person: what they traded in the period, and where they stand.
+     *
+     * The traded figures are the period's; the balance is not. What somebody
+     * owes is what they owe today — it carries in from before the period and
+     * would be a lie if it were cut to fit.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function people($query, Carbon $from, Carbon $to, string $kind)
+    {
+        $isCustomer = $kind === 'customer';
+
+        $traded = $isCustomer
+            ? Sale::whereBetween('sale_date', [$from, $to])
+                ->groupBy('customer_id')
+                ->selectRaw('customer_id as id, COUNT(*) as documents, SUM(total_amount) as total')
+                ->get()->keyBy('id')
+            : Purchase::whereBetween('purchase_date', [$from, $to])
+                ->groupBy('supplier_id')
+                ->selectRaw('supplier_id as id, COUNT(*) as documents, SUM(grand_total) as total')
+                ->get()->keyBy('id');
+
+        $returned = $isCustomer
+            ? SaleReturn::whereBetween('return_date', [$from, $to])
+                ->groupBy('customer_id')
+                ->selectRaw('customer_id as id, SUM(total_amount) as total')
+                ->get()->keyBy('id')
+            : PurchaseReturn::whereBetween('return_date', [$from, $to])
+                ->groupBy('supplier_id')
+                ->selectRaw('supplier_id as id, SUM(total_amount) as total')
+                ->get()->keyBy('id');
+
+        return $query->orderBy('name')->get()->map(fn ($person) => (object) [
+            'person' => $person,
+            'documents' => (int) ($traded[$person->id]->documents ?? 0),
+            'traded' => (int) ($traded[$person->id]->total ?? 0),
+            'returned' => (int) ($returned[$person->id]->total ?? 0),
+            'balance' => (int) $person->balance,
+        ])->filter(
+            // Somebody who neither traded in the period nor owes anything has
+            // no business on the page.
+            fn ($row) => $row->documents > 0 || $row->returned !== 0 || $row->balance !== 0
+        )->values();
     }
 
     /** @return array<string, int> */

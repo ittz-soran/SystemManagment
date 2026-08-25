@@ -49,6 +49,45 @@
         </div>
     </form>
 
+    {{-- Set the dates above, then take one of these. Each opens as the paper
+         itself — the shop's letterhead, the period across the top, and a Print
+         button — rather than as a screen that has to be persuaded to print. --}}
+    <div class="card card-body mb-4 no-print">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small text-secondary me-2">
+                <i class="bi bi-printer me-1"></i>{{ __('Reports for this period:') }}
+            </span>
+
+            @php $period = ['from' => $from->toDateString(), 'to' => $to->toDateString()]; @endphp
+
+            @foreach([
+                ['reports.summary', __('Summary'), 'clipboard-data'],
+                ['reports.sales', __('Sales'), 'receipt'],
+                ['reports.purchases', __('Purchases'), 'journal-text'],
+                ['reports.customers', __('Customers'), 'people'],
+                ['reports.suppliers', __('Suppliers'), 'truck'],
+            ] as [$route, $label, $icon])
+                <a href="{{ route($route, $period) }}" target="_blank" rel="noopener"
+                   @if(in_array($route, ['reports.sales', 'reports.purchases'])) data-detail @endif
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-{{ $icon }} me-1"></i>{{ $label }}
+                </a>
+            @endforeach
+
+            {{-- A month of sales with every line on it is a lot of paper, and
+                 sometimes the totals are the whole question. --}}
+            <div class="form-check form-check-inline ms-auto small">
+                <input class="form-check-input" type="checkbox" id="detailed" checked
+                       onchange="document.querySelectorAll('[data-detail]').forEach(a => {
+                           const u = new URL(a.href);
+                           this.checked ? u.searchParams.delete('detailed') : u.searchParams.set('detailed', '0');
+                           a.href = u;
+                       })">
+                <label class="form-check-label" for="detailed">{{ __('Every line, not just totals') }}</label>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-3 mb-4">
         @foreach([
             ['label' => __('Revenue'), 'value' => $profit['revenue'], 'note' => __('Sales less returns')],
