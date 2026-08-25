@@ -22,8 +22,11 @@ use Tests\TestCase;
  * locking it is meant to prove would be invisible.
  *
  * IMPORTANT: lockForUpdate() is a silent no-op on SQLite, so this test is
- * skipped there. It only proves anything against MySQL/MariaDB, which is why
- * the doc says to run it for real before go-live.
+ * skipped there. It only proves anything against MySQL/MariaDB.
+ *
+ * It is also skipped on Windows, where pcntl does not exist — which is most
+ * shops. `php artisan stock:prove-locking` proves the same thing by starting
+ * separate processes rather than forking, and runs anywhere.
  */
 class ConcurrencyTest extends TestCase
 {
@@ -35,13 +38,18 @@ class ConcurrencyTest extends TestCase
             $this->markTestSkipped(
                 'Batch locking can only be proven against MySQL/MariaDB. '.
                 'lockForUpdate() is a no-op on SQLite, so a pass here would be meaningless. '.
-                'Run this against a real MySQL database before go-live: '.
-                'DB_CONNECTION=mysql php artisan test --filter=ConcurrencyTest'
+                'On the shop\'s own machine use the command instead — this test forks with '.
+                'pcntl, which Windows does not have at all: '.
+                'php artisan stock:prove-locking --database=store_locktest'
             );
         }
 
         if (! function_exists('pcntl_fork')) {
-            $this->markTestSkipped('pcntl is required to issue genuinely parallel requests.');
+            $this->markTestSkipped(
+                'pcntl is required to fork genuinely parallel requests, and it does not '.
+                'exist on Windows. Use php artisan stock:prove-locking there, which starts '.
+                'separate processes instead of forking.'
+            );
         }
     }
 
