@@ -34,6 +34,36 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * The same toast, for a page that never reloaded.
+ *
+ * A Livewire screen has no next request to flash a message into, so it says so
+ * over the wire instead. It lands in the container the server-rendered toasts
+ * use, looks identical, and clears itself up afterwards.
+ */
+document.addEventListener('livewire:init', () => {
+    const container = document.querySelector('.toast-container');
+
+    if (! container) return;
+
+    Livewire.on('toast', (event) => {
+        const { message, variant = 'success' } = Array.isArray(event) ? event[0] : event;
+
+        const el = document.createElement('div');
+        el.className = `toast align-items-center text-bg-${variant} border-0`;
+        el.setAttribute('role', 'alert');
+        el.setAttribute('aria-live', 'polite');
+        el.innerHTML =
+            '<div class="d-flex"><div class="toast-body"></div>' +
+            '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+        el.querySelector('.toast-body').textContent = message;
+
+        container.appendChild(el);
+        el.addEventListener('hidden.bs.toast', () => el.remove());
+        bootstrap.Toast.getOrCreateInstance(el, { delay: 4000 }).show();
+    });
+});
+
+/**
  * The number keypad (Section 9b).
  *
  * Any input carrying data-numpad opens it when tapped. The counter is a

@@ -26,6 +26,8 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
+use App\Livewire\Products\Form as ProductForm;
+use App\Livewire\Products\Index as ProductIndex;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'));
@@ -72,18 +74,24 @@ Route::middleware(['auth'])->group(function () {
     Route::get('products/search', [ProductController::class, 'search'])
         ->middleware('permission:products.view')->name('products.search');
 
-    Route::get('products', [ProductController::class, 'index'])
+    /*
+     * The catalogue and its form are Livewire components rather than controller
+     * actions: the list narrows as the shopkeeper types and the form answers
+     * while the cursor is still in the field, neither of which survives a round
+     * trip through a fresh page. Same URLs, same route names, same permissions —
+     * the change is invisible to every link in the rest of the system.
+     *
+     * There is no products.store or products.update any more; the component
+     * saves itself, in the same one transaction the controller used.
+     */
+    Route::get('products', ProductIndex::class)
         ->middleware('permission:products.view')->name('products.index');
-    Route::get('products/create', [ProductController::class, 'create'])
+    Route::get('products/create', ProductForm::class)
         ->middleware('permission:products.create')->name('products.create');
-    Route::post('products', [ProductController::class, 'store'])
-        ->middleware('permission:products.create')->name('products.store');
     Route::get('products/{product}', [ProductController::class, 'show'])
         ->middleware('permission:products.view')->name('products.show');
-    Route::get('products/{product}/edit', [ProductController::class, 'edit'])
+    Route::get('products/{product}/edit', ProductForm::class)
         ->middleware('permission:products.edit')->name('products.edit');
-    Route::put('products/{product}', [ProductController::class, 'update'])
-        ->middleware('permission:products.edit')->name('products.update');
     Route::delete('products/{product}', [ProductController::class, 'destroy'])
         ->middleware('permission:products.delete')->name('products.destroy');
 

@@ -12,6 +12,7 @@
         "php": "^8.3",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
+        "livewire/livewire": "^4.4",
         "picqer/php-barcode-generator": "^3.3"
     },
     "require-dev": {
