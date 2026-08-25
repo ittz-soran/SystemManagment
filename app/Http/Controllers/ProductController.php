@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ProductRequest;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\PurchaseItem;
 use App\Models\SaleItem;
+use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
+use App\Services\ProductCodeService;
+use App\Services\StockAdjustmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +21,95 @@ use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    public function __construct(
+        private ProductCodeService $codes,
+        private StockAdjustmentService $adjustments,
+    ) {}
+
+    public function index(Request $request): View
+    {
+        $products = Product::with('category')
+            // Section 4: second-hand items and services are products and sell
+            // like them, but a list of what the shop stocks is not where they
+            // belong — one is a single thing that will never be reordered, the
+            // other is not a thing at all. Each has its own screen.
+            ->stocked()
+            ->when($request->filled('search'), fn ($q) => $q->search($request->string('search')->toString()))
+            // Section 9: filtering by SEVERAL categories at once is
+            // WHERE category_id IN (...) — no pivot table needed.
+            ->when($request->filled('categories'), fn ($q) => $q->whereIn('category_id', $request->array('categories')))
+            ->when($request->boolean('low_stock'), fn ($q) => $q->whereColumn('quantity', '<=', DB::raw('COALESCE(reorder_level, '.(int) setting('low_stock_threshold', 0).')')))
+            ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status') === 'active'))
+            ->orderBy('name')
+            ->paginate($request->user()->items_per_page)
+            ->withQueryString();
+
+        $threshold = (int) setting('low_stock_threshold', 0);
+
+        return view('products.index', [
+            'products' => $products,
+            'categories' => Category::orderBy('name')->get(),
+
+            // Counted over the whole catalogue rather than the page, so the
+            // figures describe the shop and not what happens to be in view. The
+            // low-stock count uses exactly the predicate its own filter uses —
+            // a number that does not match what pressing it shows is worse than
+            // no number at all.
+            'totalProducts' => Product::stocked()->count(),
+            'lowStockCount' => Product::stocked()
+                ->whereRaw('quantity <= COALESCE(reorder_level, ?)', [$threshold])
+                ->count(),
+
+            // Not quantity times the suggested price: the money that actually
+            // left the till for the units still on the shelf.
+            'stockValue' => (int) StockBatch::whereIn('product_id', Product::stocked()->select('id'))
+                ->sum(DB::raw('quantity_remaining * unit_cost')),
+        ]);
+    }
+
+    public function create(): View
+    {
+        return view('products.create', [
+            'product' => new Product(['unit' => 'pcs', 'is_active' => true, 'purchase_price' => 0, 'sale_price' => 0]),
+            'categories' => Category::orderBy('name')->get(),
+        ]);
+    }
+
+    public function store(ProductRequest $request): RedirectResponse
+    {
+        $product = DB::transaction(function () use ($request) {
+            // Codes are generated inside the transaction so the counters and the
+            // product row commit together.
+            $codes = $this->codes->resolve($request->only('sku', 'barcode'));
+
+            $product = Product::create([
+                ...$request->safe()->except(['sku', 'barcode', 'opening_quantity', 'opening_unit_cost']),
+                'sku' => $codes['sku'],
+                'barcode' => $codes['barcode'],
+                'quantity' => 0,
+                'is_active' => $request->boolean('is_active', true),
+            ]);
+
+            // Section 5: opening stock becomes the product's first FIFO layer.
+            // Section 4 allows only `purchase` or `adjustment` as a batch source,
+            // so this is an `in` adjustment (see Section 13).
+            if ($request->integer('opening_quantity') > 0) {
+                $this->adjustments->recordOpeningStock(
+                    product: $product,
+                    quantity: $request->integer('opening_quantity'),
+                    unitCost: $request->integer('opening_unit_cost'),
+                    user: $request->user(),
+                );
+            }
+
+            return $product;
+        });
+
+        return redirect()
+            ->route('products.index')
+            ->with('success', __('Product saved'));
+    }
+
     public function show(Product $product): View
     {
         return view('products.show', [
@@ -44,6 +138,32 @@ class ProductController extends Controller
                 ? SaleItem::with('sale')->where('product_id', $product->id)->orderByDesc('id')->first()
                 : null,
         ]);
+    }
+
+    public function edit(Product $product): View
+    {
+        return view('products.edit', [
+            'product' => $product,
+            'categories' => Category::orderBy('name')->get(),
+        ]);
+    }
+
+    public function update(ProductRequest $request, Product $product): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $product) {
+            $codes = $this->codes->resolve($request->only('sku', 'barcode'));
+
+            $product->update([
+                ...$request->safe()->except(['sku', 'barcode', 'opening_quantity', 'opening_unit_cost']),
+                'sku' => $codes['sku'],
+                'barcode' => $codes['barcode'],
+                'is_active' => $request->boolean('is_active'),
+            ]);
+        });
+
+        return redirect()
+            ->route('products.index')
+            ->with('success', __('Product saved'));
     }
 
     public function destroy(Product $product): RedirectResponse
