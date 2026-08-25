@@ -359,10 +359,11 @@ a.stat-tile {
     pointer-events: none;
   }
 
-  &.is-holding {
-    // Nothing selects while a finger or the mouse is held down on it.
-    user-select: none;
-  }
+  // Nothing selects, and a long press on a touchscreen does not turn into a
+  // text selection or a scroll instead of a hold.
+  user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
 
   &:disabled {
     opacity: 1;

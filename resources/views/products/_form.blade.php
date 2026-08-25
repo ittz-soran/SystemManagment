@@ -161,7 +161,8 @@
             data-hold-done="{{ __('Saving…') }}">
         <span class="btn-hold-fill" aria-hidden="true"></span>
         <span class="btn-hold-label">
-            <i class="bi bi-check-lg me-1"></i>{{ __('Hold to save product') }}
+            <i class="bi bi-check-lg me-1"></i>{{-- the icon never moves --}}
+            <span class="btn-hold-text">{{ __('Hold to save product') }}</span>
         </span>
     </button>
     <a href="{{ route('products.index') }}" class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
