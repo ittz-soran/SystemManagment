@@ -208,6 +208,30 @@ php artisan backup:run
 Work down this list. It is short, and every line on it is something that is
 painful to discover later.
 
+**Prove that two tills cannot oversell the same item.** This is the one check
+worth doing before any other, because the failure it catches is silent: two
+people selling the last of something at the same moment, both reading "5 in
+stock", both taking 4, and the stock ending at minus three with FIFO in pieces.
+Nobody notices until a stocktake months later.
+
+The test suite cannot prove this on a shop computer. It forks with `pcntl`,
+which does not exist on Windows, and it runs on SQLite, where the row lock is a
+silent no-op — so a green suite means nothing here. Use the command instead.
+
+Make an empty database first, in phpMyAdmin, called `store_locktest`. Then:
+
+```bash
+php artisan stock:prove-locking --database=store_locktest
+```
+
+It starts two real PHP processes, hands them the same instant to strike at, and
+reports what happened. It refuses to run against the shop's own database, and
+rebuilds whichever one you give it — so give it the empty one.
+
+A good result says *the lock holds*. If it does not, the usual cause is MyISAM
+tables, which have no row locks and no transactions at all; MySQL does not
+complain, it simply ignores both. The command tells you how to check.
+
 **Turn off the developer settings.** In `.env`:
 
 ```ini
