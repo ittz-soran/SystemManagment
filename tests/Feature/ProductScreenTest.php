@@ -113,10 +113,10 @@ class ProductScreenTest extends TestCase
     // ---- The button -----------------------------------------------------
 
     /**
-     * A scanner's Enter has nothing to press: there is no submit control on the
-     * form at all, only a button that has to be held.
+     * The Save button is marked for the hold script, and ships as an ordinary
+     * submit so the form is still saveable if that script never arrives.
      */
-    public function test_the_product_form_carries_no_submit_button(): void
+    public function test_the_save_button_is_marked_for_holding_and_works_without_it(): void
     {
         foreach ([route('products.create'), route('products.edit', $this->product())] as $url) {
             $html = $this->actingAs($this->admin)->get($url)->assertOk()->getContent();
@@ -127,8 +127,8 @@ class ProductScreenTest extends TestCase
 
             $this->assertNotEmpty($form, 'The product form was not found on '.$url);
 
-            $this->assertStringNotContainsString('type="submit"', $form[0]);
             $this->assertStringContainsString('data-hold-submit', $form[0]);
+            $this->assertStringContainsString('type="submit"', $form[0]);
         }
     }
 

@@ -200,13 +200,23 @@ document.addEventListener('DOMContentLoaded', () => {
         target.dispatchEvent(new Event('input', { bubbles: true }));
         target.dispatchEvent(new Event('change', { bubbles: true }));
 
-        // A price and a quantity are entered one after the other, so the caret
-        // moves on by itself rather than waiting to be put there. Bootstrap
-        // moves focus about while it hides, so this waits until it has stopped.
+        // A price and a quantity are entered one after the other, so the run
+        // carries on by itself: the next box takes the caret, and if it is a box
+        // the pad belongs on, the pad opens on it. A price, a quantity, the next
+        // line's quantity — the whole cart without reaching for the mouse.
+        //
+        // Bootstrap moves focus about while it hides, so this waits until it has
+        // finished; and the pad cannot be reopened until it has fully closed.
         modal.addEventListener('hidden.bs.modal', () => {
             const next = nextField(target);
 
             if (! next) return;
+
+            if (next.dataset.numpad !== undefined) {
+                open(next);
+
+                return;
+            }
 
             next.focus();
 
@@ -820,6 +830,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (! form) return;
 
+        // Written as a submit button and demoted here. Until this line runs the
+        // form saves the ordinary way, which is the right thing to fall back to.
+        button.type = 'button';
+
         const label = button.querySelector('.btn-hold-label') ?? button;
         const fill = button.querySelector('.btn-hold-fill');
         const resting = label.innerHTML;
@@ -848,6 +862,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // also puts the caret in the offending field and says why.
             if (typeof form.reportValidity === 'function' && ! form.reportValidity()) {
                 stop();
+
+                // Held for three seconds and nothing happened reads as a broken
+                // button, not as a missing field — so the field that stopped it
+                // is brought on screen and asked to say why.
+                const missing = form.querySelector('input:invalid, select:invalid, textarea:invalid');
+
+                if (missing) {
+                    missing.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    missing.focus();
+                    form.reportValidity();
+                }
 
                 return;
             }

@@ -71,7 +71,7 @@
                 <div class="mb-3">
                     <label for="purchase_price" class="form-label">{{ __('Purchase price') }}</label>
                     <div class="input-group">
-                        <input id="purchase_price" type="number" step="1" min="0" name="purchase_price" data-numpad
+                        <input id="purchase_price" type="number" step="1" min="0" name="purchase_price" data-numpad="{{ __('Purchase price') }}"
                                value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" dir="ltr"
                                class="form-control text-end @error('purchase_price') is-invalid @enderror" required>
                         <span class="input-group-text">{{ __('IQD') }}</span>
@@ -82,7 +82,7 @@
                 <div class="mb-3">
                     <label for="sale_price" class="form-label">{{ __('Sale price') }}</label>
                     <div class="input-group">
-                        <input id="sale_price" type="number" step="1" min="0" name="sale_price" data-numpad
+                        <input id="sale_price" type="number" step="1" min="0" name="sale_price" data-numpad="{{ __('Sale price') }}"
                                value="{{ old('sale_price', $product->sale_price ?? 0) }}" dir="ltr"
                                class="form-control text-end @error('sale_price') is-invalid @enderror" required>
                         <span class="input-group-text">{{ __('IQD') }}</span>
@@ -124,14 +124,14 @@
                     <div class="row g-3">
                         <div class="col-6">
                             <label for="opening_quantity" class="form-label">{{ __('Quantity') }}</label>
-                            <input id="opening_quantity" type="number" step="1" min="0" name="opening_quantity" data-numpad
+                            <input id="opening_quantity" type="number" step="1" min="0" name="opening_quantity" data-numpad="{{ __('Quantity') }}"
                                    value="{{ old('opening_quantity') }}" dir="ltr"
                                    class="form-control text-end @error('opening_quantity') is-invalid @enderror">
                             @error('opening_quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-6">
                             <label for="opening_unit_cost" class="form-label">{{ __('Cost each') }}</label>
-                            <input id="opening_unit_cost" type="number" step="1" min="0" name="opening_unit_cost" data-numpad
+                            <input id="opening_unit_cost" type="number" step="1" min="0" name="opening_unit_cost" data-numpad="{{ __('Cost each') }}"
                                    value="{{ old('opening_unit_cost') }}" dir="ltr"
                                    class="form-control text-end @error('opening_unit_cost') is-invalid @enderror">
                             @error('opening_unit_cost')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -148,11 +148,15 @@
      The barcode field is read by a scanner, and a scanner types the code and
      then presses Enter. Scan twice and the second Enter used to submit the
      form; so did Enter pressed anywhere else, on the reorder level or any other
-     box. This button is type="button" rather than a submit, which takes Enter
-     out of the picture entirely, and it has to be held down for three seconds
-     before it will save — long enough that no stray keystroke can reach it. --}}
+     box. app.js turns this into a plain button that has to be held for three
+     seconds, which takes Enter out of the picture entirely.
+
+     It is written as an ordinary submit button and changed by the script,
+     rather than the other way round. If the script never arrives — a stale
+     build, a blocked file — the shopkeeper gets a Save button that works,
+     instead of a form that cannot be saved at all. --}}
 <div class="d-flex gap-2 mt-4">
-    <button type="button" class="btn btn-primary btn-hold" data-hold-submit
+    <button type="submit" class="btn btn-primary btn-hold" data-hold-submit
             data-hold-holding="{{ __('Keep holding…') }}"
             data-hold-done="{{ __('Saving…') }}">
         <span class="btn-hold-fill" aria-hidden="true"></span>
