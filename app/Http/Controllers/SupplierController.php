@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountTransaction;
 use App\Models\Supplier;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -26,9 +27,16 @@ class SupplierController extends Controller
         return view('suppliers.index', ['suppliers' => $suppliers]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
-        Supplier::create($this->rules($request));
+        $supplier = Supplier::create($this->rules($request));
+
+        // The cart screens add somebody without leaving the cart, and a redirect
+        // would take twenty-five scanned lines with it. Asked for JSON, answered
+        // in JSON; the page itself still gets its redirect.
+        if ($request->expectsJson()) {
+            return response()->json(['id' => $supplier->id, 'name' => $supplier->name], 201);
+        }
 
         return back()->with('success', __('Supplier saved'));
     }

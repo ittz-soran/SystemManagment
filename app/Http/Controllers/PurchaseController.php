@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Purchase;
+use App\Models\HeldCart;
 use App\Models\Supplier;
 use App\Services\BulkDeleteService;
 use App\Services\PurchaseService;
@@ -42,9 +43,20 @@ class PurchaseController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        // Picking a cart back up. Its lines are rebuilt against the shelf as it
+        // stands now, not as it stood when the cart was put down.
+        $held = $request->filled('held')
+            ? HeldCart::ofType(HeldCart::TYPE_PURCHASE)->find($request->integer('held'))
+            : null;
+
         return view('purchases.create', [
+            'held' => $held,
+            'heldCarts' => HeldCart::ofType(HeldCart::TYPE_PURCHASE)->with('user')->latest()->get(),
+            'cartLines' => $held
+                ? HeldCartController::rebuild($held, fn ($p) => null)
+                : null,
             'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
             // Section 6b: pre-filled from settings, editable per purchase,
             // because the rate you actually paid at is the one that matters.
@@ -69,6 +81,8 @@ class PurchaseController extends Controller
             'lines.*.unit_price' => ['required', 'integer', 'min:0'],
             'lines.*.entered_currency' => ['nullable', 'in:IQD,USD'],
             'lines.*.entered_amount' => ['nullable', 'integer', 'min:0'],
+            // The cart this came from, if it was one that had been put down.
+            'held_cart_id' => ['nullable', 'integer', 'exists:held_carts,id'],
         ]);
 
         try {
@@ -85,6 +99,13 @@ class PurchaseController extends Controller
             );
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        // The held cart has become a real purchase, so it stops being a note
+        // to self. Spent here rather than when it was picked up: a cart resumed
+        // and then walked away from must still be waiting tomorrow.
+        if (! empty($data['held_cart_id'])) {
+            HeldCart::whereKey($data['held_cart_id'])->delete();
         }
 
         return redirect()
