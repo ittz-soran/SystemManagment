@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\PrintController;
@@ -101,6 +102,14 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:categories.delete')->name('categories.destroy');
     Route::post('categories/bulk-assign', [CategoryController::class, 'bulkAssign'])
         ->middleware('permission:products.edit')->name('categories.bulk-assign');
+
+    /*
+     * A cart put down and picked up later. Nothing here touches the books:
+     * no document number, no batch, no movement, no ledger row — all of that
+     * waits for the real document.
+     */
+    Route::post('held-carts', [HeldCartController::class, 'store'])->name('held-carts.store');
+    Route::delete('held-carts/{heldCart}', [HeldCartController::class, 'destroy'])->name('held-carts.destroy');
 
     // ---- People ----------------------------------------------------------
     Route::get('suppliers', [SupplierController::class, 'index'])

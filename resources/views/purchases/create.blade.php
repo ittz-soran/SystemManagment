@@ -23,10 +23,23 @@
 @endsection
 
 @section('content')
+    @unless($editing)
+        @include('partials.held-carts', [
+            'heldCarts' => $heldCarts,
+            'resumeRoute' => 'purchases.create',
+        ])
+    @endunless
+
     <form action="{{ $editing ? route('purchases.update', $purchase) : route('purchases.store') }}"
           method="POST" id="purchase-form" data-guard-submit>
         @csrf
         @if($editing) @method('PUT') @endif
+
+        {{-- Carried through so the hold is spent when the purchase is saved,
+             and not one moment before. --}}
+        @if(! $editing && ($held ?? null))
+            <input type="hidden" name="held_cart_id" value="{{ $held->id }}">
+        @endif
 
         <div class="row g-3">
             <div class="col-lg-8">
@@ -75,7 +88,15 @@
                 <div class="card mb-3">
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="supplier_id" class="form-label">{{ __('Supplier') }}</label>
+                            <div class="d-flex justify-content-between align-items-baseline">
+                                <label for="supplier_id" class="form-label">{{ __('Supplier') }}</label>
+                                @can('suppliers.create')
+                                    <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none"
+                                            data-bs-toggle="modal" data-bs-target="#new-supplier-modal">
+                                        <i class="bi bi-plus-lg"></i>{{ __('New') }}
+                                    </button>
+                                @endcan
+                            </div>
                             <select id="supplier_id" name="supplier_id" class="form-select" required>
                                 <option value="">{{ __('Choose…') }}</option>
                                 @foreach($suppliers as $supplier)
@@ -169,6 +190,14 @@
                             data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save purchase') }} <kbd class="ms-1">F2</kbd>
                     </button>
+                    @unless($editing)
+                        {{-- Twenty-five things scanned and the supplier still
+                             not chosen. Put it down; nothing is written. --}}
+                        <button type="button" class="btn btn-outline-secondary" id="hold-cart" disabled>
+                            <i class="bi bi-pause-circle me-1"></i>{{ __('Hold this cart') }}
+                        </button>
+                    @endunless
+
                     <a href="{{ $editing ? route('purchases.show', $purchase) : route('purchases.index') }}"
                        class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
@@ -254,6 +283,10 @@
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
                 saveButton.disabled = cart.length === 0;
+
+                // Nothing to put down until something is in it.
+                const hold = document.getElementById('hold-cart');
+                if (hold) hold.disabled = cart.length === 0;
                 recalculate();
             }
 
@@ -496,6 +529,78 @@
             });
 
             render();
+        })();
+    </script>
+@endpush
+
+@unless($editing)
+    @can('suppliers.create')
+        @include('partials.quick-person', [
+            'id' => 'supplier',
+            'storeRoute' => 'suppliers.store',
+            'selectId' => 'supplier_id',
+        ])
+    @endcan
+@endunless
+
+@push('scripts')
+    <script>
+        /**
+         * Putting the cart down.
+         *
+         * Sent on its own, by fetch, so the cart form is never submitted by
+         * accident — the whole point is that this is NOT the purchase. Nothing
+         * is written to the books: no document number, no batch, no stock, no
+         * ledger row. It waits on this screen until somebody finishes it.
+         */
+        (() => {
+            const button = document.getElementById('hold-cart');
+
+            if (! button) return;
+
+            button.addEventListener('click', async () => {
+                const lines = [...document.querySelectorAll('[data-role="qty"]')].map((qty) => {
+                    const index = qty.dataset.index;
+
+                    return {
+                        product_id: +document.querySelector(`[name="lines[${index}][product_id]"]`).value,
+                        quantity: +qty.value,
+                        unit_price: +document.querySelector(`[name="lines[${index}][unit_price]"]`).value,
+                    };
+                });
+
+                if (lines.length === 0) return;
+
+                const note = prompt(@json(__('A note, so you know which cart this is (optional)')), '');
+
+                if (note === null) return;
+
+                button.disabled = true;
+
+                try {
+                    const response = await fetch(@json(route('held-carts.store')), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        },
+                        body: JSON.stringify({
+                            type: 'purchase',
+                            note: note,
+                            lines: lines,
+                            party_id: +document.getElementById('supplier_id').value || null,
+                        }),
+                    });
+
+                    if (! response.ok) throw new Error(@json(__('That could not be saved.')));
+
+                    window.location = @json(route('purchases.create'));
+                } catch (e) {
+                    alert(e.message);
+                    button.disabled = false;
+                }
+            });
         })();
     </script>
 @endpush

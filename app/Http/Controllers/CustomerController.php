@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountTransaction;
 use App\Models\Customer;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -23,9 +24,16 @@ class CustomerController extends Controller
         return view('customers.index', ['customers' => $customers]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
-        Customer::create($this->rules($request));
+        $customer = Customer::create($this->rules($request));
+
+        // The cart screens add somebody without leaving the cart, and a redirect
+        // would take twenty-five scanned lines with it. Asked for JSON, answered
+        // in JSON; the page itself still gets its redirect.
+        if ($request->expectsJson()) {
+            return response()->json(['id' => $customer->id, 'name' => $customer->name], 201);
+        }
 
         return back()->with('success', __('Customer saved'));
     }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\InsufficientStockException;
 use App\Models\Customer;
+use App\Models\HeldCart;
 use App\Models\Sale;
 use App\Services\BulkDeleteService;
 use App\Services\SaleService;
@@ -42,12 +43,23 @@ class SaleController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        // Picking a cart back up. Its lines are rebuilt against the shelf as it
+        // stands now, not as it stood when the cart was put down.
+        $held = $request->filled('held')
+            ? HeldCart::ofType(HeldCart::TYPE_SALE)->find($request->integer('held'))
+            : null;
+
         return view('sales.create', [
             // Section 4: the Cash Customer is the default for walk-in buyers.
             'customers' => Customer::where('is_active', true)->orderByDesc('is_system')->orderBy('name')->get(),
             'cashCustomer' => Customer::cashCustomer(),
+            'held' => $held,
+            'heldCarts' => HeldCart::ofType(HeldCart::TYPE_SALE)->with('user')->latest()->get(),
+            'cartLines' => $held
+                ? HeldCartController::rebuild($held, fn ($p) => $this->sales->nextBatchCost($p))
+                : null,
         ]);
     }
 
@@ -63,6 +75,8 @@ class SaleController extends Controller
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
             // Section 2: IQD is whole numbers only.
             'lines.*.unit_price' => ['required', 'integer', 'min:0'],
+            // The cart this came from, if it was one that had been put down.
+            'held_cart_id' => ['nullable', 'integer', 'exists:held_carts,id'],
         ]);
 
         try {
@@ -81,6 +95,13 @@ class SaleController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        // The held cart has become a real sale, so it stops being a note to
+        // self. Spent here rather than when it was picked up: a cart resumed
+        // and then walked away from must still be waiting tomorrow.
+        if (! empty($data['held_cart_id'])) {
+            HeldCart::whereKey($data['held_cart_id'])->delete();
         }
 
         return redirect()

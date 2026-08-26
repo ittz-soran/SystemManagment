@@ -30,10 +30,23 @@
         Layout: product search on top, cart table in the middle, totals panel on
         the right (left in RTL), action buttons fixed at the bottom.
     --}}
+    @unless($editing)
+        @include('partials.held-carts', [
+            'heldCarts' => $heldCarts,
+            'resumeRoute' => 'sales.create',
+        ])
+    @endunless
+
     <form action="{{ $editing ? route('sales.update', $sale) : route('sales.store') }}"
           method="POST" id="sale-form" data-guard-submit>
         @csrf
         @if($editing) @method('PUT') @endif
+
+        {{-- Carried through so the hold is spent when the sale is saved, and
+             not one moment before. --}}
+        @if(! $editing && ($held ?? null))
+            <input type="hidden" name="held_cart_id" value="{{ $held->id }}">
+        @endif
 
         <div class="row g-3">
             <div class="col-lg-8">
@@ -79,7 +92,15 @@
                 <div class="card mb-3">
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="customer_id" class="form-label">{{ __('Customer') }}</label>
+                            <div class="d-flex justify-content-between align-items-baseline">
+                                <label for="customer_id" class="form-label">{{ __('Customer') }}</label>
+                                @can('customers.create')
+                                    <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none"
+                                            data-bs-toggle="modal" data-bs-target="#new-customer-modal">
+                                        <i class="bi bi-plus-lg"></i>{{ __('New') }}
+                                    </button>
+                                @endcan
+                            </div>
                             <select id="customer_id" name="customer_id" class="form-select">
                                 @foreach($customers as $customer)
                                     <option value="{{ $customer->id }}"
@@ -150,12 +171,30 @@
                             data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save sale') }} <kbd class="ms-1">F2</kbd>
                     </button>
+                    @unless($editing)
+                        {{-- Put it down without finishing it. Nothing is written
+                             to the books: no number, no batch, no stock moved. --}}
+                        <button type="button" class="btn btn-outline-secondary" id="hold-cart" disabled>
+                            <i class="bi bi-pause-circle me-1"></i>{{ __('Hold this cart') }}
+                        </button>
+                    @endunless
+
                     <a href="{{ $editing ? route('sales.show', $sale) : route('sales.index') }}"
                        class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
         </div>
     </form>
+
+    @unless($editing)
+        @can('customers.create')
+            @include('partials.quick-person', [
+                'id' => 'customer',
+                'storeRoute' => 'customers.store',
+                'selectId' => 'customer_id',
+            ])
+        @endcan
+    @endunless
 @endsection
 
 @push('scripts')
@@ -239,6 +278,10 @@
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
                 saveButton.disabled = cart.length === 0;
+
+                // Nothing to put down until something is in it.
+                const hold = document.getElementById('hold-cart');
+                if (hold) hold.disabled = cart.length === 0;
 
                 const total = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
                 totalEl.textContent = format(total);
@@ -450,6 +493,71 @@
             });
 
             render();
+        })();
+    </script>
+@endpush
+
+@push('scripts')
+    <script>
+        /**
+         * Putting the cart down.
+         *
+         * Sent on its own, by fetch, so the cart form is never submitted by
+         * accident — the whole point is that this is NOT the sale. Nothing is
+         * written to the books: no document number, no batch, no stock moved,
+         * no ledger row. The cart simply waits on this screen until somebody
+         * finishes it or throws it away.
+         */
+        (() => {
+            const button = document.getElementById('hold-cart');
+
+            if (! button) return;
+
+            button.addEventListener('click', async () => {
+                const lines = [...document.querySelectorAll('[data-role="qty"]')].map((qty) => {
+                    const index = qty.dataset.index;
+
+                    return {
+                        product_id: +document.querySelector(`[name="lines[${index}][product_id]"]`).value,
+                        quantity: +qty.value,
+                        unit_price: +document.querySelector(`[name="lines[${index}][unit_price]"]`).value,
+                    };
+                });
+
+                if (lines.length === 0) return;
+
+                const note = prompt(@json(__('A note, so you know which cart this is (optional)')), '');
+
+                // Cancel on the prompt means cancel, not an empty note.
+                if (note === null) return;
+
+                button.disabled = true;
+
+                try {
+                    const response = await fetch(@json(route('held-carts.store')), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        },
+                        body: JSON.stringify({
+                            type: 'sale',
+                            note: note,
+                            lines: lines,
+                            party_id: +document.getElementById('customer_id').value || null,
+                        }),
+                    });
+
+                    if (! response.ok) throw new Error(@json(__('That could not be saved.')));
+
+                    // Back to a clean screen, with the held cart now waiting on it.
+                    window.location = @json(route('sales.create'));
+                } catch (e) {
+                    alert(e.message);
+                    button.disabled = false;
+                }
+            });
         })();
     </script>
 @endpush
