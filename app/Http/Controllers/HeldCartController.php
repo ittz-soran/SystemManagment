@@ -31,6 +31,11 @@ class HeldCartController extends Controller
             'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.unit_price' => ['required', 'integer', 'min:0'],
+            // Section 6b: a purchase line may have been typed in dollars at a
+            // rate. Dropped here, the line would come back as if it had been
+            // typed in dinars, and the money would silently change.
+            'lines.*.entered_currency' => ['nullable', 'in:IQD,USD'],
+            'lines.*.entered_amount' => ['nullable', 'integer', 'min:0'],
             // Whoever had been chosen, if anybody had. The whole point of this
             // feature is the cart where nobody has been.
             'party_id' => ['nullable', 'integer'],
@@ -94,12 +99,21 @@ class HeldCartController extends Controller
 
                 $cost = $nextBatchCost($product);
 
+                // Section 6b: kept as it was typed. A line entered in dollars
+                // comes back in dollars, at the amount that was typed, or the
+                // shopkeeper would find the price had changed under them.
+                $currency = $line['entered_currency'] ?? 'IQD';
+
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
                     'sku' => $product->sku,
                     'quantity' => (int) $line['quantity'],
                     'price' => (int) $line['unit_price'],
+                    'currency' => $currency,
+                    'enteredAmount' => $currency === 'USD'
+                        ? round(((int) ($line['entered_amount'] ?? 0)) / 100, 2)
+                        : 0,
                     'stock' => (int) $product->quantity,
                     'cost' => $cost,
                     'belowCost' => $cost !== null && (int) $line['unit_price'] < $cost,

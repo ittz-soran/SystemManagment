@@ -562,10 +562,17 @@
                 const lines = [...document.querySelectorAll('[data-role="qty"]')].map((qty) => {
                     const index = qty.dataset.index;
 
+                    const field = (name) =>
+                        document.querySelector(`[name="lines[${index}][${name}]"]`)?.value ?? '';
+
                     return {
-                        product_id: +document.querySelector(`[name="lines[${index}][product_id]"]`).value,
+                        product_id: +field('product_id'),
                         quantity: +qty.value,
-                        unit_price: +document.querySelector(`[name="lines[${index}][unit_price]"]`).value,
+                        unit_price: +field('unit_price'),
+                        // Section 6b: a line typed in dollars must come back in
+                        // dollars, at the amount that was typed.
+                        entered_currency: field('entered_currency') || 'IQD',
+                        entered_amount: +field('entered_amount') || null,
                     };
                 });
 
