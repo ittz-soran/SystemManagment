@@ -225,6 +225,65 @@ class HeldCartTest extends TestCase
             ->assertStatus(422);
     }
 
+    // ---- The purchase cart, which has a currency ------------------------
+
+    /**
+     * A resumed purchase cart must be saveable.
+     *
+     * Every purchase line carries the currency it was typed in, and the cart
+     * posts it back with the form. The rebuild forgot to supply it, so every
+     * line came back with no currency at all and the purchase was refused —
+     * "The selected lines.0.entered_currency is invalid", once per line, on a
+     * form that had been filled in perfectly.
+     */
+    public function test_a_resumed_purchase_cart_carries_a_currency_on_every_line(): void
+    {
+        $this->actingAs($this->admin)->postJson(route('held-carts.store'), [
+            'type' => 'purchase',
+            'lines' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 3,
+                'unit_price' => 1_000,
+            ]],
+        ])->assertOk();
+
+        $this->actingAs($this->admin)
+            ->get(route('purchases.create', ['held' => HeldCart::sole()->id]))
+            ->assertOk()
+            ->assertViewHas('cartLines', fn (array $lines) => $lines[0]['currency'] === 'IQD');
+    }
+
+    /**
+     * Section 6b: a line typed in dollars comes back in dollars.
+     *
+     * Dropping the currency would not merely fail — it would quietly re-read a
+     * dollar price as dinars, and the shopkeeper would find the price had
+     * changed under them.
+     */
+    public function test_a_dollar_line_comes_back_in_dollars_at_the_amount_typed(): void
+    {
+        $this->actingAs($this->admin)->postJson(route('held-carts.store'), [
+            'type' => 'purchase',
+            'lines' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 2,
+                'unit_price' => 13_200,
+                'entered_currency' => 'USD',
+                // Stored the way the cart stores it: dollars times a hundred.
+                'entered_amount' => 1_000,
+            ]],
+        ])->assertOk();
+
+        $this->actingAs($this->admin)
+            ->get(route('purchases.create', ['held' => HeldCart::sole()->id]))
+            ->assertOk()
+            ->assertViewHas('cartLines', function (array $lines) {
+                return $lines[0]['currency'] === 'USD'
+                    && (float) $lines[0]['enteredAmount'] === 10.0
+                    && $lines[0]['price'] === 13_200;
+            });
+    }
+
     // ---- Somebody new, without leaving the cart -------------------------
 
     public function test_a_customer_can_be_added_from_the_cart_without_losing_it(): void
