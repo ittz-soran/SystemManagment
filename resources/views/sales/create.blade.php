@@ -51,18 +51,7 @@
         <div class="row g-3">
             <div class="col-lg-8">
                 <div class="card mb-3">
-                    <div class="card-body">
-                        <label for="product-search" class="form-label small">
-                            {{ __('Scan a barcode, or search by name or SKU') }}
-                        </label>
-                        <input id="product-search" type="text" class="form-control form-control-lg"
-                               autocomplete="off" autofocus
-                               placeholder="{{ __('Scan or type…') }}">
-                        <div id="search-results" class="list-group mt-2 d-none"></div>
-                        <div class="form-text">
-                            {{ __('Enter adds · ↑ ↓ move · Esc clears · F2 saves') }}
-                        </div>
-                    </div>
+                    @include('partials.cart-search', ['suffix' => ''])
                 </div>
 
                 <div class="card">
@@ -85,6 +74,14 @@
                         <i class="bi bi-cart fs-1 d-block mb-2 opacity-50"></i>
                         {{ __('The cart is empty. Scan a product to begin.') }}
                     </div>
+                </div>
+
+                {{-- The same box again, under the last line added. With
+                     twenty-five things in the cart the one at the top has
+                     scrolled away, and the twenty-sixth scan should not mean
+                     scrolling back up to find somewhere to put it. --}}
+                <div class="card mt-3">
+                    @include('partials.cart-search', ['suffix' => '-bottom'])
                 </div>
             </div>
 
@@ -203,8 +200,27 @@
         // box by default and returns there after every add, so a scan just works
         // with no clicking.
         (() => {
-            const searchInput = document.getElementById('product-search');
-            const resultsBox = document.getElementById('search-results');
+            /**
+             * The same search box, twice.
+             *
+             * Top and bottom are one behaviour rather than two: the same lookup,
+             * the same keys, the same results. Whichever one is being typed in
+             * is the one that shows its results; the other stays quiet.
+             */
+            const searches = ['', '-bottom']
+                .map((suffix) => ({
+                    input: document.getElementById('product-search' + suffix),
+                    results: document.getElementById('search-results' + suffix),
+                }))
+                .filter((pair) => pair.input && pair.results);
+
+            // Where scanning happens once there is anything in the cart: under
+            // the last line added, not off the top of the screen.
+            const scanner = searches[searches.length - 1];
+
+            // The pair currently being typed in.
+            let searchInput = searches[0].input;
+            let resultsBox = searches[0].results;
             const cartBody = document.getElementById('cart-body');
             const cartEmpty = document.getElementById('cart-empty');
             const totalEl = document.getElementById('running-total');
@@ -323,17 +339,48 @@
                     });
                 }
 
-                clearSearch();
+                goToScanner();
                 render();
             }
 
-            function clearSearch() {
-                searchInput.value = '';
-                resultsBox.classList.add('d-none');
-                resultsBox.innerHTML = '';
+            /**
+             * Empty both boxes, and put the caret where the next scan goes.
+             *
+             * Both, because a stale dropdown left open on the other one is a
+             * list of things that can still be clicked into a cart nobody is
+             * looking at.
+             */
+            function clearSearch(focusOn = null) {
+                searches.forEach((pair) => {
+                    pair.input.value = '';
+                    pair.results.classList.add('d-none');
+                    pair.results.innerHTML = '';
+                });
+
                 highlighted = -1;
-                // Focus returns to the search box after every add.
-                searchInput.focus();
+
+                const target = focusOn ?? searchInput;
+
+                target.focus();
+            }
+
+            /**
+             * After an add, the next scan belongs under the line just added.
+             *
+             * The cart has grown by a row, so the bottom box has moved down the
+             * page; it is brought back into view and given the caret. Nothing
+             * moves while the cart is empty and both boxes are already on
+             * screen together.
+             */
+            function goToScanner() {
+                if (scanner.input === searches[0].input || cart.length === 0) {
+                    clearSearch();
+
+                    return;
+                }
+
+                clearSearch(scanner.input);
+                scanner.input.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
 
             async function runSearch(term) {
@@ -377,19 +424,29 @@
                 resultsBox.classList.toggle('d-none', data.products.length === 0);
             }
 
-            searchInput.addEventListener('input', () => {
-                clearTimeout(searchTimer);
-                const term = searchInput.value.trim();
+            searches.forEach((pair) => {
+                pair.input.addEventListener('input', () => {
+                    // Typing here makes this the box whose results are shown.
+                    searchInput = pair.input;
+                    resultsBox = pair.results;
 
-                if (term === '') {
-                    resultsBox.classList.add('d-none');
-                    return;
-                }
+                    clearTimeout(searchTimer);
+                    const term = pair.input.value.trim();
 
-                searchTimer = setTimeout(() => runSearch(term), 150);
-            });
+                    if (term === '') {
+                        pair.results.classList.add('d-none');
+                        return;
+                    }
 
-            searchInput.addEventListener('keydown', (event) => {
+                    searchTimer = setTimeout(() => runSearch(term), 150);
+                });
+
+                pair.input.addEventListener('focus', () => {
+                    searchInput = pair.input;
+                    resultsBox = pair.results;
+                });
+
+                pair.input.addEventListener('keydown', (event) => {
                 const items = [...resultsBox.querySelectorAll('.list-group-item')];
 
                 if (event.key === 'Escape') {
@@ -412,7 +469,8 @@
                         const term = searchInput.value.trim();
                         if (term) runSearch(term);
                     }
-                }
+                    }
+                });
             });
 
             /**
