@@ -879,5 +879,17 @@
     "{1}Locked: :count unit from this purchase has already been used.|[2,*]Locked: :count units from this purchase have already been used.": "{1}مقفل: :count وحدة من هذا الشراء استُخدمت بالفعل.|[2,*]مقفل: :count وحدة من هذا الشراء استُخدمت بالفعل.",
     "{1}Showing the archived period as well — :count older record.|[2,*]Showing the archived period as well — :count older records.": "{1}تُعرض الفترة المؤرشفة أيضًا — :count سجل أقدم.|[2,*]تُعرض الفترة المؤرشفة أيضًا — :count سجل أقدم.",
     "Nothing to show here yet. Use the menu on the left.": "لا يوجد شيء لعرضه بعد. استخدم القائمة الجانبية.",
-    "You cannot take away your own admin access.": "لا يمكنك سحب صلاحية المدير من نفسك."
+    "You cannot take away your own admin access.": "لا يمكنك سحب صلاحية المدير من نفسك.",
+    "Back to the products list": "العودة إلى قائمة المنتجات",
+    "Bring back": "استرجاع",
+    "Edit :document": "تعديل :document",
+    "Edit customer": "تعديل الزبون",
+    "Edit supplier": "تعديل المورّد",
+    "Product restored": "تمت استعادة المنتج",
+    "Showing deleted products. Bringing one back keeps its history, its batches and its codes.": "عرض المنتجات المحذوفة. استرجاع أي منها يحفظ سجله ودفعاته ورموزه.",
+    "That SKU belongs to :name, which was deleted. Bring it back from the deleted list, or use a different SKU.": "هذا الرمز يخص :name وقد تم حذفه. استرجعه من قائمة المحذوفات، أو استخدم رمزًا آخر.",
+    "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "هذا الباركود يخص :name وقد تم حذفه. استرجعه من قائمة المحذوفات، أو استخدم باركودًا آخر.",
+    "{1}:count deleted product|[2,*]:count deleted products": "{1}منتج محذوف واحد|[2,*]:count منتجات محذوفة",
+    "That SKU is already :name's.": "هذا الرمز يخص :name بالفعل.",
+    "That barcode is already :name's.": "هذا الباركود يخص :name بالفعل."
 }

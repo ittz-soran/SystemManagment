@@ -59,6 +59,13 @@
                             <td class="text-end">
                                 <x-row-actions
                                     :view="route('suppliers.show', $supplier)"
+                                    :edit-modal="Gate::allows('suppliers.edit') && ! ($supplier->is_system ?? false) ? '#supplier-edit' : null"
+                                    :edit-data="[
+                                        'action' => route('suppliers.update', $supplier),
+                                        'name' => $supplier->name,
+                                        'phone' => $supplier->phone,
+                                        'address' => $supplier->address,
+                                    ]"
                                     :delete="Gate::allows('suppliers.delete') && ! ($supplier->is_system ?? false) ? route('suppliers.destroy', $supplier) : null"
                                     :delete-label="__('Delete :name?', ['name' => $supplier->name])" />
                             </td>
@@ -71,6 +78,12 @@
 
         <div class="mt-3">{{ $suppliers->links() }}</div>
     @endif
+
+    @can('suppliers.edit')
+        <x-person-edit-modal id="supplier-edit"
+                             :title="__('Edit supplier')"
+                             :save="__('Save supplier')" />
+    @endcan
 
     @can('suppliers.create')
         <div class="modal fade" id="supplier-modal" tabindex="-1" aria-hidden="true">

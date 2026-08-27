@@ -7,6 +7,21 @@
     @section('subheading', $customer->phone)
 @endif
 
+@section('actions')
+    @can('customers.edit')
+        @if(! ($customer->is_system ?? false))
+            <button type="button" class="btn btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#customer-edit"
+                    data-action="{{ route('customers.update', $customer) }}"
+                    data-name="{{ $customer->name }}"
+                    data-phone="{{ $customer->phone }}"
+                    data-address="{{ $customer->address }}">
+                <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+            </button>
+        @endif
+    @endcan
+@endsection
+
 @section('back')
     <x-back-link :to="route('customers.index')" :label="__('Customers')" remember="customers" permission="customers.view" />
 @endsection
@@ -58,4 +73,10 @@
     </div>
 
     <div class="mt-3">{{ $transactions->links() }}</div>
+
+    @can('customers.edit')
+        <x-person-edit-modal id="customer-edit"
+                             :title="__('Edit customer')"
+                             :save="__('Save customer')" />
+    @endcan
 @endsection

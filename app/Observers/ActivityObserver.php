@@ -2,6 +2,11 @@
 
 namespace App\Observers;
 
+use App\Models\Customer;
+use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Sale;
+use App\Models\Supplier;
 use App\Services\ActivityLogger;
 use Illuminate\Database\Eloquent\Model;
 
@@ -29,7 +34,19 @@ class ActivityObserver
         // Ignore touch-only saves, and the cached columns the engine rewrites
         // on every movement — products.quantity and the balance caches would
         // otherwise flood the log with entries nobody asked for.
-        $noise = ['updated_at', 'quantity', 'balance', 'status'];
+        //
+        // Which columns those are depends on the model, and the list used to
+        // not care: `quantity` is a cache on a product and the whole point of a
+        // stock adjustment, so correcting an adjustment from 5 to 3 — the one
+        // change most worth having a record of — went unlogged.
+        $noise = ['updated_at', ...match (true) {
+            $model instanceof Product => ['quantity'],
+            $model instanceof Customer,
+            $model instanceof Supplier => ['balance'],
+            $model instanceof Sale,
+            $model instanceof Purchase => ['status'],
+            default => [],
+        }];
 
         if (empty(array_diff(array_keys($changed), $noise))) {
             return;

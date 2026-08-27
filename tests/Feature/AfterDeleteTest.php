@@ -93,6 +93,45 @@ class AfterDeleteTest extends TestCase
     }
 
     /**
+     * The referer is not the shop's word either.
+     *
+     * A browser sends one from wherever it was, and it used to be followed
+     * without asking whose page that was — so a reader who reached the shop
+     * from another site and then deleted something was shown the door back out
+     * to it, carrying the shop's own flash message with them.
+     */
+    public function test_a_referer_from_another_site_is_not_followed(): void
+    {
+        $sale = $this->sale();
+
+        $this->actingAs($this->admin)
+            ->from('https://evil.test/looks-like-the-shop')
+            ->delete(route('sales.destroy', $sale))
+            ->assertRedirect(route('sales.index'));
+    }
+
+    /**
+     * An adjustment is a note about one product's shelf, so that page is where
+     * the reader was when the shelf and the screen disagreed — and it is
+     * certain to still be there once the adjustment is not.
+     */
+    public function test_deleting_an_adjustment_falls_back_to_its_product(): void
+    {
+        $adjustment = app(\App\Services\StockAdjustmentService::class)->create(
+            product: $this->product,
+            direction: \App\Models\StockAdjustment::DIRECTION_OUT,
+            quantity: 2,
+            reason: 'miscount',
+            user: $this->admin,
+        );
+
+        $this->actingAs($this->admin)
+            ->from(route('stock-adjustments.show', $adjustment))
+            ->delete(route('stock-adjustments.destroy', $adjustment))
+            ->assertRedirect(route('products.show', $this->product));
+    }
+
+    /**
      * The carried value comes from the page, so it is treated as something a
      * visitor typed. A redirect is a place the shop sends its own staff; it is
      * not somewhere an outside site gets to choose.

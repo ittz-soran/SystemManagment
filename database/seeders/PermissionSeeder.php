@@ -91,6 +91,7 @@ class PermissionSeeder extends Seeder
         'stock_adjustments' => [
             'stock_adjustments.view' => 'View stock adjustments',
             'stock_adjustments.create' => 'Create stock adjustments',
+            'stock_adjustments.edit' => 'Edit stock adjustments',
             'stock_adjustments.delete' => 'Delete stock adjustments',
         ],
         'stock' => [

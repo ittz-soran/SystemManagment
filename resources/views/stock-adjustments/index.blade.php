@@ -102,8 +102,12 @@
                                 {{ $adjustment->unit_cost !== null ? money($adjustment->unit_cost, false) : __('FIFO') }}
                             </td>
                             <td class="text-end">
+                                {{-- Offered plainly, like the delete beside it: the
+                                     engine refuses an edit whose units have since
+                                     been sold, and the refusal explains itself. --}}
                                 <x-row-actions
                                     :view="route('stock-adjustments.show', $adjustment)"
+                                    :edit="Gate::allows('stock_adjustments.edit') ? route('stock-adjustments.edit', $adjustment) : null"
                                     :delete="Gate::allows('stock_adjustments.delete') ? route('stock-adjustments.destroy', $adjustment) : null"
                                     :delete-label="__('Delete :document? :count units go back the way they came.', [
                                         'document' => $adjustment->document_no,

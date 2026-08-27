@@ -1,4 +1,18 @@
-@props(['view' => null, 'edit' => null, 'state' => null, 'deleteState' => null, 'delete' => null, 'deleteLabel' => null])
+@props([
+    'view' => null,
+    'edit' => null,
+    // Some records are edited in a modal rather than on a page of their own —
+    // a supplier is three fields, and a whole screen for them would be a page
+    // that exists only to be left again. Pass the modal's selector and the
+    // values it should open with, and the pencil opens that instead of
+    // following a link.
+    'editModal' => null,
+    'editData' => [],
+    'state' => null,
+    'deleteState' => null,
+    'delete' => null,
+    'deleteLabel' => null,
+])
 
 {{-- Section 9b: "View always; Edit/Delete only when unlocked — otherwise render
      them disabled with the lock reason as a tooltip. Never hide them, or Soran
@@ -19,11 +33,17 @@
         </a>
     @endif
 
-    @if($edit)
+    @if($edit || $editModal)
         @if($locked)
             <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $state['reason'] }}">
                 <button class="btn btn-outline-secondary" disabled><i class="bi bi-pencil"></i></button>
             </span>
+        @elseif($editModal)
+            <button type="button" class="btn btn-outline-secondary" title="{{ __('Edit') }}"
+                    data-bs-toggle="modal" data-bs-target="{{ $editModal }}"
+                    @foreach($editData as $key => $value) data-{{ $key }}="{{ $value }}" @endforeach>
+                <i class="bi bi-pencil"></i>
+            </button>
         @else
             <a href="{{ $edit }}" class="btn btn-outline-secondary" title="{{ __('Edit') }}">
                 <i class="bi bi-pencil"></i>

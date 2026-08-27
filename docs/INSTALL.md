@@ -373,5 +373,11 @@ After pulling an update, always:
 composer install
 npm install && npm run build
 php artisan migrate
+php artisan db:seed --class=PermissionSeeder
 php artisan config:cache && php artisan route:cache && php artisan view:cache
 ```
+
+The seeder line adds any permission an update introduced — it only ever adds,
+so it is safe to run on a shop with staff and their permissions already set up.
+Without it the new key is missing from the catalogue and nobody, admin aside,
+can be given it.

@@ -7,6 +7,21 @@
     @section('subheading', $supplier->phone)
 @endif
 
+@section('actions')
+    @can('suppliers.edit')
+        @if(! ($supplier->is_system ?? false))
+            <button type="button" class="btn btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#supplier-edit"
+                    data-action="{{ route('suppliers.update', $supplier) }}"
+                    data-name="{{ $supplier->name }}"
+                    data-phone="{{ $supplier->phone }}"
+                    data-address="{{ $supplier->address }}">
+                <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+            </button>
+        @endif
+    @endcan
+@endsection
+
 @section('back')
     <x-back-link :to="route('suppliers.index')" :label="__('Suppliers')" remember="suppliers" permission="suppliers.view" />
 @endsection
@@ -58,4 +73,10 @@
     </div>
 
     <div class="mt-3">{{ $transactions->links() }}</div>
+
+    @can('suppliers.edit')
+        <x-person-edit-modal id="supplier-edit"
+                             :title="__('Edit supplier')"
+                             :save="__('Save supplier')" />
+    @endcan
 @endsection

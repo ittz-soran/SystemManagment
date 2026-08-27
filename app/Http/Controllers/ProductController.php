@@ -30,7 +30,22 @@ class ProductController extends Controller
 
     public function index(Request $request): View
     {
+        /*
+         * A deleted product is soft-deleted, so its row — and with it its SKU
+         * and its barcode — is still in the table and still holds those codes
+         * against the unique indexes the doc specifies. Typing them again is
+         * therefore refused, which is right, but it leaves the shopkeeper
+         * nowhere to go: the product they want back is not on any screen.
+         *
+         * So this list can be asked for the deleted ones, and each of them can
+         * be brought back. Bringing it back is also better than typing it in
+         * again would have been — the batches, the movements and every invoice
+         * line that names it are all still attached to that row.
+         */
+        $deleted = $request->boolean('deleted');
+
         $products = Product::with('category')
+            ->when($deleted, fn ($q) => $q->onlyTrashed())
             // Section 4: second-hand items and services are products and sell
             // like them, but a list of what the shop stocks is not where they
             // belong — one is a single thing that will never be reordered, the
@@ -50,6 +65,11 @@ class ProductController extends Controller
 
         return view('products.index', [
             'products' => $products,
+            'showingDeleted' => $deleted,
+
+            // The toggle only appears when there is something behind it.
+            'deletedCount' => (int) Product::onlyTrashed()->stocked()->count(),
+
             'categories' => Category::orderBy('name')->get(),
 
             // Counted over the whole catalogue rather than the page, so the
@@ -268,6 +288,28 @@ class ProductController extends Controller
         return redirect()
             ->to(after_delete(route('products.show', $product), route('products.index')))
             ->with('success', __('Product deleted'));
+    }
+
+    /**
+     * Bring a deleted product back.
+     *
+     * Its SKU and its barcode never left — a soft-deleted row still holds both
+     * against the unique indexes — so restoring is what the shopkeeper wanted
+     * when they typed that barcode again. It also keeps everything the row
+     * already owns: the batches on the shelf, the movements behind them, and
+     * every invoice line that names it.
+     */
+    public function restore(Product $product): RedirectResponse
+    {
+        // The route is declared ->withTrashed(), so the binding finds it; a
+        // product that is not deleted has nothing to restore.
+        abort_unless($product->trashed(), 404);
+
+        $product->restore();
+
+        return redirect()
+            ->route('products.show', $product)
+            ->with('success', __('Product restored'));
     }
 
     /**
