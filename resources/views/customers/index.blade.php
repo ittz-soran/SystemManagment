@@ -57,8 +57,17 @@
                                 {{ money($customer->balance, false) }}
                             </td>
                             <td class="text-end">
+                                {{-- Section 4: the Cash Customer cannot be renamed,
+                                     so it is not offered a pencil. --}}
                                 <x-row-actions
                                     :view="route('customers.show', $customer)"
+                                    :edit-modal="Gate::allows('customers.edit') && ! ($customer->is_system ?? false) ? '#customer-edit' : null"
+                                    :edit-data="[
+                                        'action' => route('customers.update', $customer),
+                                        'name' => $customer->name,
+                                        'phone' => $customer->phone,
+                                        'address' => $customer->address,
+                                    ]"
                                     :delete="Gate::allows('customers.delete') && ! ($customer->is_system ?? false) ? route('customers.destroy', $customer) : null"
                                     :delete-label="__('Delete :name?', ['name' => $customer->displayName()])" />
                             </td>
@@ -71,6 +80,12 @@
 
         <div class="mt-3">{{ $customers->links() }}</div>
     @endif
+
+    @can('customers.edit')
+        <x-person-edit-modal id="customer-edit"
+                             :title="__('Edit customer')"
+                             :save="__('Save customer')" />
+    @endcan
 
     @can('customers.create')
         <div class="modal fade" id="customer-modal" tabindex="-1" aria-hidden="true">

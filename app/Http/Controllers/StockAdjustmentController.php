@@ -123,6 +123,53 @@ class StockAdjustmentController extends Controller
         return back()->with('success', __('Adjustment saved'));
     }
 
+    public function edit(StockAdjustment $stockAdjustment): View
+    {
+        return view('stock-adjustments.edit', [
+            'adjustment' => $stockAdjustment->load('product'),
+            'reasons' => self::REASONS,
+        ]);
+    }
+
+    /**
+     * Section 8's shape for an edit: reverse and re-apply. The service does the
+     * whole of it in one transaction, and refuses on the same terms a delete
+     * does — an incoming adjustment whose units have been sold cannot be
+     * unwound, because those units are on a customer's invoice.
+     */
+    public function update(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
+    {
+        $data = $request->validate([
+            'direction' => ['required', Rule::in([StockAdjustment::DIRECTION_IN, StockAdjustment::DIRECTION_OUT])],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'unit_cost' => ['nullable', 'integer', 'min:0', 'required_if:direction,in'],
+            'reason' => ['required', Rule::in(self::REASONS)],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'adjusted_at' => ['required', 'date'],
+        ], [
+            'unit_cost.required_if' => __('An incoming adjustment needs a unit cost — FIFO needs a cost for every unit.'),
+        ]);
+
+        try {
+            $this->adjustments->update(
+                adjustment: $stockAdjustment,
+                direction: $data['direction'],
+                quantity: (int) $data['quantity'],
+                reason: $data['reason'],
+                user: $request->user(),
+                unitCost: $data['unit_cost'] ?? null,
+                notes: $data['notes'] ?? null,
+                adjustedAt: Carbon::parse($data['adjusted_at']),
+            );
+        } catch (InsufficientStockException|RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('stock-adjustments.show', $stockAdjustment)
+            ->with('success', __('Adjustment saved'));
+    }
+
     public function destroy(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
         try {
@@ -131,10 +178,18 @@ class StockAdjustmentController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        // An adjustment is always a note about one product's shelf, so that
+        // product's page is a better last resort than the list: it is where the
+        // reader was looking when the shelf and the screen disagreed, and it is
+        // certain to still be there.
+        $product = $stockAdjustment->product()->withTrashed()->first();
+
         return redirect()
             ->to(after_delete(
                 route('stock-adjustments.show', $stockAdjustment),
-                route('stock-adjustments.index'),
+                $product && ! $product->trashed()
+                    ? route('products.show', $product)
+                    : route('stock-adjustments.index'),
             ))
             ->with('success', __('Adjustment deleted'));
     }

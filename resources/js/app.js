@@ -364,10 +364,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const here = () => location.pathname + location.search;
 
-    const segment = (path) => path.split('/').filter(Boolean)[0] ?? '';
+    /*
+     * Where the app starts, which is not always the site root: shared hosting
+     * rarely lets you move the document root, so the shop can be uploaded as
+     * sys/ and reached at /sys/public/. Every URL this file remembers or hands
+     * back to the server keeps that prefix — strip it and a redirect would land
+     * on the domain root, which is not this shop. Only the two helpers that
+     * *classify* a page take it off, because /sys/public/sales and /sales are
+     * the same screen and both have to be recognised as one.
+     */
+    const BASE = (document.body.dataset.base ?? '').replace(/\/+$/, '');
+
+    const inApp = (path) => (BASE && path.startsWith(BASE) ? path.slice(BASE.length) || '/' : path);
+
+    const segment = (path) => inApp(path).split('/').filter(Boolean)[0] ?? '';
 
     // A list page is a single segment: /sales, but not /sales/2 or /sales/create.
-    const isListPage = () => location.pathname.split('/').filter(Boolean).length === 1;
+    const isListPage = () => inApp(location.pathname).split('/').filter(Boolean).length === 1;
 
     /** A link's destination, spelled the way here() spells a page. */
     const target = (link) => {

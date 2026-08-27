@@ -7,6 +7,12 @@
 @endsection
 
 @section('actions')
+    @can('stock_adjustments.edit')
+        <a href="{{ route('stock-adjustments.edit', $adjustment) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+        </a>
+    @endcan
+
     @can('stock_adjustments.delete')
         {{-- Section 8b: the units go back where they came from. The engine
              refuses if they have since been sold, so the button can be offered

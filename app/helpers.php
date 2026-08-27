@@ -156,10 +156,20 @@ if (! function_exists('after_delete')) {
         $previous = url()->previous();
         $gonePath = $path($gone);
 
+        // previous() hands back the Referer header as the browser sent it, and
+        // a browser will send one from anywhere. A reader who followed a link
+        // into this shop from another site and then deleted something would be
+        // shown the door back out to that site — carrying the shop's flash
+        // message with them. Only this shop's own pages are somewhere to put
+        // anybody.
+        $host = static fn (string $url): ?string => parse_url($url, PHP_URL_HOST) ?: null;
+        $sameSite = $host($previous) === null || $host($previous) === $host(url()->current());
+
         // previous() answers with the site root when the browser sent no
         // referer at all, which is not a page in this shop and not somewhere to
         // put anybody.
-        $hasPrevious = $path($previous) !== '/'
+        $hasPrevious = $sameSite
+            && $path($previous) !== '/'
             && $path($previous) !== $gonePath
             && $path($previous) !== $path(url()->current());
 

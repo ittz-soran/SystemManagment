@@ -87,6 +87,15 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:products.edit')->name('products.update');
     Route::delete('products/{product}', [ProductController::class, 'destroy'])
         ->middleware('permission:products.delete')->name('products.destroy');
+    /*
+     * A deleted product keeps its SKU and its barcode, so typing them again is
+     * refused — and the only way back to the product holding them is this.
+     * Guarded by products.delete: whoever may take one off the list is who may
+     * put it back.
+     */
+    Route::post('products/{product}/restore', [ProductController::class, 'restore'])
+        ->withTrashed()
+        ->middleware('permission:products.delete')->name('products.restore');
     Route::delete('products', [ProductController::class, 'bulkDestroy'])
         ->middleware('permission:products.delete')->name('products.bulk-destroy');
     Route::post('products/export', [ProductController::class, 'bulkExport'])
@@ -273,6 +282,11 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_adjustments.create')->name('stock-adjustments.store');
     Route::get('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'show'])
         ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.show');
+    // Section 8's reverse-and-re-apply, the same shape as editing a purchase.
+    Route::get('stock-adjustments/{stockAdjustment}/edit', [StockAdjustmentController::class, 'edit'])
+        ->middleware('permission:stock_adjustments.edit')->name('stock-adjustments.edit');
+    Route::put('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'update'])
+        ->middleware('permission:stock_adjustments.edit')->name('stock-adjustments.update');
     Route::delete('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'destroy'])
         ->middleware('permission:stock_adjustments.delete')->name('stock-adjustments.destroy');
 

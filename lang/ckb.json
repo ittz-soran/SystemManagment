@@ -879,5 +879,17 @@
     "{1}Locked: :count unit from this purchase has already been used.|[2,*]Locked: :count units from this purchase have already been used.": "{1}داخراوە: :count یەکە لەم کڕینەوە پێشتر بەکارهاتووە.|[2,*]داخراوە: :count یەکە لەم کڕینەوە پێشتر بەکارهاتوون.",
     "{1}Showing the archived period as well — :count older record.|[2,*]Showing the archived period as well — :count older records.": "{1}ماوە ئەرشیفکراوەکەش پیشان دەدرێت — :count تۆماری کۆنتر.|[2,*]ماوە ئەرشیفکراوەکەش پیشان دەدرێت — :count تۆماری کۆنتر.",
     "Nothing to show here yet. Use the menu on the left.": "هێشتا هیچ شتێک نییە بۆ پیشاندان. لیستی لاتەنیشت بەکاربهێنە.",
-    "You cannot take away your own admin access.": "ناتوانیت دەسەڵاتی بەڕێوەبەری خۆت لە خۆت بسەنیتەوە."
+    "You cannot take away your own admin access.": "ناتوانیت دەسەڵاتی بەڕێوەبەری خۆت لە خۆت بسەنیتەوە.",
+    "Back to the products list": "گەڕانەوە بۆ لیستی کاڵاکان",
+    "Bring back": "گەڕاندنەوە",
+    "Edit :document": "دەستکاری :document",
+    "Edit customer": "دەستکاری کڕیار",
+    "Edit supplier": "دەستکاری دابینکەر",
+    "Product restored": "کاڵاکە گەڕێندرایەوە",
+    "Showing deleted products. Bringing one back keeps its history, its batches and its codes.": "کاڵا سڕاوەکان پیشان دەدرێن. گەڕاندنەوەی یەکێکیان مێژوو و بەشەکان و کۆدەکانی دەپارێزێت.",
+    "That SKU belongs to :name, which was deleted. Bring it back from the deleted list, or use a different SKU.": "ئەم SKU ـە هی :name ـە کە سڕدراوەتەوە. لە لیستی سڕاوەکان بیگەڕێنەوە، یان SKU ـێکی تر بەکاربهێنە.",
+    "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "ئەم بارکۆدە هی :name ـە کە سڕدراوەتەوە. لە لیستی سڕاوەکان بیگەڕێنەوە، یان بارکۆدێکی تر بەکاربهێنە.",
+    "{1}:count deleted product|[2,*]:count deleted products": "{1}:count کاڵای سڕاو|[2,*]:count کاڵای سڕاو",
+    "That SKU is already :name's.": "ئەم SKU ـە پێشتر هی :name ـە.",
+    "That barcode is already :name's.": "ئەم بارکۆدە پێشتر هی :name ـە."
 }

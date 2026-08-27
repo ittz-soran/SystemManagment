@@ -879,5 +879,17 @@
     "{1}Locked: :count unit from this purchase has already been used.|[2,*]Locked: :count units from this purchase have already been used.": "{1}قفل شده: :count واحد از این خرید قبلاً استفاده شده است.|[2,*]قفل شده: :count واحد از این خرید قبلاً استفاده شده است.",
     "{1}Showing the archived period as well — :count older record.|[2,*]Showing the archived period as well — :count older records.": "{1}دوره بایگانی‌شده هم نمایش داده می‌شود — :count رکورد قدیمی‌تر.|[2,*]دوره بایگانی‌شده هم نمایش داده می‌شود — :count رکورد قدیمی‌تر.",
     "Nothing to show here yet. Use the menu on the left.": "هنوز چیزی برای نمایش نیست. از منوی کناری استفاده کنید.",
-    "You cannot take away your own admin access.": "نمی‌توانید دسترسی مدیر خود را از خودتان بگیرید."
+    "You cannot take away your own admin access.": "نمی‌توانید دسترسی مدیر خود را از خودتان بگیرید.",
+    "Back to the products list": "بازگشت به فهرست کالاها",
+    "Bring back": "بازگرداندن",
+    "Edit :document": "ویرایش :document",
+    "Edit customer": "ویرایش مشتری",
+    "Edit supplier": "ویرایش تأمین‌کننده",
+    "Product restored": "کالا بازگردانده شد",
+    "Showing deleted products. Bringing one back keeps its history, its batches and its codes.": "کالاهای حذف‌شده نمایش داده می‌شوند. بازگرداندن هرکدام سابقه، دسته‌ها و کدهایش را نگه می‌دارد.",
+    "That SKU belongs to :name, which was deleted. Bring it back from the deleted list, or use a different SKU.": "این SKU متعلق به :name است که حذف شده. از فهرست حذف‌شده‌ها بازش گردانید، یا SKU دیگری بگذارید.",
+    "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "این بارکد متعلق به :name است که حذف شده. از فهرست حذف‌شده‌ها بازش گردانید، یا بارکد دیگری بگذارید.",
+    "{1}:count deleted product|[2,*]:count deleted products": "{1}:count کالای حذف‌شده|[2,*]:count کالای حذف‌شده",
+    "That SKU is already :name's.": "این SKU از پیش متعلق به :name است.",
+    "That barcode is already :name's.": "این بارکد از پیش متعلق به :name است."
 }

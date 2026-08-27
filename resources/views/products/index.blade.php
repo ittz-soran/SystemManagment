@@ -126,6 +126,27 @@
         </div>
     </form>
 
+    {{-- A deleted product keeps its SKU and its barcode, so the form refuses
+         them until it comes back. The toggle only appears when there is
+         something behind it. --}}
+    @if($deletedCount > 0 || $showingDeleted)
+        <div class="mb-3">
+            @if($showingDeleted)
+                <a href="{{ route('products.index') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>{{ __('Back to the products list') }}
+                </a>
+                <span class="text-secondary small ms-2">
+                    {{ __('Showing deleted products. Bringing one back keeps its history, its batches and its codes.') }}
+                </span>
+            @else
+                <a href="{{ route('products.index', ['deleted' => 1]) }}"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-trash me-1"></i>{{ trans_choice('{1}:count deleted product|[2,*]:count deleted products', $deletedCount, ['count' => number_format($deletedCount)]) }}
+                </a>
+            @endif
+        </div>
+    @endif
+
     @if($products->isEmpty())
         <div class="card">
             <x-empty-state icon="box-seam"
@@ -177,11 +198,26 @@
                                 <td class="money text-secondary">{{ money($product->purchase_price, false) }}</td>
                                 <td class="money">{{ money($product->sale_price, false) }}</td>
                                 <td class="text-end">
-                                    <x-row-actions
-                                        :view="route('products.show', $product)"
-                                        :edit="Gate::allows('products.edit') ? route('products.edit', $product) : null"
-                                        :delete="Gate::allows('products.delete') ? route('products.destroy', $product) : null"
-                                        :delete-label="__('Delete :name? Products with stock history are deactivated instead.', ['name' => $product->name])" />
+                                    @if($showingDeleted)
+                                        {{-- The only thing to do with a deleted
+                                             row, and the answer to a barcode the
+                                             form says is already taken. --}}
+                                        @can('products.delete')
+                                            <form action="{{ route('products.restore', $product) }}" method="POST"
+                                                  class="d-inline">
+                                                @csrf
+                                                <button class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>{{ __('Bring back') }}
+                                                </button>
+                                            </form>
+                                        @endcan
+                                    @else
+                                        <x-row-actions
+                                            :view="route('products.show', $product)"
+                                            :edit="Gate::allows('products.edit') ? route('products.edit', $product) : null"
+                                            :delete="Gate::allows('products.delete') ? route('products.destroy', $product) : null"
+                                            :delete-label="__('Delete :name? Products with stock history are deactivated instead.', ['name' => $product->name])" />
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

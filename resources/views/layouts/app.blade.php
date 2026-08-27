@@ -33,7 +33,12 @@
         </script>
     @endif
 </head>
-<body class="bg-body-tertiary" data-hold-hint="{{ __('Hold to save') }}">
+{{-- data-base: where the app starts. On shared hosting the shop is reached at
+     /sys/public/, and app.js needs to know which part of the path is the
+     address and which part is the screen. --}}
+<body class="bg-body-tertiary"
+      data-hold-hint="{{ __('Hold to save') }}"
+      data-base="{{ rtrim(parse_url(url('/'), PHP_URL_PATH) ?: '', '/') }}">
 <div class="d-flex">
     @include('layouts.sidebar')
 
