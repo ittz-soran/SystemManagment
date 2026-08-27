@@ -134,10 +134,17 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])
         ->middleware('permission:customers.delete')->name('customers.destroy');
 
-    // Section 9: Users — admin only.
+    /*
+     * Section 9: Users — CRUD, admin only.
+     *
+     * `admin`, not `permission:users.view`. Whoever can save a user can save
+     * one with role = admin, or set a new password on the owner's account —
+     * so a permission key that opened this screen would be a permission that
+     * grants every other permission. See EnsureAdmin.
+     */
     Route::resource('users', UserController::class)
         ->except(['show'])
-        ->middleware('permission:users.view');
+        ->middleware('admin');
 
     // ---- Sell & buy ------------------------------------------------------
     Route::get('sales', [SaleController::class, 'index'])

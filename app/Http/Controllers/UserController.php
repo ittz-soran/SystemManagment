@@ -67,6 +67,16 @@ class UserController extends Controller
     {
         $data = $this->rules($request, $user);
 
+        // The shop has to keep a way back in. An admin who demotes or
+        // deactivates themselves has just closed the only screen that could
+        // undo it, and on a one-admin shop that is the whole system locked.
+        if ($user->is($request->user())
+            && ($data['role'] !== User::ROLE_ADMIN || ! ($data['is_active'] ?? false))) {
+            return back()
+                ->withInput()
+                ->with('error', __('You cannot take away your own admin access.'));
+        }
+
         DB::transaction(function () use ($request, $user, $data) {
             if (blank($data['password'] ?? null)) {
                 unset($data['password']);
@@ -110,9 +120,26 @@ class UserController extends Controller
         ]);
     }
 
-    /** @return \Illuminate\Support\Collection<string, \Illuminate\Support\Collection<int, Permission>> */
+    /**
+     * The checkboxes an admin may tick.
+     *
+     * `users.*` is left out. This screen is admin-only at the router (see
+     * EnsureAdmin), so ticking users.view for a member of staff would promise
+     * a screen they still could not open — and if it did open, whoever holds
+     * it could save themselves role = admin. A checkbox that either does
+     * nothing or hands over the shop should not be on the page.
+     *
+     * Rows already granted disappear on the next save: sync() is given what
+     * the form posted, and the form no longer posts them.
+     *
+     * @return \Illuminate\Support\Collection<string, \Illuminate\Support\Collection<int, Permission>>
+     */
     private function permissionGroups()
     {
-        return Permission::orderBy('group')->orderBy('key')->get()->groupBy('group');
+        return Permission::whereNot('group', 'users')
+            ->orderBy('group')
+            ->orderBy('key')
+            ->get()
+            ->groupBy('group');
     }
 }

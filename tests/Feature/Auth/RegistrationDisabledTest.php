@@ -27,8 +27,8 @@ class RegistrationDisabledTest extends TestCase
         $this->post('/register', [
             'name' => 'Intruder',
             'email' => 'intruder@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'shop-till-2026',
+            'password_confirmation' => 'shop-till-2026',
         ])->assertNotFound();
 
         $this->assertDatabaseMissing('users', ['email' => 'intruder@example.com']);
@@ -42,8 +42,8 @@ class RegistrationDisabledTest extends TestCase
         $this->actingAs($admin)->post(route('users.store'), [
             'name' => 'Shop Assistant',
             'email' => 'assistant@example.com',
-            'password' => 'a-strong-password',
-            'password_confirmation' => 'a-strong-password',
+            'password' => 'a-strong-password-2026',
+            'password_confirmation' => 'a-strong-password-2026',
             'role' => 'user',
             'is_active' => 1,
             'language' => 'ckb',

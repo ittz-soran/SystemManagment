@@ -249,15 +249,15 @@
                     row.innerHTML = `
                         <td>
                             <div class="fw-medium">
-                                ${line.name}
+                                ${escapeHtml(line.name)}
                                 ${line.kind === 'service'
                                     ? `<span class="badge text-bg-light">@json(__('Service'))</span>`
                                     : line.kind === 'used'
                                         ? `<span class="badge text-bg-light">@json(__('Second-hand'))</span>`
                                         : ''}
                             </div>
-                            <div class="small text-secondary" dir="ltr">${line.sku}</div>
-                            ${line.condition ? `<div class="small text-secondary">${line.condition}</div>` : ''}
+                            <div class="small text-secondary" dir="ltr">${escapeHtml(line.sku)}</div>
+                            ${line.condition ? `<div class="small text-secondary">${escapeHtml(line.condition)}</div>` : ''}
                             <div class="small text-warning ${line.belowCost ? '' : 'd-none'}" data-role="below-cost">
                                 <i class="bi bi-exclamation-triangle"></i>
                                 @json(__('Below cost: this unit cost')) ${format(line.cost ?? 0)}
@@ -279,7 +279,7 @@
                                    class="form-control form-control-sm text-end"
                                    name="lines[${index}][unit_price]" value="${line.price}"
                                    data-role="price" data-index="${index}"
-                                   data-numpad="${line.name}">
+                                   data-numpad="${escapeHtml(line.name)}">
                         </td>
                         <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
                         <td>
@@ -408,8 +408,8 @@
                     item.className = 'list-group-item list-group-item-action d-flex justify-content-between';
                     item.innerHTML = `
                         <span>
-                            <span class="fw-medium">${product.name}</span>
-                            <span class="small text-secondary ms-2" dir="ltr">${product.sku}</span>
+                            <span class="fw-medium">${escapeHtml(product.name)}</span>
+                            <span class="small text-secondary ms-2" dir="ltr">${escapeHtml(product.sku)}</span>
                         </span>
                         <span class="small">
                             ${product.kind === 'service'

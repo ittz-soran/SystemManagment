@@ -123,9 +123,14 @@ class ReportTest extends TestCase
 
     public function test_logging_in_and_out_is_recorded(): void
     {
+        // The seeded administrator no longer has a password this test could
+        // know — that is the point of it — so give it one to log in with.
+        $admin = \App\Models\User::where('email', 'admin@example.com')->firstOrFail();
+        $admin->forceFill(['password' => 'a-strong-password-2026'])->save();
+
         $this->post(route('login'), [
-            'email' => 'admin@example.com',
-            'password' => 'password',
+            'email' => $admin->email,
+            'password' => 'a-strong-password-2026',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('activity_logs', ['action' => 'login', 'module' => 'auth']);

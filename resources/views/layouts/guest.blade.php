@@ -11,6 +11,8 @@
          the browser title. --}}
     <title>{{ setting('shop_name', config('app.name')) }}</title>
 
+    @include('partials.escape-html')
+
     @vite(['resources/scss/app.scss', 'resources/js/app.js'])
 
     {{-- After the stylesheet, or Bootstrap's own :root wins on source order. --}}
