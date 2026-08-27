@@ -258,8 +258,8 @@
 
                     row.innerHTML = `
                         <td>
-                            <div class="fw-medium">${line.name}</div>
-                            <div class="small text-secondary" dir="ltr">${line.sku}</div>
+                            <div class="fw-medium">${escapeHtml(line.name)}</div>
+                            <div class="small text-secondary" dir="ltr">${escapeHtml(line.sku)}</div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                             <input type="hidden" name="lines[${index}][entered_currency]" value="${line.currency}">
                             <input type="hidden" name="lines[${index}][entered_amount]" value="${line.currency === 'USD' ? Math.round(line.enteredAmount * 100) : ''}">
@@ -282,12 +282,12 @@
                                 ? `<input type="number" min="0" step="0.01" dir="ltr"
                                           class="form-control form-control-sm text-end"
                                           value="${line.enteredAmount}" data-role="usd" data-index="${index}"
-                                          data-numpad="${line.name} (USD)" data-numpad-decimals="2">
+                                          data-numpad="${escapeHtml(line.name)} (USD)" data-numpad-decimals="2">
                                    <div class="small text-secondary text-end" data-role="converted">= ${format(line.price)} @json(__('IQD'))</div>`
                                 : `<input type="number" min="0" step="1" dir="ltr"
                                           class="form-control form-control-sm text-end"
                                           value="${line.price}" data-role="price" data-index="${index}"
-                                          data-numpad="${line.name}">`}
+                                          data-numpad="${escapeHtml(line.name)}">`}
                             <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}">
                         </td>
                         <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
@@ -441,8 +441,8 @@
                     item.className = 'list-group-item list-group-item-action d-flex justify-content-between';
                     item.innerHTML = `
                         <span>
-                            <span class="fw-medium">${product.name}</span>
-                            <span class="small text-secondary ms-2" dir="ltr">${product.sku}</span>
+                            <span class="fw-medium">${escapeHtml(product.name)}</span>
+                            <span class="small text-secondary ms-2" dir="ltr">${escapeHtml(product.sku)}</span>
                         </span>
                         <span class="small text-secondary">${format(product.purchase_price)}</span>`;
                     item.addEventListener('click', () => addProduct(product));

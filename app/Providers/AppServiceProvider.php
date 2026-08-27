@@ -23,6 +23,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -60,6 +61,23 @@ class AppServiceProvider extends ServiceProvider
             // alias through it, and an unmapped class silently loses its link.
             'product' => Product::class,
         ]);
+
+        /**
+         * What a password has to be, in the one place every screen that sets
+         * one already asks: the admin creating an employee, the employee
+         * changing their own, and the reset link.
+         *
+         * Laravel's own default is eight characters of anything, which was
+         * written for a form on somebody's laptop. This one is reachable from
+         * the internet — it is hosted now — and the account being guessed at is
+         * the one that can read what the shop paid for everything.
+         *
+         * Ten, with a letter and a digit. Not a wall of classes: a rule a
+         * shopkeeper cannot satisfy is a rule that ends up on a sticky note
+         * under the keyboard. Passwords already saved are untouched; this is
+         * asked the next time one is set.
+         */
+        Password::defaults(fn () => Password::min(10)->letters()->numbers());
 
         // Section 3: Bootstrap 5, so the paginator emits Bootstrap markup
         // rather than Laravel's default Tailwind classes.

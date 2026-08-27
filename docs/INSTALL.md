@@ -78,13 +78,21 @@ php artisan migrate --seed
 
 That seeds the permissions, the settings, the Cash Customer, the document
 counters and the two categories the system fills in for you. It also creates the
-administrator:
+administrator, `admin@example.com`, and prints its password — once, right there
+in the terminal:
 
 ```
-admin@example.com / password
+  Administrator account: admin@example.com
+  Password: qP4mtRk9vXbe72Ld
+  Write it down now — it is not shown again. Change it at /profile.
 ```
 
-**Change that password the first time you log in.** Settings → Users.
+Write it down. If you would rather choose it yourself, set `ADMIN_PASSWORD` in
+`.env` before seeding.
+
+It is printed rather than written into the code on purpose: every copy of this
+system used to install with the same password, which is survivable behind a
+locked shop door and is not survivable on the internet.
 
 Run it:
 
@@ -135,6 +143,41 @@ URLs from the site root, so under a subdirectory the browser asked
 back to a system font, and every icon turned into an empty box. The build now
 writes those URLs relative to the stylesheet, so they resolve wherever the
 folder sits.
+
+#### Before you leave it running
+
+A shop on one computer is protected by the door being locked at night. A shop on
+the internet is not, so these are not optional.
+
+| Set | Why |
+|---|---|
+| `APP_DEBUG=false` and `APP_ENV=production` | with debug on, any error page prints the database password, the file paths and the query that failed. |
+| `SESSION_SECURE_COOKIE=true`, and serve the site over HTTPS | otherwise the browser will hand the session cookie to a plain `http://` request, and whoever shares the wifi has the till. |
+| A new password on `admin@example.com` | change it at **My preferences**. Fresh installs now generate one and print it once; an install made before that has the old shipped password, which is public knowledge. |
+| Nothing above `public/` served | `.env` holds the database password. Point the domain at `public/`, or deny the rest in `.htaccess`. |
+
+Then check the last one actually took, from a browser that is not logged in:
+
+```
+https://your-domain.com/sys/.env      → must be 403 or 404, never a page of text
+https://your-domain.com/sys/storage/  → the same
+```
+
+If either comes back with content, stop and fix it before anything else.
+
+#### Who can see what
+
+Roles decide the two things a permission cannot:
+
+- **Users** is admin-only. There is no permission that opens it, deliberately —
+  whoever can save a user can save one with the admin role, so a key that
+  granted it would be a key that grants everything.
+- **Cost is `reports.view`.** What the shelf cost, what the shop owes suppliers,
+  what it spent today: a member of staff with the sale screens sees today's
+  sales and what is in stock, and not what any of it was bought for. Give
+  `reports.view` to whoever is meant to see the shop's numbers.
+
+Everything else is a permission, ticked per person on the user's page.
 
 ### Moving an existing shop to another computer
 
@@ -322,6 +365,7 @@ to 1 so your first real invoice is INV-00001.
 | The logo does not appear | `php artisan storage:link` has not been run. |
 | `'mysqldump' is not recognized` | set `MYSQLDUMP_PATH` in `.env`, or run `php artisan backup:check`, which says exactly what it could not find. |
 | A change to `.env` does nothing | `php artisan config:cache` again. |
+| A member of staff sees figures they should not | give them `reports.view` only if they are meant to see cost. See *Who can see what*. |
 
 After pulling an update, always:
 

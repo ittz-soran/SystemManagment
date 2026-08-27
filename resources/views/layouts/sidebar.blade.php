@@ -24,11 +24,13 @@
     <nav class="nav flex-column gap-1">
         @foreach($nav as $heading => $items)
             @php
-                // Both conditions matter: the permission decides whether this user
-                // may go there, and Route::has keeps a heading from appearing for
-                // a module that has not been built yet.
+                // Both conditions matter: Navigation::allows decides whether this
+                // user may go there — permission, and role for the screens no
+                // permission opens — and Route::has keeps a heading from
+                // appearing for a module that has not been built yet.
                 $visible = collect($items)->filter(
-                    fn ($item) => Route::has($item['route']) && Gate::allows($item['permission'])
+                    fn ($item) => Route::has($item['route'])
+                        && App\Support\Navigation::allows(auth()->user(), $item)
                 );
             @endphp
 

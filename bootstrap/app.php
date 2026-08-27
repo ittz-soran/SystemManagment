@@ -14,12 +14,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'permission' => \App\Http\Middleware\EnsurePermission::class,
+            'admin' => \App\Http\Middleware\EnsureAdmin::class,
         ]);
 
         // Section 8c: language and theme apply to every page, including the
-        // login screen, so this runs on the whole web group.
+        // login screen, so this runs on the whole web group. So do the security
+        // headers — the login screen is the page most worth protecting.
         $middleware->web(append: [
             \App\Http\Middleware\SetUserPreferences::class,
+            \App\Http\Middleware\SecurityHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

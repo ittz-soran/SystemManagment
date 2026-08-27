@@ -25,13 +25,19 @@
          the one that needs acting on, so it is a filter as well: pressing it
          reloads the list showing only those rows. --}}
     <div class="row g-2 mb-3">
-        <div class="col-6 col-lg-3">
+        @php
+            // What the shelf cost is a reports.view figure — see
+            // ProductController. Without it there are two tiles, not four, so
+            // they take the width the missing pair leaves behind.
+            $span = $stockValue === null ? 'col-lg-6' : 'col-lg-3';
+        @endphp
+        <div class="col-6 {{ $span }}">
             <div class="stat-tile">
                 <span class="stat-tile-label">{{ __('Products') }}</span>
                 <span class="stat-tile-value">{{ number_format($totalProducts) }}</span>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 {{ $span }}">
             <a class="stat-tile {{ request()->boolean('low_stock') ? 'is-on' : '' }}"
                href="{{ request()->boolean('low_stock')
                    ? route('products.index', request()->except(['low_stock', 'page']))
@@ -48,27 +54,29 @@
                 </span>
             </a>
         </div>
-        <div class="col-6 col-lg-3">
-            {{-- Not quantity times the suggested price: the money that actually
-                 left the till for the units still on the shelf. --}}
-            <div class="stat-tile">
-                <span class="stat-tile-label">{{ __('Stock value') }}</span>
-                <span class="stat-tile-value">{{ money($stockValue) }}</span>
-                <span class="stat-tile-note">{{ __('what the unsold batches cost') }}</span>
+        @if($stockValue !== null)
+            <div class="col-6 col-lg-3">
+                {{-- Not quantity times the suggested price: the money that actually
+                     left the till for the units still on the shelf. --}}
+                <div class="stat-tile">
+                    <span class="stat-tile-label">{{ __('Stock value') }}</span>
+                    <span class="stat-tile-value">{{ money($stockValue) }}</span>
+                    <span class="stat-tile-note">{{ __('what the unsold batches cost') }}</span>
+                </div>
             </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            {{-- The same units at the other price. Not money the shop has: money
-                 it would have if every one of them sold at today's price and
-                 none were discounted, returned or written off. --}}
-            <div class="stat-tile">
-                <span class="stat-tile-label">{{ __('At sale price') }}</span>
-                <span class="stat-tile-value">{{ money($stockRetail) }}</span>
-                <span class="stat-tile-note">
-                    {{ __(':amount profit if it all sells', ['amount' => money($stockRetail - $stockValue, false)]) }}
-                </span>
+            <div class="col-6 col-lg-3">
+                {{-- The same units at the other price. Not money the shop has: money
+                     it would have if every one of them sold at today's price and
+                     none were discounted, returned or written off. --}}
+                <div class="stat-tile">
+                    <span class="stat-tile-label">{{ __('At sale price') }}</span>
+                    <span class="stat-tile-value">{{ money($stockRetail) }}</span>
+                    <span class="stat-tile-note">
+                        {{ __(':amount profit if it all sells', ['amount' => money($stockRetail - $stockValue, false)]) }}
+                    </span>
+                </div>
             </div>
-        </div>
+        @endif
     </div>
 
     {{-- Section 9b: filters row, results table, pagination. --}}

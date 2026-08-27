@@ -62,20 +62,31 @@ class ProductController extends Controller
                 ->whereRaw('quantity <= COALESCE(reorder_level, ?)', [$threshold])
                 ->count(),
 
+            // What the shelf cost, and what it would fetch — the two figures
+            // that between them say what the shop makes on everything it
+            // sells. That is a `reports.view` figure and not a
+            // `products.view` one: a salesperson needs to know what is in
+            // stock and what it sells for, not what it was bought for. Not
+            // computed at all for a reader who may not see it.
+            //
             // Not quantity times the suggested price: the money that actually
             // left the till for the units still on the shelf.
-            'stockValue' => (int) StockBatch::whereIn('product_id', Product::stocked()->select('id'))
-                ->sum(DB::raw('quantity_remaining * unit_cost')),
+            'stockValue' => $request->user()->hasPermission('reports.view')
+                ? (int) StockBatch::whereIn('product_id', Product::stocked()->select('id'))
+                    ->sum(DB::raw('quantity_remaining * unit_cost'))
+                : null,
 
             // The other side of the same shelf: what those units would fetch at
             // today's sale price. Read off the batches too, so the two figures
             // count the same units and the difference between them is a real
             // number rather than two different stock counts subtracted.
-            'stockRetail' => (int) StockBatch::query()
-                ->join('products', 'products.id', '=', 'stock_batches.product_id')
-                ->where('products.kind', Product::KIND_STOCK)
-                ->whereNull('products.deleted_at')
-                ->sum(DB::raw('stock_batches.quantity_remaining * products.sale_price')),
+            'stockRetail' => $request->user()->hasPermission('reports.view')
+                ? (int) StockBatch::query()
+                    ->join('products', 'products.id', '=', 'stock_batches.product_id')
+                    ->where('products.kind', Product::KIND_STOCK)
+                    ->whereNull('products.deleted_at')
+                    ->sum(DB::raw('stock_batches.quantity_remaining * products.sale_price'))
+                : null,
         ]);
     }
 

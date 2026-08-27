@@ -18,7 +18,7 @@ use App\Models\User;
 final class Navigation
 {
     /**
-     * @return array<string|int, list<array{route: string, permission: string, icon: string, label: string}>>
+     * @return array<string|int, list<array{route: string, permission: string, icon: string, label: string, admin?: bool}>>
      */
     public static function groups(): array
     {
@@ -44,7 +44,8 @@ final class Navigation
             __('People') => [
                 ['route' => 'customers.index', 'permission' => 'customers.view', 'icon' => 'people', 'label' => __('Customers')],
                 ['route' => 'suppliers.index', 'permission' => 'suppliers.view', 'icon' => 'truck', 'label' => __('Suppliers')],
-                ['route' => 'users.index', 'permission' => 'users.view', 'icon' => 'person-badge', 'label' => __('Users')],
+                // Admin only, and not by a permission key — see EnsureAdmin.
+                ['route' => 'users.index', 'permission' => 'users.view', 'icon' => 'person-badge', 'label' => __('Users'), 'admin' => true],
             ],
             __('Money') => [
                 ['route' => 'payments.index', 'permission' => 'payments.view', 'icon' => 'cash-coin', 'label' => __('Payments')],
@@ -70,12 +71,32 @@ final class Navigation
 
         foreach (self::groups() as $group => $items) {
             foreach ($items as $item) {
-                if ($user->hasPermission($item['permission'])) {
+                if (self::allows($user, $item)) {
                     $pages[] = [...$item, 'group' => (string) $group];
                 }
             }
         }
 
         return $pages;
+    }
+
+    /**
+     * May this user open this screen?
+     *
+     * One answer for both readers. The sidebar drew its own conclusion from the
+     * permission alone, which was right until a screen appeared that no
+     * permission opens — the admin-only ones. Asked in two places, the sidebar
+     * would offer a link the router then refuses, which is the one thing
+     * Section 9b says never to do.
+     *
+     * @param  array{route: string, permission: string, icon: string, label: string, admin?: bool}  $item
+     */
+    public static function allows(User $user, array $item): bool
+    {
+        if (($item['admin'] ?? false) && ! $user->isAdmin()) {
+            return false;
+        }
+
+        return $user->hasPermission($item['permission']);
     }
 }

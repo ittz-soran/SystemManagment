@@ -267,7 +267,7 @@
                         item.type = 'button';
                         item.className = 'list-group-item list-group-item-action d-flex justify-content-between';
                         item.innerHTML =
-                            `<span>${product.name} <span class="small text-secondary ms-2" dir="ltr">${product.sku}</span></span>` +
+                            `<span>${escapeHtml(product.name)} <span class="small text-secondary ms-2" dir="ltr">${escapeHtml(product.sku)}</span></span>` +
                             `<span class="small text-secondary">${new Intl.NumberFormat('en-US').format(product.quantity)}</span>`;
 
                         item.addEventListener('click', () => {

@@ -716,11 +716,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.className = 'dropdown-item d-flex align-items-center gap-2 py-2';
                 row.href = entry.url;
                 row.setAttribute('role', 'option');
+                // The label and the note are names somebody typed — a
+                // product, a customer, a supplier — so they are escaped. The
+                // icon is a name this codebase chose, but it lands inside a
+                // class attribute, so it goes through the same door.
                 row.innerHTML = `
-                    <i class="bi bi-${entry.icon} text-secondary"></i>
+                    <i class="bi bi-${escapeHtml(entry.icon)} text-secondary"></i>
                     <span class="flex-grow-1 min-w-0">
-                        <span class="d-block text-truncate">${entry.label}</span>
-                        ${entry.note ? `<span class="d-block small text-secondary text-truncate">${entry.note}</span>` : ''}
+                        <span class="d-block text-truncate">${escapeHtml(entry.label)}</span>
+                        ${entry.note ? `<span class="d-block small text-secondary text-truncate">${escapeHtml(entry.note)}</span>` : ''}
                     </span>`;
                 panel.appendChild(row);
                 items.push(row);
