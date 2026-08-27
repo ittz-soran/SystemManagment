@@ -112,6 +112,30 @@ add to `C:\xampp\apache\conf\extra\httpd-vhosts.conf`:
 Add `127.0.0.1 shop.local` to `C:\Windows\System32\drivers\etc\hosts`, restart
 Apache, and set `APP_URL=http://shop.local` in `.env`.
 
+### Hosting it on the web
+
+Shared hosting rarely lets you move the document root, so the whole folder ends
+up uploaded as, say, `sys/`, and the shop is reached at
+`https://your-domain.com/sys/public/`. That works, with two cautions.
+
+Everything above `public/` is then reachable over the web as well — including
+`.env`, with the database password in it. Either point the domain (or a
+subdomain) at `public/` in the host's control panel, or put an `.htaccess` in
+`sys/` that denies everything except `public/`.
+
+Set `APP_URL` to the address the browser actually uses, subdirectory included:
+
+```
+APP_URL=https://your-domain.com/sys/public
+```
+
+Then `npm run build` on this version or later. Earlier builds wrote the font
+URLs from the site root, so under a subdirectory the browser asked
+`https://your-domain.com/build/…` and got nothing back: the text fell quietly
+back to a system font, and every icon turned into an empty box. The build now
+writes those URLs relative to the stylesheet, so they resolve wherever the
+folder sits.
+
 ### Moving an existing shop to another computer
 
 Install as above, but instead of `migrate --seed`, bring the data across:
@@ -294,6 +318,7 @@ to 1 so your first real invoice is INV-00001.
 | `SQLSTATE[HY000] [2002]` | MySQL is not running, or `DB_HOST`/`DB_PORT` is wrong. |
 | A blank white page | `APP_DEBUG=false` hiding an error. Look in `storage/logs/laravel.log`. |
 | Styles missing, page unstyled | `npm run build` has not been run since the last update. |
+| Every icon is an empty box, text looks plain | the fonts are not being found. Check `APP_URL` matches the address in the browser bar, then `npm run build` again — see *Hosting it on the web*. |
 | The logo does not appear | `php artisan storage:link` has not been run. |
 | `'mysqldump' is not recognized` | set `MYSQLDUMP_PATH` in `.env`, or run `php artisan backup:check`, which says exactly what it could not find. |
 | A change to `.env` does nothing | `php artisan config:cache` again. |
