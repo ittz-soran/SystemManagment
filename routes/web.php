@@ -289,9 +289,11 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_adjustments.create')->name('stock-adjustments.store');
     Route::get('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'show'])
         ->middleware('permission:stock_adjustments.view')->name('stock-adjustments.show');
-    // Section 8's reverse-and-re-apply, the same shape as editing a purchase.
-    Route::get('stock-adjustments/{stockAdjustment}/edit', [StockAdjustmentController::class, 'edit'])
-        ->middleware('permission:stock_adjustments.edit')->name('stock-adjustments.edit');
+    /*
+     * Section 8's reverse-and-re-apply. Corrected in the same box it was
+     * written in — an adjustment is six fields, and a screen of its own to
+     * change one of them is a page that exists only to be left again.
+     */
     Route::put('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'update'])
         ->middleware('permission:stock_adjustments.edit')->name('stock-adjustments.update');
     Route::delete('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'destroy'])

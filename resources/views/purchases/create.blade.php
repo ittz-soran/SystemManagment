@@ -292,10 +292,22 @@
                         </td>
                         <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
                         <td>
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                    data-role="remove" data-index="${index}" aria-label="@json(__('Remove'))">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
+                            <div class="btn-group btn-group-sm">
+                                {{-- One delivery can bring the same thing in at
+                                     two prices — the last few of an old carton
+                                     and the first of a new one — and FIFO wants
+                                     them as two batches, not an average. --}}
+                                <button type="button" class="btn btn-outline-secondary"
+                                        data-role="split" data-index="${index}"
+                                        title="@json(__('Another line for this product, at its own price'))"
+                                        aria-label="@json(__('Another line for this product, at its own price'))">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger"
+                                        data-role="remove" data-index="${index}" aria-label="@json(__('Remove'))">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
                         </td>`;
 
                     cartBody.appendChild(row);
@@ -354,7 +366,14 @@
             }
 
             function addProduct(product) {
-                const existing = cart.find((l) => l.id === product.id && l.currency === 'IQD');
+                // Section 9b: scanning the same product again increments its
+                // line rather than adding a second one — but only a line still
+                // at the price it arrived with. A line somebody has repriced is
+                // a deliberate second price, and folding a scan into it would
+                // silently change what that line says.
+                const existing = cart.find((l) => l.id === product.id
+                    && l.currency === 'IQD'
+                    && l.price === product.purchase_price);
 
                 if (existing) {
                     existing.quantity += 1;
@@ -546,6 +565,24 @@
             });
 
             cartBody.addEventListener('click', (event) => {
+                const split = event.target.closest('[data-role="split"]');
+
+                if (split) {
+                    const at = Number(split.dataset.index);
+
+                    cart.splice(at + 1, 0, { ...cart[at], quantity: 1 });
+                    render();
+
+                    // Straight into the new line's price, since that is what
+                    // the second line is for. In dollars it is the typed amount
+                    // that matters, not the converted one.
+                    const row = `[data-index="${at + 1}"]`;
+                    (cartBody.querySelector(`[data-role="usd"]${row}`)
+                        ?? cartBody.querySelector(`[data-role="price"]${row}`))?.focus();
+
+                    return;
+                }
+
                 const button = event.target.closest('[data-role="remove"]');
                 if (! button) return;
 

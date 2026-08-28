@@ -283,10 +283,23 @@
                         </td>
                         <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
                         <td>
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                    data-role="remove" data-index="${index}" aria-label="@json(__('Remove'))">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
+                            <div class="btn-group btn-group-sm">
+                                {{-- Section 4: "one sale can list the same
+                                     product on two lines at two prices", which
+                                     is what reference_item_id on the movements
+                                     is for. Scanning again adds to the line, so
+                                     this is how the second one is asked for. --}}
+                                <button type="button" class="btn btn-outline-secondary"
+                                        data-role="split" data-index="${index}"
+                                        title="@json(__('Another line for this product, at its own price'))"
+                                        aria-label="@json(__('Another line for this product, at its own price'))">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger"
+                                        data-role="remove" data-index="${index}" aria-label="@json(__('Remove'))">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
                         </td>`;
 
                     cartBody.appendChild(row);
@@ -512,6 +525,24 @@
             });
 
             cartBody.addEventListener('click', (event) => {
+                const split = event.target.closest('[data-role="split"]');
+
+                if (split) {
+                    // A copy of the line, right under it, at one unit. The
+                    // price is the same until somebody changes it — which is
+                    // the whole reason for asking for a second line.
+                    const at = Number(split.dataset.index);
+
+                    cart.splice(at + 1, 0, { ...cart[at], quantity: 1 });
+                    render();
+
+                    // Straight into the new line's price, since that is what
+                    // the second line is for.
+                    cartBody.querySelector(`[data-role="price"][data-index="${at + 1}"]`)?.focus();
+
+                    return;
+                }
+
                 const button = event.target.closest('[data-role="remove"]');
                 if (! button) return;
 

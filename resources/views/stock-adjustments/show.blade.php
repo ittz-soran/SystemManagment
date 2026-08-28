@@ -8,9 +8,18 @@
 
 @section('actions')
     @can('stock_adjustments.edit')
-        <a href="{{ route('stock-adjustments.edit', $adjustment) }}" class="btn btn-outline-secondary">
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-toggle="modal" data-bs-target="#adjustment-edit"
+                data-action="{{ route('stock-adjustments.update', $adjustment) }}"
+                data-product="{{ $adjustment->product?->name }}"
+                data-direction="{{ $adjustment->direction }}"
+                data-quantity="{{ $adjustment->quantity }}"
+                data-cost="{{ $adjustment->unit_cost }}"
+                data-reason="{{ $adjustment->reason }}"
+                data-date="{{ $adjustment->adjusted_at->toDateString() }}"
+                data-notes="{{ $adjustment->notes }}">
             <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
-        </a>
+        </button>
     @endcan
 
     @can('stock_adjustments.delete')
@@ -160,4 +169,8 @@
         </div>
     </div>
 <x-record-history :for="$adjustment" />
-@endsection
+@can('stock_adjustments.edit')
+        @include('stock-adjustments._edit-modal')
+    @endcan
+
+    @endsection
