@@ -88,7 +88,10 @@
             ? [['label' => __('Sale price'), 'value' => money($product->sale_price)]]
             : [
                 ['label' => __('In stock'), 'value' => number_format($product->quantity).' '.$product->unit],
-                ['label' => __('Stock value'), 'value' => money($stockValue)],
+                // A total beside a count is a unit cost one division away —
+                // 100,000 over 10 pcs is 10,000 each — so it follows the same
+                // rule as every other cost on the page.
+                ['label' => __('Stock value'), 'value' => cost_money($stockValue)],
                 ['label' => __('Sale price'), 'value' => money($product->sale_price)],
             ];
 

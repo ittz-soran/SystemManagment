@@ -270,6 +270,102 @@ class CostVisibilityTest extends TestCase
         ]);
     }
 
+    // ---- the sweep ---------------------------------------------------------
+
+    /**
+     * No cost figure, and nothing a cost can be worked back out of, on any
+     * screen a masked reader can open.
+     *
+     * Masking the price on a row is not enough on its own. A total beside a
+     * count is a unit cost one division away — "stock value 100,000" over "10
+     * pcs" is 10,000 each — and that is exactly how it was found: the product
+     * page masked every batch and then printed the total above them. So this
+     * asks the question the way somebody trying to work it out would, over
+     * every screen at once, with figures that could not have come from anywhere
+     * else on the page.
+     */
+    public function test_no_screen_gives_the_cost_away(): void
+    {
+        // Deliberately awkward numbers: nothing else on any of these screens
+        // can produce them, so seeing one is a leak and not a coincidence.
+        $product = Product::create([
+            'name' => 'Odd One', 'sku' => 'ODD1',
+            'category_id' => $this->product->category_id,
+            'unit' => 'pcs', 'purchase_price' => 7_919, 'sale_price' => 12_345,
+            'quantity' => 0, 'is_active' => true,
+        ]);
+
+        app(PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'Odd Supplier']),
+            lines: [['product_id' => $product->id, 'quantity' => 13, 'unit_price' => 7_919]],
+            user: $this->admin, purchaseDate: now(), amountPaid: 0,
+        );
+
+        $staff = $this->staff(User::COST_HIDDEN, keys: [
+            'dashboard.view', 'products.view', 'second_hand.view',
+            'stock_adjustments.view', 'sales.view', 'sales.create',
+        ]);
+
+        $screens = [
+            route('dashboard'),
+            route('products.index'),
+            route('products.show', $product),
+            route('second-hand.index'),
+            route('stock-adjustments.index'),
+            route('sales.create'),
+        ];
+
+        // The unit cost, the whole shelf at that cost, and the two figures a
+        // careless page prints beside them.
+        $giveaways = ['7,919', '102,947', '7919', '102947'];
+
+        foreach ($screens as $screen) {
+            $body = $this->actingAs($staff)->get($screen)->assertOk()->getContent();
+
+            foreach ($giveaways as $figure) {
+                $this->assertStringNotContainsString(
+                    $figure,
+                    $body,
+                    "{$screen} gives the cost away with {$figure}",
+                );
+            }
+        }
+    }
+
+    /** And the same sweep for somebody who sees it marked up: never the real one. */
+    public function test_a_marked_up_reader_is_never_shown_the_real_figure(): void
+    {
+        $product = Product::create([
+            'name' => 'Odd One', 'sku' => 'ODD1',
+            'category_id' => $this->product->category_id,
+            'unit' => 'pcs', 'purchase_price' => 7_919, 'sale_price' => 12_345,
+            'quantity' => 0, 'is_active' => true,
+        ]);
+
+        app(PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'Odd Supplier']),
+            lines: [['product_id' => $product->id, 'quantity' => 13, 'unit_price' => 7_919]],
+            user: $this->admin, purchaseDate: now(), amountPaid: 0,
+        );
+
+        $staff = $this->staff(User::COST_MARKUP, 10, keys: [
+            'dashboard.view', 'products.view', 'second_hand.view', 'stock_adjustments.view',
+        ]);
+
+        foreach ([route('products.index'), route('products.show', $product)] as $screen) {
+            $body = $this->actingAs($staff)->get($screen)->assertOk()->getContent();
+
+            $this->assertStringNotContainsString('7,919', $body, "{$screen} shows the real unit cost");
+            $this->assertStringNotContainsString('102,947', $body, "{$screen} shows the real shelf total");
+        }
+
+        // What they do see is the marked-up figure, on both.
+        $this->actingAs($staff)->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSee('8,711')       // 7,919 + 10%
+            ->assertSee('113,242');    // and the whole shelf marked up once
+    }
+
     /** @return array<string, mixed> */
     private function form(): array
     {

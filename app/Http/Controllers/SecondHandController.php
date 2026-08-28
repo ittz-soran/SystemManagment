@@ -97,7 +97,7 @@ class SecondHandController extends Controller
      * owed to the people the shop bought from, which is money that has not left
      * the till yet and is easy to forget.
      *
-     * @return array<string, int>
+     * @return array<string, int|null>
      */
     private function figures(Carbon $from, Carbon $to): array
     {
@@ -122,19 +122,38 @@ class SecondHandController extends Controller
             ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
             ->sum(DB::raw('quantity - quantity_returned'));
 
+        $spent = (int) StockBatch::query()
+            ->whereIn('product_id', $bought->clone()->select('id'))
+            ->sum(DB::raw('quantity_in * unit_cost'));
+
+        $trade = TradeProfit::between(Product::used(), $from, $to);
+
+        /*
+         * Every figure here that is a cost, or is worked out from one, as this
+         * reader is allowed to see it — null when they may not.
+         *
+         * A total next to a count is a unit cost one division away: "money tied
+         * up" over "items held" is what each one cost. So it is not enough to
+         * mask the price on a row and leave the totals standing, and it is not
+         * enough to mask the totals either — the profits have to be worked out
+         * from the cost the reader sees, or subtracting one from the other
+         * gives back the real figure.
+         */
+        $heldValue = cost_seen($heldValue);
+        $spent = cost_seen($spent);
+        $tradeCost = cost_seen($trade['cost']);
+
         return [
             // Where things stand, whatever period is being read.
             'held' => (int) $held->clone()->count(),
             'held_value' => $heldValue,
-            'expected' => $asking - $heldValue,
+            'expected' => $heldValue === null ? null : $asking - $heldValue,
 
             // And what happened in the period.
             'bought' => (int) $bought->count(),
-            'spent' => (int) StockBatch::query()
-                ->whereIn('product_id', $bought->clone()->select('id'))
-                ->sum(DB::raw('quantity_in * unit_cost')),
+            'spent' => $spent,
             'sold' => $sold,
-            'made' => TradeProfit::between(Product::used(), $from, $to)['profit'],
+            'made' => $tradeCost === null ? null : $trade['revenue'] - $tradeCost,
             'owed_to_sellers' => (int) Supplier::walkIns()->sum('balance'),
         ];
     }
