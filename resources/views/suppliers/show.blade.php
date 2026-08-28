@@ -79,4 +79,5 @@
                              :title="__('Edit supplier')"
                              :save="__('Save supplier')" />
     @endcan
+<x-record-history :for="$supplier" />
 @endsection

@@ -14,7 +14,6 @@ use App\Services\LabelService;
 use App\Services\MasterDataTransfer;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
-use App\Support\RecordHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -182,18 +181,6 @@ class ProductController extends Controller
                 ? SaleItem::with('sale')->where('product_id', $product->id)->orderByDesc('id')->first()
                 : null,
 
-            /*
-             * Who changed this product, when, and from what to what.
-             *
-             * Behind activity_logs.view rather than the role, so an admin has
-             * it without asking — every permission check short-circuits for
-             * admin — and can hand it to a manager without handing over the
-             * rest of the system. Not computed at all for a reader who may not
-             * see it.
-             */
-            'history' => $request->user()->hasPermission('activity_logs.view')
-                ? RecordHistory::for($product)
-                : null,
         ]);
     }
 

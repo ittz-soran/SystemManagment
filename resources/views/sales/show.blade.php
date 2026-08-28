@@ -143,4 +143,5 @@
             @endif
         </div>
     </div>
+<x-record-history :for="$sale" />
 @endsection

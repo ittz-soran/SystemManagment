@@ -166,4 +166,5 @@
             @endif
         </div>
     </div>
+<x-record-history :for="$purchase" />
 @endsection

@@ -195,9 +195,10 @@ Roles decide the two things a permission cannot:
   which opens filled in from what is stored, and `reports.view`, which is the
   shop's own accounts. The form refuses those combinations rather than letting
   the setting look like it works.
-- **A record's history is `activity_logs.view`.** Who changed a product, when,
-  and from what to what, on the product's own page. The same key opens the
-  shop-wide activity log.
+- **A record's history is `activity_logs.view`.** Who changed it, when, and
+  from what to what, on the record's own page — a product, a sale, a purchase,
+  either return, an adjustment, an expense, a payment, a supplier, a customer.
+  The same key opens the shop-wide activity log.
 
 Everything else is a permission, ticked per person on the user's page.
 

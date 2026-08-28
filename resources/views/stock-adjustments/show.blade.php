@@ -159,4 +159,5 @@
             </div>
         </div>
     </div>
+<x-record-history :for="$adjustment" />
 @endsection

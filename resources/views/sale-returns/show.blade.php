@@ -123,4 +123,5 @@
             </div>
         </div>
     </div>
+<x-record-history :for="$return" />
 @endsection
