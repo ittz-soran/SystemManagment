@@ -161,7 +161,12 @@
                             // What it cost is the batch, not the product row: the
                             // batch is the money that actually left the till and
                             // the cost FIFO charges the sale.
-                            $cost = (int) ($item->stockBatches->first()->unit_cost ?? $item->purchase_price);
+                            // As this reader is allowed to see it: null when
+                            // they may not see cost at all, marked up when the
+                            // admin set them a percentage. The profit below is
+                            // worked out from the same figure, or the two
+                            // together would give the real one away.
+                            $cost = cost_seen((int) ($item->stockBatches->first()->unit_cost ?? $item->purchase_price));
                         @endphp
                         <tr>
                             <td>
@@ -220,7 +225,7 @@
                                     </div>
                                 @endif
                             </td>
-                            <td class="money">{{ money($cost, false) }}</td>
+                            <td class="money">{{ money_if($cost !== null, $cost, false) }}</td>
                             <td class="money">{{ money($item->sale_price, false) }}</td>
                             {{-- The whole point of the row: this item's own
                                  money. Not an average, not a share of anything —
@@ -228,17 +233,23 @@
                                  sold for. --}}
                             <td class="money fw-semibold">
                                 @if($sold)
-                                    @php($profit = $sale->unit_price - $cost)
-                                    <span class="{{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
-                                        {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
-                                    </span>
+                                    @php($profit = $cost === null ? null : $sale->unit_price - $cost)
+                                    @if($profit === null)
+                                        <span class="text-secondary">{{ hidden_money() }}</span>
+                                    @else
+                                        <span class="{{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
+                                            {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
+                                        </span>
+                                    @endif
                                     <div class="small text-secondary fw-normal">
                                         {{ __('sold for :amount', ['amount' => money($sale->unit_price, false)]) }}
                                     </div>
                                 @else
                                     <span class="text-secondary fw-normal">
                                         {{ __('if asked: :amount', [
-                                            'amount' => money($item->sale_price - $cost, false),
+                                            'amount' => $cost === null
+                                                ? hidden_money()
+                                                : money($item->sale_price - $cost, false),
                                         ]) }}
                                     </span>
                                 @endif

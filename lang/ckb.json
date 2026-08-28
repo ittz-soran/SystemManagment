@@ -891,5 +891,22 @@
     "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "ئەم بارکۆدە هی :name ـە کە سڕدراوەتەوە. لە لیستی سڕاوەکان بیگەڕێنەوە، یان بارکۆدێکی تر بەکاربهێنە.",
     "{1}:count deleted product|[2,*]:count deleted products": "{1}:count کاڵای سڕاو|[2,*]:count کاڵای سڕاو",
     "That SKU is already :name's.": "ئەم SKU ـە پێشتر هی :name ـە.",
-    "That barcode is already :name's.": "ئەم بارکۆدە پێشتر هی :name ـە."
+    "That barcode is already :name's.": "ئەم بارکۆدە پێشتر هی :name ـە.",
+    "Brought back": "گەڕێندراوەتەوە",
+    "Category #:id": "پۆل #:id",
+    "Edited": "دەستکاریکراوە",
+    "No": "نەخێر",
+    "Nothing recorded yet. Changes from here on are kept.": "هێشتا هیچ تۆمار نەکراوە. گۆڕانکارییەکان لەمەودوا دەپارێزرێن.",
+    "Somebody no longer on the staff": "کەسێک کە ئیتر لە ستافدا نییە",
+    "Yes": "بەڵێ",
+    "Add this percentage": "ئەم ڕێژەیە زیاد بکە",
+    "At 10%, a thing that cost 1,000 is shown to them as 1,100.": "لە ١٠٪، شتێک کە ١٬٠٠٠ی کڕدراوە بە ١٬١٠٠ی پیشان دەدرێت.",
+    "Nothing — *****": "هیچ — *****",
+    "Somebody who types what things cost has to see the real one. Give them the real cost, or take away: :keys": "ئەو کەسەی نرخی کڕین دەنووسێت دەبێت نرخی ڕاستەقینە ببینێت. یان نرخی ڕاستەقینەی بدەرێ، یان ئەمانەی لێ بسەنەوە: :keys",
+    "Somebody who types what things cost — purchases, adjustments, product prices — has to see the real one.": "ئەو کەسەی نرخی کڕین دەنووسێت — کڕین، ڕاستکردنەوە، نرخی کاڵا — دەبێت نرخی ڕاستەقینە ببینێت.",
+    "The real cost": "نرخی ڕاستەقینەی کڕین",
+    "The real cost plus a percentage": "نرخی ڕاستەقینە زیاد ڕێژەیەک",
+    "The reports screen is the shop's own accounts and shows the real figures. Give them the real cost, or take away reports.view.": "پەڕەی ڕاپۆرتەکان حسابی خودی دوکانەکەیە و ژمارە ڕاستەقینەکان پیشان دەدات. یان نرخی ڕاستەقینەیان بدەرێ، یان reports.view لێ بسەنەوە.",
+    "What they see a thing cost": "چی دەبینن شتێک بە چەند کڕدراوە",
+    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "ئەم پەڕانە خودی ئەوەن کە دوکانەکە دەیدات، بە تەواوی نووسراو، و شاراوە ناکرێن. یان نرخی ڕاستەقینەیان بدەرێ، یان ئەمانەی لێ بسەنەوە: :keys"
 }

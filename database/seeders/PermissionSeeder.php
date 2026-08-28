@@ -97,6 +97,24 @@ class PermissionSeeder extends Seeder
         'stock' => [
             'stock.recheck' => 'Recheck stock against batch sums',
         ],
+        /*
+         * Three screens that used to ride on products.view, which meant they
+         * could not be withheld from anybody allowed to look at the catalogue —
+         * and there was nothing on the permissions page to withhold.
+         *
+         * Only the screens. Buying a second-hand item is still purchases.create
+         * and changing a service is still products.edit: what the act does to
+         * the books has not moved, only who gets shown the door to it.
+         */
+        'second_hand' => [
+            'second_hand.view' => 'View second-hand items',
+        ],
+        'services' => [
+            'services.view' => 'View services',
+        ],
+        'data' => [
+            'data.manage' => 'Import and export data',
+        ],
         'reports' => [
             'reports.view' => 'View reports and statistics',
         ],

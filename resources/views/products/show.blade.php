@@ -138,7 +138,7 @@
                          the sale. --}}
                     <dt class="col-sm-3 text-secondary fw-normal">{{ __('Paid for it') }}</dt>
                     <dd class="col-sm-9 money">
-                        {{ money((int) ($batches->first()->unit_cost ?? $product->purchase_price), false) }}
+                        {{ cost_money((int) ($batches->first()->unit_cost ?? $product->purchase_price), false) }}
                     </dd>
 
                     <dt class="col-sm-3 text-secondary fw-normal">{{ __('Status') }}</dt>
@@ -170,7 +170,7 @@
                             </span>
                             <x-document-link :document="$boughtOn->purchase" :kind="false" />
                         </span>
-                        <span class="money">{{ money($boughtOn->unit_price, false) }}</span>
+                        <span class="money">{{ cost_money($boughtOn->unit_price, false) }}</span>
                     </li>
                 @endif
 
@@ -186,12 +186,17 @@
                         <span class="money">{{ money($soldOn->unit_price, false) }}</span>
                     </li>
 
-                    @php($profit = $soldOn->unit_price - (int) ($batches->first()->unit_cost ?? $product->purchase_price))
+                    @php($cost = cost_seen((int) ($batches->first()->unit_cost ?? $product->purchase_price)))
+                    @php($profit = $cost === null ? null : $soldOn->unit_price - $cost)
                     <li class="list-group-item d-flex justify-content-between align-items-center fw-semibold">
                         <span>{{ __('Profit') }}</span>
-                        <span class="money {{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
-                            {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
-                        </span>
+                        @if($profit === null)
+                            <span class="money text-secondary">{{ hidden_money() }}</span>
+                        @else
+                            <span class="money {{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
+                                {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
+                            </span>
+                        @endif
                     </li>
                 @endif
             </ul>
@@ -241,10 +246,10 @@
                                                  :type="$batch->source_type"
                                                  :id="$batch->source_id" />
                             </td>
-                            <td class="money">{{ money($batch->unit_cost, false) }}</td>
+                            <td class="money">{{ cost_money($batch->unit_cost, false) }}</td>
                             <td class="money text-secondary">{{ number_format($batch->quantity_in) }}</td>
                             <td class="money fw-semibold">{{ number_format($batch->quantity_remaining) }}</td>
-                            <td class="money">{{ money($batch->quantity_remaining * $batch->unit_cost, false) }}</td>
+                            <td class="money">{{ cost_money($batch->quantity_remaining * $batch->unit_cost, false) }}</td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -252,7 +257,7 @@
                     <tr class="fw-semibold">
                         <td colspan="4"></td>
                         <td class="money">{{ number_format($batchSum) }}</td>
-                        <td class="money">{{ money($stockValue, false) }}</td>
+                        <td class="money">{{ cost_money($stockValue, false) }}</td>
                     </tr>
                     </tfoot>
                 </table>
@@ -290,7 +295,7 @@
                             <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">
                                 {{ $movement->quantity > 0 ? '+' : '' }}{{ number_format($movement->quantity) }}
                             </td>
-                            <td class="money text-secondary">{{ money($movement->unit_cost, false) }}</td>
+                            <td class="money text-secondary">{{ cost_money($movement->unit_cost, false) }}</td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -299,6 +304,79 @@
         @endif
     </div>
 
+    @endif
+
+    {{--
+        Who touched this product, when, and what it was before.
+
+        Section 4 already records it — activity_logs holds every create, edit
+        and delete with the previous version of whatever changed — and until now
+        the only way to read it was the whole shop's log, in one list, with this
+        product's entries somewhere in it. Here it is the product's own page,
+        which is where somebody stands when they ask why the price is what it is.
+
+        The stock movements above say what happened to the shelf. This says what
+        happened to the record.
+    --}}
+    @if($history !== null)
+        <div class="card mt-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-clock-history"></i>
+                {{ __('History') }}
+            </div>
+
+            @if($history === [])
+                <x-empty-state icon="clock-history"
+                               :message="__('Nothing recorded yet. Changes from here on are kept.')" />
+            @else
+                <ul class="list-group list-group-flush">
+                    @foreach($history as $entry)
+                        <li class="list-group-item">
+                            <div class="d-flex flex-wrap align-items-baseline gap-2">
+                                <span class="badge {{ match($entry['action']) {
+                                    'create' => 'text-bg-success',
+                                    'delete' => 'text-bg-danger',
+                                    'restore' => 'text-bg-info',
+                                    default => 'text-bg-secondary',
+                                } }}">
+                                    {{ match($entry['action']) {
+                                        'create' => __('Created'),
+                                        'update' => __('Edited'),
+                                        'delete' => __('Deleted'),
+                                        'restore' => __('Brought back'),
+                                        default => Str::headline($entry['action']),
+                                    } }}
+                                </span>
+
+                                <span class="fw-medium">{{ $entry['by'] }}</span>
+
+                                <span class="text-secondary small" dir="ltr">
+                                    {{ $entry['at']->format(setting('date_format', 'Y-m-d')) }}
+                                    {{ $entry['at']->format('H:i') }}
+                                </span>
+
+                                @if($entry['ip'])
+                                    <span class="text-secondary small" dir="ltr">· {{ $entry['ip'] }}</span>
+                                @endif
+                            </div>
+
+                            @if($entry['changes'])
+                                <div class="small mt-2">
+                                    @foreach($entry['changes'] as $change)
+                                        <div>
+                                            <span class="text-secondary">{{ $change['label'] }}</span>
+                                            <span class="text-decoration-line-through text-secondary ms-1">{{ $change['from'] }}</span>
+                                            <i class="bi bi-arrow-right text-secondary mx-1"></i>
+                                            <span class="fw-medium">{{ $change['to'] }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
     @endif
 
     @if($product->barcode)

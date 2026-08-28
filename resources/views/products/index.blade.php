@@ -25,19 +25,13 @@
          the one that needs acting on, so it is a filter as well: pressing it
          reloads the list showing only those rows. --}}
     <div class="row g-2 mb-3">
-        @php
-            // What the shelf cost is a reports.view figure — see
-            // ProductController. Without it there are two tiles, not four, so
-            // they take the width the missing pair leaves behind.
-            $span = $stockValue === null ? 'col-lg-6' : 'col-lg-3';
-        @endphp
-        <div class="col-6 {{ $span }}">
+        <div class="col-6 col-lg-3">
             <div class="stat-tile">
                 <span class="stat-tile-label">{{ __('Products') }}</span>
                 <span class="stat-tile-value">{{ number_format($totalProducts) }}</span>
             </div>
         </div>
-        <div class="col-6 {{ $span }}">
+        <div class="col-6 col-lg-3">
             <a class="stat-tile {{ request()->boolean('low_stock') ? 'is-on' : '' }}"
                href="{{ request()->boolean('low_stock')
                    ? route('products.index', request()->except(['low_stock', 'page']))
@@ -54,29 +48,39 @@
                 </span>
             </a>
         </div>
-        @if($stockValue !== null)
-            <div class="col-6 col-lg-3">
-                {{-- Not quantity times the suggested price: the money that actually
-                     left the till for the units still on the shelf. --}}
-                <div class="stat-tile">
-                    <span class="stat-tile-label">{{ __('Stock value') }}</span>
-                    <span class="stat-tile-value">{{ money($stockValue) }}</span>
-                    <span class="stat-tile-note">{{ __('what the unsold batches cost') }}</span>
-                </div>
+        @php
+            // The two money tiles are both cost figures at bottom — the second
+            // is only interesting next to the first — so they follow the same
+            // rule the rest of the shop's costs do: masked when the reader may
+            // not have them, marked up when the admin set them a percentage.
+            $shelfCost = cost_seen($stockValue);
+            $shelfWorth = $shelfCost === null ? null : $stockRetail;
+        @endphp
+        <div class="col-6 col-lg-3">
+            {{-- Not quantity times the suggested price: the money that actually
+                 left the till for the units still on the shelf. --}}
+            <div class="stat-tile">
+                <span class="stat-tile-label">{{ __('Stock value') }}</span>
+                <span class="stat-tile-value">{{ money_if($shelfCost !== null, $shelfCost) }}</span>
+                <span class="stat-tile-note">{{ __('what the unsold batches cost') }}</span>
             </div>
-            <div class="col-6 col-lg-3">
-                {{-- The same units at the other price. Not money the shop has: money
-                     it would have if every one of them sold at today's price and
-                     none were discounted, returned or written off. --}}
-                <div class="stat-tile">
-                    <span class="stat-tile-label">{{ __('At sale price') }}</span>
-                    <span class="stat-tile-value">{{ money($stockRetail) }}</span>
-                    <span class="stat-tile-note">
-                        {{ __(':amount profit if it all sells', ['amount' => money($stockRetail - $stockValue, false)]) }}
-                    </span>
-                </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            {{-- The same units at the other price. Not money the shop has: money
+                 it would have if every one of them sold at today's price and
+                 none were discounted, returned or written off. --}}
+            <div class="stat-tile">
+                <span class="stat-tile-label">{{ __('At sale price') }}</span>
+                <span class="stat-tile-value">{{ money_if($shelfWorth !== null, $shelfWorth) }}</span>
+                <span class="stat-tile-note">
+                    {{ __(':amount profit if it all sells', [
+                        'amount' => $shelfCost === null
+                            ? hidden_money()
+                            : money($shelfWorth - $shelfCost, false),
+                    ]) }}
+                </span>
             </div>
-        @endif
+        </div>
     </div>
 
     {{-- Section 9b: filters row, results table, pagination. --}}
@@ -84,7 +88,7 @@
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label for="search" class="form-label small">{{ __('Search') }}</label>
-                <input id="search" type="search" name="search" value="{{ request('search') }}"
+                <input id="search" type="search" name="search" value="{{ request('search') }}" data-english-digits
                        class="form-control form-control-sm"
                        placeholder="{{ __('Name, SKU or barcode') }}">
             </div>
@@ -195,7 +199,7 @@
                                     </span>
                                     <span class="text-secondary small">{{ $product->unit }}</span>
                                 </td>
-                                <td class="money text-secondary">{{ money($product->purchase_price, false) }}</td>
+                                <td class="money text-secondary">{{ cost_money($product->purchase_price, false) }}</td>
                                 <td class="money">{{ money($product->sale_price, false) }}</td>
                                 <td class="text-end">
                                     @if($showingDeleted)

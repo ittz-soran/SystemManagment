@@ -14,6 +14,7 @@ use App\Services\LabelService;
 use App\Services\MasterDataTransfer;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
+use App\Support\RecordHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -153,7 +154,7 @@ class ProductController extends Controller
             ->with('success', __('Product saved'));
     }
 
-    public function show(Product $product): View
+    public function show(Request $request, Product $product): View
     {
         return view('products.show', [
             'product' => $product->load('category'),
@@ -179,6 +180,19 @@ class ProductController extends Controller
                 : null,
             'soldOn' => $product->isUsed()
                 ? SaleItem::with('sale')->where('product_id', $product->id)->orderByDesc('id')->first()
+                : null,
+
+            /*
+             * Who changed this product, when, and from what to what.
+             *
+             * Behind activity_logs.view rather than the role, so an admin has
+             * it without asking — every permission check short-circuits for
+             * admin — and can hand it to a manager without handing over the
+             * rest of the system. Not computed at all for a reader who may not
+             * see it.
+             */
+            'history' => $request->user()->hasPermission('activity_logs.view')
+                ? RecordHistory::for($product)
                 : null,
         ]);
     }
@@ -359,13 +373,20 @@ class ProductController extends Controller
                 'unit' => $p->unit,
                 'quantity' => $p->quantity,
                 'sale_price' => $p->sale_price,
-                'purchase_price' => $p->purchase_price,
+
+                // Cost leaves the server as the reader is allowed to see it,
+                // not as it is stored. The cart draws these straight onto the
+                // screen, and a figure withheld on one screen and handed over
+                // in a JSON response on another is not withheld.
+                'purchase_price' => cost_seen($p->purchase_price),
+
                 // Section 9b: the below-cost warning needs the cost of the batch
                 // that would actually be consumed next.
                 // A service has no batch and no cost, so there is nothing it can
-                // be sold below.
+                // be sold below. Marked up, the warning fires earlier than the
+                // real cost would — which is the point of marking it up.
                 'next_batch_cost' => $p->tracksStock()
-                    ? $p->stockBatches()->withStock()->fifoOrder()->value('unit_cost')
+                    ? cost_seen($p->stockBatches()->withStock()->fifoOrder()->value('unit_cost'))
                     : null,
             ]),
         ]);

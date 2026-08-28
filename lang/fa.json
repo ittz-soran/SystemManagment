@@ -891,5 +891,22 @@
     "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "این بارکد متعلق به :name است که حذف شده. از فهرست حذف‌شده‌ها بازش گردانید، یا بارکد دیگری بگذارید.",
     "{1}:count deleted product|[2,*]:count deleted products": "{1}:count کالای حذف‌شده|[2,*]:count کالای حذف‌شده",
     "That SKU is already :name's.": "این SKU از پیش متعلق به :name است.",
-    "That barcode is already :name's.": "این بارکد از پیش متعلق به :name است."
+    "That barcode is already :name's.": "این بارکد از پیش متعلق به :name است.",
+    "Brought back": "بازگردانده شد",
+    "Category #:id": "دسته #:id",
+    "Edited": "ویرایش شد",
+    "No": "خیر",
+    "Nothing recorded yet. Changes from here on are kept.": "هنوز چیزی ثبت نشده. تغییرات از این پس نگه داشته می‌شود.",
+    "Somebody no longer on the staff": "کسی که دیگر در کادر نیست",
+    "Yes": "بله",
+    "Add this percentage": "این درصد را اضافه کن",
+    "At 10%, a thing that cost 1,000 is shown to them as 1,100.": "با ۱۰٪، چیزی که ۱٬۰۰۰ خریده شده برایشان ۱٬۱۰۰ نشان داده می‌شود.",
+    "Nothing — *****": "هیچ — *****",
+    "Somebody who types what things cost has to see the real one. Give them the real cost, or take away: :keys": "کسی که بهای خرید را وارد می‌کند باید بهای واقعی را ببیند. یا بهای واقعی را بدهید، یا این‌ها را بگیرید: :keys",
+    "Somebody who types what things cost — purchases, adjustments, product prices — has to see the real one.": "کسی که بهای خرید را وارد می‌کند — خرید، اصلاح موجودی، قیمت کالا — باید بهای واقعی را ببیند.",
+    "The real cost": "بهای واقعی خرید",
+    "The real cost plus a percentage": "بهای واقعی به‌علاوهٔ درصدی",
+    "The reports screen is the shop's own accounts and shows the real figures. Give them the real cost, or take away reports.view.": "صفحهٔ گزارش‌ها حساب‌های خود مغازه است و ارقام واقعی را نشان می‌دهد. یا بهای واقعی را بدهید، یا reports.view را بگیرید.",
+    "What they see a thing cost": "چه چیزی را به‌عنوان بهای خرید می‌بینند",
+    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "این صفحه‌ها همان چیزی است که مغازه می‌پردازد، کامل نوشته شده، و پوشانده نمی‌شود. یا بهای واقعی را بدهید، یا این‌ها را بگیرید: :keys"
 }

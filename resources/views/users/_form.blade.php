@@ -45,6 +45,44 @@
                     <div class="form-text">{{ __('An admin always has everything and cannot be restricted.') }}</div>
                 </div>
 
+                {{-- What this person is shown when a screen says what
+                     something cost. Hidden for an admin, who always sees the
+                     real figure and cannot be restricted. --}}
+                <div class="mb-3" id="cost-visibility-block">
+                    <label for="cost_visibility" class="form-label">{{ __('What they see a thing cost') }}</label>
+                    <select id="cost_visibility" name="cost_visibility" class="form-select">
+                        <option value="real" @selected(old('cost_visibility', $user->cost_visibility ?? 'real') === 'real')>
+                            {{ __('The real cost') }}
+                        </option>
+                        <option value="markup" @selected(old('cost_visibility', $user->cost_visibility ?? 'real') === 'markup')>
+                            {{ __('The real cost plus a percentage') }}
+                        </option>
+                        <option value="hidden" @selected(old('cost_visibility', $user->cost_visibility ?? 'real') === 'hidden')>
+                            {{ __('Nothing — *****') }}
+                        </option>
+                    </select>
+                    @error('cost_visibility')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+
+                    <div class="mt-2 {{ old('cost_visibility', $user->cost_visibility ?? 'real') === 'markup' ? '' : 'd-none' }}"
+                         id="cost-markup-block">
+                        <label for="cost_markup_percent" class="form-label small">{{ __('Add this percentage') }}</label>
+                        <div class="input-group">
+                            <input id="cost_markup_percent" type="number" min="0" max="500" step="1" dir="ltr"
+                                   name="cost_markup_percent" class="form-control text-end"
+                                   value="{{ old('cost_markup_percent', $user->cost_markup_percent ?? 10) }}">
+                            <span class="input-group-text">%</span>
+                        </div>
+                        <div class="form-text">
+                            {{ __('At 10%, a thing that cost 1,000 is shown to them as 1,100.') }}
+                        </div>
+                        @error('cost_markup_percent')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="form-text">
+                        {{ __('Somebody who types what things cost — purchases, adjustments, product prices — has to see the real one.') }}
+                    </div>
+                </div>
+
                 <div class="form-check form-switch">
                     <input type="hidden" name="is_active" value="0">
                     <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1"
@@ -140,6 +178,10 @@
                 // An admin's permission rows are never consulted, so hide the
                 // editor rather than showing choices that do nothing.
                 editor.classList.toggle('d-none', role.value === 'admin');
+
+                // An admin always sees the real cost, so there is nothing to set.
+                document.getElementById('cost-visibility-block')
+                    ?.classList.toggle('d-none', role.value === 'admin');
             }
 
             editor.querySelectorAll('[data-permission-action]').forEach((button) => {
@@ -149,6 +191,14 @@
                         box.checked = checked;
                     });
                 });
+            });
+
+            // The percentage only matters for one of the three.
+            const visibility = document.getElementById('cost_visibility');
+            const markup = document.getElementById('cost-markup-block');
+
+            visibility?.addEventListener('change', () => {
+                markup?.classList.toggle('d-none', visibility.value !== 'markup');
             });
 
             role.addEventListener('change', sync);

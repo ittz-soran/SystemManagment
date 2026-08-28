@@ -328,7 +328,7 @@ class PeriodArchiveTest extends TestCase
     {
         $user = User::factory()->create(['role' => User::ROLE_USER]);
         $user->permissions()->sync(
-            \App\Models\Permission::whereIn('key', ['sales.view', 'reports.view'])->pluck('id')
+            \App\Models\Permission::whereIn('key', ['data.manage', 'sales.view', 'reports.view'])->pluck('id')
         );
 
         $this->actingAs($user)

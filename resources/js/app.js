@@ -1076,3 +1076,118 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+/**
+ * Numbers arrive in English, whatever the keyboard is set to.
+ *
+ * Four of this shop's languages are written right to left and three of them
+ * have their own digits, so a keyboard left on Kurdish or Arabic types ٤٥٠٠
+ * where the price wants 4500 — and a barcode scanner is a keyboard, so it does
+ * it too, at the till, in the middle of a sale. Nothing on the page can change
+ * the operating system's layout, and nobody notices until the number is wrong.
+ *
+ * So the digits are translated as they land: Arabic-Indic ٠١٢٣ and the extended
+ * Persian and Urdu ۰۱۲۳ both become 0123, the Arabic decimal mark becomes a
+ * point, and the Arabic thousands mark is dropped the way a typed comma would
+ * be. The letters on those layouts are a different problem and not one a web
+ * page can solve — this is about the numbers.
+ *
+ * Caught at keydown rather than after the fact, because <input type="number">
+ * refuses a character it does not recognise: by the time anything could read
+ * the field, the digit is gone and there is nothing left to convert.
+ */
+(() => {
+    const EASTERN = /[٠-٩۰-۹]/;
+
+    /** ٤٥٠٠ → 4500, ۴۵۰۰ → 4500, ٤٫٥ → 4.5, ١٬٠٠٠ → 1000. */
+    const english = (text) => String(text)
+        .replace(/[٠-٩۰-۹]/g, (digit) => {
+            const code = digit.charCodeAt(0);
+
+            return String(code - (code >= 0x06f0 ? 0x06f0 : 0x0660));
+        })
+        .replace(/٫/g, '.')
+        .replace(/٬/g, '');
+
+    /*
+     * Every field where a number or a code is expected. type="number" covers
+     * most of the shop; the rest are the ones a scanner is pointed at, which
+     * are plain text fields because a barcode can carry letters.
+     */
+    const FIELDS = [
+        'input[type="number"]',
+        'input[inputmode="numeric"]',
+        'input[inputmode="decimal"]',
+        'input[data-numpad]',
+        'input[data-english-digits]',
+    ].join(',');
+
+    const insert = (field, text) => {
+        try {
+            // A number input refuses to say where its caret is, which is what
+            // this throws on — and where a scanner types, the caret is at the
+            // end anyway.
+            const start = field.selectionStart;
+            const end = field.selectionEnd;
+
+            field.setRangeText(text, start, end, 'end');
+        } catch {
+            field.value += text;
+        }
+
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    document.addEventListener('keydown', (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) {
+            return;
+        }
+
+        const field = event.target;
+
+        if (! field?.matches?.(FIELDS) || ! EASTERN.test(event.key ?? '')) {
+            return;
+        }
+
+        event.preventDefault();
+        insert(field, english(event.key));
+    });
+
+    document.addEventListener('paste', (event) => {
+        const field = event.target;
+        const pasted = event.clipboardData?.getData('text') ?? '';
+
+        if (! field?.matches?.(FIELDS) || pasted === english(pasted)) {
+            return;
+        }
+
+        event.preventDefault();
+        insert(field, english(pasted));
+    });
+
+    /*
+     * The last net, for anything that arrives without a keystroke: a phone's
+     * suggestion strip, an autofill, a paste the browser handled its own way.
+     * A number input cannot be caught here — it has already thrown the
+     * character away — but every text field can.
+     */
+    document.addEventListener('input', (event) => {
+        const field = event.target;
+
+        if (! field?.matches?.(FIELDS) || field.type === 'number') {
+            return;
+        }
+
+        if (EASTERN.test(field.value)) {
+            const at = field.selectionStart;
+
+            field.value = english(field.value);
+
+            try {
+                field.setSelectionRange(at, at);
+            } catch {
+                // A field that has no caret to restore.
+            }
+        }
+    });
+})();

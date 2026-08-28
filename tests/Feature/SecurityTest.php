@@ -113,16 +113,40 @@ class SecurityTest extends TestCase
         $response->assertSee("Today's sales")
             ->assertSee('Recent sales');
 
+        // The tiles stay. A missing one says the shop has no such figure; a
+        // masked one says there is one and it is not theirs.
         foreach ([
             "Today's purchases",
             "Today's expenses",
             'Stock value',
             'Customers owe the shop',
             'The shop owes suppliers',
-            'Low stock',
-        ] as $hidden) {
-            $response->assertDontSee($hidden);
+        ] as $shown) {
+            $response->assertSee($shown);
         }
+
+        // Four masked figures: purchases, expenses, stock value, and the two
+        // balances — the sales figure is the only one they may have.
+        $this->assertGreaterThanOrEqual(
+            5,
+            substr_count($response->getContent(), hidden_money()),
+            'Every figure this reader may not see has to be masked',
+        );
+
+        // The lists are screens rather than figures, and stay behind their own
+        // permission — there is nothing to mask in a table of somebody's rows.
+        $response->assertDontSee('Low stock');
+    }
+
+    /** And the buttons beside a masked figure do not lead anywhere they cannot go. */
+    public function test_a_masked_balance_offers_no_way_into_the_screen_behind_it(): void
+    {
+        $seller = $this->staffWith(['dashboard.view', 'sales.view']);
+
+        $this->actingAs($seller)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(route('customers.index'))
+            ->assertDontSee(route('suppliers.index'));
     }
 
     public function test_the_dashboard_shows_everything_to_an_admin(): void
@@ -149,22 +173,24 @@ class SecurityTest extends TestCase
      * What the shelf cost, and what the shop would make on it, are `reports.view`
      * figures. What is in stock and what it sells for are not.
      */
-    public function test_the_products_list_hides_what_the_shelf_cost(): void
+    public function test_the_products_list_masks_what_the_shelf_cost(): void
     {
         $seller = $this->staffWith(['products.view']);
 
+        // The tiles stay; the figures do not.
         $this->actingAs($seller)->get(route('products.index'))
             ->assertOk()
             ->assertSee('Low stock')
-            ->assertDontSee('what the unsold batches cost')
-            ->assertDontSee('At sale price');
+            ->assertSee('what the unsold batches cost')
+            ->assertSee('At sale price')
+            ->assertSee(hidden_money().' '.__('IQD'));
 
         $manager = $this->staffWith(['products.view', 'reports.view'], 'manager@example.com');
 
         $this->actingAs($manager)->get(route('products.index'))
             ->assertOk()
             ->assertSee('what the unsold batches cost')
-            ->assertSee('At sale price');
+            ->assertDontSee(hidden_money());
     }
 
     /** Nothing on these pages comes from anywhere but the shop's own address. */
@@ -219,6 +245,58 @@ class SecurityTest extends TestCase
             ->assertSessionHasErrors('email');
 
         $this->assertGuest();
+    }
+
+    /**
+     * Three screens used to ride on products.view, so anybody allowed to look
+     * at the catalogue was also shown Second-hand, Services, and the screen
+     * that hands the shop's customer list to a spreadsheet — and there was no
+     * key on the permissions page to withhold any of them.
+     */
+    public function test_the_catalogue_permission_no_longer_opens_three_other_screens(): void
+    {
+        $staff = $this->staffWith(['dashboard.view', 'products.view']);
+
+        foreach (['second-hand.index', 'services.index', 'data.index'] as $route) {
+            $this->actingAs($staff)->get(route($route))->assertForbidden();
+        }
+
+        $this->actingAs($staff)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(route('second-hand.index'))
+            ->assertDontSee(route('services.index'))
+            ->assertDontSee(route('data.index'));
+    }
+
+    public function test_each_of_those_screens_has_a_key_that_opens_it(): void
+    {
+        $staff = $this->staffWith([
+            'dashboard.view', 'products.view',
+            'second_hand.view', 'services.view', 'data.manage',
+        ]);
+
+        foreach (['second-hand.index', 'services.index', 'data.index'] as $route) {
+            $this->actingAs($staff)->get(route($route))->assertOk();
+        }
+
+        $this->actingAs($staff)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(route('second-hand.index'))
+            ->assertSee(route('services.index'))
+            ->assertSee(route('data.index'));
+    }
+
+    /**
+     * Opening the import screen is not the same as being allowed to overwrite
+     * the catalogue with it — the per-entity checks inside are still there.
+     */
+    public function test_the_import_key_is_not_a_way_round_the_others(): void
+    {
+        $staff = $this->staffWith(['data.manage', 'products.view']);
+
+        $this->actingAs($staff)->get(route('data.index'))->assertOk();
+        $this->actingAs($staff)->post(route('data.import', 'products'), ['token' => 'x'])->assertForbidden();
+        $this->actingAs($staff)->get(route('data.export', 'customers'))->assertForbidden();
     }
 
     /** @param  list<string>  $keys */

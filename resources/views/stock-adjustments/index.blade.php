@@ -99,7 +99,7 @@
                                  written off is the true FIFO cost of the batches
                                  it consumed. --}}
                             <td class="money text-secondary">
-                                {{ $adjustment->unit_cost !== null ? money($adjustment->unit_cost, false) : __('FIFO') }}
+                                {{ $adjustment->unit_cost !== null ? cost_money($adjustment->unit_cost, false) : __('FIFO') }}
                             </td>
                             <td class="text-end">
                                 {{-- Offered plainly, like the delete beside it: the
@@ -136,7 +136,7 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="adj-product" class="form-label">{{ __('Product') }}</label>
-                            <input id="adj-product-search" type="text" class="form-control mb-2"
+                            <input id="adj-product-search" type="text" class="form-control mb-2" data-english-digits
                                    placeholder="{{ __('Scan or type to find a product…') }}" autocomplete="off">
                             <div id="adj-results" class="list-group mb-2 d-none"></div>
                             <input type="hidden" name="product_id" id="adj-product">

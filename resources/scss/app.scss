@@ -409,3 +409,59 @@ a.stat-tile {
     border-bottom: 0;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Dark mode: the colours Bootstrap themes, and the ones it forgets.
+//
+// Bootstrap 5.3 redefines --bs-success-text-emphasis and friends for a dark
+// page, but .text-success still reads --bs-success-rgb, which stays at its
+// light-mode value. So a green figure on the reports screen sat at 3.4:1 and a
+// red one at 3.4:1 — legible if you already knew what they said. The outline
+// buttons take their colour the same way and had the same problem.
+//
+// Only the semantic colours are here. The brand's own primary and secondary
+// are settings, so they are dealt with where the shop's colours are emitted —
+// see partials/brand.
+// ---------------------------------------------------------------------------
+
+// Two of them are wrong in daylight as well.
+//
+// .text-secondary is the shop's muted text — every hint, caption and unit —
+// and at #6c757d on the page's own #f8f9fa it lands at 4.45:1, just under.
+// --bs-secondary-color is the variable Bootstrap themes for exactly this, and
+// it reads a little darker.
+//
+// .text-warning is the worse one: amber on white is 1.6:1, so the warning that
+// says the shop's backups are sitting on the same disk as its database was
+// close to invisible on the settings screen.
+.text-secondary { color: var(--bs-secondary-color) !important; }
+.text-warning { color: var(--bs-warning-text-emphasis) !important; }
+
+// And the delete button: Bootstrap's #dc3545 is 4.3:1 on the page's own grey.
+// One shade darker clears the line, and side by side nobody can tell them
+// apart. The dark rule below is more specific, so it still wins there.
+.btn-outline-danger {
+  --bs-btn-color: #d13242;
+  --bs-btn-border-color: #d13242;
+}
+
+[data-bs-theme='dark'] {
+  .text-success { color: var(--bs-success-text-emphasis) !important; }
+  .text-danger { color: var(--bs-danger-text-emphasis) !important; }
+  .text-info { color: var(--bs-info-text-emphasis) !important; }
+
+  .btn-outline-success {
+    --bs-btn-color: var(--bs-success-text-emphasis);
+    --bs-btn-border-color: var(--bs-success-text-emphasis);
+  }
+
+  .btn-outline-danger {
+    --bs-btn-color: var(--bs-danger-text-emphasis);
+    --bs-btn-border-color: var(--bs-danger-text-emphasis);
+  }
+
+  .btn-outline-warning {
+    --bs-btn-color: var(--bs-warning-text-emphasis);
+    --bs-btn-border-color: var(--bs-warning-text-emphasis);
+  }
+}

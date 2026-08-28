@@ -891,5 +891,22 @@
     "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "هذا الباركود يخص :name وقد تم حذفه. استرجعه من قائمة المحذوفات، أو استخدم باركودًا آخر.",
     "{1}:count deleted product|[2,*]:count deleted products": "{1}منتج محذوف واحد|[2,*]:count منتجات محذوفة",
     "That SKU is already :name's.": "هذا الرمز يخص :name بالفعل.",
-    "That barcode is already :name's.": "هذا الباركود يخص :name بالفعل."
+    "That barcode is already :name's.": "هذا الباركود يخص :name بالفعل.",
+    "Brought back": "تمت الاستعادة",
+    "Category #:id": "التصنيف #:id",
+    "Edited": "تم التعديل",
+    "No": "لا",
+    "Nothing recorded yet. Changes from here on are kept.": "لا يوجد سجل بعد. التغييرات من الآن فصاعدًا محفوظة.",
+    "Somebody no longer on the staff": "شخص لم يعد ضمن الموظفين",
+    "Yes": "نعم",
+    "Add this percentage": "أضف هذه النسبة",
+    "At 10%, a thing that cost 1,000 is shown to them as 1,100.": "بنسبة ١٠٪، الشيء الذي كلّف ١٬٠٠٠ يظهر لهم بـ ١٬١٠٠.",
+    "Nothing — *****": "لا شيء — *****",
+    "Somebody who types what things cost has to see the real one. Give them the real cost, or take away: :keys": "من يُدخل تكلفة الأشياء يجب أن يرى التكلفة الحقيقية. امنحهم التكلفة الحقيقية، أو اسحب: :keys",
+    "Somebody who types what things cost — purchases, adjustments, product prices — has to see the real one.": "من يُدخل تكلفة الأشياء — المشتريات، التسويات، أسعار المنتجات — يجب أن يرى التكلفة الحقيقية.",
+    "The real cost": "التكلفة الحقيقية",
+    "The real cost plus a percentage": "التكلفة الحقيقية زائد نسبة",
+    "The reports screen is the shop's own accounts and shows the real figures. Give them the real cost, or take away reports.view.": "شاشة التقارير هي حسابات المحل نفسها وتعرض الأرقام الحقيقية. امنحهم التكلفة الحقيقية، أو اسحب reports.view.",
+    "What they see a thing cost": "ما يرونه كتكلفة",
+    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما يدفعه المحل مكتوبًا بالكامل، وهي غير مُخفاة. امنحهم التكلفة الحقيقية، أو اسحب: :keys"
 }
