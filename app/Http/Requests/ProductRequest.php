@@ -34,7 +34,12 @@ class ProductRequest extends FormRequest
             'unit' => ['required', 'string', 'max:32'],
 
             // Section 2: IQD is whole numbers. No decimals anywhere.
-            'purchase_price' => ['required', 'integer', 'min:0'],
+            //
+            // Not asked of somebody whose cost is masked — the form shows them
+            // the mask rather than a field, so there is nothing for them to
+            // post, and prepareForValidation puts back whatever is already
+            // stored.
+            'purchase_price' => [$this->user()->seesRealCost() ? 'required' : 'nullable', 'integer', 'min:0'],
             'sale_price' => ['required', 'integer', 'min:0'],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['boolean'],
@@ -44,6 +49,30 @@ class ProductRequest extends FormRequest
             'opening_quantity' => ['nullable', 'integer', 'min:0'],
             'opening_unit_cost' => ['nullable', 'integer', 'min:0', 'required_with:opening_quantity'],
         ];
+    }
+
+    /**
+     * A cost this reader is not shown is a cost they cannot change.
+     *
+     * The form gives them the mask instead of a field, so nothing arrives here
+     * — and if something did, it would be either the stored figure they should
+     * not have seen or a marked-up one that must never be saved as fact. Either
+     * way the answer is the same: keep what is already there.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->user()->seesRealCost()) {
+            return;
+        }
+
+        /** @var Product|null $product */
+        $product = $this->route('product');
+
+        $this->merge([
+            'purchase_price' => $product?->purchase_price ?? 0,
+            'opening_unit_cost' => null,
+            'opening_quantity' => null,
+        ]);
     }
 
     public function withValidator($validator): void

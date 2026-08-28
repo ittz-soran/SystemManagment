@@ -182,12 +182,19 @@ Roles decide the two things a permission cannot:
   cost — the products list, a product's batches, second-hand, adjustments, and
   the figures the sale cart draws from them.
 
-  Four keys cannot be held alongside a masked cost, and the form refuses the
-  combination rather than letting it look like it works: `purchases.view`,
-  `purchase_returns.view` and `reports.view` are the shop's accounts written out
-  in full, and anything that *types* a cost — `purchases.create`,
-  `products.edit` and the rest — has to be typing the real one, or a marked-up
-  figure is saved back as fact.
+  The catalogue stays theirs: on the product form the cost fields show the mask
+  instead of a number, post nothing, and the stored figure is kept when they
+  save. Making stock adjustments is theirs too — nothing on that form arrives
+  filled in.
+
+  What cannot be held alongside a masked cost is the purchase side —
+  `purchases.view`, `purchases.create`, `purchases.edit`, `purchase_returns.view`
+  — because a purchase document *is* the cost from the first line to the total,
+  and the cart opens each line at the product's purchase price, so a marked-up
+  figure would be saved back as the real one. Plus `stock_adjustments.edit`,
+  which opens filled in from what is stored, and `reports.view`, which is the
+  shop's own accounts. The form refuses those combinations rather than letting
+  the setting look like it works.
 - **A record's history is `activity_logs.view`.** Who changed a product, when,
   and from what to what, on the product's own page. The same key opens the
   shop-wide activity log.

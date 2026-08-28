@@ -908,5 +908,8 @@
     "The real cost plus a percentage": "نرخی ڕاستەقینە زیاد ڕێژەیەک",
     "The reports screen is the shop's own accounts and shows the real figures. Give them the real cost, or take away reports.view.": "پەڕەی ڕاپۆرتەکان حسابی خودی دوکانەکەیە و ژمارە ڕاستەقینەکان پیشان دەدات. یان نرخی ڕاستەقینەیان بدەرێ، یان reports.view لێ بسەنەوە.",
     "What they see a thing cost": "چی دەبینن شتێک بە چەند کڕدراوە",
-    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "ئەم پەڕانە خودی ئەوەن کە دوکانەکە دەیدات، بە تەواوی نووسراو، و شاراوە ناکرێن. یان نرخی ڕاستەقینەیان بدەرێ، یان ئەمانەی لێ بسەنەوە: :keys"
+    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "ئەم پەڕانە خودی ئەوەن کە دوکانەکە دەیدات، بە تەواوی نووسراو، و شاراوە ناکرێن. یان نرخی ڕاستەقینەیان بدەرێ، یان ئەمانەی لێ بسەنەوە: :keys",
+    "Opening stock needs a cost for every unit, so somebody who can see what things cost has to enter it. Add it here later, or use a stock adjustment.": "کۆگای سەرەتایی پێویستی بە نرخێکە بۆ هەر دانەیەک، بۆیە دەبێت کەسێک کە نرخی کڕین دەبینێت بیخاتە ژوورەوە. دواتر لێرە زیادی بکە، یان ڕاستکردنەوەی کۆگا بەکاربهێنە.",
+    "Set by somebody who can see what things cost.": "لەلایەن کەسێکەوە دادەنرێت کە نرخی کڕین دەبینێت.",
+    "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "ئەم پەڕانە خودی ئەوەن کە دوکانەکە دایویستووە؛ شاردنەوەیان یان هیچی بۆ خوێندنەوە ناهێڵێتەوە یان ژمارەی زیادکراو وەک ڕاستەقینە پاشەکەوت دەکات. یان نرخی ڕاستەقینەیان بدەرێ، یان ئەمانەی لێ بسەنەوە: :keys"
 }

@@ -68,15 +68,29 @@
                     {{ __('Suggestions for the cart only. The real cost of each unit comes from its purchase batch.') }}
                 </p>
 
+                {{-- A reader whose cost is masked gets the mask here too, and it
+                     is not a field: showing them the stored number would undo
+                     the setting, and showing them a marked-up one would save it
+                     back as fact the next time somebody pressed save. Nothing
+                     is posted, and the controller keeps what is already there. --}}
                 <div class="mb-3">
                     <label for="purchase_price" class="form-label">{{ __('Purchase price') }}</label>
-                    <div class="input-group">
-                        <input id="purchase_price" type="number" step="1" min="0" name="purchase_price" data-numpad="{{ __('Purchase price') }}"
-                               value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" dir="ltr"
-                               class="form-control text-end @error('purchase_price') is-invalid @enderror" required>
-                        <span class="input-group-text">{{ __('IQD') }}</span>
-                        @error('purchase_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
+                    @if(auth()->user()->seesRealCost())
+                        <div class="input-group">
+                            <input id="purchase_price" type="number" step="1" min="0" name="purchase_price" data-numpad="{{ __('Purchase price') }}"
+                                   value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" dir="ltr"
+                                   class="form-control text-end @error('purchase_price') is-invalid @enderror" required>
+                            <span class="input-group-text">{{ __('IQD') }}</span>
+                            @error('purchase_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    @else
+                        <div class="input-group">
+                            <input id="purchase_price" type="text" class="form-control text-end" dir="ltr"
+                                   value="{{ hidden_money() }}" disabled>
+                            <span class="input-group-text">{{ __('IQD') }}</span>
+                        </div>
+                        <div class="form-text">{{ __('Set by somebody who can see what things cost.') }}</div>
+                    @endif
                 </div>
 
                 <div class="mb-3">
@@ -118,7 +132,9 @@
                 <div class="card-header">{{ __('Opening stock') }}</div>
                 <div class="card-body">
                     <p class="small text-secondary">
-                        {{ __('If you already hold this product, enter how many and what each one cost you. That becomes its first FIFO layer.') }}
+                        {{ auth()->user()->seesRealCost()
+                            ? __('If you already hold this product, enter how many and what each one cost you. That becomes its first FIFO layer.')
+                            : __('Opening stock needs a cost for every unit, so somebody who can see what things cost has to enter it. Add it here later, or use a stock adjustment.') }}
                     </p>
 
                     <div class="row g-3">
@@ -131,10 +147,17 @@
                         </div>
                         <div class="col-6">
                             <label for="opening_unit_cost" class="form-label">{{ __('Cost each') }}</label>
-                            <input id="opening_unit_cost" type="number" step="1" min="0" name="opening_unit_cost" data-numpad="{{ __('Cost each') }}"
-                                   value="{{ old('opening_unit_cost') }}" dir="ltr"
-                                   class="form-control text-end @error('opening_unit_cost') is-invalid @enderror">
-                            @error('opening_unit_cost')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            @if(auth()->user()->seesRealCost())
+                                <input id="opening_unit_cost" type="number" step="1" min="0" name="opening_unit_cost" data-numpad="{{ __('Cost each') }}"
+                                       value="{{ old('opening_unit_cost') }}" dir="ltr"
+                                       class="form-control text-end @error('opening_unit_cost') is-invalid @enderror">
+                                @error('opening_unit_cost')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            @else
+                                {{-- FIFO needs a cost for every unit, and this
+                                     reader has none to give. --}}
+                                <input id="opening_unit_cost" type="text" class="form-control text-end"
+                                       dir="ltr" value="{{ hidden_money() }}" disabled>
+                            @endif
                         </div>
                     </div>
                 </div>

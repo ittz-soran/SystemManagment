@@ -142,10 +142,11 @@ class CostVisibilityTest extends TestCase
     // ---- the two combinations that would do damage --------------------------
 
     /**
-     * Somebody typing a cost has to be typing the real one, or a marked-up
-     * figure is saved back as fact and the shop's books quietly become wrong.
+     * The purchase side is the only place a cost cannot simply be masked: the
+     * document is the cost, and the cart opens each line at the product's
+     * purchase price, so a marked-up figure would be saved back as the real one.
      */
-    public function test_a_masked_reader_cannot_be_given_a_screen_that_types_costs(): void
+    public function test_a_masked_reader_cannot_be_given_the_purchase_screens(): void
     {
         $this->actingAs($this->admin)
             ->from(route('users.create'))
@@ -160,8 +161,8 @@ class CostVisibilityTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'counter@example.com']);
     }
 
-    /** Reports and the purchase documents are the accounts, and are not masked. */
-    public function test_a_masked_reader_cannot_be_given_the_screens_that_spell_cost_out(): void
+    /** Reports are the shop's own accounts, and are not masked. */
+    public function test_a_masked_reader_cannot_be_given_the_reports_screen(): void
     {
         $this->actingAs($this->admin)
             ->from(route('users.create'))
@@ -176,6 +177,29 @@ class CostVisibilityTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'counter@example.com']);
     }
 
+    /**
+     * The catalogue is theirs to keep. The cost fields on the product form show
+     * them the mask and post nothing, so there is nothing to refuse — this was
+     * blocked once, and blocking it was wrong.
+     */
+    public function test_a_masked_reader_can_still_look_after_the_catalogue(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('users.store'), [
+                ...$this->form(),
+                'cost_visibility' => User::COST_HIDDEN,
+                'permissions' => Permission::whereIn('key', [
+                    'products.view', 'products.create', 'products.edit', 'products.delete',
+                    'stock_adjustments.view', 'stock_adjustments.create',
+                    'sales.view', 'sales.create', 'customers.view', 'suppliers.view',
+                ])->pluck('id')->all(),
+            ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', ['email' => 'counter@example.com', 'cost_visibility' => 'hidden']);
+    }
+
     public function test_the_combination_is_allowed_once_the_cost_is_real(): void
     {
         $this->actingAs($this->admin)
@@ -188,6 +212,44 @@ class CostVisibilityTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('users', ['email' => 'counter@example.com', 'cost_visibility' => 'real']);
+    }
+
+    // ---- the product form, for somebody who may not see cost ---------------
+
+    public function test_the_product_form_shows_the_mask_instead_of_the_cost_field(): void
+    {
+        $staff = $this->staff(User::COST_HIDDEN, keys: ['products.view', 'products.edit']);
+
+        $this->actingAs($staff)->get(route('products.edit', $this->product))
+            ->assertOk()
+            ->assertDontSee('value="10000"', false)
+            ->assertSee(hidden_money())
+            ->assertSee('Set by somebody who can see what things cost.');
+    }
+
+    /** Saving the form keeps what is stored, whatever was posted. */
+    public function test_editing_a_product_cannot_overwrite_a_cost_they_cannot_see(): void
+    {
+        $staff = $this->staff(User::COST_MARKUP, 10, keys: ['products.view', 'products.edit']);
+
+        $this->actingAs($staff)
+            ->put(route('products.update', $this->product), [
+                'name' => 'USB 32GB (Kingston)',
+                'sku' => 'USB32',
+                'category_id' => $this->product->category_id,
+                'unit' => 'pcs',
+                'sale_price' => 16_500,
+                'is_active' => 1,
+
+                // What the screen showed them, posted back by hand.
+                'purchase_price' => 11_000,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->product->refresh();
+
+        $this->assertSame('USB 32GB (Kingston)', $this->product->name, 'The edit itself goes through');
+        $this->assertSame(10_000, $this->product->purchase_price, 'And the cost is untouched');
     }
 
     public function test_the_percentage_is_cleared_when_it_stops_applying(): void

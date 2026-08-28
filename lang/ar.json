@@ -908,5 +908,8 @@
     "The real cost plus a percentage": "التكلفة الحقيقية زائد نسبة",
     "The reports screen is the shop's own accounts and shows the real figures. Give them the real cost, or take away reports.view.": "شاشة التقارير هي حسابات المحل نفسها وتعرض الأرقام الحقيقية. امنحهم التكلفة الحقيقية، أو اسحب reports.view.",
     "What they see a thing cost": "ما يرونه كتكلفة",
-    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما يدفعه المحل مكتوبًا بالكامل، وهي غير مُخفاة. امنحهم التكلفة الحقيقية، أو اسحب: :keys"
+    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما يدفعه المحل مكتوبًا بالكامل، وهي غير مُخفاة. امنحهم التكلفة الحقيقية، أو اسحب: :keys",
+    "Opening stock needs a cost for every unit, so somebody who can see what things cost has to enter it. Add it here later, or use a stock adjustment.": "المخزون الافتتاحي يحتاج تكلفة لكل وحدة، لذا يجب أن يُدخلها من يرى التكاليف. أضفها لاحقًا هنا، أو استخدم تسوية مخزون.",
+    "Set by somebody who can see what things cost.": "يحدّدها من يرى تكلفة الأشياء.",
+    "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما دفعه المحل، وإخفاؤها إما لا يترك شيئًا للقراءة أو يحفظ رقمًا مضافًا إليه كأنه الحقيقي. امنحهم التكلفة الحقيقية، أو اسحب: :keys"
 }
