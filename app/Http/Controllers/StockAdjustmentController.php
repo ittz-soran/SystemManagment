@@ -76,6 +76,9 @@ class StockAdjustmentController extends Controller
 
         return view('stock-adjustments.show', [
             'adjustment' => $stockAdjustment,
+
+            // The edit box lives on this page as well as the list.
+            'reasons' => self::REASONS,
             'movements' => StockMovement::where('reference_type', StockMovement::REF_ADJUSTMENT)
                 ->where('reference_id', $stockAdjustment->id)
                 ->with('batch')
@@ -123,14 +126,6 @@ class StockAdjustmentController extends Controller
         return back()->with('success', __('Adjustment saved'));
     }
 
-    public function edit(StockAdjustment $stockAdjustment): View
-    {
-        return view('stock-adjustments.edit', [
-            'adjustment' => $stockAdjustment->load('product'),
-            'reasons' => self::REASONS,
-        ]);
-    }
-
     /**
      * Section 8's shape for an edit: reverse and re-apply. The service does the
      * whole of it in one transaction, and refuses on the same terms a delete
@@ -165,9 +160,7 @@ class StockAdjustmentController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()
-            ->route('stock-adjustments.show', $stockAdjustment)
-            ->with('success', __('Adjustment saved'));
+        return back()->with('success', __('Adjustment saved'));
     }
 
     public function destroy(Request $request, StockAdjustment $stockAdjustment): RedirectResponse

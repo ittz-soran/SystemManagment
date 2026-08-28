@@ -388,6 +388,20 @@ to 1 so your first real invoice is INV-00001.
 
 ---
 
+## The same product twice on one document
+
+Scanning a barcode that is already in the cart adds to that line rather than
+starting a second one, which is what you want ninety-nine times in a hundred.
+
+For the hundredth — the last few of an old carton at one price and the first of
+a new one at another — press the **+** beside the line. It splits into a second
+line of one unit at the same price, with the caret in that line's price box.
+Two lines, two prices, two FIFO layers on a purchase; and on a sale, two lines
+the returns screen can tell apart.
+
+Scanning again after that adds to the line still at its original price, never
+to the one you repriced.
+
 ## When something is wrong
 
 | What you see | What it is |

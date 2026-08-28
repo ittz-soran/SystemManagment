@@ -107,7 +107,17 @@
                                      been sold, and the refusal explains itself. --}}
                                 <x-row-actions
                                     :view="route('stock-adjustments.show', $adjustment)"
-                                    :edit="Gate::allows('stock_adjustments.edit') ? route('stock-adjustments.edit', $adjustment) : null"
+                                    :edit-modal="Gate::allows('stock_adjustments.edit') ? '#adjustment-edit' : null"
+                                    :edit-data="[
+                                        'action' => route('stock-adjustments.update', $adjustment),
+                                        'product' => $adjustment->product?->name,
+                                        'direction' => $adjustment->direction,
+                                        'quantity' => $adjustment->quantity,
+                                        'cost' => $adjustment->unit_cost,
+                                        'reason' => $adjustment->reason,
+                                        'date' => $adjustment->adjusted_at->toDateString(),
+                                        'notes' => $adjustment->notes,
+                                    ]"
                                     :delete="Gate::allows('stock_adjustments.delete') ? route('stock-adjustments.destroy', $adjustment) : null"
                                     :delete-label="__('Delete :document? :count units go back the way they came.', [
                                         'document' => $adjustment->document_no,
@@ -123,6 +133,10 @@
 
         <div class="mt-3">{{ $adjustments->links() }}</div>
     @endif
+
+    @can('stock_adjustments.edit')
+        @include('stock-adjustments._edit-modal')
+    @endcan
 
     @can('stock_adjustments.create')
         <div class="modal fade" id="adjustment-modal" tabindex="-1" aria-hidden="true">

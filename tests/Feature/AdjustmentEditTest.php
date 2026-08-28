@@ -194,7 +194,7 @@ class AdjustmentEditTest extends TestCase
         $this->assertSame(1, StockBatch::where('product_id', $this->product->id)->count());
     }
 
-    public function test_the_screen_needs_the_edit_permission(): void
+    public function test_saving_a_correction_needs_the_edit_permission(): void
     {
         $adjustment = $this->adjust(StockAdjustment::DIRECTION_IN, 5, cost: 9_000);
 
@@ -207,13 +207,45 @@ class AdjustmentEditTest extends TestCase
             Permission::whereIn('key', ['stock_adjustments.view'])->pluck('id')->all()
         );
 
-        $this->actingAs($staff)->get(route('stock-adjustments.edit', $adjustment))->assertForbidden();
+        $correction = [
+            'direction' => StockAdjustment::DIRECTION_IN,
+            'quantity' => 3,
+            'unit_cost' => 9_000,
+            'reason' => 'miscount',
+            'adjusted_at' => today()->toDateString(),
+        ];
+
+        $this->actingAs($staff)
+            ->put(route('stock-adjustments.update', $adjustment), $correction)
+            ->assertForbidden();
+
+        // And the box is not offered on the screen either.
+        $this->actingAs($staff)->get(route('stock-adjustments.show', $adjustment))
+            ->assertOk()
+            ->assertDontSee('#adjustment-edit', false);
 
         $staff->permissions()->syncWithoutDetaching(
             Permission::where('key', 'stock_adjustments.edit')->pluck('id')->all()
         );
 
-        $this->actingAs($staff->refresh())->get(route('stock-adjustments.edit', $adjustment))->assertOk();
+        $this->actingAs($staff->refresh())
+            ->put(route('stock-adjustments.update', $adjustment), $correction)
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(3, (int) $adjustment->refresh()->quantity);
+    }
+
+    /** Corrected where it was written, not on a screen of its own. */
+    public function test_the_correction_box_is_on_the_list_and_on_the_adjustment(): void
+    {
+        $adjustment = $this->adjust(StockAdjustment::DIRECTION_IN, 5, cost: 9_000);
+
+        foreach ([route('stock-adjustments.index'), route('stock-adjustments.show', $adjustment)] as $screen) {
+            $this->actingAs($this->admin)->get($screen)
+                ->assertOk()
+                ->assertSee('id="adjustment-edit"', false)
+                ->assertSee('data-action="'.route('stock-adjustments.update', $adjustment).'"', false);
+        }
     }
 
     public function test_the_screen_saves_the_correction(): void
@@ -229,7 +261,6 @@ class AdjustmentEditTest extends TestCase
                 'adjusted_at' => today()->toDateString(),
                 'notes' => 'Recounted the shelf',
             ])
-            ->assertRedirect(route('stock-adjustments.show', $adjustment))
             ->assertSessionHasNoErrors();
 
         $this->assertSame(3, (int) $adjustment->refresh()->quantity);
