@@ -908,5 +908,8 @@
     "The real cost plus a percentage": "بهای واقعی به‌علاوهٔ درصدی",
     "The reports screen is the shop's own accounts and shows the real figures. Give them the real cost, or take away reports.view.": "صفحهٔ گزارش‌ها حساب‌های خود مغازه است و ارقام واقعی را نشان می‌دهد. یا بهای واقعی را بدهید، یا reports.view را بگیرید.",
     "What they see a thing cost": "چه چیزی را به‌عنوان بهای خرید می‌بینند",
-    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "این صفحه‌ها همان چیزی است که مغازه می‌پردازد، کامل نوشته شده، و پوشانده نمی‌شود. یا بهای واقعی را بدهید، یا این‌ها را بگیرید: :keys"
+    "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "این صفحه‌ها همان چیزی است که مغازه می‌پردازد، کامل نوشته شده، و پوشانده نمی‌شود. یا بهای واقعی را بدهید، یا این‌ها را بگیرید: :keys",
+    "Opening stock needs a cost for every unit, so somebody who can see what things cost has to enter it. Add it here later, or use a stock adjustment.": "موجودی آغازین برای هر واحد بها می‌خواهد، پس کسی که بهای خرید را می‌بیند باید واردش کند. بعداً اینجا اضافه کنید، یا از اصلاح موجودی استفاده کنید.",
+    "Set by somebody who can see what things cost.": "توسط کسی تنظیم می‌شود که بهای خرید را می‌بیند.",
+    "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "این صفحه‌ها همان چیزی است که مغازه پرداخته؛ پوشاندنشان یا چیزی برای خواندن باقی نمی‌گذارد یا رقم افزوده را به‌جای واقعی ذخیره می‌کند. یا بهای واقعی را بدهید، یا این‌ها را بگیرید: :keys"
 }

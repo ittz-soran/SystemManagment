@@ -141,16 +141,19 @@ class UserController extends Controller
     }
 
     /**
-     * The keys nobody can hold alongside a cost they are not shown.
+     * The few keys nobody can hold alongside a cost they are not shown.
      *
-     * Two kinds, and both would make the setting a decoration rather than a
-     * rule. Somebody who *types* a cost — a purchase, an adjustment, a
-     * product's price — has to be typing the real one, or a marked-up figure
-     * gets saved back as fact and the shop's books quietly become wrong.
-     * Somebody who opens a screen that is *about* what the shop pays — the
-     * purchase documents, the returns against them, the reports — is being
-     * handed the figure anyway, because those screens are the accounts
-     * themselves and are not masked.
+     * Kept as short as it can honestly be. Everywhere a cost merely appears, it
+     * is masked instead — including the fields on the product form, which show
+     * this reader the mask and post nothing, so they keep the catalogue without
+     * ever seeing or overwriting what a thing cost. Making stock adjustments is
+     * theirs too: nothing on that form is filled in from what is stored.
+     *
+     * What is left is the purchase side, where the document *is* the cost and
+     * there would be nothing to read once it was masked — and where the cart
+     * opens each line at the product's purchase price, so a marked-up figure
+     * would be saved back as the real one. Plus the two screens that arrive
+     * pre-filled from what is stored, and the reports.
      *
      * Refused here, on the form, rather than left as a trap that looks like it
      * is working.
@@ -165,27 +168,28 @@ class UserController extends Controller
 
         $keys = Permission::whereIn('id', $permissionIds)->pluck('key');
 
-        $typesCost = $keys->intersect([
-            'purchases.create', 'purchases.edit',
-            'stock_adjustments.create', 'stock_adjustments.edit',
-            'products.create', 'products.edit',
+        $clashes = $keys->intersect([
+            // A purchase document is what the shop paid, from the first line to
+            // the total — there is nothing left of it once the costs are
+            // masked. The cart even opens each line at the product's purchase
+            // price, so a marked-up figure would be saved back as the real one.
+            'purchases.view', 'purchases.create', 'purchases.edit',
+            'purchase_returns.view',
+
+            // Opens filled in with the cost that is already stored.
+            'stock_adjustments.edit',
+
+            // The shop's own accounts, and not masked.
+            'reports.view',
         ]);
 
-        if ($typesCost->isNotEmpty()) {
-            return __('Somebody who types what things cost has to see the real one. Give them the real cost, or take away: :keys', [
-                'keys' => $typesCost->implode(', '),
-            ]);
+        if ($clashes->isEmpty()) {
+            return null;
         }
 
-        $readsCost = $keys->intersect(['purchases.view', 'purchase_returns.view', 'reports.view']);
-
-        if ($readsCost->isNotEmpty()) {
-            return __('These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys', [
-                'keys' => $readsCost->implode(', '),
-            ]);
-        }
-
-        return null;
+        return __('These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys', [
+            'keys' => $clashes->implode(', '),
+        ]);
     }
 
     /**
