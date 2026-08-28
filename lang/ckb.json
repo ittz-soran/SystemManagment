@@ -913,5 +913,18 @@
     "Set by somebody who can see what things cost.": "لەلایەن کەسێکەوە دادەنرێت کە نرخی کڕین دەبینێت.",
     "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "ئەم پەڕانە خودی ئەوەن کە دوکانەکە دایویستووە؛ شاردنەوەیان یان هیچی بۆ خوێندنەوە ناهێڵێتەوە یان ژمارەی زیادکراو وەک ڕاستەقینە پاشەکەوت دەکات. یان نرخی ڕاستەقینەیان بدەرێ، یان ئەمانەی لێ بسەنەوە: :keys",
     "Edit expense": "دەستکاری خەرجی",
-    "Payment saved": "پارەدانەکە پاشەکەوت کرا"
+    "Payment saved": "پارەدانەکە پاشەکەوت کرا",
+    "A starting point, not a setting. Adjust the ticks afterwards.": "خاڵی دەستپێک، نەک ڕێکخستن. دواتر نیشانەکان بگۆڕە.",
+    "Added :keys": "زیادکرا :keys",
+    "At the counter": "لە پێشخانەکە",
+    "Buys, counts and corrects the shelves. Sees what things cost.": "دەکڕێت، دەژمێرێت و ڕەفەکان ڕاست دەکاتەوە. نرخی کڕین دەبینێت.",
+    "Everything except the staff list and the settings.": "هەموو شتێک جگە لە لیستی کارمەندان و ڕێکخستنەکان.",
+    "Looks after the stock": "چاودێری کۆگا دەکات",
+    "Nothing. They can sign in and go no further.": "هیچ. دەتوانن بچنە ژوورەوە و لەوە زیاتر نا.",
+    "Removed :keys": "لابرا :keys",
+    "Runs the shop": "دوکانەکە بەڕێوە دەبات",
+    "Sells, and can look things up. Sees no cost and no purchase.": "دەفرۆشێت و دەتوانێت شت بگەڕێت. نە نرخی کڕین دەبینێت نە کڕین.",
+    "Start from": "دەستپێبکە لە",
+    "The menu they will see": "ئەو لیستەی دەیبینن",
+    "changed": "گۆڕدرا"
 }

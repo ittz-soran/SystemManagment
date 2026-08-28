@@ -200,7 +200,13 @@ Roles decide the two things a permission cannot:
   either return, an adjustment, an expense, a payment, a supplier, a customer.
   The same key opens the shop-wide activity log.
 
-Everything else is a permission, ticked per person on the user's page.
+Everything else is a permission, ticked per person on the user's page. Three
+starting points sit above the ticks — **At the counter**, **Looks after the
+stock**, **Runs the shop** — which fill them in one click for the three jobs a
+shop actually has; adjust from there. Above the boxes, **the menu they will
+see** lists the screens that person will get, and follows the ticks as you
+change them: it is drawn from the same map the sidebar itself is, so it is not
+a description of the menu, it is the menu.
 
 Three of them are newer than the rest, and staff who could look at the
 catalogue used to get all three for free: **Second-hand** (`second_hand.view`),

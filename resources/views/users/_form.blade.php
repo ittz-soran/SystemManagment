@@ -137,17 +137,59 @@
                 </div>
             </div>
             <div class="card-body">
+                {{-- Sixty checkboxes with no order of importance is not a
+                     choice anybody makes well. The shop hires a person at the
+                     counter far more often than it invents a new kind of job,
+                     so the three jobs it has are here to start from. Ticking
+                     one only moves the boxes; what is saved is whatever is
+                     ticked when the form is saved. --}}
+                <div class="mb-3">
+                    <div class="form-label">{{ __('Start from') }}</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach($presets as $preset)
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-preset="{{ json_encode($preset['ids']) }}"
+                                    title="{{ $preset['note'] }}">
+                                {{ $preset['label'] }}
+                            </button>
+                        @endforeach
+                    </div>
+                    <div class="form-text">{{ __('A starting point, not a setting. Adjust the ticks afterwards.') }}</div>
+                </div>
+
+                {{-- The question an admin is really asking. Not "which of these
+                     sixty keys", but "what will this person see when they log
+                     in" — so the answer is the menu itself, kept up to date as
+                     the boxes change. --}}
+                <div class="border rounded p-2 mb-3 bg-body-tertiary">
+                    <div class="fw-semibold small text-uppercase text-secondary mb-1">
+                        {{ __('The menu they will see') }}
+                    </div>
+                    <div id="menu-preview" class="small"
+                         data-empty="{{ __('Nothing. They can sign in and go no further.') }}"
+                         data-menu="{{ json_encode(collect($menu)->flatMap(fn ($items) => collect($items)->map(fn ($item) => [
+                             'label' => $item['label'],
+                             'permission' => $item['permission'],
+                             'admin' => $item['admin'] ?? false,
+                         ]))->values()) }}"></div>
+                </div>
+
                 <div class="row g-3">
                     @foreach($groups as $group => $permissions)
                         <div class="col-md-6">
                             <div class="border rounded p-2 h-100">
-                                <div class="fw-semibold small text-uppercase text-secondary mb-2">
-                                    {{ Str::headline($group) }}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-semibold small text-uppercase text-secondary">
+                                        {{ Str::headline($group) }}
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-link p-0 small"
+                                            data-group-toggle>{{ __('All') }}</button>
                                 </div>
                                 @foreach($permissions as $permission)
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" name="permissions[]"
                                                value="{{ $permission->id }}" id="perm-{{ $permission->id }}"
+                                               data-key="{{ $permission->key }}"
                                                @checked(in_array($permission->id, old('permissions', $selected)))>
                                         <label class="form-check-label small" for="perm-{{ $permission->id }}">
                                             {{ __($permission->label) }}
@@ -182,16 +224,89 @@
                 // An admin always sees the real cost, so there is nothing to set.
                 document.getElementById('cost-visibility-block')
                     ?.classList.toggle('d-none', role.value === 'admin');
+
+                preview();
             }
+
+            const boxes = () => [...editor.querySelectorAll('input[name="permissions[]"]')];
 
             editor.querySelectorAll('[data-permission-action]').forEach((button) => {
                 button.addEventListener('click', () => {
                     const checked = button.dataset.permissionAction === 'all';
-                    editor.querySelectorAll('input[name="permissions[]"]').forEach((box) => {
-                        box.checked = checked;
-                    });
+                    boxes().forEach((box) => { box.checked = checked; });
+                    preview();
                 });
             });
+
+            // A starting point: tick exactly this job's keys, untick the rest.
+            editor.querySelectorAll('[data-preset]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const wanted = new Set(JSON.parse(button.dataset.preset).map(Number));
+
+                    boxes().forEach((box) => { box.checked = wanted.has(Number(box.value)); });
+                    preview();
+                });
+            });
+
+            // Each group's own all-or-nothing, which is the same button twice
+            // over: tick them all, unless they already are.
+            editor.querySelectorAll('[data-group-toggle]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const group = [...button.closest('.border').querySelectorAll('input[name="permissions[]"]')];
+                    const turnOn = group.some((box) => ! box.checked);
+
+                    group.forEach((box) => { box.checked = turnOn; });
+                    preview();
+                });
+            });
+
+            /*
+             * What this person will see when they sign in, kept up to date as
+             * the boxes change.
+             *
+             * The same map the sidebar itself is drawn from, so this is not a
+             * description of the menu — it is the menu.
+             */
+            const panel = document.getElementById('menu-preview');
+            const screens = JSON.parse(panel?.dataset.menu ?? '[]');
+
+            function preview() {
+                if (! panel) {
+                    return;
+                }
+
+                const isAdmin = role.value === 'admin';
+                const held = new Set(boxes().filter((box) => box.checked).map((box) => box.dataset.key));
+
+                const visible = screens.filter((screen) =>
+                    (isAdmin || ! screen.admin) && (isAdmin || held.has(screen.permission)));
+
+                panel.textContent = '';
+
+                if (! visible.length) {
+                    panel.append(Object.assign(document.createElement('span'), {
+                        className: 'text-secondary',
+                        textContent: panel.dataset.empty,
+                    }));
+
+                    return;
+                }
+
+                visible.forEach((screen) => {
+                    panel.append(Object.assign(document.createElement('span'), {
+                        className: 'badge text-bg-light me-1 mb-1 fw-normal',
+                        textContent: screen.label,
+                    }));
+                });
+            }
+
+            editor.addEventListener('change', (event) => {
+                if (event.target.matches('input[name="permissions[]"]')) {
+                    preview();
+                }
+            });
+
+            preview();
 
             // The percentage only matters for one of the three.
             const visibility = document.getElementById('cost_visibility');

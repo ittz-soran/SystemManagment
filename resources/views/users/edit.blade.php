@@ -11,4 +11,9 @@
         @method('PUT')
         @include('users._form')
     </form>
+
+    {{-- Who changed this account, when, and what they changed. On a hosted
+         shop this is the one worth having: it is where a role, a password and
+         a set of permissions get handed out. --}}
+    <x-record-history :for="$user" />
 @endsection

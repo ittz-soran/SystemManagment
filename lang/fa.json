@@ -913,5 +913,18 @@
     "Set by somebody who can see what things cost.": "توسط کسی تنظیم می‌شود که بهای خرید را می‌بیند.",
     "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "این صفحه‌ها همان چیزی است که مغازه پرداخته؛ پوشاندنشان یا چیزی برای خواندن باقی نمی‌گذارد یا رقم افزوده را به‌جای واقعی ذخیره می‌کند. یا بهای واقعی را بدهید، یا این‌ها را بگیرید: :keys",
     "Edit expense": "ویرایش هزینه",
-    "Payment saved": "پرداخت ذخیره شد"
+    "Payment saved": "پرداخت ذخیره شد",
+    "A starting point, not a setting. Adjust the ticks afterwards.": "نقطهٔ شروع، نه یک تنظیم. بعد از آن تیک‌ها را تغییر دهید.",
+    "Added :keys": "افزوده شد :keys",
+    "At the counter": "پشت پیشخوان",
+    "Buys, counts and corrects the shelves. Sees what things cost.": "می‌خرد، می‌شمارد و قفسه‌ها را اصلاح می‌کند. بهای خرید را می‌بیند.",
+    "Everything except the staff list and the settings.": "همه‌چیز جز فهرست کارکنان و تنظیمات.",
+    "Looks after the stock": "مسئول موجودی",
+    "Nothing. They can sign in and go no further.": "هیچ. فقط می‌توانند وارد شوند و بس.",
+    "Removed :keys": "برداشته شد :keys",
+    "Runs the shop": "مغازه را می‌گرداند",
+    "Sells, and can look things up. Sees no cost and no purchase.": "می‌فروشد و می‌تواند جست‌وجو کند. نه بهای خرید می‌بیند نه خرید.",
+    "Start from": "شروع از",
+    "The menu they will see": "منویی که خواهند دید",
+    "changed": "تغییر کرد"
 }

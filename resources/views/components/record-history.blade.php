@@ -51,6 +51,14 @@
                         @endif
                     </div>
 
+                    {{-- Not everything worth recording is a column. Changing
+                         somebody's permissions moves rows in another table
+                         entirely, so that entry carries a sentence rather than
+                         a list of before-and-afters. --}}
+                    @if(! $entry['changes'] && $entry['description'])
+                        <div class="small mt-1 text-secondary">{{ $entry['description'] }}</div>
+                    @endif
+
                     @if($entry['changes'])
                         <div class="small mt-2">
                             @foreach($entry['changes'] as $change)

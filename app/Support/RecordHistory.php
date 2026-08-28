@@ -74,7 +74,27 @@ final class RecordHistory
         'condition_note' => 'Condition',
         'acquired_from_id' => 'Bought from',
         'reorder_level' => 'Reorder level',
+        'password' => 'Password',
+        'role' => 'Role',
+        'is_active' => 'Active',
+        'cost_visibility' => 'What they see a thing cost',
+        'cost_markup_percent' => 'Percentage added',
+        'language' => 'Language',
+        'theme' => 'Theme',
+        'items_per_page' => 'Rows per page',
+        'email' => 'Email',
     ];
+
+    /**
+     * Never shown, whatever the log holds.
+     *
+     * The observer stores the previous value of everything that changed, and a
+     * changed password means the old hash is sitting in old_values. It is not
+     * much use to anybody, but a password hash does not belong on a screen —
+     * that a password changed, and who changed it, is the whole of what a
+     * history is for here.
+     */
+    private const SECRET = ['password', 'remember_token'];
 
     /**
      * @return list<array{
@@ -104,6 +124,16 @@ final class RecordHistory
             $changes = [];
 
             foreach (($entry->old_values ?? []) as $field => $was) {
+                if (in_array($field, self::SECRET, true)) {
+                    $changes[] = [
+                        'label' => __(self::LABELS[$field] ?? Str::headline($field)),
+                        'from' => '•••',
+                        'to' => __('changed'),
+                    ];
+
+                    continue;
+                }
+
                 $changes[] = [
                     'label' => __(self::LABELS[$field] ?? Str::headline($field)),
                     'from' => self::readable($field, $was),
