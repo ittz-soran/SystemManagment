@@ -4,6 +4,9 @@ namespace App\Support;
 
 use App\Models\ActivityLog;
 use App\Models\Category;
+use App\Models\Customer;
+use App\Models\ExpenseCategory;
+use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -43,7 +46,65 @@ final class RecordHistory
         'unit_cost' => 'Cost each',
         'direction' => 'Direction',
         'reason' => 'Reason',
+
+        // The documents.
+        'document_no' => 'Document number',
+        'customer_id' => 'Customer',
+        'supplier_id' => 'Supplier',
+        'expense_category_id' => 'Category',
+        'total_amount' => 'Total',
+        'grand_total' => 'Grand total',
+        'discount_amount' => 'Discount',
+        'amount' => 'Amount',
+        'amount_paid' => 'Paid',
+        'sale_date' => 'Date',
+        'purchase_date' => 'Date',
+        'expense_date' => 'Date',
+        'adjusted_at' => 'Date',
+        'paid_at' => 'Date',
+        'returned_at' => 'Date',
+        'status' => 'Status',
+        'method' => 'Method',
+        'reference' => 'Reference',
+        'payable_type' => 'Against',
+        'payable_id' => 'Against',
+        'is_system' => 'Built in',
+        'balance' => 'Balance',
+        'kind' => 'Kind',
+        'condition_note' => 'Condition',
+        'acquired_from_id' => 'Bought from',
+        'reorder_level' => 'Reorder level',
+        'password' => 'Password',
+        'role' => 'Role',
+        'is_active' => 'Active',
+        'cost_visibility' => 'What they see a thing cost',
+        'cost_markup_percent' => 'Percentage added',
+        'language' => 'Language',
+        'theme' => 'Theme',
+        'items_per_page' => 'Rows per page',
+        'email' => 'Email',
     ];
+
+    /**
+     * Never shown, whatever the log holds.
+     *
+     * The observer stores the previous value of everything that changed, and a
+     * changed password means the old hash is sitting in old_values. It is not
+     * much use to anybody, but a password hash does not belong on a screen —
+     * that a password changed, and who changed it, is the whole of what a
+     * history is for here.
+     */
+    private const SECRET = ['password', 'remember_token'];
+
+    /**
+     * Not worth a line.
+     *
+     * The observer stores the previous value of everything that changed, and
+     * `updated_at` changes on every save by definition — so every entry in
+     * every history carried "Updated At: 28 Aug → 28 Aug", which is the same
+     * date twice and is already the timestamp beside the entry.
+     */
+    private const NOT_WORTH_SAYING = ['updated_at', 'created_at'];
 
     /**
      * @return list<array{
@@ -73,6 +134,22 @@ final class RecordHistory
             $changes = [];
 
             foreach (($entry->old_values ?? []) as $field => $was) {
+                if (in_array($field, self::NOT_WORTH_SAYING, true)) {
+                    $state[$field] = $was;
+
+                    continue;
+                }
+
+                if (in_array($field, self::SECRET, true)) {
+                    $changes[] = [
+                        'label' => __(self::LABELS[$field] ?? Str::headline($field)),
+                        'from' => '•••',
+                        'to' => __('changed'),
+                    ];
+
+                    continue;
+                }
+
                 $changes[] = [
                     'label' => __(self::LABELS[$field] ?? Str::headline($field)),
                     'from' => self::readable($field, $was),
@@ -95,6 +172,12 @@ final class RecordHistory
         return $history;
     }
 
+    /** A foreign key said as the name it points at, or as the number if it is gone. */
+    private static function nameOf(string $model, mixed $id): string
+    {
+        return $model::withoutGlobalScopes()->find($id)?->name ?? '#'.$id;
+    }
+
     /** Same slug the logger writes: StockAdjustment becomes stock_adjustments. */
     private static function moduleFor(Model $model): string
     {
@@ -114,15 +197,30 @@ final class RecordHistory
             return '—';
         }
 
-        if ($field === 'category_id') {
-            return Category::find($value)?->name ?? __('Category #:id', ['id' => $value]);
+        if ($field === 'category_id' || $field === 'expense_category_id') {
+            return self::nameOf($field === 'category_id' ? Category::class : ExpenseCategory::class, $value);
+        }
+
+        if ($field === 'customer_id') {
+            return self::nameOf(Customer::class, $value);
+        }
+
+        if ($field === 'supplier_id' || $field === 'acquired_from_id') {
+            return self::nameOf(Supplier::class, $value);
+        }
+
+        if (str_ends_with($field, '_at') || str_ends_with($field, '_date')) {
+            return Carbon::parse($value)->format(setting('date_format', 'Y-m-d'));
         }
 
         if (str_starts_with($field, 'is_')) {
             return $value ? __('Yes') : __('No');
         }
 
-        if (str_ends_with($field, '_price') || str_ends_with($field, '_cost') || $field === 'amount') {
+        // Every money column in the system is an integer of dinars.
+        if (in_array($field, [
+            'amount', 'amount_paid', 'balance', 'total_amount', 'grand_total', 'discount_amount',
+        ], true) || str_ends_with($field, '_price') || str_ends_with($field, '_cost')) {
             return money((int) $value, false);
         }
 

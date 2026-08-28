@@ -911,5 +911,20 @@
     "These screens are what the shop pays, written out in full, and they are not masked. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما يدفعه المحل مكتوبًا بالكامل، وهي غير مُخفاة. امنحهم التكلفة الحقيقية، أو اسحب: :keys",
     "Opening stock needs a cost for every unit, so somebody who can see what things cost has to enter it. Add it here later, or use a stock adjustment.": "المخزون الافتتاحي يحتاج تكلفة لكل وحدة، لذا يجب أن يُدخلها من يرى التكاليف. أضفها لاحقًا هنا، أو استخدم تسوية مخزون.",
     "Set by somebody who can see what things cost.": "يحدّدها من يرى تكلفة الأشياء.",
-    "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما دفعه المحل، وإخفاؤها إما لا يترك شيئًا للقراءة أو يحفظ رقمًا مضافًا إليه كأنه الحقيقي. امنحهم التكلفة الحقيقية، أو اسحب: :keys"
+    "These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys": "هذه الشاشات هي ما دفعه المحل، وإخفاؤها إما لا يترك شيئًا للقراءة أو يحفظ رقمًا مضافًا إليه كأنه الحقيقي. امنحهم التكلفة الحقيقية، أو اسحب: :keys",
+    "Edit expense": "تعديل المصروف",
+    "Payment saved": "تم حفظ الدفعة",
+    "A starting point, not a setting. Adjust the ticks afterwards.": "نقطة بداية، لا إعداد. عدّل الاختيارات بعدها.",
+    "Added :keys": "أُضيف :keys",
+    "At the counter": "عند الكاشير",
+    "Buys, counts and corrects the shelves. Sees what things cost.": "يشتري ويجرد ويصحّح الرفوف. يرى تكلفة الأشياء.",
+    "Everything except the staff list and the settings.": "كل شيء عدا قائمة الموظفين والإعدادات.",
+    "Looks after the stock": "يعتني بالمخزون",
+    "Nothing. They can sign in and go no further.": "لا شيء. يمكنهم تسجيل الدخول فقط.",
+    "Removed :keys": "أُزيل :keys",
+    "Runs the shop": "يدير المحل",
+    "Sells, and can look things up. Sees no cost and no purchase.": "يبيع ويستعلم. لا يرى التكلفة ولا المشتريات.",
+    "Start from": "ابدأ من",
+    "The menu they will see": "القائمة التي سيرونها",
+    "changed": "تم التغيير"
 }

@@ -96,6 +96,15 @@
                             <td class="text-end">
                                 <x-row-actions
                                     :view="route('expenses.show', $expense)"
+                                    :edit-modal="Gate::allows('expenses.edit') ? '#expense-edit' : null"
+                                    :edit-data="[
+                                        'action' => route('expenses.update', $expense),
+                                        'title' => $expense->title,
+                                        'category' => $expense->expense_category_id,
+                                        'amount' => $expense->amount,
+                                        'date' => $expense->expense_date->toDateString(),
+                                        'notes' => $expense->notes,
+                                    ]"
                                     :delete="Gate::allows('expenses.delete') ? route('expenses.destroy', $expense) : null"
                                     :delete-label="__('Delete :document?', ['document' => $expense->document_no])" />
                             </td>
@@ -108,6 +117,10 @@
 
         <div class="mt-3">{{ $expenses->links() }}</div>
     @endif
+
+    @can('expenses.edit')
+        @include('expenses._edit-modal')
+    @endcan
 
     @can('expenses.create')
         <div class="modal fade" id="expense-modal" tabindex="-1" aria-hidden="true">

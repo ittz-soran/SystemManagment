@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Permission;
 use App\Models\User;
+use App\Services\ActivityLogger;
+use App\Support\Navigation;
+use App\Support\StaffPresets;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +35,8 @@ class UserController extends Controller
             'user' => new User(['role' => User::ROLE_USER, 'is_active' => true, 'items_per_page' => 25]),
             'groups' => $this->permissionGroups(),
             'selected' => Permission::whereIn('key', User::DEFAULT_PERMISSIONS)->pluck('id')->all(),
+            'presets' => $this->presets(),
+            'menu' => Navigation::groups(),
         ]);
     }
 
@@ -52,7 +57,7 @@ class UserController extends Controller
         DB::transaction(function () use ($data, $permissions) {
             $user = User::create($data);
 
-            $user->permissions()->sync($user->isAdmin() ? [] : $permissions);
+            $this->syncPermissions($user, $permissions);
         });
 
         return redirect()->route('users.index')->with('success', __('User saved'));
@@ -64,6 +69,8 @@ class UserController extends Controller
             'user' => $user,
             'groups' => $this->permissionGroups(),
             'selected' => $user->permissions()->pluck('permissions.id')->all(),
+            'presets' => $this->presets(),
+            'menu' => Navigation::groups(),
         ]);
     }
 
@@ -92,9 +99,7 @@ class UserController extends Controller
 
             $user->update($data);
 
-            // Section 4: never consulted for admin accounts, so an admin carries
-            // no permission rows at all.
-            $user->permissions()->sync($user->isAdmin() ? [] : $request->array('permissions'));
+            $this->syncPermissions($user, $request->array('permissions'));
         });
 
         return redirect()->route('users.index')->with('success', __('User saved'));
@@ -190,6 +195,63 @@ class UserController extends Controller
         return __('These screens are what the shop paid, and masking them would leave nothing to read or would save a marked-up figure back as the real one. Give them the real cost, or take away: :keys', [
             'keys' => $clashes->implode(', '),
         ]);
+    }
+
+    /**
+     * The starting points, with the permission ids the checkboxes actually use.
+     *
+     * @return list<array{label: string, note: string, ids: list<int>}>
+     */
+    private function presets(): array
+    {
+        $ids = Permission::pluck('id', 'key');
+
+        return collect(StaffPresets::resolved($ids->keys()->all()))
+            ->map(fn (array $preset) => [
+                'label' => $preset['label'],
+                'note' => $preset['note'],
+                'ids' => collect($preset['keys'])->map(fn (string $key) => $ids[$key] ?? null)
+                    ->filter()->values()->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Set somebody's permissions, and say so in the record.
+     *
+     * Section 4: never consulted for admin accounts, so an admin carries no
+     * permission rows at all.
+     *
+     * The activity log follows a model's own columns, and permissions are not
+     * columns — they are rows in another table. So the one change most worth a
+     * record of on this screen, who was given what, left no trace at all. This
+     * writes it as a sentence: the log has no shape for a set of keys, and a
+     * sentence is what somebody reading it wants anyway.
+     *
+     * @param  list<int>  $permissionIds
+     */
+    private function syncPermissions(User $user, array $permissionIds): void
+    {
+        $before = $user->permissions()->pluck('key')->sort()->values();
+
+        $user->permissions()->sync($user->isAdmin() ? [] : $permissionIds);
+
+        $after = $user->permissions()->pluck('key')->sort()->values();
+
+        $added = $after->diff($before);
+        $removed = $before->diff($after);
+
+        if ($added->isEmpty() && $removed->isEmpty()) {
+            return;
+        }
+
+        $said = collect([
+            $added->isNotEmpty() ? __('Added :keys', ['keys' => $added->implode(', ')]) : null,
+            $removed->isNotEmpty() ? __('Removed :keys', ['keys' => $removed->implode(', ')]) : null,
+        ])->filter()->implode('. ');
+
+        app(ActivityLogger::class)->logModel('update', $user, $said);
     }
 
     /**

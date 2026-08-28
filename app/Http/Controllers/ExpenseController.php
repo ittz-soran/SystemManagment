@@ -57,6 +57,10 @@ class ExpenseController extends Controller
     {
         return view('expenses.show', [
             'expense' => $expense->load('category', 'user'),
+
+            // The edit box is on this page as well as the list, and it needs
+            // the categories to choose from.
+            'categories' => ExpenseCategory::orderBy('name')->get(),
         ]);
     }
 

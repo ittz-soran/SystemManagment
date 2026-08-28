@@ -77,6 +77,7 @@ class PermissionSeeder extends Seeder
         'payments' => [
             'payments.view' => 'View payments',
             'payments.create' => 'Record payments',
+            'payments.edit' => 'Edit payments',
             'payments.delete' => 'Delete payments',
         ],
         'expenses' => [

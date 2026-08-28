@@ -79,4 +79,5 @@
                              :title="__('Edit customer')"
                              :save="__('Save customer')" />
     @endcan
+<x-record-history :for="$customer" />
 @endsection

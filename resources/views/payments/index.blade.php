@@ -112,6 +112,7 @@
                             <td class="text-end">
                                 <x-row-actions
                                     :view="route('payments.show', $payment)"
+                                    :edit="Gate::allows('payments.edit') ? route('payments.edit', $payment) : null"
                                     :delete="Gate::allows('payments.delete') ? route('payments.destroy', $payment) : null"
                                     :delete-label="__('Delete :document? :amount goes back onto what is owed.', [
                                         'document' => $payment->document_no,

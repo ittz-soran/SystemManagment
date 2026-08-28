@@ -227,6 +227,11 @@ Route::middleware(['auth'])->group(function () {
     // After payments/create, or "create" is read as a payment to look up.
     Route::get('payments/{payment}', [PaymentController::class, 'show'])
         ->middleware('permission:payments.view')->name('payments.show');
+    // Section 8's reverse-and-re-apply, the same shape as every other document.
+    Route::get('payments/{payment}/edit', [PaymentController::class, 'edit'])
+        ->middleware('permission:payments.edit')->name('payments.edit');
+    Route::put('payments/{payment}', [PaymentController::class, 'update'])
+        ->middleware('permission:payments.edit')->name('payments.update');
     Route::delete('payments/{payment}', [PaymentController::class, 'destroy'])
         ->middleware('permission:payments.delete')->name('payments.destroy');
 

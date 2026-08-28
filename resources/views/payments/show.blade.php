@@ -7,6 +7,12 @@
 @endsection
 
 @section('actions')
+    @can('payments.edit')
+        <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+        </a>
+    @endcan
+
     @can('payments.delete')
         {{-- Section 8b: removing the payment puts the debt back. --}}
         <form action="{{ route('payments.destroy', $payment) }}" method="POST"
@@ -108,4 +114,5 @@
             @endif
         </div>
     </div>
+<x-record-history :for="$payment" />
 @endsection

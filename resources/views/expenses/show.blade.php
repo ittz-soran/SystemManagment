@@ -7,6 +7,19 @@
 @endsection
 
 @section('actions')
+    @can('expenses.edit')
+        <button type="button" class="btn btn-outline-secondary"
+                data-bs-toggle="modal" data-bs-target="#expense-edit"
+                data-action="{{ route('expenses.update', $expense) }}"
+                data-title="{{ $expense->title }}"
+                data-category="{{ $expense->expense_category_id }}"
+                data-amount="{{ $expense->amount }}"
+                data-date="{{ $expense->expense_date->toDateString() }}"
+                data-notes="{{ $expense->notes }}">
+            <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+        </button>
+    @endcan
+
     @can('expenses.delete')
         <form action="{{ route('expenses.destroy', $expense) }}" method="POST"
               onsubmit="return confirm(@js(__('Delete :document?', ['document' => $expense->document_no])))">
@@ -72,4 +85,8 @@
             </div>
         </div>
     </div>
+<x-record-history :for="$expense" />
+@can('expenses.edit')
+        @include('expenses._edit-modal')
+    @endcan
 @endsection

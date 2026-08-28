@@ -155,6 +155,97 @@ class PaymentController extends Controller
             ->with('success', __('Payment recorded'));
     }
 
+    public function edit(Payment $payment): View
+    {
+        $payable = $payment->payable;
+
+        return view('payments.edit', [
+            'payment' => $payment,
+            'payable' => $payable,
+            'party' => $this->party($payable),
+            'backUrl' => $payable ? $this->documentUrl($payable) : route('payments.index'),
+        ]);
+    }
+
+    /**
+     * Correct a payment that was written down wrong.
+     *
+     * Section 8's shape, the one every other document already uses: reverse
+     * what it did to the ledger, then post it again with the new figures,
+     * inside one transaction. Not a difference — 20,000 corrected to 15,000 is
+     * the whole 20,000 put back and a fresh 15,000 taken, so the balance ends
+     * where it would have if the figure had been right the first time.
+     *
+     * The document it is against does not change. A payment pointed at a
+     * different invoice is a different payment, and the screen does not offer
+     * it — the same rule the stock adjustment follows about its product.
+     */
+    public function update(Request $request, Payment $payment): RedirectResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:1'],
+            'direction' => ['required', Rule::in([Payment::DIRECTION_IN, Payment::DIRECTION_OUT])],
+            'payment_method' => ['required', 'in:cash,bank,transfer'],
+            'paid_at' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $paidAt = Carbon::parse($data['paid_at']);
+
+        // Both dates: the day it was on and the day it is moving to. Taking a
+        // payment out of a closed period is as much a change to closed books as
+        // putting one into it.
+        foreach ([$payment->paid_at, $paidAt] as $date) {
+            if (books_closed_on($date)) {
+                return back()->withInput()->with('error', __('Locked: this date is in a closed period.'));
+            }
+        }
+
+        $payable = $payment->payable;
+
+        DB::transaction(function () use ($payment, $payable, $data, $paidAt, $request) {
+            // Off, exactly as a delete would take it off.
+            $was = $this->settlingAccount($payable, $payment->direction);
+
+            if ($was) {
+                $this->ledger->post(
+                    account: $was,
+                    type: AccountTransaction::TYPE_PAYMENT,
+                    amount: (int) $payment->amount,
+                    reference: $payable,
+                    user: $request->user(),
+                    notes: __('Reversal of :document', ['document' => $payment->document_no]),
+                );
+            }
+
+            $payment->forceFill([
+                'amount' => (int) $data['amount'],
+                'direction' => $data['direction'],
+                'payment_method' => $data['payment_method'],
+                'paid_at' => $paidAt,
+                'notes' => $data['notes'] ?? null,
+            ])->save();
+
+            // And on again, as recording it would put it on.
+            $now = $this->settlingAccount($payable, $payment->direction);
+
+            if ($now) {
+                $this->ledger->post(
+                    account: $now,
+                    type: AccountTransaction::TYPE_PAYMENT,
+                    amount: -1 * (int) $payment->amount,
+                    reference: $payable,
+                    user: $request->user(),
+                    notes: $payable->document_no,
+                );
+            }
+        });
+
+        return redirect()
+            ->route('payments.show', $payment)
+            ->with('success', __('Payment saved'));
+    }
+
     /**
      * The account a payment moves, or null when it moves none.
      *
