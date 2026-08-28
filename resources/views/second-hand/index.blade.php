@@ -30,20 +30,20 @@
             ],
             [
                 'label' => __('Money tied up in them'),
-                'value' => money($figures['held_value'], false),
+                'value' => money_if($figures['held_value'] !== null, $figures['held_value'], false),
                 'note' => __('right now'),
                 'tone' => '',
             ],
             [
                 'label' => __('Expected profit'),
-                'value' => money($figures['expected'], false),
+                'value' => money_if($figures['expected'] !== null, $figures['expected'], false),
                 'note' => __('if they sell at the asking price'),
                 'tone' => 'text-secondary',
             ],
             [
                 'label' => __('Bought'),
                 'value' => number_format($figures['bought']),
-                'note' => __('for :amount', ['amount' => money($figures['spent'], false)]),
+                'note' => __('for :amount', ['amount' => money_if($figures['spent'] !== null, $figures['spent'], false)]),
                 'tone' => '',
             ],
             [
@@ -54,9 +54,13 @@
             ],
             [
                 'label' => __('Made'),
-                'value' => money($figures['made'], false),
+                'value' => money_if($figures['made'] !== null, $figures['made'], false),
                 'note' => __('what those sales actually made'),
-                'tone' => $figures['made'] >= 0 ? 'text-success' : 'text-danger',
+                'tone' => match (true) {
+                    $figures['made'] === null => 'text-secondary',
+                    $figures['made'] >= 0 => 'text-success',
+                    default => 'text-danger',
+                },
             ],
         ];
     @endphp
