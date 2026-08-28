@@ -27,8 +27,11 @@ use Illuminate\View\View;
  * it sells for, and the doc's own permission vocabulary has a key for the
  * shop's numbers.
  *
- * Nothing the reader may not see is queried at all. A figure that is computed
- * and then hidden is one careless template edit away from being shown.
+ * A figure they may not see is *****, not a missing tile. Taking the tile away
+ * says the shop has no such number; masking it says there is one and it is not
+ * theirs, which is both true and what was asked for. Either way it is never
+ * queried — a figure that is computed and then hidden is one careless template
+ * edit away from being shown.
  */
 class DashboardController extends Controller
 {
@@ -38,46 +41,53 @@ class DashboardController extends Controller
         $today = today();
         $threshold = (int) setting('low_stock_threshold', 0);
 
-        $cards = [];
+        $sellsCount = $user->hasPermission('sales.view')
+            ? Sale::whereDate('sale_date', $today)->count()
+            : null;
 
-        if ($user->hasPermission('sales.view')) {
-            $count = Sale::whereDate('sale_date', $today)->count();
-
-            $cards[] = [
+        $cards = [
+            [
                 'label' => __("Today's sales"),
-                'value' => (int) Sale::whereDate('sale_date', $today)->sum('total_amount'),
+                'value' => $user->hasPermission('sales.view')
+                    ? (int) Sale::whereDate('sale_date', $today)->sum('total_amount')
+                    : null,
                 'icon' => 'cart-check',
-                'note' => trans_choice('{0}No sales yet|{1}:count sale|[2,*]:count sales', $count, ['count' => $count]),
-            ];
-        }
-
-        if ($user->hasPermission('purchases.view')) {
-            $cards[] = [
+                'note' => $sellsCount === null
+                    ? null
+                    : trans_choice('{0}No sales yet|{1}:count sale|[2,*]:count sales', $sellsCount, ['count' => $sellsCount]),
+                'cost' => false,
+            ],
+            [
                 'label' => __("Today's purchases"),
-                'value' => (int) Purchase::whereDate('purchase_date', $today)->sum('grand_total'),
+                'value' => $user->hasPermission('purchases.view')
+                    ? (int) Purchase::whereDate('purchase_date', $today)->sum('grand_total')
+                    : null,
                 'icon' => 'bag-check',
                 'note' => null,
-            ];
-        }
-
-        if ($user->hasPermission('expenses.view')) {
-            $cards[] = [
+                'cost' => false,
+            ],
+            [
                 'label' => __("Today's expenses"),
-                'value' => (int) Expense::whereDate('expense_date', $today)->sum('amount'),
+                'value' => $user->hasPermission('expenses.view')
+                    ? (int) Expense::whereDate('expense_date', $today)->sum('amount')
+                    : null,
                 'icon' => 'cash-stack',
                 'note' => null,
-            ];
-        }
-
-        if ($user->hasPermission('reports.view')) {
-            // Section 4: stock value is the sum of what each remaining unit cost.
-            $cards[] = [
+                'cost' => false,
+            ],
+            [
+                // Section 4: stock value is the sum of what each remaining unit
+                // cost — so it is a cost, and goes through the reader's own
+                // cost setting on top of the permission.
                 'label' => __('Stock value'),
-                'value' => (int) StockBatch::sum(DB::raw('quantity_remaining * unit_cost')),
+                'value' => $user->hasPermission('reports.view')
+                    ? (int) StockBatch::sum(DB::raw('quantity_remaining * unit_cost'))
+                    : null,
                 'icon' => 'boxes',
                 'note' => __('At FIFO cost'),
-            ];
-        }
+                'cost' => true,
+            ],
+        ];
 
         return view('dashboard', [
             'cards' => $cards,

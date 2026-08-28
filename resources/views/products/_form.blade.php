@@ -15,7 +15,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label for="sku" class="form-label">{{ __('SKU') }}</label>
-                        <input id="sku" name="sku" value="{{ old('sku', $product->sku) }}" dir="ltr"
+                        <input id="sku" name="sku" value="{{ old('sku', $product->sku) }}" dir="ltr" data-english-digits
                                class="form-control @error('sku') is-invalid @enderror"
                                placeholder="{{ __('Leave blank to generate :prefix…', ['prefix' => setting('sku_prefix', 'SS')]) }}">
                         {{-- Section 4: type the manufacturer code, or leave blank
@@ -26,7 +26,7 @@
 
                     <div class="col-md-6">
                         <label for="barcode" class="form-label">{{ __('Barcode') }}</label>
-                        <input id="barcode" name="barcode" data-rescan value="{{ old('barcode', $product->barcode) }}" dir="ltr"
+                        <input id="barcode" name="barcode" data-rescan data-english-digits value="{{ old('barcode', $product->barcode) }}" dir="ltr"
                                class="form-control @error('barcode') is-invalid @enderror"
                                placeholder="{{ __('Scan, type, or leave blank') }}">
                         <div class="form-text">{{ __('Left blank, an EAN-13 is generated so the product scans at the till.') }}</div>

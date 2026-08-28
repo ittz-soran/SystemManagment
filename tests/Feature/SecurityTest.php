@@ -113,16 +113,40 @@ class SecurityTest extends TestCase
         $response->assertSee("Today's sales")
             ->assertSee('Recent sales');
 
+        // The tiles stay. A missing one says the shop has no such figure; a
+        // masked one says there is one and it is not theirs.
         foreach ([
             "Today's purchases",
             "Today's expenses",
             'Stock value',
             'Customers owe the shop',
             'The shop owes suppliers',
-            'Low stock',
-        ] as $hidden) {
-            $response->assertDontSee($hidden);
+        ] as $shown) {
+            $response->assertSee($shown);
         }
+
+        // Four masked figures: purchases, expenses, stock value, and the two
+        // balances — the sales figure is the only one they may have.
+        $this->assertGreaterThanOrEqual(
+            5,
+            substr_count($response->getContent(), hidden_money()),
+            'Every figure this reader may not see has to be masked',
+        );
+
+        // The lists are screens rather than figures, and stay behind their own
+        // permission — there is nothing to mask in a table of somebody's rows.
+        $response->assertDontSee('Low stock');
+    }
+
+    /** And the buttons beside a masked figure do not lead anywhere they cannot go. */
+    public function test_a_masked_balance_offers_no_way_into_the_screen_behind_it(): void
+    {
+        $seller = $this->staffWith(['dashboard.view', 'sales.view']);
+
+        $this->actingAs($seller)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(route('customers.index'))
+            ->assertDontSee(route('suppliers.index'));
     }
 
     public function test_the_dashboard_shows_everything_to_an_admin(): void
@@ -149,22 +173,24 @@ class SecurityTest extends TestCase
      * What the shelf cost, and what the shop would make on it, are `reports.view`
      * figures. What is in stock and what it sells for are not.
      */
-    public function test_the_products_list_hides_what_the_shelf_cost(): void
+    public function test_the_products_list_masks_what_the_shelf_cost(): void
     {
         $seller = $this->staffWith(['products.view']);
 
+        // The tiles stay; the figures do not.
         $this->actingAs($seller)->get(route('products.index'))
             ->assertOk()
             ->assertSee('Low stock')
-            ->assertDontSee('what the unsold batches cost')
-            ->assertDontSee('At sale price');
+            ->assertSee('what the unsold batches cost')
+            ->assertSee('At sale price')
+            ->assertSee(hidden_money().' '.__('IQD'));
 
         $manager = $this->staffWith(['products.view', 'reports.view'], 'manager@example.com');
 
         $this->actingAs($manager)->get(route('products.index'))
             ->assertOk()
             ->assertSee('what the unsold batches cost')
-            ->assertSee('At sale price');
+            ->assertDontSee(hidden_money());
     }
 
     /** Nothing on these pages comes from anywhere but the shop's own address. */

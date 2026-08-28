@@ -31,6 +31,66 @@ if (! function_exists('money')) {
     }
 }
 
+if (! function_exists('hidden_money')) {
+    /**
+     * A figure this reader is not allowed to see.
+     *
+     * Shown rather than removed. A missing tile tells somebody the shop has no
+     * such number; a masked one tells them there is a number and it is not
+     * theirs — which is the truth, and is what the shopkeeper asked for after
+     * the tiles went away.
+     */
+    function hidden_money(): string
+    {
+        return '*****';
+    }
+}
+
+if (! function_exists('money_if')) {
+    /**
+     * `money()`, or the mask when this reader may not see the figure.
+     *
+     * @param  bool  $visible  whatever the screen's own rule is — usually a permission
+     */
+    function money_if(bool $visible, int|float|null $amount, bool $withCurrency = true): string
+    {
+        if (! $visible) {
+            return $withCurrency ? hidden_money().' '.__('IQD') : hidden_money();
+        }
+
+        return money($amount, $withCurrency);
+    }
+}
+
+if (! function_exists('cost_seen')) {
+    /**
+     * A cost figure as the signed-in reader is allowed to work from it.
+     *
+     * Null when they may not see cost at all. Every figure derived from a cost —
+     * a line's value, the shelf's worth, a profit — is built from this rather
+     * than from the stored number, so what is on screen adds up and the real
+     * cost is not one subtraction away from a marked-up one.
+     */
+    function cost_seen(?int $amount): ?int
+    {
+        $reader = auth()->user();
+
+        // Nobody signed in is a console command or a scheduled job, which has
+        // no counter staff to keep a figure from.
+        return $reader ? $reader->costAsSeen($amount) : $amount;
+    }
+}
+
+if (! function_exists('cost_money')) {
+    /** A cost, formatted as this reader may see it — or the mask. */
+    function cost_money(?int $amount, bool $withCurrency = true): string
+    {
+        $seen = cost_seen($amount);
+
+        return money_if($seen !== null, $seen, $withCurrency);
+    }
+}
+
 if (! function_exists('books_closed_on')) {
     /**
      * Section 8: nothing dated before settings.books_closed_before can be

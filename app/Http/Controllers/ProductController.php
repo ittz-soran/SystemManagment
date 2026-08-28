@@ -373,13 +373,20 @@ class ProductController extends Controller
                 'unit' => $p->unit,
                 'quantity' => $p->quantity,
                 'sale_price' => $p->sale_price,
-                'purchase_price' => $p->purchase_price,
+
+                // Cost leaves the server as the reader is allowed to see it,
+                // not as it is stored. The cart draws these straight onto the
+                // screen, and a figure withheld on one screen and handed over
+                // in a JSON response on another is not withheld.
+                'purchase_price' => cost_seen($p->purchase_price),
+
                 // Section 9b: the below-cost warning needs the cost of the batch
                 // that would actually be consumed next.
                 // A service has no batch and no cost, so there is nothing it can
-                // be sold below.
+                // be sold below. Marked up, the warning fires earlier than the
+                // real cost would — which is the point of marking it up.
                 'next_batch_cost' => $p->tracksStock()
-                    ? $p->stockBatches()->withStock()->fifoOrder()->value('unit_cost')
+                    ? cost_seen($p->stockBatches()->withStock()->fifoOrder()->value('unit_cost'))
                     : null,
             ]),
         ]);

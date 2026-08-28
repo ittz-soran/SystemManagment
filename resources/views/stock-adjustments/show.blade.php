@@ -70,7 +70,7 @@
                         <dt class="col-sm-4 text-secondary fw-normal">{{ __('Unit cost') }}</dt>
                         <dd class="col-sm-8">
                             {{ $adjustment->unit_cost !== null
-                                ? money($adjustment->unit_cost, false)
+                                ? cost_money($adjustment->unit_cost, false)
                                 : __('FIFO') }}
                         </dd>
 
@@ -101,7 +101,7 @@
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item d-flex justify-content-between">
                             <span class="text-secondary">{{ __('Cost each') }}</span>
-                            <span class="money">{{ money($batch->unit_cost, false) }}</span>
+                            <span class="money">{{ cost_money($batch->unit_cost, false) }}</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
                             <span class="text-secondary">{{ __('In') }}</span>
@@ -140,8 +140,8 @@
                                     <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">
                                         {{ $movement->quantity > 0 ? '+' : '' }}{{ number_format($movement->quantity) }}
                                     </td>
-                                    <td class="money text-secondary">{{ money($movement->unit_cost, false) }}</td>
-                                    <td class="money">{{ money(abs($movement->quantity) * $movement->unit_cost, false) }}</td>
+                                    <td class="money text-secondary">{{ cost_money($movement->unit_cost, false) }}</td>
+                                    <td class="money">{{ cost_money(abs($movement->quantity) * $movement->unit_cost, false) }}</td>
                                 </tr>
                             @endforeach
                             </tbody>
@@ -149,7 +149,7 @@
                             <tr class="fw-semibold">
                                 <td colspan="4" class="text-end">{{ __('Value moved') }}</td>
                                 <td class="money">
-                                    {{ money($movements->sum(fn ($m) => abs($m->quantity) * $m->unit_cost), false) }}
+                                    {{ cost_money($movements->sum(fn ($m) => abs($m->quantity) * $m->unit_cost), false) }}
                                 </td>
                             </tr>
                             </tfoot>

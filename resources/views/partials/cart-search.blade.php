@@ -15,6 +15,7 @@
         {{ __('Scan a barcode, or search by name or SKU') }}
     </label>
     <input id="product-search{{ $suffix }}" type="text" class="form-control form-control-lg"
+           data-english-digits
            autocomplete="off" data-cart-search
            @if($suffix === '') autofocus @endif
            placeholder="{{ __('Scan or type…') }}">

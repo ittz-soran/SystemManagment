@@ -176,6 +176,18 @@ Roles decide the two things a permission cannot:
   what it spent today: a member of staff with the sale screens sees today's
   sales and what is in stock, and not what any of it was bought for. Give
   `reports.view` to whoever is meant to see the shop's numbers.
+- **What a thing cost is set per person**, on the user's own page, and is not a
+  permission at all. Three settings: the real cost, the real cost plus a
+  percentage you choose, or `*****`. It applies to every screen that shows a
+  cost — the products list, a product's batches, second-hand, adjustments, and
+  the figures the sale cart draws from them.
+
+  Four keys cannot be held alongside a masked cost, and the form refuses the
+  combination rather than letting it look like it works: `purchases.view`,
+  `purchase_returns.view` and `reports.view` are the shop's accounts written out
+  in full, and anything that *types* a cost — `purchases.create`,
+  `products.edit` and the rest — has to be typing the real one, or a marked-up
+  figure is saved back as fact.
 - **A record's history is `activity_logs.view`.** Who changed a product, when,
   and from what to what, on the product's own page. The same key opens the
   shop-wide activity log.

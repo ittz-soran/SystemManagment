@@ -8,73 +8,51 @@
         DashboardController. A reader who holds none of them is not shown an
         empty shell; they are told plainly that this page has nothing for them.
     --}}
-    @php
-        $hasAnything = count($cards) > 0
-            || $customersOwe !== null
-            || $owedToSuppliers !== null
-            || $lowStock !== null
-            || $recentSales !== null;
-    @endphp
-
-    @if(! $hasAnything)
-        <x-empty-state icon="speedometer2"
-                       :message="__('Nothing to show here yet. Use the menu on the left.')" />
-    @endif
-
-    @if($cards)
-        <div class="row g-3 mb-4">
-            @foreach($cards as $card)
-                <div class="col-6 col-xl-3">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center gap-2 text-secondary small mb-1">
-                                <i class="bi bi-{{ $card['icon'] }}"></i>{{ $card['label'] }}
-                            </div>
-                            <div class="fs-4 fw-semibold money">{{ money($card['value']) }}</div>
-                            @if($card['note'])
-                                <div class="small text-secondary">{{ $card['note'] }}</div>
-                            @endif
+    <div class="row g-3 mb-4">
+        @foreach($cards as $card)
+            <div class="col-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 text-secondary small mb-1">
+                            <i class="bi bi-{{ $card['icon'] }}"></i>{{ $card['label'] }}
                         </div>
+                        <div class="fs-4 fw-semibold money">
+                            {{ $card['cost'] ? cost_money($card['value']) : money_if($card['value'] !== null, $card['value']) }}
+                        </div>
+                        @if($card['note'])
+                            <div class="small text-secondary">{{ $card['note'] }}</div>
+                        @endif
                     </div>
                 </div>
-            @endforeach
-        </div>
-    @endif
+            </div>
+        @endforeach
+    </div>
 
-    @if($customersOwe !== null || $owedToSuppliers !== null)
-        <div class="row g-3 mb-4">
-            @if($customersOwe !== null)
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-body d-flex align-items-center justify-content-between">
-                            <div>
-                                <div class="text-secondary small">{{ __('Customers owe the shop') }}</div>
-                                <div class="fs-5 fw-semibold money">{{ money($customersOwe) }}</div>
+    <div class="row g-3 mb-4">
+        @foreach([
+            ['label' => __('Customers owe the shop'), 'value' => $customersOwe, 'route' => 'customers.index'],
+            ['label' => __('The shop owes suppliers'), 'value' => $owedToSuppliers, 'route' => 'suppliers.index'],
+        ] as $balance)
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="text-secondary small">{{ $balance['label'] }}</div>
+                            <div class="fs-5 fw-semibold money">
+                                {{ money_if($balance['value'] !== null, $balance['value']) }}
                             </div>
-                            <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-secondary">
+                        </div>
+                        {{-- Section 9b: never a link that leads to access denied. --}}
+                        @if($balance['value'] !== null)
+                            <a href="{{ route($balance['route']) }}" class="btn btn-sm btn-outline-secondary">
                                 {{ __('View') }}
                             </a>
-                        </div>
+                        @endif
                     </div>
                 </div>
-            @endif
-            @if($owedToSuppliers !== null)
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-body d-flex align-items-center justify-content-between">
-                            <div>
-                                <div class="text-secondary small">{{ __('The shop owes suppliers') }}</div>
-                                <div class="fs-5 fw-semibold money">{{ money($owedToSuppliers) }}</div>
-                            </div>
-                            <a href="{{ route('suppliers.index') }}" class="btn btn-sm btn-outline-secondary">
-                                {{ __('View') }}
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            @endif
-        </div>
-    @endif
+            </div>
+        @endforeach
+    </div>
 
     @if($lowStock !== null || $recentSales !== null)
         <div class="row g-3">

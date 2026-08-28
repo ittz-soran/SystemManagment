@@ -9,7 +9,7 @@
             <span class="input-group-text bg-body-tertiary border-end-0">
                 <i class="bi bi-search"></i>
             </span>
-            <input id="app-search" type="search" class="form-control border-start-0"
+            <input id="app-search" type="search" class="form-control border-start-0" data-english-digits
                    placeholder="{{ __('Search anything — a product, a name, INV-00005…') }}"
                    aria-label="{{ __('Search') }}" autocomplete="off"
                    role="combobox" aria-expanded="false" aria-controls="app-search-results">
