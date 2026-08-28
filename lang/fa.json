@@ -891,5 +891,12 @@
     "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "این بارکد متعلق به :name است که حذف شده. از فهرست حذف‌شده‌ها بازش گردانید، یا بارکد دیگری بگذارید.",
     "{1}:count deleted product|[2,*]:count deleted products": "{1}:count کالای حذف‌شده|[2,*]:count کالای حذف‌شده",
     "That SKU is already :name's.": "این SKU از پیش متعلق به :name است.",
-    "That barcode is already :name's.": "این بارکد از پیش متعلق به :name است."
+    "That barcode is already :name's.": "این بارکد از پیش متعلق به :name است.",
+    "Brought back": "بازگردانده شد",
+    "Category #:id": "دسته #:id",
+    "Edited": "ویرایش شد",
+    "No": "خیر",
+    "Nothing recorded yet. Changes from here on are kept.": "هنوز چیزی ثبت نشده. تغییرات از این پس نگه داشته می‌شود.",
+    "Somebody no longer on the staff": "کسی که دیگر در کادر نیست",
+    "Yes": "بله"
 }

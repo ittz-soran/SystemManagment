@@ -257,9 +257,11 @@ Route::middleware(['auth'])->group(function () {
      * one act, and the act is a purchase — so that is the permission it takes.
      */
     Route::get('second-hand', [SecondHandController::class, 'index'])
-        ->middleware('permission:products.view')->name('second-hand.index');
+        ->middleware('permission:second_hand.view')->name('second-hand.index');
+    // The people the shop buys second-hand from are not suppliers and are not
+    // on the suppliers screen, so seeing them is the second-hand permission.
     Route::get('second-hand/sellers', [SecondHandController::class, 'sellers'])
-        ->middleware('permission:suppliers.view')->name('second-hand.sellers');
+        ->middleware('permission:second_hand.view')->name('second-hand.sellers');
     Route::get('second-hand/sellers/search', [SecondHandController::class, 'sellerSearch'])
         ->middleware('permission:purchases.create')->name('second-hand.sellers.search');
     Route::get('second-hand/create', [SecondHandController::class, 'create'])
@@ -268,7 +270,7 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:purchases.create')->name('second-hand.store');
 
     Route::get('services', [ServiceController::class, 'index'])
-        ->middleware('permission:products.view')->name('services.index');
+        ->middleware('permission:services.view')->name('services.index');
     Route::post('services', [ServiceController::class, 'store'])
         ->middleware('permission:products.create')->name('services.store');
     Route::put('services/{service}', [ServiceController::class, 'update'])
@@ -328,10 +330,15 @@ Route::middleware(['auth'])->group(function () {
 
     /*
      * Import and export the master data. Not a backup: this moves the
-     * descriptive rows only, and each route checks the permission for the kind
-     * of data it touches rather than a blanket one.
+     * descriptive rows only.
+     *
+     * `data.manage` opens the screen — it used to open for anybody who could
+     * look at the catalogue, which is not the same question as who may hand the
+     * shop's customer list to a spreadsheet. Inside, each route still checks
+     * the permission for the kind of data it touches, so holding this key does
+     * not become a way round products.edit.
      */
-    Route::prefix('data')->name('data.')->group(function () {
+    Route::middleware('permission:data.manage')->prefix('data')->name('data.')->group(function () {
         Route::get('/', [DataTransferController::class, 'index'])->name('index');
         // Before the {entity} routes, or "period" is read as a kind of data.
         Route::post('period/export', [DataTransferController::class, 'exportPeriod'])->name('period.export');

@@ -167,4 +167,51 @@
 
     /* The sidebar's own active row, which reads the variable directly. */
     .app-sidebar .nav-link.active { color: {{ $primary['on'] }}; }
+
+    /*
+     * Colour used as colour, rather than as a background with text on top.
+     *
+     * Everything above sets what a filled button looks like, where the brand
+     * colour is behind the words. An outline button, an icon and a link are the
+     * other way round: the brand colour IS the words, and then it has to carry
+     * the contrast by itself against the page. The default grey does not —
+     * #6c757d on Bootstrap's dark page is 2.8:1, which is what "New adjustment"
+     * looked like on a dark screen — and neither does a pale brand colour on a
+     * white one. brand_palette walks each colour away from the page until it
+     * clears 4.5:1, and those are the two variants used here.
+     */
+    .btn-outline-primary {
+        --bs-btn-color: {{ $primary['on_light'] }};
+        --bs-btn-border-color: {{ $primary['on_light'] }};
+    }
+
+    .btn-outline-secondary {
+        --bs-btn-color: {{ $secondary['on_light'] }};
+        --bs-btn-border-color: {{ $secondary['on_light'] }};
+    }
+
+    /* Written flat rather than nested: nesting is native CSS now, but this
+       block is served to whatever browser the shop has, and a counter machine
+       is not where a new one gets installed. */
+    [data-bs-theme="dark"] {
+        --bs-link-color: {{ $primary['on_dark'] }};
+        --bs-link-color-rgb: {{ $primary['on_dark_rgb'] }};
+        --bs-link-hover-color: {{ $primary['hex'] }};
+        --bs-primary-text-emphasis: {{ $primary['on_dark'] }};
+    }
+
+    [data-bs-theme="dark"] .btn-outline-primary {
+        --bs-btn-color: {{ $primary['on_dark'] }};
+        --bs-btn-border-color: {{ $primary['on_dark'] }};
+    }
+
+    [data-bs-theme="dark"] .btn-outline-secondary {
+        --bs-btn-color: {{ $secondary['on_dark'] }};
+        --bs-btn-border-color: {{ $secondary['on_dark'] }};
+    }
+
+    /* .text-secondary is handled in the stylesheet — it is not a brand colour.
+       .text-primary is: Bootstrap leaves --bs-primary-rgb at whatever the shop
+       chose, and that class reads exactly that. */
+    [data-bs-theme="dark"] .text-primary { color: {{ $primary['on_dark'] }} !important; }
 </style>

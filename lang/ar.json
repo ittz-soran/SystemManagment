@@ -891,5 +891,12 @@
     "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "هذا الباركود يخص :name وقد تم حذفه. استرجعه من قائمة المحذوفات، أو استخدم باركودًا آخر.",
     "{1}:count deleted product|[2,*]:count deleted products": "{1}منتج محذوف واحد|[2,*]:count منتجات محذوفة",
     "That SKU is already :name's.": "هذا الرمز يخص :name بالفعل.",
-    "That barcode is already :name's.": "هذا الباركود يخص :name بالفعل."
+    "That barcode is already :name's.": "هذا الباركود يخص :name بالفعل.",
+    "Brought back": "تمت الاستعادة",
+    "Category #:id": "التصنيف #:id",
+    "Edited": "تم التعديل",
+    "No": "لا",
+    "Nothing recorded yet. Changes from here on are kept.": "لا يوجد سجل بعد. التغييرات من الآن فصاعدًا محفوظة.",
+    "Somebody no longer on the staff": "شخص لم يعد ضمن الموظفين",
+    "Yes": "نعم"
 }

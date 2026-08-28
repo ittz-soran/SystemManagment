@@ -891,5 +891,12 @@
     "That barcode belongs to :name, which was deleted. Bring it back from the deleted list, or use a different barcode.": "ئەم بارکۆدە هی :name ـە کە سڕدراوەتەوە. لە لیستی سڕاوەکان بیگەڕێنەوە، یان بارکۆدێکی تر بەکاربهێنە.",
     "{1}:count deleted product|[2,*]:count deleted products": "{1}:count کاڵای سڕاو|[2,*]:count کاڵای سڕاو",
     "That SKU is already :name's.": "ئەم SKU ـە پێشتر هی :name ـە.",
-    "That barcode is already :name's.": "ئەم بارکۆدە پێشتر هی :name ـە."
+    "That barcode is already :name's.": "ئەم بارکۆدە پێشتر هی :name ـە.",
+    "Brought back": "گەڕێندراوەتەوە",
+    "Category #:id": "پۆل #:id",
+    "Edited": "دەستکاریکراوە",
+    "No": "نەخێر",
+    "Nothing recorded yet. Changes from here on are kept.": "هێشتا هیچ تۆمار نەکراوە. گۆڕانکارییەکان لەمەودوا دەپارێزرێن.",
+    "Somebody no longer on the staff": "کەسێک کە ئیتر لە ستافدا نییە",
+    "Yes": "بەڵێ"
 }

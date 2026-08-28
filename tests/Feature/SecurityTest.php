@@ -221,6 +221,58 @@ class SecurityTest extends TestCase
         $this->assertGuest();
     }
 
+    /**
+     * Three screens used to ride on products.view, so anybody allowed to look
+     * at the catalogue was also shown Second-hand, Services, and the screen
+     * that hands the shop's customer list to a spreadsheet — and there was no
+     * key on the permissions page to withhold any of them.
+     */
+    public function test_the_catalogue_permission_no_longer_opens_three_other_screens(): void
+    {
+        $staff = $this->staffWith(['dashboard.view', 'products.view']);
+
+        foreach (['second-hand.index', 'services.index', 'data.index'] as $route) {
+            $this->actingAs($staff)->get(route($route))->assertForbidden();
+        }
+
+        $this->actingAs($staff)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(route('second-hand.index'))
+            ->assertDontSee(route('services.index'))
+            ->assertDontSee(route('data.index'));
+    }
+
+    public function test_each_of_those_screens_has_a_key_that_opens_it(): void
+    {
+        $staff = $this->staffWith([
+            'dashboard.view', 'products.view',
+            'second_hand.view', 'services.view', 'data.manage',
+        ]);
+
+        foreach (['second-hand.index', 'services.index', 'data.index'] as $route) {
+            $this->actingAs($staff)->get(route($route))->assertOk();
+        }
+
+        $this->actingAs($staff)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(route('second-hand.index'))
+            ->assertSee(route('services.index'))
+            ->assertSee(route('data.index'));
+    }
+
+    /**
+     * Opening the import screen is not the same as being allowed to overwrite
+     * the catalogue with it — the per-entity checks inside are still there.
+     */
+    public function test_the_import_key_is_not_a_way_round_the_others(): void
+    {
+        $staff = $this->staffWith(['data.manage', 'products.view']);
+
+        $this->actingAs($staff)->get(route('data.index'))->assertOk();
+        $this->actingAs($staff)->post(route('data.import', 'products'), ['token' => 'x'])->assertForbidden();
+        $this->actingAs($staff)->get(route('data.export', 'customers'))->assertForbidden();
+    }
+
     /** @param  list<string>  $keys */
     private function staffWith(array $keys, string $email = 'assistant@example.com'): User
     {

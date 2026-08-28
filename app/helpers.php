@@ -61,7 +61,7 @@ if (! function_exists('brand_palette')) {
      * readable foreground are worked out here and written into the component
      * variables instead.
      *
-     * @return array{hex: string, rgb: string, hover: string, active: string, subtle: string, on: string}
+     * @return array{hex: string, rgb: string, hover: string, active: string, subtle: string, on: string, on_light: string, on_light_rgb: string, on_dark: string, on_dark_rgb: string}
      */
     function brand_palette(string $hex, string $fallback = '#0d6efd'): array
     {
@@ -83,11 +83,54 @@ if (! function_exists('brand_palette')) {
 
         // Relative luminance, so a pale brand colour gets dark text on it rather
         // than the white that Bootstrap hardcodes.
-        $channel = fn (int $value) => ($v = $value / 255) <= 0.03928
+        $channel = fn (float $value) => ($v = $value / 255) <= 0.03928
             ? $v / 12.92
             : (($v + 0.055) / 1.055) ** 2.4;
 
-        $luminance = 0.2126 * $channel($r) + 0.7152 * $channel($g) + 0.0722 * $channel($b);
+        $luminanceOf = function (string $colour) use ($channel): float {
+            [$cr, $cg, $cb] = array_map(hexdec(...), str_split(ltrim($colour, '#'), 2));
+
+            return 0.2126 * $channel($cr) + 0.7152 * $channel($cg) + 0.0722 * $channel($cb);
+        };
+
+        $tripletOf = fn (string $colour): string => implode(', ', array_map(
+            hexdec(...),
+            str_split(ltrim($colour, '#'), 2),
+        ));
+
+        $luminance = $luminanceOf($hex);
+
+        /*
+         * The same colour, moved until it can be read as text on a given page.
+         *
+         * A brand colour is picked to look right as a filled button, where the
+         * text sits on top of it. Used as text itself — an outline button, an
+         * icon, a link — it has to carry the contrast on its own, and the
+         * default grey does not: #6c757d on Bootstrap's dark page is 2.8:1,
+         * which is why the buttons on a dark screen read as smudges.
+         *
+         * So it is walked away from the page's own colour, five per cent at a
+         * time, until it clears 4.5:1 — WCAG AA for body text. Twenty steps is
+         * the whole distance to white or to black, so the loop always ends.
+         */
+        $readableOn = function (string $background) use ($mix, $luminanceOf): string {
+            $backgroundLuminance = $luminanceOf($background);
+            $lighten = $backgroundLuminance < 0.5;
+
+            for ($step = 0; $step <= 20; $step++) {
+                $candidate = $mix($lighten ? $step * 0.05 : $step * -0.05);
+                $candidateLuminance = $luminanceOf($candidate);
+
+                $ratio = (max($candidateLuminance, $backgroundLuminance) + 0.05)
+                    / (min($candidateLuminance, $backgroundLuminance) + 0.05);
+
+                if ($ratio >= 4.5) {
+                    return $candidate;
+                }
+            }
+
+            return $lighten ? '#ffffff' : '#000000';
+        };
 
         return [
             'hex' => strtolower($hex),
@@ -96,6 +139,20 @@ if (! function_exists('brand_palette')) {
             'active' => $mix(-0.20),
             'subtle' => $mix(0.80),
             'on' => $luminance > 0.55 ? '#000' : '#fff',
+
+            /*
+             * Readable as text on either theme's page.
+             *
+             * Measured against the least helpful surface each theme puts behind
+             * a button, not the most: in dark that is the tertiary grey a card
+             * header and a toolbar use (#2b3035), not the body's #212529, and in
+             * light it is the page's own #f8f9fa rather than a white card. Aim
+             * at the easy one and every button sitting on the other misses.
+             */
+            'on_light' => $readableOn('#f8f9fa'),
+            'on_light_rgb' => $tripletOf($readableOn('#f8f9fa')),
+            'on_dark' => $readableOn('#2b3035'),
+            'on_dark_rgb' => $tripletOf($readableOn('#2b3035')),
         ];
     }
 }

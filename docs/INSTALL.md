@@ -176,8 +176,17 @@ Roles decide the two things a permission cannot:
   what it spent today: a member of staff with the sale screens sees today's
   sales and what is in stock, and not what any of it was bought for. Give
   `reports.view` to whoever is meant to see the shop's numbers.
+- **A record's history is `activity_logs.view`.** Who changed a product, when,
+  and from what to what, on the product's own page. The same key opens the
+  shop-wide activity log.
 
 Everything else is a permission, ticked per person on the user's page.
+
+Three of them are newer than the rest, and staff who could look at the
+catalogue used to get all three for free: **Second-hand** (`second_hand.view`),
+**Services** (`services.view`) and **Import & export** (`data.manage`). After
+updating, nobody but an admin holds them until you tick them — which is the
+point of them, but it is a change to notice rather than to be surprised by.
 
 ### Moving an existing shop to another computer
 

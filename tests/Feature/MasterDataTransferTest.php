@@ -359,7 +359,7 @@ class MasterDataTransferTest extends TestCase
     {
         $user = User::factory()->create(['role' => User::ROLE_USER]);
         $user->permissions()->sync(
-            \App\Models\Permission::whereIn('key', ['products.view', 'products.create'])->pluck('id')
+            \App\Models\Permission::whereIn('key', ['data.manage', 'products.view', 'products.create'])->pluck('id')
         );
 
         Storage::fake('local');
