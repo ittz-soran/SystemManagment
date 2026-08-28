@@ -97,6 +97,16 @@ final class RecordHistory
     private const SECRET = ['password', 'remember_token'];
 
     /**
+     * Not worth a line.
+     *
+     * The observer stores the previous value of everything that changed, and
+     * `updated_at` changes on every save by definition — so every entry in
+     * every history carried "Updated At: 28 Aug → 28 Aug", which is the same
+     * date twice and is already the timestamp beside the entry.
+     */
+    private const NOT_WORTH_SAYING = ['updated_at', 'created_at'];
+
+    /**
      * @return list<array{
      *     action: string,
      *     at: Carbon,
@@ -124,6 +134,12 @@ final class RecordHistory
             $changes = [];
 
             foreach (($entry->old_values ?? []) as $field => $was) {
+                if (in_array($field, self::NOT_WORTH_SAYING, true)) {
+                    $state[$field] = $was;
+
+                    continue;
+                }
+
                 if (in_array($field, self::SECRET, true)) {
                     $changes[] = [
                         'label' => __(self::LABELS[$field] ?? Str::headline($field)),

@@ -78,6 +78,21 @@ class ProductHistoryTest extends TestCase
         $this->assertSame(['15,000', '16,500'], [$older['from'], $older['to']]);
     }
 
+    /**
+     * `updated_at` changes on every save by definition, so it was on every
+     * entry of every history — the same date twice, next to the timestamp that
+     * already said it.
+     */
+    public function test_the_timestamp_columns_are_not_listed_as_changes(): void
+    {
+        $this->product->update(['sale_price' => 16_500]);
+
+        $labels = collect(RecordHistory::for($this->product->refresh())[0]['changes'])
+            ->pluck('label');
+
+        $this->assertSame(['Sale price'], $labels->all());
+    }
+
     public function test_the_oldest_entry_is_the_day_it_was_created(): void
     {
         $this->product->update(['name' => 'USB 32GB (Kingston)']);
