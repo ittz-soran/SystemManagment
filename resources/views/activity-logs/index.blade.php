@@ -66,16 +66,21 @@
                         @php
                             $variant = match ($log->action) {
                                 'create' => 'success',
-                                'delete' => 'danger',
+                                'delete', 'purge' => 'danger',
                                 'update' => 'warning',
                                 'login', 'logout' => 'info',
                                 default => 'secondary',
                             };
+
+                            // "Purge" is a word for a database, not for a shop.
+                            $verb = $log->action === 'purge'
+                                ? __('Deleted permanently')
+                                : Str::headline($log->action);
                         @endphp
                         <tr>
                             <td class="small" dir="ltr">{{ $log->created_at->format('Y-m-d H:i') }}</td>
                             <td>{{ $log->user->name }}</td>
-                            <td><span class="badge text-bg-{{ $variant }}">{{ Str::headline($log->action) }}</span></td>
+                            <td><span class="badge text-bg-{{ $variant }}">{{ $verb }}</span></td>
                             <td class="small text-secondary">{{ Str::headline($log->module) }}</td>
                             <td>
                                 {{ $log->description }}

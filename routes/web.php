@@ -96,6 +96,16 @@ Route::middleware(['auth'])->group(function () {
     Route::post('products/{product}/restore', [ProductController::class, 'restore'])
         ->withTrashed()
         ->middleware('permission:products.delete')->name('products.restore');
+    /*
+     * And the other way out of that list: the row itself, gone.
+     *
+     * Admin rather than products.delete, because everything else on this screen
+     * can be undone from this screen and this cannot. It refuses outright if
+     * anything at all still points at the product, and it takes a backup first.
+     */
+    Route::delete('products/{product}/purge', [ProductController::class, 'purge'])
+        ->withTrashed()
+        ->middleware('admin')->name('products.purge');
     Route::delete('products', [ProductController::class, 'bulkDestroy'])
         ->middleware('permission:products.delete')->name('products.bulk-destroy');
     Route::post('products/export', [ProductController::class, 'bulkExport'])

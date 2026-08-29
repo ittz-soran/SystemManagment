@@ -141,6 +141,9 @@
                 </a>
                 <span class="text-secondary small ms-2">
                     {{ __('Showing deleted products. Bringing one back keeps its history, its batches and its codes.') }}
+                    @if(auth()->user()->isAdmin())
+                        {{ __('Deleting one permanently frees its SKU and barcode, and cannot be undone.') }}
+                    @endif
                 </span>
             @else
                 <a href="{{ route('products.index', ['deleted' => 1]) }}"
@@ -153,10 +156,17 @@
 
     @if($products->isEmpty())
         <div class="card">
-            <x-empty-state icon="box-seam"
-                           :message="__('No products yet. Add your first product.')"
-                           :action="Gate::allows('products.create') ? route('products.create') : null"
-                           :action-label="__('New product')" />
+            @if($showingDeleted)
+                <x-empty-state icon="trash"
+                               :message="__('Nothing in here. No deleted products.')"
+                               :action="route('products.index')"
+                               :action-label="__('Back to the products list')" />
+            @else
+                <x-empty-state icon="box-seam"
+                               :message="__('No products yet. Add your first product.')"
+                               :action="Gate::allows('products.create') ? route('products.create') : null"
+                               :action-label="__('New product')" />
+            @endif
         </div>
     @else
         <div class="card">
@@ -203,7 +213,7 @@
                                 <td class="money">{{ money($product->sale_price, false) }}</td>
                                 <td class="text-end">
                                     @if($showingDeleted)
-                                        {{-- The only thing to do with a deleted
+                                        {{-- The usual thing to do with a deleted
                                              row, and the answer to a barcode the
                                              form says is already taken. --}}
                                         @can('products.delete')
@@ -215,6 +225,39 @@
                                                 </button>
                                             </form>
                                         @endcan
+
+                                        {{-- And the other thing: the row itself,
+                                             gone, freeing the SKU and the barcode
+                                             it is still holding. Admin only,
+                                             because it is the one action on this
+                                             screen this screen cannot undo.
+
+                                             Section 9b: a locked action is shown
+                                             disabled with its reason, never
+                                             hidden — "or Soran will think the
+                                             feature is missing." --}}
+                                        @if(auth()->user()->isAdmin())
+                                            @php $heldBy = $purgeBlockers[$product->id] ?? null; @endphp
+
+                                            @if($heldBy)
+                                                <span class="d-inline-block ms-1" data-bs-toggle="tooltip"
+                                                      title="{{ $heldBy }}">
+                                                    <button class="btn btn-sm btn-outline-danger" disabled>
+                                                        <i class="bi bi-trash3 me-1"></i>{{ __('Delete permanently') }}
+                                                    </button>
+                                                </span>
+                                            @else
+                                                <form action="{{ route('products.purge', $product) }}" method="POST"
+                                                      class="d-inline ms-1" data-guard-submit
+                                                      onsubmit="return confirm(@js(__('Delete “:name” permanently? This cannot be undone. Its SKU and barcode become free to use again, and a backup is saved first.', ['name' => $product->name])))">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                        <i class="bi bi-trash3 me-1"></i>{{ __('Delete permanently') }}
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @endif
                                     @else
                                         <x-row-actions
                                             :view="route('products.show', $product)"

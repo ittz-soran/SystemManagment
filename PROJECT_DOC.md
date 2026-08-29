@@ -317,6 +317,7 @@ Every relationship in one place. **`restrict`** means the parent cannot be delet
 - Products, customers, and suppliers with history are **deactivated** (`is_active = false`), never deleted. `restrict` enforces that.
 - `users` is always `restrict` — a deleted employee would erase who made every document.
 - With soft deletes, a "deleted" row still exists, so FKs stay valid. Only a **force delete** hits these rules.
+- A force delete is reachable from one place: **Products → deleted list → "Delete permanently"**, admin only. It exists because a soft-deleted product keeps holding its SKU and its barcode, so a row typed in by mistake blocks those codes forever. It asks all seven `restrict` keys first and refuses in a sentence naming what it found — *"This product is on 2 sales and 1 purchase, so it cannot be destroyed"* — rather than letting the database answer with an integrity-constraint error. Counted with the query builder, not through relations: a foreign key does not know about soft deletes or the archived-period scope, and a check that asks a different question from the one MySQL is about to ask is worse than no check. A backup is taken first, outside the transaction. The product's own `activity_logs` rows go with it — `record_id` has no FK, so they would point at nothing — and one `purge` entry replaces them, naming who destroyed what.
 
 ---
 
@@ -1094,6 +1095,7 @@ Cross-check: 2 units net sold, both from B1 @ 10,000 = 20,000 ✓ · revenue 2 �
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-08-29 | **Delete permanently**, at Soran's request, on the deleted-products list and admin only — because a soft-deleted product goes on holding its SKU and its barcode, and a row typed in by mistake blocks those codes for good. Everything else this system calls delete can be undone from the screen it was done on; this one cannot, so it is hedged three ways: the seven `restrict` keys are asked *before* the button and the answer is shown on it (disabled, with the reason in a tooltip), a backup is taken first outside the transaction, and the press is held for two seconds and confirmed. The counts come from the query builder rather than from relations, because `stock_adjustments` is soft-deleted *and* carries the archived-period scope — counting it through Eloquent would report nothing while MySQL still refused, which is the exact gap between a sentence and a 500. The product's own log rows go with it and one `purge` entry replaces them. Needs `php artisan migrate`: `activity_logs.action` is an enum and gained a value. Suite: 464 tests, 463 passing, 1 skipped. | — |
 | 2026-08-19 | Design finalised — FIFO, pricing, returns, locking settled. Doc rewritten clean. | Scaffold Laravel, install Breeze, write migrations |
 | 2026-08-19 | Added: per-user permissions, SKU/barcode rules, cash refunds, document numbering, USD entry helper | Same |
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |
