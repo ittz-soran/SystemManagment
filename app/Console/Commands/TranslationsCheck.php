@@ -2,10 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Support\RecordHistory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Blade;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use ReflectionClass;
 
 /**
  * Section 2: the interface must work in English, Kurdish Sorani, Arabic and
@@ -140,10 +142,32 @@ class TranslationsCheck extends Command
             }
         }
 
+        foreach ($this->labelMaps() as $key) {
+            $found[$key] = true;
+        }
+
         $keys = array_keys($found);
         sort($keys, SORT_NATURAL | SORT_FLAG_CASE);
 
         return $keys;
+    }
+
+    /**
+     * The one place a translation key is not written as a literal inside __().
+     *
+     * RecordHistory keeps a map of column name to the words the shop uses for
+     * it, and passes the map's value to __() — so the tokeniser above sees
+     * __($variable) and collects nothing. Four of those labels had quietly
+     * shipped in English while this command reported 100%, which is worse than
+     * reporting the gap. The map is a constant, so it can simply be read.
+     *
+     * @return list<string>
+     */
+    private function labelMaps(): array
+    {
+        return array_values(array_unique(
+            (new ReflectionClass(RecordHistory::class))->getConstant('LABELS') ?: []
+        ));
     }
 
     /**
