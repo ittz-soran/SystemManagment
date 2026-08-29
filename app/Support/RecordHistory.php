@@ -6,6 +6,9 @@ use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\ExpenseCategory;
+use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Sale;
 use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -52,6 +55,9 @@ final class RecordHistory
         'customer_id' => 'Customer',
         'supplier_id' => 'Supplier',
         'expense_category_id' => 'Category',
+        'lines' => 'Items',
+        'supplier_invoice_no' => "Supplier's invoice number",
+        'exchange_rate' => 'Exchange rate',
         'total_amount' => 'Total',
         'grand_total' => 'Grand total',
         'discount_amount' => 'Discount',
@@ -125,8 +131,21 @@ final class RecordHistory
             ->limit($limit)
             ->get();
 
+        // Names are looked up as they are needed and kept for this read only;
+        // holding them longer would outlive a rename.
+        self::$names = [];
+
         // The record as it stands now, rolled back one entry at a time.
         $state = $model->getAttributes();
+
+        // Except the cart, which is not a column. A sale or a purchase edit
+        // stores the whole previous set of lines under `lines` — Section 8's
+        // "the full previous version in old_values" — so the map has to start
+        // with the lines as they stand, or the newest edit has no way to say
+        // what the cart became.
+        if ($model instanceof Sale || $model instanceof Purchase) {
+            $state['lines'] = self::linesOf($model);
+        }
 
         $history = [];
 
@@ -150,13 +169,25 @@ final class RecordHistory
                     continue;
                 }
 
-                $changes[] = [
-                    'label' => __(self::LABELS[$field] ?? Str::headline($field)),
-                    'from' => self::readable($field, $was),
-                    'to' => self::readable($field, $state[$field] ?? null),
-                ];
+                $from = self::readable($model, $field, $was);
+                $to = self::readable($model, $field, $state[$field] ?? null);
 
                 $state[$field] = $was;
+
+                // The observer stores only what changed, but the sale and
+                // purchase services snapshot the whole document — so an edit
+                // that touched nothing but the cart still read "Document
+                // number: INV-00010 → INV-00010" on four more lines. Nothing
+                // moved is nothing worth saying.
+                if ($from === $to) {
+                    continue;
+                }
+
+                $changes[] = [
+                    'label' => __(self::LABELS[$field] ?? Str::headline($field)),
+                    'from' => $from,
+                    'to' => $to,
+                ];
             }
 
             $history[] = [
@@ -172,10 +203,67 @@ final class RecordHistory
         return $history;
     }
 
-    /** A foreign key said as the name it points at, or as the number if it is gone. */
+    /**
+     * A foreign key said as the name it points at, or as the number if it is gone.
+     *
+     * Kept for the length of the read: a cart names the same product on every
+     * entry it appears in, and fifty entries of a five-line invoice would
+     * otherwise be two hundred and fifty queries to write out five names.
+     *
+     * @var array<string, string>
+     */
+    private static array $names = [];
+
     private static function nameOf(string $model, mixed $id): string
     {
-        return $model::withoutGlobalScopes()->find($id)?->name ?? '#'.$id;
+        if ($id === null || $id === '') {
+            return '—';
+        }
+
+        return self::$names[$model.'#'.$id] ??= $model::withoutGlobalScopes()->find($id)?->name ?? '#'.$id;
+    }
+
+    /**
+     * The cart as it stands, in the shape the services snapshot it in.
+     *
+     * @return list<array{product_id: int|null, quantity: int, unit_price: int}>
+     */
+    private static function linesOf(Sale|Purchase $document): array
+    {
+        return $document->items()->get()
+            ->map(fn ($line) => [
+                'product_id' => $line->product_id,
+                'quantity' => $line->quantity,
+                'unit_price' => $line->unit_price,
+            ])
+            ->all();
+    }
+
+    /**
+     * A cart said the way the printed invoice says it: 3 × Type-C cable @ 5,000.
+     *
+     * @param  array<mixed>  $lines
+     */
+    private static function cart(Model $document, array $lines): string
+    {
+        $lines = array_values(array_filter($lines, 'is_array'));
+
+        if ($lines === []) {
+            return '—';
+        }
+
+        // What a purchase line cost is a cost, and not every reader may see
+        // one; what a sale line sold for is the customer's own price, which
+        // everybody who can open the invoice may see.
+        $isCost = $document instanceof Purchase;
+
+        return implode(', ', array_map(function (array $line) use ($isCost): string {
+            $price = (int) ($line['unit_price'] ?? 0);
+
+            return number_format((int) ($line['quantity'] ?? 0))
+                .' × '.self::nameOf(Product::class, $line['product_id'] ?? null)
+                .' @ '.($isCost ? cost_money($price, false) : money($price, false));
+        }, $lines));
     }
 
     /** Same slug the logger writes: StockAdjustment becomes stock_adjustments. */
@@ -191,10 +279,29 @@ final class RecordHistory
      * this system is an integer of dinars, every is_* is a yes or a no, and
      * category_id is the only foreign key that ever reaches a screen like this.
      */
-    private static function readable(string $field, mixed $value): string
+    private static function readable(Model $record, string $field, mixed $value): string
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === []) {
             return '—';
+        }
+
+        if ($field === 'lines' && is_array($value)) {
+            return self::cart($record, $value);
+        }
+
+        // Everything below this expects one figure, and the cast at the end of
+        // this method expected one too. A cart arrived instead — "Array to
+        // string conversion" — and took every edited invoice in the shop off
+        // the screen at once. Whatever it is, it leaves here printable.
+        if (! is_scalar($value)) {
+            return match (true) {
+                $value instanceof \DateTimeInterface => Carbon::instance($value)->format(setting('date_format', 'Y-m-d')),
+                $value instanceof \BackedEnum => (string) $value->value,
+                $value instanceof \UnitEnum => $value->name,
+                is_object($value) && method_exists($value, '__toString') => (string) $value,
+                is_array($value) => json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '—',
+                default => '—',
+            };
         }
 
         if ($field === 'category_id' || $field === 'expense_category_id') {
