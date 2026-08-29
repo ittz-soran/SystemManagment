@@ -7,6 +7,7 @@ use App\Models\DocumentCounter;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Does the shop's data still agree with itself?
@@ -45,13 +46,24 @@ final class DataIntegrityService
     /** Two records that cannot both be right. Needs a person. */
     public const SERIOUS = 'serious';
 
+    /**
+     * The check itself failed, so it has nothing to report either way.
+     *
+     * Added after `lines` — a reserved word in MariaDB — took the whole page
+     * down with a syntax error on a shop whose data was fine. A page whose
+     * entire job is to tell you what is wrong is the last page that may answer
+     * a problem with a stack trace: one check that cannot run must cost you
+     * that check, not the other sixteen.
+     */
+    public const UNAVAILABLE = 'unavailable';
+
     /** How many offending rows to name. The count is always exact. */
     private const EXAMPLES = 8;
 
     /**
      * @return array{
      *     checks: list<array<string, mixed>>,
-     *     serious: int, rebuildable: int, ok: int,
+     *     serious: int, rebuildable: int, unavailable: int, ok: int,
      *     rows: int, ran_for: float
      * }
      */
@@ -59,32 +71,36 @@ final class DataIntegrityService
     {
         $startedAt = microtime(true);
 
-        $checks = [
+        $checks = [];
+
+        foreach ([
             // ---- Stock: the shelf ------------------------------------------
-            $this->stockCacheMatchesBatches(),
-            $this->stockCacheMatchesMovements(),
-            $this->batchesWithinTheirBounds(),
-            $this->batchesMatchTheirMovements(),
-            $this->saleMovementsNameTheirLine(),
-            $this->servicesHoldNoStock(),
+            'stock_cache' => 'stockCacheMatchesBatches',
+            'movement_sum' => 'stockCacheMatchesMovements',
+            'batch_bounds' => 'batchesWithinTheirBounds',
+            'batch_ledger' => 'batchesMatchTheirMovements',
+            'movement_line' => 'saleMovementsNameTheirLine',
+            'service_stock' => 'servicesHoldNoStock',
 
             // ---- Money: the books ------------------------------------------
-            $this->balancesMatchTheLedger(),
-            $this->theLedgerAddsUp(),
-            $this->documentTotalsMatchTheirLines(),
-            $this->returnTotalsMatchTheirLines(),
-            $this->nothingIsOverpaid(),
-            $this->theCashCustomerOwesNothing(),
+            'balance_cache' => 'balancesMatchTheLedger',
+            'ledger_chain' => 'theLedgerAddsUp',
+            'document_totals' => 'documentTotalsMatchTheirLines',
+            'return_totals' => 'returnTotalsMatchTheirLines',
+            'overpaid' => 'nothingIsOverpaid',
+            'cash_customer' => 'theCashCustomerOwesNothing',
 
             // ---- Documents: the paperwork ----------------------------------
-            $this->noDocumentNumberIsUsedTwice(),
-            $this->countersAreAheadOfWhatIsUsed(),
-            $this->nothingIsReturnedMoreThanOnce(),
-            $this->statusesMatchTheirLines(),
+            'duplicate_numbers' => 'noDocumentNumberIsUsedTwice',
+            'counters' => 'countersAreAheadOfWhatIsUsed',
+            'over_returned' => 'nothingIsReturnedMoreThanOnce',
+            'derived_status' => 'statusesMatchTheirLines',
 
             // ---- Links: the joins nothing enforces --------------------------
-            $this->everyLinkPointsAtSomething(),
-        ];
+            'orphan_links' => 'everyLinkPointsAtSomething',
+        ] as $key => $method) {
+            $checks[] = $this->attempt($key, $method);
+        }
 
         $rows = 0;
 
@@ -96,10 +112,52 @@ final class DataIntegrityService
             'checks' => $checks,
             'serious' => count(array_filter($checks, fn ($c) => $c['severity'] === self::SERIOUS)),
             'rebuildable' => count(array_filter($checks, fn ($c) => $c['severity'] === self::REBUILDABLE)),
+            'unavailable' => count(array_filter($checks, fn ($c) => $c['severity'] === self::UNAVAILABLE)),
             'ok' => count(array_filter($checks, fn ($c) => $c['severity'] === self::OK)),
             'rows' => $rows,
             'ran_for' => round(microtime(true) - $startedAt, 2),
         ];
+    }
+
+    /**
+     * Run one check, and survive it failing.
+     *
+     * A check is a question about the data, but it is also code, and code has
+     * its own ways of going wrong: a column renamed by a migration nobody ran,
+     * an engine that will not do window functions, a word that is reserved on
+     * MariaDB and ordinary on SQLite. None of those say anything about whether
+     * the shop's books are sound, and none of them should stop the page saying
+     * what the other checks found.
+     *
+     * The reason is kept and shown. A check quietly reporting "agrees" because
+     * it never ran would be worse than the crash it replaced.
+     */
+    private function attempt(string $key, string $method): array
+    {
+        try {
+            return $this->{$method}();
+        } catch (Throwable $e) {
+            report($e);
+
+            [$group, $title] = $this->describe($key);
+
+            return [
+                'key' => $key,
+                'group' => $group,
+                'title' => $title,
+                'because' => __('This check could not run, so it says nothing either way about the shop. The other checks on this page are unaffected.'),
+                'examined' => 0,
+                'failed' => 0,
+                'severity' => self::UNAVAILABLE,
+                'examples' => [[
+                    'what' => __('The check itself failed'),
+                    'says' => Str::limit($e->getMessage(), 300),
+                    'url' => null,
+                ]],
+                'more' => 0,
+                'repair' => null,
+            ];
+        }
     }
 
     // =================================================================
@@ -118,29 +176,27 @@ final class DataIntegrityService
         $rows = DB::table('products as p')
             ->leftJoinSub(
                 DB::table('stock_batches')->select('product_id')
-                    ->selectRaw('SUM(quantity_remaining) as total')->groupBy('product_id'),
+                    ->selectRaw('SUM(quantity_remaining) as chk_total')->groupBy('product_id'),
                 'b',
                 'b.product_id',
                 '=',
                 'p.id',
             )
-            ->whereRaw('p.quantity <> COALESCE(b.total, 0)')
+            ->whereRaw('p.quantity <> COALESCE(b.chk_total, 0)')
             ->select('p.id', 'p.name', 'p.sku', 'p.quantity')
-            ->selectRaw('COALESCE(b.total, 0) as batches')
+            ->selectRaw('COALESCE(b.chk_total, 0) as chk_batches')
             ->orderBy('p.name')
             ->get();
 
         return $this->result(
             key: 'stock_cache',
-            group: __('Stock'),
-            title: __('The stock figure matches the batches behind it'),
             because: __('products.quantity is a cache of the batches, so a difference means every screen is showing the wrong number for that product — not that stock has actually been lost.'),
             examined: (int) DB::table('products')->count(),
             failures: $rows->map(fn ($r) => [
                 'what' => $r->name.' · '.$r->sku,
                 'says' => __('screen says :cached, batches hold :real', [
                     'cached' => number_format((int) $r->quantity),
-                    'real' => number_format((int) $r->batches),
+                    'real' => number_format((int) $r->chk_batches),
                 ]),
                 'url' => route('products.show', $r->id),
             ])->all(),
@@ -161,29 +217,27 @@ final class DataIntegrityService
         $rows = DB::table('products as p')
             ->leftJoinSub(
                 DB::table('stock_movements')->select('product_id')
-                    ->selectRaw('SUM(quantity) as total')->groupBy('product_id'),
+                    ->selectRaw('SUM(quantity) as chk_total')->groupBy('product_id'),
                 'm',
                 'm.product_id',
                 '=',
                 'p.id',
             )
-            ->whereRaw('p.quantity <> COALESCE(m.total, 0)')
+            ->whereRaw('p.quantity <> COALESCE(m.chk_total, 0)')
             ->select('p.id', 'p.name', 'p.sku', 'p.quantity')
-            ->selectRaw('COALESCE(m.total, 0) as movements')
+            ->selectRaw('COALESCE(m.chk_total, 0) as chk_movements')
             ->orderBy('p.name')
             ->get();
 
         return $this->result(
             key: 'movement_sum',
-            group: __('Stock'),
-            title: __('Every movement in and out adds up to what is on the shelf'),
             because: __('The batches say what is left and the movements say everything that ever happened. They are written separately, so when they agree it is evidence rather than the same number stored twice.'),
             examined: (int) DB::table('stock_movements')->count(),
             failures: $rows->map(fn ($r) => [
                 'what' => $r->name.' · '.$r->sku,
                 'says' => __('shelf says :cached, the movements add to :real', [
                     'cached' => number_format((int) $r->quantity),
-                    'real' => number_format((int) $r->movements),
+                    'real' => number_format((int) $r->chk_movements),
                 ]),
                 'url' => route('products.show', $r->id),
             ])->all(),
@@ -202,8 +256,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'batch_bounds',
-            group: __('Stock'),
-            title: __('No batch holds more than was bought into it'),
             because: __('A batch that grew past what was bought means units exist that nobody paid for, and FIFO would sell them at a cost that was never real.'),
             examined: (int) DB::table('stock_batches')->count(),
             failures: $rows->map(fn ($r) => [
@@ -234,28 +286,26 @@ final class DataIntegrityService
             ->join('products as p', 'p.id', '=', 'b.product_id')
             ->leftJoinSub(
                 DB::table('stock_movements')->select('stock_batch_id')
-                    ->selectRaw('SUM(quantity) as total')->groupBy('stock_batch_id'),
+                    ->selectRaw('SUM(quantity) as chk_total')->groupBy('stock_batch_id'),
                 'm',
                 'm.stock_batch_id',
                 '=',
                 'b.id',
             )
-            ->whereRaw('b.quantity_remaining <> COALESCE(m.total, 0)')
+            ->whereRaw('b.quantity_remaining <> COALESCE(m.chk_total, 0)')
             ->select('b.id', 'b.product_id', 'b.quantity_remaining', 'p.name')
-            ->selectRaw('COALESCE(m.total, 0) as movements')
+            ->selectRaw('COALESCE(m.chk_total, 0) as chk_movements')
             ->get();
 
         return $this->result(
             key: 'batch_ledger',
-            group: __('Stock'),
-            title: __('Each batch agrees with its own movements, one by one'),
             because: __('Checked per batch rather than in total, because two batches wrong in opposite directions cancel out in a total while every sale from either draws the wrong cost.'),
             examined: (int) DB::table('stock_batches')->count(),
             failures: $rows->map(fn ($r) => [
                 'what' => $r->name.' · '.__('batch #:id', ['id' => $r->id]),
                 'says' => __('batch says :remaining, its movements say :real', [
                     'remaining' => number_format((int) $r->quantity_remaining),
-                    'real' => number_format((int) $r->movements),
+                    'real' => number_format((int) $r->chk_movements),
                 ]),
                 'url' => route('products.show', $r->product_id),
             ])->all(),
@@ -275,8 +325,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'movement_line',
-            group: __('Stock'),
-            title: __('Every sale and return movement names the line it belongs to'),
             because: __('A second partial return has to know exactly which units came back the first time. Without the line it cannot, and the return picks up in the wrong place.'),
             examined: (int) DB::table('stock_movements')
                 ->whereIn('reference_type', ['sale', 'sale_return', 'purchase_return'])->count(),
@@ -306,8 +354,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'service_stock',
-            group: __('Stock'),
-            title: __('No service is carrying stock'),
             because: __('A service has nothing bought for it and nothing consumed, so a batch or a movement against one is a repair being costed as if it were a thing on a shelf.'),
             examined: (int) DB::table('products')->where('kind', 'service')->count(),
             failures: $rows->map(fn ($r) => [
@@ -341,7 +387,7 @@ final class DataIntegrityService
                 })
                 ->whereRaw('a.balance <> COALESCE(t.balance_after, 0)')
                 ->select('a.id', 'a.name', 'a.balance')
-                ->selectRaw('COALESCE(t.balance_after, 0) as ledger')
+                ->selectRaw('COALESCE(t.balance_after, 0) as chk_ledger')
                 ->get();
 
             foreach ($rows as $row) {
@@ -349,7 +395,7 @@ final class DataIntegrityService
                     'what' => $row->name,
                     'says' => __('shown as :shown, the ledger ends at :real', [
                         'shown' => money((int) $row->balance),
-                        'real' => money((int) $row->ledger),
+                        'real' => money((int) $row->chk_ledger),
                     ]),
                     'url' => $type === 'customer'
                         ? route('customers.show', $row->id)
@@ -360,8 +406,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'balance_cache',
-            group: __('Money'),
-            title: __('Every balance matches the last line of its ledger'),
             because: __('A balance is a copy of where the account transactions ended. The ledger is the truth, so a difference means the figure on the screen is wrong, not that money moved.'),
             examined: $examined,
             failures: $failures,
@@ -389,10 +433,10 @@ final class DataIntegrityService
         $rows = DB::table(DB::raw(
             '(select id, accountable_type, accountable_id, amount, balance_after, '.
             'sum(amount) over (partition by accountable_type, accountable_id order by id '.
-            'rows between unbounded preceding and current row) as running '.
+            'rows between unbounded preceding and current row) as chk_running '.
             'from account_transactions) as t'
         ))
-            ->whereRaw('t.running <> t.balance_after')
+            ->whereRaw('t.chk_running <> t.balance_after')
             ->orderBy('t.id')
             ->limit(self::EXAMPLES + 1)
             ->get();
@@ -402,9 +446,9 @@ final class DataIntegrityService
         $failed = $rows->isEmpty() ? 0 : (int) DB::table(DB::raw(
             '(select balance_after, '.
             'sum(amount) over (partition by accountable_type, accountable_id order by id '.
-            'rows between unbounded preceding and current row) as running '.
+            'rows between unbounded preceding and current row) as chk_running '.
             'from account_transactions) as t'
-        ))->whereRaw('t.running <> t.balance_after')->count();
+        ))->whereRaw('t.chk_running <> t.balance_after')->count();
 
         // Named rather than numbered. Only the handful being shown are looked
         // up, so a broken ledger with ten thousand entries still costs two
@@ -421,8 +465,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'ledger_chain',
-            group: __('Money'),
-            title: __('The ledger runs straight from the first entry to the last'),
             because: __('Every entry has to land on the running total of the ones before it. A balance that only matches the final line would still look right with an entry missing from the middle — this is the check that would not.'),
             examined: (int) DB::table('account_transactions')->count(),
             failures: $rows->map(fn ($r) => [
@@ -431,7 +473,7 @@ final class DataIntegrityService
                 'says' => __('entry #:entry stores :stored, the entries before it add to :real', [
                     'entry' => $r->id,
                     'stored' => money((int) $r->balance_after),
-                    'real' => money((int) $r->running),
+                    'real' => money((int) $r->chk_running),
                 ]),
                 'url' => $r->accountable_type === 'customer'
                     ? route('customers.show', $r->accountable_id)
@@ -454,24 +496,24 @@ final class DataIntegrityService
             $rows = DB::table($table.' as d')
                 ->leftJoinSub(
                     DB::table($items)->select($key)
-                        ->selectRaw('SUM(quantity * unit_price) as total')->groupBy($key),
+                        ->selectRaw('SUM(quantity * unit_price) as chk_total')->groupBy($key),
                     'i',
                     'i.'.$key,
                     '=',
                     'd.id',
                 )
                 ->whereNull('d.deleted_at')
-                ->whereRaw("d.{$column} <> COALESCE(i.total, 0)")
-                ->select('d.id', 'd.document_no', 'd.'.$column.' as stored')
-                ->selectRaw('COALESCE(i.total, 0) as lines')
+                ->whereRaw("d.{$column} <> COALESCE(i.chk_total, 0)")
+                ->select('d.id', 'd.document_no', 'd.'.$column.' as chk_stored')
+                ->selectRaw('COALESCE(i.chk_total, 0) as chk_lines')
                 ->get();
 
             foreach ($rows as $row) {
                 $failures[] = [
                     'what' => $row->document_no,
                     'says' => __('total says :stored, its lines add to :real', [
-                        'stored' => money((int) $row->stored),
-                        'real' => money((int) $row->lines),
+                        'stored' => money((int) $row->chk_stored),
+                        'real' => money((int) $row->chk_lines),
                     ]),
                     'url' => route($route, $row->id),
                 ];
@@ -500,8 +542,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'document_totals',
-            group: __('Money'),
-            title: __('Every invoice and purchase adds up to its own lines'),
             because: __('A total that disagrees with its lines is money reported that was never charged, or charged and never reported. It also feeds straight into the ledger and the profit report.'),
             examined: (int) DB::table('sales')->whereNull('deleted_at')->count()
                 + (int) DB::table('purchases')->whereNull('deleted_at')->count(),
@@ -521,24 +561,24 @@ final class DataIntegrityService
         ] as [$table, $items, $key, $sum, $route]) {
             $rows = DB::table($table.' as d')
                 ->leftJoinSub(
-                    DB::table($items)->select($key)->selectRaw("SUM({$sum}) as total")->groupBy($key),
+                    DB::table($items)->select($key)->selectRaw("SUM({$sum}) as chk_total")->groupBy($key),
                     'i',
                     'i.'.$key,
                     '=',
                     'd.id',
                 )
                 ->whereNull('d.deleted_at')
-                ->whereRaw('d.total_amount <> COALESCE(i.total, 0)')
-                ->select('d.id', 'd.document_no', 'd.total_amount as stored')
-                ->selectRaw('COALESCE(i.total, 0) as lines')
+                ->whereRaw('d.total_amount <> COALESCE(i.chk_total, 0)')
+                ->select('d.id', 'd.document_no', 'd.total_amount as chk_stored')
+                ->selectRaw('COALESCE(i.chk_total, 0) as chk_lines')
                 ->get();
 
             foreach ($rows as $row) {
                 $failures[] = [
                     'what' => $row->document_no,
                     'says' => __('total says :stored, its lines add to :real', [
-                        'stored' => money((int) $row->stored),
-                        'real' => money((int) $row->lines),
+                        'stored' => money((int) $row->chk_stored),
+                        'real' => money((int) $row->chk_lines),
                     ]),
                     'url' => route($route, $row->id),
                 ];
@@ -547,8 +587,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'return_totals',
-            group: __('Money'),
-            title: __('Every return adds up to what was actually sent back'),
             because: __('A return total decides the refund and the credit note. A purchase return also carries its share of the supplier discount, which is the part most easily lost.'),
             examined: (int) DB::table('sale_returns')->whereNull('deleted_at')->count()
                 + (int) DB::table('purchase_returns')->whereNull('deleted_at')->count(),
@@ -569,7 +607,7 @@ final class DataIntegrityService
             $rows = DB::table($table.' as d')
                 ->joinSub(
                     DB::table('payments')->select('payable_id')
-                        ->selectRaw("SUM(case when direction = 'in' then amount else -amount end) as paid")
+                        ->selectRaw("SUM(case when direction = 'in' then amount else -amount end) as chk_paid")
                         ->where('payable_type', $type)->whereNull('deleted_at')
                         ->groupBy('payable_id'),
                     'p',
@@ -578,16 +616,16 @@ final class DataIntegrityService
                     'd.id',
                 )
                 ->whereNull('d.deleted_at')
-                ->whereRaw("p.paid > d.{$column}")
-                ->select('d.id', 'd.document_no', 'd.'.$column.' as owed', 'p.paid')
+                ->whereRaw("p.chk_paid > d.{$column}")
+                ->select('d.id', 'd.document_no', 'd.'.$column.' as chk_owed', 'p.chk_paid')
                 ->get();
 
             foreach ($rows as $row) {
                 $failures[] = [
                     'what' => $row->document_no,
                     'says' => __(':paid paid against :owed owed', [
-                        'paid' => money((int) $row->paid),
-                        'owed' => money((int) $row->owed),
+                        'paid' => money((int) $row->chk_paid),
+                        'owed' => money((int) $row->chk_owed),
                     ]),
                     'url' => route($route, $row->id),
                 ];
@@ -596,8 +634,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'overpaid',
-            group: __('Money'),
-            title: __('Nothing has been paid for more than it came to'),
             because: __('More paid than owed is either a refund that was never recorded or a payment entered against the wrong document. Both leave somebody short and neither shows up anywhere else.'),
             examined: (int) DB::table('payments')->whereNull('deleted_at')->count(),
             failures: $failures,
@@ -634,8 +670,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'cash_customer',
-            group: __('Money'),
-            title: __('The walk-in customer owes nothing'),
             because: __('Every walk-in sale is recorded against one built-in customer who always pays in full. A balance there is a real sale that somebody was let leave without paying, filed under a name that belongs to nobody.'),
             examined: $cash->count(),
             failures: $failures,
@@ -661,7 +695,7 @@ final class DataIntegrityService
 
             $rows = DB::table($table)
                 ->select('document_no')
-                ->selectRaw('COUNT(*) as times')
+                ->selectRaw('COUNT(*) as chk_times')
                 ->groupBy('document_no')
                 ->havingRaw('COUNT(*) > 1')
                 ->get();
@@ -670,7 +704,7 @@ final class DataIntegrityService
                 $failures[] = [
                     'what' => $row->document_no,
                     'says' => __('used :times times in :table', [
-                        'times' => $row->times, 'table' => $this->say($table),
+                        'times' => $row->chk_times, 'table' => $this->say($table),
                     ]),
                     'url' => null,
                 ];
@@ -679,8 +713,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'duplicate_numbers',
-            group: __('Documents'),
-            title: __('No document number is used twice'),
             because: __('A number is how a document is found, printed and argued about. Two documents sharing one is two different events that the records can no longer tell apart.'),
             examined: $examined,
             failures: $failures,
@@ -733,8 +765,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'counters',
-            group: __('Documents'),
-            title: __('The next document number is ahead of every one already used'),
             because: __('A counter that has fallen behind is not wrong yet — it becomes a duplicate number the next time somebody sells something. This is the one failure on this page that is easier to catch now than to repair later.'),
             examined: count($tables),
             failures: $failures,
@@ -773,8 +803,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'over_returned',
-            group: __('Documents'),
-            title: __('Nothing has come back more times than it went out'),
             because: __('More returned than sold puts units on the shelf that were never bought, and refunds money that was never taken.'),
             examined: (int) DB::table('sale_items')->count() + (int) DB::table('purchase_items')->count(),
             // (Every remaining line belongs to a live document: deleting one
@@ -803,13 +831,13 @@ final class DataIntegrityService
                     "else 'partly_returned' end"
                 )
                 ->select('d.id', 'd.document_no', 'd.status')
-                ->selectRaw('SUM(i.quantity) as sold, SUM(i.quantity_returned) as returned')
+                ->selectRaw('SUM(i.quantity) as chk_sold, SUM(i.quantity_returned) as chk_returned')
                 ->get();
 
             foreach ($rows as $row) {
                 $should = match (true) {
-                    (int) $row->returned <= 0 => 'active',
-                    (int) $row->returned >= (int) $row->sold => 'returned',
+                    (int) $row->chk_returned <= 0 => 'active',
+                    (int) $row->chk_returned >= (int) $row->chk_sold => 'returned',
                     default => 'partly_returned',
                 };
 
@@ -817,8 +845,8 @@ final class DataIntegrityService
                     'what' => $row->document_no,
                     'says' => __('marked :is, but :returned of :sold came back, so it is :should', [
                         'is' => $this->statusWord($row->status), 'should' => $this->statusWord($should),
-                        'returned' => number_format((int) $row->returned),
-                        'sold' => number_format((int) $row->sold),
+                        'returned' => number_format((int) $row->chk_returned),
+                        'sold' => number_format((int) $row->chk_sold),
                     ]),
                     'url' => route($route, $row->id),
                 ];
@@ -827,8 +855,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'derived_status',
-            group: __('Documents'),
-            title: __('Every document is labelled by what its lines actually say'),
             because: __('Returned, partly returned and active are worked out from the lines, never typed. A label that disagrees with them is only a wrong word on a screen, and recalculating fixes it.'),
             examined: (int) DB::table('sales')->whereNull('deleted_at')->count()
                 + (int) DB::table('purchases')->whereNull('deleted_at')->count(),
@@ -905,14 +931,14 @@ final class DataIntegrityService
                     ->where('t.'.$typeColumn, $type)
                     ->whereNotNull('t.'.$idColumn)
                     ->whereNull('x.id')
-                    ->select('t.id', 't.'.$idColumn.' as points_at')
+                    ->select('t.id', 't.'.$idColumn.' as chk_points_at')
                     ->get();
 
                 foreach ($orphans as $orphan) {
                     $failures[] = [
                         'what' => $label.' · #'.$orphan->id,
                         'says' => __('points at :target #:id, which is not there', [
-                            'target' => $this->say($target), 'id' => $orphan->points_at,
+                            'target' => $this->say($target), 'id' => $orphan->chk_points_at,
                         ]),
                         'url' => null,
                     ];
@@ -922,8 +948,6 @@ final class DataIntegrityService
 
         return $this->result(
             key: 'orphan_links',
-            group: __('Links'),
-            title: __('Every record still points at something that exists'),
             because: __('These are the links Section 5 marks "no database FK, enforce in code" — a payment names its invoice by number, and the database has no way to check the invoice is there. Everywhere else a foreign key refuses. Here nothing does.'),
             examined: $examined,
             failures: $failures,
@@ -932,6 +956,40 @@ final class DataIntegrityService
     }
 
     // =================================================================
+
+    /**
+     * What each check is called, in one place.
+     *
+     * Here rather than inside the checks themselves because a check that throws
+     * still has to be named on the page — and written as literals inside __()
+     * rather than as a constant array passed to it, so translations:check can
+     * see every one.
+     *
+     * @return array{0: string, 1: string} group, title
+     */
+    private function describe(string $key): array
+    {
+        return match ($key) {
+            'stock_cache' => [__('Stock'), __('The stock figure matches the batches behind it')],
+            'movement_sum' => [__('Stock'), __('Every movement in and out adds up to what is on the shelf')],
+            'batch_bounds' => [__('Stock'), __('No batch holds more than was bought into it')],
+            'batch_ledger' => [__('Stock'), __('Each batch agrees with its own movements, one by one')],
+            'movement_line' => [__('Stock'), __('Every sale and return movement names the line it belongs to')],
+            'service_stock' => [__('Stock'), __('No service is carrying stock')],
+            'balance_cache' => [__('Money'), __('Every balance matches the last line of its ledger')],
+            'ledger_chain' => [__('Money'), __('The ledger runs straight from the first entry to the last')],
+            'document_totals' => [__('Money'), __('Every invoice and purchase adds up to its own lines')],
+            'return_totals' => [__('Money'), __('Every return adds up to what was actually sent back')],
+            'overpaid' => [__('Money'), __('Nothing has been paid for more than it came to')],
+            'cash_customer' => [__('Money'), __('The walk-in customer owes nothing')],
+            'duplicate_numbers' => [__('Documents'), __('No document number is used twice')],
+            'counters' => [__('Documents'), __('The next document number is ahead of every one already used')],
+            'over_returned' => [__('Documents'), __('Nothing has come back more times than it went out')],
+            'derived_status' => [__('Documents'), __('Every document is labelled by what its lines actually say')],
+            'orphan_links' => [__('Links'), __('Every record still points at something that exists')],
+            default => [__('Stock'), $key],
+        };
+    }
 
     /**
      * A stored slug — 'sale_return', 'customer' — in the shop's own words.
@@ -979,8 +1037,6 @@ final class DataIntegrityService
      */
     private function result(
         string $key,
-        string $group,
-        string $title,
         string $because,
         int $examined,
         array $failures,
@@ -989,6 +1045,8 @@ final class DataIntegrityService
         ?int $failedOverride = null,
     ): array {
         $failed = $failedOverride ?? count($failures);
+
+        [$group, $title] = $this->describe($key);
 
         return [
             'key' => $key,

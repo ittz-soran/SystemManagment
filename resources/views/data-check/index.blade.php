@@ -11,7 +11,8 @@
         $order = [
             \App\Services\DataIntegrityService::SERIOUS => 0,
             \App\Services\DataIntegrityService::REBUILDABLE => 1,
-            \App\Services\DataIntegrityService::OK => 2,
+            \App\Services\DataIntegrityService::UNAVAILABLE => 2,
+            \App\Services\DataIntegrityService::OK => 3,
         ];
 
         $sorted = collect($checks)->sortBy(fn ($c) => $order[$c['severity']])->values();
@@ -19,6 +20,7 @@
         $look = [
             \App\Services\DataIntegrityService::SERIOUS => ['danger', 'exclamation-octagon', __('Needs a person')],
             \App\Services\DataIntegrityService::REBUILDABLE => ['warning', 'exclamation-triangle', __('Can be rebuilt')],
+            \App\Services\DataIntegrityService::UNAVAILABLE => ['secondary', 'info-circle', __('Did not run')],
             \App\Services\DataIntegrityService::OK => ['success', 'check-circle', __('Agrees')],
         ];
     @endphp
@@ -37,12 +39,20 @@
                             $serious, ['count' => number_format($serious)]) }}
                     @elseif($rebuildable > 0)
                         {{ __('Nothing is broken. Something needs recalculating.') }}
+                    @elseif($unavailable > 0)
+                        {{ __('Everything that could be checked agrees.') }}
                     @else
                         {{ __('Everything agrees.') }}
                     @endif
                 </div>
 
                 <div class="text-secondary small">
+                    @if($unavailable > 0)
+                        <span class="text-warning">{{ trans_choice(
+                            '{1}One check could not run.|[2,*]:count checks could not run.',
+                            $unavailable, ['count' => number_format($unavailable)]) }}</span>
+                    @endif
+
                     {{ __(':checks checks · :rows records read · :seconds seconds', [
                         'checks' => number_format(count($checks)),
                         'rows' => number_format($rows),
@@ -85,7 +95,9 @@
                         <span class="badge border border-secondary-subtle text-secondary fw-normal">{{ $check['group'] }}</span>
 
                         <span class="ms-auto text-secondary small" dir="ltr">
-                            @if($check['failed'] > 0)
+                            @if($check['severity'] === \App\Services\DataIntegrityService::UNAVAILABLE)
+                                —
+                            @elseif($check['failed'] > 0)
                                 {{ __(':count of :examined', [
                                     'count' => number_format($check['failed']),
                                     'examined' => number_format($check['examined']),
