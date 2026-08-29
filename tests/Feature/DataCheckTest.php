@@ -17,6 +17,7 @@ use App\Services\SaleService;
 use App\Services\StockAdjustmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -440,6 +441,123 @@ class DataCheckTest extends TestCase
         DB::table('document_counters')->where('prefix', 'INV')->update(['next_number' => 1]);
 
         $this->assertSame(['counters'], $this->complaints());
+    }
+
+    // =====================================================================
+    // The engine underneath
+    // =====================================================================
+
+    /**
+     * The bug that reached the shop: `as lines`.
+     *
+     * LINES is a reserved word in MariaDB and an ordinary one in SQLite, so the
+     * whole suite passed and the live page answered with a syntax error. The
+     * suite cannot catch that by running the SQL — it does not have MariaDB —
+     * so it catches it by the rule that makes it impossible instead: every
+     * alias this service invents starts with chk_, and no reserved word in any
+     * engine, present or future, starts with chk_.
+     */
+    public function test_every_invented_alias_is_safe_on_any_engine(): void
+    {
+        /*
+         * The SQL string literals, and only those.
+         *
+         * An alias lives inside a string, so the comments are out — but so is
+         * the English inside __(), which says "costed as if it were a thing on
+         * a shelf" and is not an alias called `if`. A test that has to be
+         * argued with is a test somebody eventually deletes.
+         */
+        $tokens = token_get_all(file_get_contents(app_path('Services/DataIntegrityService.php')));
+        $significant = array_values(array_filter(
+            $tokens,
+            fn ($t) => ! is_array($t) || ! in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true),
+        ));
+
+        $strings = [];
+
+        foreach ($significant as $i => $token) {
+            if (! is_array($token) || $token[0] !== T_CONSTANT_ENCAPSED_STRING) {
+                continue;
+            }
+
+            $opener = $significant[$i - 1] ?? null;
+            $callee = $significant[$i - 2] ?? null;
+
+            $isSentence = $opener === '('
+                && is_array($callee)
+                && in_array($callee[1], ['__', 'trans_choice'], true);
+
+            if (! $isSentence) {
+                $strings[] = $token[1];
+            }
+        }
+
+        preg_match_all('/\bas ([a-z_][a-z0-9_]*)/i', implode("\n", $strings), $matches);
+
+        $aliases = array_values(array_unique(array_filter(
+            $matches[1],
+            // Single letters are the table aliases in the same statement, which
+            // the query builder quotes and which are never keywords.
+            fn (string $alias) => strlen($alias) > 1,
+        )));
+
+        $unsafe = array_values(array_filter(
+            $aliases,
+            fn (string $alias) => ! str_starts_with($alias, 'chk_'),
+        ));
+
+        $this->assertSame([], $unsafe,
+            'Every alias must start with chk_ so it cannot collide with a reserved word: '
+            .implode(', ', $unsafe));
+
+        $this->assertNotEmpty($aliases, 'the pattern still finds the aliases');
+    }
+
+    /**
+     * One check failing must cost one check, not the page.
+     *
+     * This is the lesson of the reserved word rather than the word itself: the
+     * page whose whole job is to say what is wrong is the last page that may
+     * answer a problem with a stack trace.
+     */
+    public function test_a_check_that_cannot_run_costs_only_itself(): void
+    {
+        // The table two checks need, gone — which is what a half-run migration,
+        // or a restore of the wrong dump, actually looks like.
+        Schema::drop('account_transactions');
+
+        $report = app(DataIntegrityService::class)->run();
+
+        $this->assertSame(17, count($report['checks']), 'every check still reported');
+        $this->assertGreaterThan(0, $report['unavailable'], 'the broken ones said so');
+
+        $broken = collect($report['checks'])
+            ->where('severity', DataIntegrityService::UNAVAILABLE);
+
+        $this->assertTrue($broken->contains('key', 'ledger_chain'));
+        $this->assertTrue($broken->contains('key', 'balance_cache'));
+
+        // And it never pretends. A check that could not run says nothing rather
+        // than "agrees", which would be the dangerous answer.
+        foreach ($broken as $check) {
+            $this->assertNotSame(DataIntegrityService::OK, $check['severity']);
+            $this->assertNotEmpty($check['examples'][0]['says'], 'it says why');
+        }
+
+        // The checks that do not touch that table still did their work.
+        $counters = collect($report['checks'])->firstWhere('key', 'counters');
+        $this->assertSame(DataIntegrityService::OK, $counters['severity']);
+    }
+
+    /** And the page renders it rather than falling over. */
+    public function test_the_page_survives_a_check_that_cannot_run(): void
+    {
+        Schema::drop('account_transactions');
+
+        $this->get(route('settings.data-check'))
+            ->assertOk()
+            ->assertSee(__('Did not run'), false)
+            ->assertSee(__('The next document number is ahead of every one already used'), false);
     }
 
     // =====================================================================
