@@ -2,11 +2,22 @@
 
 namespace Tests;
 
+use App\Models\Customer;
+use App\Models\StockBatch;
+use App\Models\Supplier;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Schema;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * One suite writes a corrupt row on purpose.
+     *
+     * DataCheckTest exists to prove the data check notices corruption, which it
+     * can only do by causing some. Every other test keeps the guard below.
+     */
+    protected bool $breaksInvariantsOnPurpose = false;
+
     /**
      * The schema makes stock_batches.quantity_remaining and both balance columns
      * UNSIGNED so the database itself refuses a corrupt value — but only MySQL
@@ -19,7 +30,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected function tearDown(): void
     {
-        if ($this->app && Schema::hasTable('stock_batches')) {
+        if ($this->app && ! $this->breaksInvariantsOnPurpose && Schema::hasTable('stock_batches')) {
             $this->assertNoCorruptStock();
         }
 
@@ -28,7 +39,7 @@ abstract class TestCase extends BaseTestCase
 
     private function assertNoCorruptStock(): void
     {
-        $negativeBatches = \App\Models\StockBatch::where('quantity_remaining', '<', 0)->get();
+        $negativeBatches = StockBatch::where('quantity_remaining', '<', 0)->get();
 
         $this->assertCount(
             0,
@@ -39,7 +50,7 @@ abstract class TestCase extends BaseTestCase
                 .'. MySQL would have rejected this outright; SQLite does not.'
         );
 
-        $overfilled = \App\Models\StockBatch::whereColumn('quantity_remaining', '>', 'quantity_in')->get();
+        $overfilled = StockBatch::whereColumn('quantity_remaining', '>', 'quantity_in')->get();
 
         $this->assertCount(
             0,
@@ -53,7 +64,7 @@ abstract class TestCase extends BaseTestCase
         if (Schema::hasTable('customers')) {
             $this->assertSame(
                 0,
-                \App\Models\Customer::where('balance', '<', 0)->count(),
+                Customer::where('balance', '<', 0)->count(),
                 'A customer balance went negative; Section 4 forbids it.'
             );
         }
@@ -61,7 +72,7 @@ abstract class TestCase extends BaseTestCase
         if (Schema::hasTable('suppliers')) {
             $this->assertSame(
                 0,
-                \App\Models\Supplier::where('balance', '<', 0)->count(),
+                Supplier::where('balance', '<', 0)->count(),
                 'A supplier balance went negative; Section 4 forbids it.'
             );
         }

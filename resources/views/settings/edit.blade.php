@@ -285,6 +285,25 @@
             </div>
         </div>
 
+        {{-- Section 10b ends with six assertions "to run globally, after every
+             test". They live in the acceptance test, guarding the engine. This
+             is the link to the same questions asked of the real shop — which is
+             the version worth having after a power cut or a restored backup. --}}
+        <div class="card mt-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-shield-check"></i>{{ __('Data check') }}
+            </div>
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div class="text-secondary small mb-0" style="max-width: 44rem">
+                    {{ __('Reads every record and reports whether they still agree with one another — stock against its batches, balances against the ledger, totals against their lines, and every link the database itself cannot enforce. It changes nothing.') }}
+                </div>
+
+                <a href="{{ route('settings.data-check') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-clipboard-check me-1"></i>{{ __('Run the data check') }}
+                </a>
+            </div>
+        </div>
+
         {{-- Section 8c: "Backup status — last backup time and a manual 'Back up
              now' button." Section 8b is the reason it is on this page at all:
              financial records are the shop's only proof of who owes what.
