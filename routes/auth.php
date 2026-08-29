@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\RecoverPasswordController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +37,21 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    /*
+     * The way back in that does not go through the post.
+     *
+     * The two routes above email a link, and MAIL_MAILER is `log` on every
+     * install of this system — so that link has never left the building, and on
+     * the hosting these shops run on it never will. This is the one a shop can
+     * actually use: the email address, the six digits off the enrolled phone,
+     * and a new password.
+     */
+    Route::get('recover-password', [RecoverPasswordController::class, 'show'])
+        ->name('password.recover');
+
+    Route::post('recover-password', [RecoverPasswordController::class, 'update'])
+        ->name('password.recover.update');
 });
 
 Route::middleware('auth')->group(function () {

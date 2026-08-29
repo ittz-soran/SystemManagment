@@ -29,12 +29,12 @@
         <button type="submit" class="btn btn-primary w-100"
                 data-submitting-text="{{ __('Logging in…') }}">{{ __('Log in') }}</button>
 
-        @if(Route::has('password.request'))
-            <div class="text-center mt-3">
-                <a class="small text-decoration-none" href="{{ route('password.request') }}">
-                    {{ __('Forgot your password?') }}
-                </a>
-            </div>
-        @endif
+        {{-- The one that works. This system sends no email, so a reset link
+             has nowhere to go — the phone is the way back in. --}}
+        <div class="text-center mt-3">
+            <a class="small text-decoration-none" href="{{ route('password.recover') }}">
+                {{ __('Forgot your password?') }}
+            </a>
+        </div>
     </form>
 </x-guest-layout>

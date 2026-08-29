@@ -3,6 +3,30 @@
 @section('title', __('My preferences'))
 
 @section('content')
+    {{-- The most important link on this page, and the one nobody thinks about
+         until the morning they cannot get in. --}}
+    <div class="card mb-4 {{ auth()->user()->hasAuthenticator() ? '' : 'border-warning' }}">
+        <div class="card-body d-flex flex-wrap align-items-center gap-3">
+            <i class="bi bi-shield-check fs-3 {{ auth()->user()->hasAuthenticator() ? 'text-success' : 'text-warning' }}"></i>
+
+            <div class="flex-grow-1">
+                <div class="fw-semibold">{{ __('Way back in') }}</div>
+                <div class="text-secondary small">
+                    @if(auth()->user()->hasAuthenticator())
+                        {{ __('An authenticator app can set a new password for this account if you forget it.') }}
+                    @else
+                        {{ __('This system sends no email, so a forgotten password cannot be reset by a link. Set up an authenticator app, or only another admin can let you back in.') }}
+                    @endif
+                </div>
+            </div>
+
+            <a href="{{ route('authenticator.show') }}"
+               class="btn btn-sm {{ auth()->user()->hasAuthenticator() ? 'btn-outline-secondary' : 'btn-warning' }}">
+                {{ auth()->user()->hasAuthenticator() ? __('Manage') : __('Set it up') }}
+            </a>
+        </div>
+    </div>
+
     <div class="row g-4">
         <div class="col-lg-6">
             {{-- Section 8c layer 3: these belong to the person, not the shop. --}}

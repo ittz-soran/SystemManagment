@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AuthenticatorController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DataCheckController;
@@ -59,6 +60,23 @@ Route::middleware(['auth'])->group(function () {
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    /*
+     * The phone that becomes the way back in when a password is forgotten.
+     *
+     * Everybody's own, not an admin's to set up for them: the secret has to
+     * reach a phone the person actually holds, or it is not a second factor at
+     * all. An admin can turn somebody else's off from the users screen — for
+     * the phone that is genuinely lost — and that is the whole of their part.
+     */
+    Route::get('profile/authenticator', [AuthenticatorController::class, 'show'])
+        ->name('authenticator.show');
+    Route::post('profile/authenticator', [AuthenticatorController::class, 'confirm'])
+        ->name('authenticator.confirm');
+    Route::post('profile/authenticator/codes', [AuthenticatorController::class, 'regenerate'])
+        ->name('authenticator.codes');
+    Route::delete('profile/authenticator', [AuthenticatorController::class, 'destroy'])
+        ->name('authenticator.destroy');
 
     // ---- Catalogue -------------------------------------------------------
     /*
@@ -165,6 +183,11 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('users', UserController::class)
         ->except(['show'])
         ->middleware('admin');
+
+    // The lost phone. Same screen, same admin, and nothing an admin could not
+    // already do — they can type this person a new password outright.
+    Route::delete('users/{user}/authenticator', [UserController::class, 'clearAuthenticator'])
+        ->middleware('admin')->name('users.authenticator.destroy');
 
     // ---- Sell & buy ------------------------------------------------------
     Route::get('sales', [SaleController::class, 'index'])
