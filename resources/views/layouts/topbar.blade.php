@@ -26,6 +26,24 @@
     </div>
 
     <div class="ms-auto d-flex align-items-center gap-2">
+        {{-- Whether this screen can still reach the shop's own server.
+             Section 9b's rule about saying the truth plainly, applied to the
+             one thing a browser hides: a page that has lost the network looks
+             exactly like a page that is working until something is saved. At a
+             till that difference is a sale.
+
+             Quiet when connected — a green dot nobody has to read — and
+             unmissable when not. app.js drives it. --}}
+        <span id="app-connection" class="app-connection d-inline-flex align-items-center gap-1 small"
+              data-url="{{ url('up') }}"
+              data-online="{{ __('Connected') }}"
+              data-offline="{{ __('No connection') }}"
+              data-offline-banner="{{ __('No connection to the shop’s server. Nothing typed now will be saved — wait for this to clear before ringing up a sale.') }}"
+              title="{{ __('Connected') }}">
+            <span class="app-connection-dot" aria-hidden="true"></span>
+            <span class="app-connection-word d-none"></span>
+        </span>
+
         {{-- The wall clock. Twelve hours, because that is how the shop reads the
              time, and the machine's own so it agrees with the wall. --}}
         <div class="app-clock text-end d-none d-md-block lh-sm" dir="ltr">

@@ -285,6 +285,12 @@
             </div>
         </div>
 
+        {{-- What the shop is using of what it pays for. Renders nothing at all
+             unless STORAGE_LIMIT_MB is set on the server, so an install that
+             was not sold on a plan does not carry a plan's furniture. --}}
+        <div id="storage"></div>
+        <x-storage-meter />
+
         {{-- Section 10b ends with six assertions "to run globally, after every
              test". They live in the acceptance test, guarding the engine. This
              is the link to the same questions asked of the real shop — which is

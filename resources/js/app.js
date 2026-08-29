@@ -1191,3 +1191,112 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 })();
+
+/**
+ * Whether this screen can still reach the shop's own server.
+ *
+ * A browser that has lost the network looks exactly like one that has not,
+ * right up until something is saved and the page dies on a form the assistant
+ * has just spent two minutes filling. At a till that is a sale, and the person
+ * who loses it has no way of knowing why.
+ *
+ * navigator.onLine alone is not enough: it says whether the machine has a
+ * network, not whether this server is on the end of it. A shop on the router's
+ * wifi with the fibre cut reads as perfectly online. So the browser's own
+ * signal is used as an instant hint and the server is asked directly to
+ * confirm — Laravel's health endpoint, which is already there and returns
+ * almost nothing.
+ *
+ * Quiet when connected, because a green dot that says "Connected" on every page
+ * is a green dot nobody reads. Loud the moment it is not.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const pill = document.getElementById('app-connection');
+
+    if (! pill) return;
+
+    const dot = pill.querySelector('.app-connection-dot');
+    const word = pill.querySelector('.app-connection-word');
+    const url = pill.dataset.url;
+
+    // Every 20 seconds while connected. Once it is not, ask more often, so the
+    // moment it comes back is the moment the screen says so.
+    const WHEN_UP = 20000;
+    const WHEN_DOWN = 5000;
+
+    let online = null;
+    let timer = null;
+
+    const banner = () => {
+        let el = document.getElementById('app-offline-banner');
+
+        if (! el) {
+            el = document.createElement('div');
+            el.id = 'app-offline-banner';
+            el.className = 'app-offline-banner no-print';
+            el.setAttribute('role', 'alert');
+            el.textContent = pill.dataset.offlineBanner
+                ?? `${pill.dataset.offline} — ${pill.dataset.offlineHelp ?? ''}`;
+            document.body.prepend(el);
+        }
+
+        return el;
+    };
+
+    const show = (up) => {
+        if (up === online) return;
+
+        online = up;
+
+        pill.classList.toggle('is-offline', ! up);
+        pill.title = up ? pill.dataset.online : pill.dataset.offline;
+        word.textContent = up ? '' : pill.dataset.offline;
+        word.classList.toggle('d-none', up);
+
+        if (up) {
+            document.getElementById('app-offline-banner')?.remove();
+        } else {
+            banner();
+        }
+
+        document.body.classList.toggle('is-offline', ! up);
+    };
+
+    const ask = async () => {
+        // The machine says it has no network at all: believe that immediately
+        // rather than waiting for a request to time out.
+        if (navigator.onLine === false) {
+            show(false);
+            schedule();
+            return;
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                cache: 'no-store',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                signal: AbortSignal.timeout(8000),
+            });
+
+            show(response.ok);
+        } catch {
+            show(false);
+        }
+
+        schedule();
+    };
+
+    const schedule = () => {
+        clearTimeout(timer);
+        timer = setTimeout(ask, online === false ? WHEN_DOWN : WHEN_UP);
+    };
+
+    // The browser's own events are the fast path; the poll is what catches a
+    // server that has gone away while the network stayed up.
+    window.addEventListener('online', () => { clearTimeout(timer); ask(); });
+    window.addEventListener('offline', () => show(false));
+
+    show(true);
+    schedule();
+});

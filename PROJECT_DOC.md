@@ -604,6 +604,58 @@ Every edit writes an `activity_logs` row with before/after in the description an
 
 ---
 
+## 8d. Sold on a plan — storage and connection
+
+Added when the system was first sold to a shop other than Soran's. Neither
+feature exists on an install that was not sold this way: with `STORAGE_LIMIT_MB`
+unset there is no meter, no banner and nothing is ever refused.
+
+### Storage
+
+`STORAGE_LIMIT_MB` in `.env` on the server, and nowhere else — the Settings
+screen shows the meter but cannot raise it, because a limit the buyer can edit
+is not a limit. What counts is what the shop's use actually puts on the seller's
+disk: the database (`information_schema` on MySQL/MariaDB, the file on SQLite),
+the backup directory, and uploads. Measured together, held for 60 seconds, and
+re-measured immediately after a backup — the one thing that moves the figure
+sharply.
+
+Amber at 80%, red at 95%, with a banner on every page an admin opens. Staff are
+not shown it: a counter assistant who sees a storage warning on every sale
+learns to stop reading banners.
+
+At 100% the shop can no longer save anything new. This is the most dangerous
+thing in the system — a till that will not record a sale is worse for the
+shopkeeper than a full disk — so what stays possible is the design:
+
+- **Reading never stops.** Every screen, report and invoice already written.
+- **Deleting never stops.** Space is freed by removing things; a block on both
+  sides is a door locked from the inside.
+- **Settings never stops**, so backup retention can be shortened, which is the
+  one lever inside the system that actually frees space.
+- **Signing in and out never stop.** A guest request is signing in, resetting a
+  password or confirming an email — never the shop's data growing. This was
+  nearly the worst bug in the system: Breeze's login route carries no name, so
+  a name-based allowlist refused it and a shop that filled its plan was locked
+  out of its own records, owner included. `actingAs()` hid it from the whole
+  suite; a browser found it in one click. There is now a test that posts the
+  login form.
+
+### Connection
+
+`navigator.onLine` says whether the machine has a network, not whether this
+server is on the end of it — a shop on the router's wifi with the fibre cut
+reads as perfectly online. So the browser's signal is the instant hint and
+`/up` is asked directly to confirm, every 20 seconds while connected and every
+5 while not.
+
+Quiet when connected: a dot, because a green "Connected" on every page is a
+green "Connected" nobody reads. When it drops, the dot turns red and gains the
+word, and a bar crosses the top of the page — *"Nothing typed now will be saved
+— wait for this to clear before ringing up a sale."* At a till, the difference
+between a page that is working and a page that has lost the network is a sale,
+and the browser hides it by default.
+
 ## 8b. Technical Standards
 
 ### Timezone
@@ -1139,6 +1191,7 @@ it before it has been read destroys the only record of what went wrong.
 | 2026-08-29 | **Delete permanently**, at Soran's request, on the deleted-products list and admin only — because a soft-deleted product goes on holding its SKU and its barcode, and a row typed in by mistake blocks those codes for good. Everything else this system calls delete can be undone from the screen it was done on; this one cannot, so it is hedged three ways: the seven `restrict` keys are asked *before* the button and the answer is shown on it (disabled, with the reason in a tooltip), a backup is taken first outside the transaction, and the press is held for two seconds and confirmed. The counts come from the query builder rather than from relations, because `stock_adjustments` is soft-deleted *and* carries the archived-period scope — counting it through Eloquent would report nothing while MySQL still refused, which is the exact gap between a sentence and a 500. The product's own log rows go with it and one `purge` entry replaces them. Needs `php artisan migrate`: `activity_logs.action` is an enum and gained a value. Suite: 464 tests, 463 passing, 1 skipped. | — |
 | 2026-08-29 | **Data check** (Settings), at Soran's request after phpMyAdmin showed 169 adjustments where the screen showed 159 — which was ten soft-deleted rows, exactly as designed. Seventeen checks asking Section 10b's global assertions of the real shop instead of a test, split into what can be recalculated and what needs a person. The two that earn the page: each batch against its own movements one by one, because two batches wrong in opposite directions cancel in a total; and the ledger as a running chain, because a balance cache written from a broken chain matches its own final row perfectly — a test in `DataCheckTest` deletes an entry from the middle and asserts the simple check passes while the chain check fails. Every check is proved twice: silent on a shop that really traded, and naming the row when one is broken on purpose. Two false alarms found that way and fixed: a deleted sale keeps its total but loses its lines (`reverseStock()` deletes them, and nothing restores a sale), and a soft-deleted parent is not an orphan. Also: `translations:check` tokenises the source, so every status word and table name is written as a literal inside `__()` rather than as `__($variable)` — the same blind spot as the RecordHistory labels. Read-only by design. Suite: 491 tests, 490 passing, 1 skipped. | — |
 | 2026-08-29 | **`as lines` broke the data check on the live shop.** LINES is reserved in MariaDB and ordinary in SQLite, so 494 tests passed and the page answered with a syntax error on data that was fine. Fixed twice over. Every alias the service invents now starts with `chk_`, which cannot collide with a reserved word in any engine present or future, and a test enforces that by tokenising the source — reading only the SQL strings, since `__('costed as if it were…')` is not an alias called `if`. And each check now runs inside `attempt()`: a check that throws costs that one check, not the page. It is shown as **Did not run** with the reason, never as "agrees", because a question that went unasked reported as a pass is worse than the crash it replaced. Verified the honest way this time — MariaDB 10.11 installed in the container, migrated, seeded and traded against: all 17 checks green on sound data and all 17 red on data broken on purpose, so every failure branch's SQL ran too (the window function in `ledger_chain` included). MariaDB removed afterwards; it puts `mysqldump` on PATH, which two BackupTest cases exist to test the absence of. Suite: 494 tests, 493 passing, 1 skipped. | — |
+| 2026-08-29 | **Sold on a plan: storage and connection** (Section 8d). `STORAGE_LIMIT_MB` in .env and nowhere else — the buyer reads the meter, only the seller sets it. Counts the database, the backups and the uploads, since that is what the shop's use actually costs the seller. Amber at 80%, red at 95%, admin-only banner; at 100% nothing new can be saved, which Soran asked for explicitly. Everything about it is the blast radius rather than the block: reading, deleting, Settings and signing in all keep working, so a full shop can still trade on what it has, free space, and get back in. That last one was nearly a disaster — Breeze's login route has no name, my allowlist read names, and a full shop could not log in *at all*; `actingAs()` hid it from all 519 tests and a browser found it in one click. And a connection indicator, because `navigator.onLine` cannot tell a cut fibre from a working shop: a quiet dot that turns red and puts a bar across the page saying nothing typed now will be saved. Suite: 519 tests, 518 passing, 1 skipped. | — |
 | 2026-08-19 | Design finalised — FIFO, pricing, returns, locking settled. Doc rewritten clean. | Scaffold Laravel, install Breeze, write migrations |
 | 2026-08-19 | Added: per-user permissions, SKU/barcode rules, cash refunds, document numbering, USD entry helper | Same |
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |

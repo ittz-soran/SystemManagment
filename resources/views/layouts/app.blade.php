@@ -46,6 +46,11 @@
         @include('layouts.topbar')
 
         <main class="flex-grow-1 p-3 p-lg-4">
+            {{-- Storage running out is the one warning that has to arrive
+                 before the thing it warns about, because the thing it warns
+                 about is the shop being unable to record a sale. --}}
+            <x-storage-banner />
+
             {{-- Every page has a way back. A screen that belongs to a list
                  names it; anywhere else the link stays hidden until the reader
                  has somewhere to return to, which app.js decides from the tab's

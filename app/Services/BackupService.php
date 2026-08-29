@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\StorageQuota;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -104,6 +105,11 @@ class BackupService
             user: $user,
         );
 
+        // A backup is the one thing that moves the storage figure sharply, and
+        // often the thing that tips a shop over its plan. A meter still showing
+        // the number from before it would be the worst version of that.
+        app(StorageQuota::class)->forget();
+
         return ['path' => $path, 'remote' => $remote, 'bytes' => $bytes, 'warnings' => $warnings];
     }
 
@@ -185,15 +191,7 @@ class BackupService
 
     public function humanSize(int $bytes): string
     {
-        foreach (['B', 'KB', 'MB', 'GB'] as $unit) {
-            if ($bytes < 1024 || $unit === 'GB') {
-                return round($bytes, $bytes < 10 && $unit !== 'B' ? 1 : 0).' '.$unit;
-            }
-
-            $bytes /= 1024;
-        }
-
-        return $bytes.' B';
+        return human_bytes($bytes);
     }
 
     /**
