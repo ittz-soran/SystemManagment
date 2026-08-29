@@ -23,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\SetUserPreferences::class,
             \App\Http\Middleware\SecurityHeaders::class,
+
+            // Only does anything on an install sold with STORAGE_LIMIT_MB set,
+            // and even then only refuses writes once the space is actually
+            // gone. Reading, printing, deleting and Settings always pass.
+            \App\Http\Middleware\EnforceStorageQuota::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

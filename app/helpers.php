@@ -31,6 +31,28 @@ if (! function_exists('money')) {
     }
 }
 
+
+if (! function_exists('human_bytes')) {
+    /**
+     * A size a shopkeeper reads rather than counts.
+     *
+     * One decimal below ten, none above, because "9.4 MB" is a useful figure
+     * and "412.7 MB" is a long way of saying 413.
+     */
+    function human_bytes(int|float $bytes): string
+    {
+        foreach (['B', 'KB', 'MB', 'GB', 'TB'] as $unit) {
+            if ($bytes < 1024 || $unit === 'TB') {
+                return round($bytes, $bytes < 10 && $unit !== 'B' ? 1 : 0).' '.$unit;
+            }
+
+            $bytes /= 1024;
+        }
+
+        return $bytes.' B';
+    }
+}
+
 if (! function_exists('hidden_money')) {
     /**
      * A figure this reader is not allowed to see.
