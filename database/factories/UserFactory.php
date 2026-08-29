@@ -39,6 +39,13 @@ class UserFactory extends Factory
             'language' => 'en',
             'theme' => 'auto',
             'items_per_page' => 25,
+
+            // Same reason: the profile page asks whether this person has a way
+            // back into their account, and a factory user missing the column
+            // answered with a 500 rather than "no".
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
         ];
     }
 

@@ -74,6 +74,34 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Clear somebody else's authenticator, for the phone that is genuinely gone.
+     *
+     * Hands over nothing an admin did not already have: the same screen lets
+     * them type this person a new password outright. Without it, a member of
+     * staff whose phone went in the river has no way back that does not involve
+     * deleting their account and its history with it.
+     */
+    public function clearAuthenticator(User $user): RedirectResponse
+    {
+        abort_unless($user->hasAuthenticator(), 404);
+
+        $user->forceFill([
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        app(ActivityLogger::class)->log(
+            action: 'update',
+            module: 'users',
+            recordId: $user->id,
+            description: __('Cleared the authenticator for :name', ['name' => $user->name]),
+        );
+
+        return back()->with('success', __('Cleared. :name can set it up again from their own preferences.', ['name' => $user->name]));
+    }
+
     public function update(Request $request, User $user): RedirectResponse
     {
         $data = $this->rules($request, $user);

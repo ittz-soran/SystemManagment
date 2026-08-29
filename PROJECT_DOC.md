@@ -656,6 +656,60 @@ word, and a bar crosses the top of the page — *"Nothing typed now will be save
 between a page that is working and a page that has lost the network is a sale,
 and the browser hides it by default.
 
+## 8e. Getting back in — the authenticator
+
+`MAIL_MAILER` is `log` on every install of this system, and on the shared
+hosting these shops run on it will stay that way. So Laravel's own forgotten-
+password link has never left the building and never will. That was survivable
+while the only user was the person who built the system. It stopped being
+survivable the moment it was sold: an owner who forgets their password has
+nobody to ask, and the whole shop's records are behind it.
+
+The second factor is a phone that already holds the answer, so nothing has to
+be delivered anywhere.
+
+**TOTP, written out rather than pulled in.** RFC 6238, about forty lines of
+`hash_hmac`, in `App\Support\Totp` — because this has to install on shared
+hosting where every dependency is a thing that can be missing. The RFC publishes
+its answers, so `TotpTest` checks against all six of its SHA-1 vectors rather
+than against another copy of the same code. Eastern digits and a space in the
+middle are accepted, for the same reason every number box in this system does
+it. One step either side of now, no wider.
+
+**Enrolment is three steps and the middle one is the point.** A secret is
+generated, held in the session, and written to the account only once a code has
+come back correct — a secret that was never proved reads as a way in, on a
+screen, and is not one. `two_factor_secret` is encrypted at rest: a database
+dump handing over both the password hashes and the thing that resets them has
+handed over the shop.
+
+**Eight recovery codes**, shown once, single-use, spent inside the same call
+that accepts them. Without these an authenticator is a second way to be locked
+out rather than a way back in.
+
+**Recovery** is one screen: email, the six digits, the new password. Every way
+of being wrong gives the same message, so it cannot be used to ask which
+addresses have an account. Five tries per account *and* per machine together —
+per account alone lets anybody lock the owner out on purpose, per machine alone
+lets a patient attacker work through every account from one place. A success
+clears `remember_token`, because a reset that leaves the old sessions signed in
+has not locked anybody out.
+
+**Three ways back, in order of who has them:**
+
+1. The person's own phone, or one of their eight written codes.
+2. An admin, from the Users screen — a new password typed in, or the lost
+   phone's authenticator cleared. Hands over nothing an admin did not already
+   have.
+3. `php artisan user:password <email>` on the server, for the morning when
+   nobody can sign in at all. Needs shell access, which the shop does not have
+   and the person who sold them the system does. That is the right shape for a
+   last resort.
+
+Deliberately **not** required at sign-in. It is a way back in, not a daily
+step — a till that asks for a phone on every shift is a till the staff will
+find a way around.
+
 ## 8b. Technical Standards
 
 ### Timezone
@@ -1192,6 +1246,7 @@ it before it has been read destroys the only record of what went wrong.
 | 2026-08-29 | **Data check** (Settings), at Soran's request after phpMyAdmin showed 169 adjustments where the screen showed 159 — which was ten soft-deleted rows, exactly as designed. Seventeen checks asking Section 10b's global assertions of the real shop instead of a test, split into what can be recalculated and what needs a person. The two that earn the page: each batch against its own movements one by one, because two batches wrong in opposite directions cancel in a total; and the ledger as a running chain, because a balance cache written from a broken chain matches its own final row perfectly — a test in `DataCheckTest` deletes an entry from the middle and asserts the simple check passes while the chain check fails. Every check is proved twice: silent on a shop that really traded, and naming the row when one is broken on purpose. Two false alarms found that way and fixed: a deleted sale keeps its total but loses its lines (`reverseStock()` deletes them, and nothing restores a sale), and a soft-deleted parent is not an orphan. Also: `translations:check` tokenises the source, so every status word and table name is written as a literal inside `__()` rather than as `__($variable)` — the same blind spot as the RecordHistory labels. Read-only by design. Suite: 491 tests, 490 passing, 1 skipped. | — |
 | 2026-08-29 | **`as lines` broke the data check on the live shop.** LINES is reserved in MariaDB and ordinary in SQLite, so 494 tests passed and the page answered with a syntax error on data that was fine. Fixed twice over. Every alias the service invents now starts with `chk_`, which cannot collide with a reserved word in any engine present or future, and a test enforces that by tokenising the source — reading only the SQL strings, since `__('costed as if it were…')` is not an alias called `if`. And each check now runs inside `attempt()`: a check that throws costs that one check, not the page. It is shown as **Did not run** with the reason, never as "agrees", because a question that went unasked reported as a pass is worse than the crash it replaced. Verified the honest way this time — MariaDB 10.11 installed in the container, migrated, seeded and traded against: all 17 checks green on sound data and all 17 red on data broken on purpose, so every failure branch's SQL ran too (the window function in `ledger_chain` included). MariaDB removed afterwards; it puts `mysqldump` on PATH, which two BackupTest cases exist to test the absence of. Suite: 494 tests, 493 passing, 1 skipped. | — |
 | 2026-08-29 | **Sold on a plan: storage and connection** (Section 8d). `STORAGE_LIMIT_MB` in .env and nowhere else — the buyer reads the meter, only the seller sets it. Counts the database, the backups and the uploads, since that is what the shop's use actually costs the seller. Amber at 80%, red at 95%, admin-only banner; at 100% nothing new can be saved, which Soran asked for explicitly. Everything about it is the blast radius rather than the block: reading, deleting, Settings and signing in all keep working, so a full shop can still trade on what it has, free space, and get back in. That last one was nearly a disaster — Breeze's login route has no name, my allowlist read names, and a full shop could not log in *at all*; `actingAs()` hid it from all 519 tests and a browser found it in one click. And a connection indicator, because `navigator.onLine` cannot tell a cut fibre from a working shop: a quiet dot that turns red and puts a bar across the page saying nothing typed now will be saved. Suite: 519 tests, 518 passing, 1 skipped. | — |
+| 2026-08-29 | **The authenticator** (Section 8e), at Soran's request while preparing to sell: users forget passwords from a PC or an iPad, and this system sends no email — `MAIL_MAILER=log`, so the reset link has never left the building. An owner who forgot theirs had nobody to ask and their whole shop behind it. TOTP written out rather than pulled in, since these installs sit on shared hosting where every dependency can be missing; checked against all six of RFC 6238's published SHA-1 vectors rather than against itself. Enrolment writes nothing until a code comes back correct, the secret is encrypted at rest, and eight single-use recovery codes are shown once. Recovery is one screen with one refusal message for every way of being wrong, rate limited five tries per account *and* per machine. Three ways back, in order: the phone, an admin, then `php artisan user:password` for the morning nobody can sign in at all. Not required at sign-in — a till that asks for a phone every shift is a till the staff route around. Verified end to end in a browser: enrolled with a real code, forgot the password, recovered, signed in with the new one. Suite: 555 tests, 554 passing, 1 skipped. Needs `composer install` and `php artisan migrate`. | — |
 | 2026-08-19 | Design finalised — FIFO, pricing, returns, locking settled. Doc rewritten clean. | Scaffold Laravel, install Breeze, write migrations |
 | 2026-08-19 | Added: per-user permissions, SKU/barcode rules, cash refunds, document numbering, USD entry helper | Same |
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |
