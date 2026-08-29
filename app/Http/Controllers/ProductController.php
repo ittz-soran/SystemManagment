@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProductRequest;
+use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\PurchaseItem;
 use App\Models\SaleItem;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Services\ActivityLogger;
+use App\Services\BackupService;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
 use App\Services\MasterDataTransfer;
@@ -66,6 +69,22 @@ class ProductController extends Controller
         return view('products.index', [
             'products' => $products,
             'showingDeleted' => $deleted,
+
+            /*
+             * Why each deleted row cannot be destroyed, worked out for the whole
+             * page at once — seven grouped queries rather than seven per line.
+             *
+             * Sent to the screen so the refusal is on the button before it is
+             * pressed. A button that looks available and then explains itself
+             * afterwards is a button that has already made somebody's day
+             * worse.
+             */
+            'purgeBlockers' => $deleted
+                ? array_map(
+                    fn (array $held) => Product::describeBlockers($held),
+                    Product::purgeBlockers($products->pluck('id')->all()),
+                )
+                : [],
 
             // The toggle only appears when there is something behind it.
             'deletedCount' => (int) Product::onlyTrashed()->stocked()->count(),
@@ -311,6 +330,80 @@ class ProductController extends Controller
         return redirect()
             ->route('products.show', $product)
             ->with('success', __('Product restored'));
+    }
+
+    /**
+     * Destroy a deleted product outright — the row, not the deleted_at.
+     *
+     * The one action in the system with nothing behind it. Everything else
+     * called "delete" is a soft delete and can be undone from the same screen;
+     * this is the row leaving the table, and with it the SKU and the barcode
+     * that were the reason anybody wanted it gone.
+     *
+     * So it is hedged three ways. It is admin-only. It refuses, in a sentence
+     * naming what holds the product, if anything at all still points at it —
+     * Section 5's seven restrict keys, asked before the button rather than
+     * discovered afterwards as an integrity-constraint error page. And it takes
+     * a backup first, outside the transaction, so the file survives whatever
+     * happens next; if the backup fails, so does this.
+     */
+    public function purge(Product $product, BackupService $backups, ActivityLogger $log): RedirectResponse
+    {
+        // The route is declared ->withTrashed(). Only something already in the
+        // deleted list can be destroyed: nothing goes from the shelf to gone in
+        // one press.
+        abort_unless($product->trashed(), 404);
+
+        $lock = $product->canBePurged();
+
+        if (! $lock['allowed']) {
+            return back()->with('error', $lock['reason']);
+        }
+
+        $user = auth()->user();
+        $backup = $backups->run($user)['path'];
+
+        // What the row was, said now while it is still here to be read.
+        $said = $product->name.' · '.$product->sku.($product->barcode ? ' · '.$product->barcode : '');
+
+        DB::transaction(function () use ($product, $log, $said, $user) {
+            /*
+             * Its own log entries go with it.
+             *
+             * activity_logs.record_id is a plain number with no foreign key, so
+             * these rows would survive the product and point at nothing —
+             * "Updated Product #47" for a #47 that cannot be opened. They are
+             * not a financial record: this product has no sale, no purchase and
+             * no movement, or the check above would have refused.
+             *
+             * One entry replaces them, and it is the important one — who
+             * destroyed what, and when. That is the row that must never be
+             * removable from a screen.
+             */
+            $product->forceDelete();
+
+            // After the row, not before: forceDelete fires the observer, which
+            // writes one more "Deleted Product" entry on the way out. Clearing
+            // first would leave exactly that row behind, which is the orphan
+            // this is here to prevent.
+            ActivityLog::where('module', 'products')
+                ->where('record_id', $product->getKey())
+                ->delete();
+
+            $log->log(
+                action: 'purge',
+                module: 'products',
+                description: __('Destroyed product :product', ['product' => $said]),
+                user: $user,
+            );
+        });
+
+        return redirect()
+            ->route('products.index', ['deleted' => 1])
+            ->with('success', __('“:product” is gone for good. Its SKU and barcode are free to use again. A backup was saved first: :backup', [
+                'product' => $product->name,
+                'backup' => basename((string) $backup),
+            ]));
     }
 
     /**
