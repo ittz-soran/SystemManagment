@@ -710,6 +710,57 @@ Deliberately **not** required at sign-in. It is a way back in, not a daily
 step — a till that asks for a phone on every shift is a till the staff will
 find a way around.
 
+## 8f. Sold on a plan — the licence
+
+The system is sold monthly, so something has to notice when it stops being paid
+for. The seller cannot be that something, or every lapsed month is a phone call
+he has to remember to make.
+
+**A signed licence, checked offline.** The seller holds an RSA private key;
+every copy ships with the public half in `config/licence.php`. A licence is a
+small JSON payload — id, shop, host, issued, expires — with a signature over it,
+base64url-encoded as `body.signature` and pasted into `LICENCE_KEY` in .env. The
+shop can read every word of it and cannot change one.
+
+Offline on purpose: a licence that phoned home would stop the shop trading every
+time the fibre was cut, in the same week we put a light in the topbar *because*
+the fibre gets cut. RSA via OpenSSL rather than Ed25519 via sodium, because
+Laravel's own encrypter requires `ext-openssl` — so it is guaranteed on any host
+that runs this app at all, and `ext-sodium` is not.
+
+**Empty public key means no licensing.** No check, no banner, nothing refused —
+which is what a copy that was never sold should look like, and what every
+existing install stays as until a key is put there on purpose.
+
+**Eight states**, and only four of them stop the shop writing: `expired`,
+`missing`, `invalid`, `wrong_host`. `unlicensed`, `valid`, `expiring` and
+`grace` all trade normally.
+
+**The calendar.** A banner from 14 days before. Grace days after the date where
+everything still works and the warning grows louder. Only then read-only. Days
+are counted from the start of today to the expiry date — whole days, the way a
+person counts them; measuring to the end of the last day and rounding up made
+"13 days left" read as 14 and fired the warning a day late.
+
+**The host binding** is what stops a folder being copied to a second shop. `www.`
+is ignored, and a licence with no host named is one the seller deliberately left
+portable. Off the web there is no request, and Laravel invents one saying
+`localhost` — so console commands read `APP_URL` instead, or `licence:show`
+declares every good licence to be for the wrong domain.
+
+**What stops when it runs out** is exactly what the storage limit taught, for the
+same reason: reading, printing, deleting, Settings, the authenticator and signing
+in never stop. A shop locked out of its own records never pays another invoice.
+
+**The seller's commands**, none of which ever run on a shop's server:
+`licence:keys` once, `licence:issue` per customer, `licence:show` for the phone
+call that starts "it says my licence is wrong".
+
+**What this is honestly worth.** It makes not paying a deliberate act, and makes
+copying the folder to another domain fail. Somebody with the source and the
+server can delete the check — no licence written in PHP can stop that, and one
+that claimed otherwise would only be lying about it.
+
 ## 8b. Technical Standards
 
 ### Timezone
@@ -1247,6 +1298,7 @@ it before it has been read destroys the only record of what went wrong.
 | 2026-08-29 | **`as lines` broke the data check on the live shop.** LINES is reserved in MariaDB and ordinary in SQLite, so 494 tests passed and the page answered with a syntax error on data that was fine. Fixed twice over. Every alias the service invents now starts with `chk_`, which cannot collide with a reserved word in any engine present or future, and a test enforces that by tokenising the source — reading only the SQL strings, since `__('costed as if it were…')` is not an alias called `if`. And each check now runs inside `attempt()`: a check that throws costs that one check, not the page. It is shown as **Did not run** with the reason, never as "agrees", because a question that went unasked reported as a pass is worse than the crash it replaced. Verified the honest way this time — MariaDB 10.11 installed in the container, migrated, seeded and traded against: all 17 checks green on sound data and all 17 red on data broken on purpose, so every failure branch's SQL ran too (the window function in `ledger_chain` included). MariaDB removed afterwards; it puts `mysqldump` on PATH, which two BackupTest cases exist to test the absence of. Suite: 494 tests, 493 passing, 1 skipped. | — |
 | 2026-08-29 | **Sold on a plan: storage and connection** (Section 8d). `STORAGE_LIMIT_MB` in .env and nowhere else — the buyer reads the meter, only the seller sets it. Counts the database, the backups and the uploads, since that is what the shop's use actually costs the seller. Amber at 80%, red at 95%, admin-only banner; at 100% nothing new can be saved, which Soran asked for explicitly. Everything about it is the blast radius rather than the block: reading, deleting, Settings and signing in all keep working, so a full shop can still trade on what it has, free space, and get back in. That last one was nearly a disaster — Breeze's login route has no name, my allowlist read names, and a full shop could not log in *at all*; `actingAs()` hid it from all 519 tests and a browser found it in one click. And a connection indicator, because `navigator.onLine` cannot tell a cut fibre from a working shop: a quiet dot that turns red and puts a bar across the page saying nothing typed now will be saved. Suite: 519 tests, 518 passing, 1 skipped. | — |
 | 2026-08-29 | **The authenticator** (Section 8e), at Soran's request while preparing to sell: users forget passwords from a PC or an iPad, and this system sends no email — `MAIL_MAILER=log`, so the reset link has never left the building. An owner who forgot theirs had nobody to ask and their whole shop behind it. TOTP written out rather than pulled in, since these installs sit on shared hosting where every dependency can be missing; checked against all six of RFC 6238's published SHA-1 vectors rather than against itself. Enrolment writes nothing until a code comes back correct, the secret is encrypted at rest, and eight single-use recovery codes are shown once. Recovery is one screen with one refusal message for every way of being wrong, rate limited five tries per account *and* per machine. Three ways back, in order: the phone, an admin, then `php artisan user:password` for the morning nobody can sign in at all. Not required at sign-in — a till that asks for a phone every shift is a till the staff route around. Verified end to end in a browser: enrolled with a real code, forgot the password, recovered, signed in with the new one. Suite: 555 tests, 554 passing, 1 skipped. Needs `composer install` and `php artisan migrate`. | — |
+| 2026-08-29 | **The licence** (Section 8f), the last thing needed to sell this monthly. RSA-signed, checked offline, pasted into .env: the shop can read it and cannot change a word, and it will not run on another domain. OpenSSL rather than sodium because Laravel already requires `ext-openssl`, so it is guaranteed wherever this app runs. Empty public key means no licensing at all, so nothing changes for installs that were never sold. Fourteen days of warning, then grace days, then read-only — and read-only keeps reading, printing, deleting, Settings, the authenticator and signing in, because a shop locked out of its own records never pays another invoice. Two real bugs found by driving it rather than testing it: a Carbon object in the cache came back from the file driver as an incomplete class and 500'd the settings page, invisible to a suite that runs on the array driver (there is now a test that uses a serialising one); and off the web Laravel invents a request saying `localhost`, so `licence:show` called every valid licence wrong-domain. Also a flaky test of my own: changing the last base64 character can decode to identical bytes, so the tamper test now flips a byte in the middle. Suite: 584 tests, 583 passing, 1 skipped. | — |
 | 2026-08-19 | Design finalised — FIFO, pricing, returns, locking settled. Doc rewritten clean. | Scaffold Laravel, install Breeze, write migrations |
 | 2026-08-19 | Added: per-user permissions, SKU/barcode rules, cash refunds, document numbering, USD entry helper | Same |
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |

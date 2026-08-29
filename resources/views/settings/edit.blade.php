@@ -288,6 +288,10 @@
         {{-- What the shop is using of what it pays for. Renders nothing at all
              unless STORAGE_LIMIT_MB is set on the server, so an install that
              was not sold on a plan does not carry a plan's furniture. --}}
+        {{-- Both only appear on a copy that was sold with them switched on. --}}
+        <div id="licence"></div>
+        <x-licence-card />
+
         <div id="storage"></div>
         <x-storage-meter />
 

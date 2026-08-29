@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // and even then only refuses writes once the space is actually
             // gone. Reading, printing, deleting and Settings always pass.
             \App\Http\Middleware\EnforceStorageQuota::class,
+
+            // Only does anything on a copy that ships with a seller's public
+            // key, and even then only once the licence has run out of road.
+            // Reading, printing, deleting, Settings and signing in always pass.
+            \App\Http\Middleware\EnforceLicence::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

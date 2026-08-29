@@ -50,6 +50,7 @@
                  before the thing it warns about, because the thing it warns
                  about is the shop being unable to record a sale. --}}
             <x-storage-banner />
+            <x-licence-banner />
 
             {{-- Every page has a way back. A screen that belongs to a list
                  names it; anywhere else the link stays hidden until the reader
