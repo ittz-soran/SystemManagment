@@ -1069,6 +1069,47 @@ Cross-check: 2 units net sold, both from B1 @ 10,000 = 20,000 ✓ · revenue 2 �
 5. Every `stock_movements` row for a sale or return has `reference_item_id` set
 6. No `document_no` appears twice
 
+### The same assertions, against the real shop — Settings → Data check
+
+The six above guard the engine against the developer. `DataIntegrityService`
+asks them of live data instead, where the risk is not a bug in the FIFO code but
+a power cut mid-sale, a backup restored from the wrong hour, or a row edited
+straight in phpMyAdmin. Seventeen checks in four groups, each one set-based SQL
+rather than a loop, so five years of trading still answers in under a second.
+
+Every finding is one of two kinds, and the page sorts by it:
+
+- **Can be rebuilt** — a cache drifted. `products.quantity`, a balance, a
+  document status: all derived, so the truth survives and the figure can be
+  recomputed. Recheck stock is linked from the finding.
+- **Needs a person** — two records that cannot both be right, and nothing else
+  can say which. A batch against its own movements, a ledger that stops adding
+  up, an invoice that disagrees with its lines.
+
+Beyond the doc's six it also checks: each batch against its own movements *one
+by one* (two batches wrong in opposite directions cancel in a total); the ledger
+as a **running chain** rather than only its last line (a balance cache written
+from a broken chain matches its final row perfectly, so the simpler check passes
+with an entry missing from the middle); document and return totals against their
+lines; `grand_total = total − discount`; nothing overpaid; nothing returned more
+than sold; derived statuses; the Cash Customer at zero; services holding no
+stock; counters ahead of every number used; and every polymorphic link this
+section marks "no database FK, enforce in code".
+
+Two rules the checks follow, both learned from false alarms:
+
+- **Live documents only** for the totals and status checks. Reversing a sale
+  removes its lines (`reverseStock()` ends with `items()->delete()`), so a
+  deleted invoice keeps a total with nothing behind it — by design, since the
+  lines it had are in the activity log's snapshot. Reported as damage it would
+  cry wolf on every delete the shop makes.
+- **A soft-deleted parent is not an orphan.** A movement belonging to a deleted
+  sale is how a reversal is recorded. Only a parent gone from the table entirely
+  counts.
+
+The page is read-only, deliberately: a contradiction is evidence, and repairing
+it before it has been read destroys the only record of what went wrong.
+
 ---
 
 ## 11. Build Order
@@ -1096,6 +1137,7 @@ Cross-check: 2 units net sold, both from B1 @ 10,000 = 20,000 ✓ · revenue 2 �
 | Date | Done | Next |
 |---|---|---|
 | 2026-08-29 | **Delete permanently**, at Soran's request, on the deleted-products list and admin only — because a soft-deleted product goes on holding its SKU and its barcode, and a row typed in by mistake blocks those codes for good. Everything else this system calls delete can be undone from the screen it was done on; this one cannot, so it is hedged three ways: the seven `restrict` keys are asked *before* the button and the answer is shown on it (disabled, with the reason in a tooltip), a backup is taken first outside the transaction, and the press is held for two seconds and confirmed. The counts come from the query builder rather than from relations, because `stock_adjustments` is soft-deleted *and* carries the archived-period scope — counting it through Eloquent would report nothing while MySQL still refused, which is the exact gap between a sentence and a 500. The product's own log rows go with it and one `purge` entry replaces them. Needs `php artisan migrate`: `activity_logs.action` is an enum and gained a value. Suite: 464 tests, 463 passing, 1 skipped. | — |
+| 2026-08-29 | **Data check** (Settings), at Soran's request after phpMyAdmin showed 169 adjustments where the screen showed 159 — which was ten soft-deleted rows, exactly as designed. Seventeen checks asking Section 10b's global assertions of the real shop instead of a test, split into what can be recalculated and what needs a person. The two that earn the page: each batch against its own movements one by one, because two batches wrong in opposite directions cancel in a total; and the ledger as a running chain, because a balance cache written from a broken chain matches its own final row perfectly — a test in `DataCheckTest` deletes an entry from the middle and asserts the simple check passes while the chain check fails. Every check is proved twice: silent on a shop that really traded, and naming the row when one is broken on purpose. Two false alarms found that way and fixed: a deleted sale keeps its total but loses its lines (`reverseStock()` deletes them, and nothing restores a sale), and a soft-deleted parent is not an orphan. Also: `translations:check` tokenises the source, so every status word and table name is written as a literal inside `__()` rather than as `__($variable)` — the same blind spot as the RecordHistory labels. Read-only by design. Suite: 491 tests, 490 passing, 1 skipped. | — |
 | 2026-08-19 | Design finalised — FIFO, pricing, returns, locking settled. Doc rewritten clean. | Scaffold Laravel, install Breeze, write migrations |
 | 2026-08-19 | Added: per-user permissions, SKU/barcode rules, cash refunds, document numbering, USD entry helper | Same |
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |

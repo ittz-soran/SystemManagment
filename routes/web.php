@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\DataCheckController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\CustomerController;
@@ -343,6 +344,16 @@ Route::middleware(['auth'])->group(function () {
         Route::post('settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
         Route::delete('settings/transactions', [SettingController::class, 'resetTransactions'])
             ->name('settings.reset-transactions');
+
+        /*
+         * "Does the data still agree with itself?" — Section 10b's global
+         * assertions run against the real shop rather than against a test.
+         *
+         * Read-only, so it sits behind settings.manage rather than admin: it
+         * shows nothing a settings-holder cannot already see, and the person
+         * who would think to run it is the person who keeps the books.
+         */
+        Route::get('settings/data-check', [DataCheckController::class, 'index'])->name('settings.data-check');
     });
 
     /*
