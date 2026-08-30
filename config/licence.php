@@ -20,7 +20,13 @@ return [
     |
     */
 
-    'public_key' => env('LICENCE_PUBLIC_KEY', ''),
+    'public_key' => env('LICENCE_PUBLIC_KEY', 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlmc8+lMgHJby2ujKuDRG
+EV+GJUmbMaKtjTrFVYJuhxSS0JIXlPXOOS7KHZ8Q4AopVVVCO3mGkODKudscLWiw
+nt7FZWnPJg8XyIfjn+T3gGL2qLweG/goErWHP6WJXys3yB8qR4oup6m5jiA0S/mv
+4hz57MC6ek+jm0AnO57YHBuGoFITgXjfHNUurTrJ4YkwZ3bU7UjBR5SsOy/TMIFH
+XrlDZBusilPfTS+1FWfW/kgPftbHcyTq8JXsgaXATpQzfkOA3UNH+0j7aSsb0RuY
+wMTRd7I3p+ZADqxKuVOxJ0ip9VQFyzBBACMsR8grDOmRNWb8fDtTqiuJsQZFBwkS
+ZwIDAQAB'),
 
     /*
     |---------------------------------------------------------------------------
