@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\SettingController;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\StorageQuota;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -111,6 +111,77 @@ class BackupService
         app(StorageQuota::class)->forget();
 
         return ['path' => $path, 'remote' => $remote, 'bytes' => $bytes, 'warnings' => $warnings];
+    }
+
+    /**
+     * Dump one named database to a plain .sql file, uncompressed.
+     *
+     * Not a backup: a backup is of this shop, gzipped, pruned and copied off
+     * the machine. This is for `install:sql`, which builds a fresh empty
+     * database in a scratch schema and needs it out as something a shopkeeper
+     * can hand to phpMyAdmin. Same tool, same credentials file, same reasons —
+     * so it lives here rather than growing a second copy of the awkward parts.
+     *
+     * @param  string|null  $header  Written before the dump, if given. The
+     *                               caller's own comment block: mysqldump's is
+     *                               turned off below, because its header names
+     *                               the database it read from and that is a
+     *                               scratch name nobody should ever see.
+     */
+    public function dumpDatabaseTo(string $database, string $path, ?string $header = null): void
+    {
+        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            throw new RuntimeException(__('A SQL template can only be made from MySQL or MariaDB.'));
+        }
+
+        $credentials = $this->credentialsFile();
+
+        try {
+            $process = new Process([
+                $this->tool('mysqldump', 'mysqldump', 'mariadb-dump'),
+                '--defaults-extra-file='.$credentials,
+                '--single-transaction',
+                '--quick',
+                '--default-character-set=utf8mb4',
+                // No CREATE DATABASE line: the person importing has already made
+                // their own, usually with a name the hosting chose for them.
+                '--no-create-db',
+                // Nor mysqldump's own header, which names the schema it read.
+                '--skip-comments',
+                '--skip-add-locks',
+                $database,
+            ], base_path());
+
+            $process->setTimeout(600);
+
+            $handle = fopen($path, 'w');
+
+            if ($handle === false) {
+                throw new RuntimeException(__('Could not write to :path', ['path' => $path]));
+            }
+
+            try {
+                if ($header !== null) {
+                    fwrite($handle, rtrim($header, "\n")."\n\n");
+                }
+
+                $process->run(function ($type, $buffer) use ($handle) {
+                    if ($type === Process::OUT) {
+                        fwrite($handle, $buffer);
+                    }
+                });
+            } finally {
+                fclose($handle);
+            }
+
+            if (! $process->isSuccessful()) {
+                @unlink($path);
+
+                throw new RuntimeException(trim($process->getErrorOutput()) ?: __('mysqldump failed.'));
+            }
+        } finally {
+            @unlink($credentials);
+        }
     }
 
     /**
@@ -323,7 +394,7 @@ class BackupService
     {
         $when = $this->isWeekly()
             ? __('Weekly, :day at :time', [
-                'day' => \App\Http\Controllers\SettingController::weekdays()[$this->scheduledWeekday()] ?? '',
+                'day' => SettingController::weekdays()[$this->scheduledWeekday()] ?? '',
                 'time' => $this->scheduledTime(),
             ])
             : __('Every night at :time', ['time' => $this->scheduledTime()]);
@@ -538,7 +609,7 @@ class BackupService
         try {
             // Streamed rather than buffered: a shop with years of movements
             // makes a dump far larger than the PHP memory limit.
-            $process->run(function (string $type, string $chunk) use ($handle, $process) {
+            $process->run(function (string $type, string $chunk) use ($handle) {
                 if ($type === Process::OUT) {
                     gzwrite($handle, $chunk);
                 }
@@ -555,7 +626,6 @@ class BackupService
             ]));
         }
     }
-
 
     /**
      * Find one of the MySQL command-line tools.
@@ -711,7 +781,6 @@ class BackupService
         $pdo->exec($sql);
         $pdo->exec('PRAGMA foreign_keys=ON');
     }
-
 
     /**
      * Tables in an order that can actually be dropped: nothing is removed while
