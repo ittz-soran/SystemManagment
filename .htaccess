@@ -1,0 +1,24 @@
+# Nothing in this folder belongs on the web.
+#
+# Shared hosting rarely lets you move the document root, so the whole system
+# usually ends up uploaded inside public_html and the shop is reached at
+# /sys/public/. Everything beside `public` is then served too — including
+# .env, which holds the database password and the APP_KEY that decrypts the
+# staff's authenticator secrets, and which a browser will happily show as a
+# page of plain text to anybody who guesses the URL.
+#
+# The real fix is to point the domain, or a subdomain, at `public/` so the rest
+# is not reachable at all. This is the net for when that has not been done yet:
+# it denies this folder and everything under it, and public/.htaccess grants
+# itself back, because that one folder is the only one meant to be public.
+#
+# Where the document root already points at public/, this file simply sits
+# outside it and is never read. It costs nothing to leave in place.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
