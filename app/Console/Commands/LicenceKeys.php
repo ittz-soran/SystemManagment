@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\OpenSslConfig;
 use Illuminate\Console\Command;
 
 /**
@@ -17,7 +18,9 @@ use Illuminate\Console\Command;
  */
 class LicenceKeys extends Command
 {
-    protected $signature = 'licence:keys {--force : Yes, replace the pair and invalidate every licence already issued}';
+    protected $signature = 'licence:keys
+                            {--force : Yes, replace the pair and invalidate every licence already issued}
+                            {--config= : Path to openssl.cnf, if this machine cannot find its own}';
 
     protected $description = 'Make the seller keypair that signs licences (run once, on your own machine)';
 
@@ -31,18 +34,37 @@ class LicenceKeys extends Command
             return self::FAILURE;
         }
 
-        $resource = openssl_pkey_new([
+        /*
+         * Windows PHP ships without a compiled-in path to openssl.cnf, so
+         * making a pair fails there with "error:80000003:system library::No
+         * such process" — which is a long way of saying "no such file". XAMPP
+         * does ship the file, twice, and never says where.
+         */
+        $config = OpenSslConfig::find($this->option('config'));
+
+        $options = array_filter([
             'private_key_bits' => 2048,
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
+            'config' => $config,
+        ], fn ($value) => $value !== null);
+
+        // Clear anything left in OpenSSL's error queue, so what is reported
+        // below is this call's fault and not a previous one's.
+        OpenSslConfig::errors();
+
+        $resource = openssl_pkey_new($options);
 
         if ($resource === false) {
-            $this->error('OpenSSL would not make a key. '.openssl_error_string());
+            $this->cannotMakeAKey($config);
 
             return self::FAILURE;
         }
 
-        openssl_pkey_export($resource, $private);
+        if (! openssl_pkey_export($resource, $private, null, $options)) {
+            $this->cannotMakeAKey($config);
+
+            return self::FAILURE;
+        }
         $public = openssl_pkey_get_details($resource)['key'];
 
         $this->newLine();
@@ -62,5 +84,41 @@ class LicenceKeys extends Command
         ]);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Say what went wrong in the words that lead somewhere.
+     *
+     * The same shape as the missing-mysqldump message: name the file, name
+     * where XAMPP keeps it, and give the two ways to point at it. An OpenSSL
+     * error code on its own has never helped anybody.
+     */
+    private function cannotMakeAKey(?string $config): void
+    {
+        $this->error('OpenSSL would not make a key: '.OpenSslConfig::errors());
+        $this->newLine();
+
+        if ($config) {
+            $this->line('It was told to use this configuration file:');
+            $this->line('  '.$config);
+            $this->newLine();
+            $this->line('If that file is not really there, or is not really openssl.cnf, point at the right one:');
+        } else {
+            $this->line('This almost always means OpenSSL could not find its openssl.cnf.');
+            $this->line('PHP for Windows ships without a path to it, and XAMPP keeps a copy in both of these:');
+            $this->newLine();
+            $this->line('  C:\\xampp\\apache\\conf\\openssl.cnf');
+            $this->line('  C:\\xampp\\php\\extras\\ssl\\openssl.cnf');
+            $this->newLine();
+            $this->line('Point at whichever exists:');
+        }
+
+        $this->newLine();
+        $this->line('  php artisan licence:keys --config="C:\\xampp\\apache\\conf\\openssl.cnf"');
+        $this->newLine();
+        $this->line('Or set it once for the whole machine, as OPENSSL_CONF, and open a new terminal.');
+        $this->newLine();
+        $this->comment('Only making the pair needs this file. Signing licences and checking them do not,');
+        $this->comment('so no shop’s server ever needs it — this is a one-off on your own machine.');
     }
 }
