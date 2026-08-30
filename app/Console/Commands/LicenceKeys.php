@@ -20,7 +20,8 @@ class LicenceKeys extends Command
 {
     protected $signature = 'licence:keys
                             {--force : Yes, replace the pair and invalidate every licence already issued}
-                            {--config= : Path to openssl.cnf, if this machine cannot find its own}';
+                            {--config= : Path to openssl.cnf, if this machine cannot find its own}
+                            {--write= : A folder to write the two key files into, instead of printing them}';
 
     protected $description = 'Make the seller keypair that signs licences (run once, on your own machine)';
 
@@ -67,6 +68,10 @@ class LicenceKeys extends Command
         }
         $public = openssl_pkey_get_details($resource)['key'];
 
+        if ($folder = $this->option('write')) {
+            return $this->writeTo($folder, $private, $public);
+        }
+
         $this->newLine();
         $this->components->twoColumnDetail('<fg=yellow;options=bold>PRIVATE KEY</>', 'keep this, and only this, secret');
         $this->newLine();
@@ -77,13 +82,70 @@ class LicenceKeys extends Command
         $this->line($public);
 
         $this->newLine();
-        $this->components->bulletList([
-            'Save the PRIVATE key somewhere only you can reach. Not in this repository, not on a shop’s server, not in a chat message. Losing it means you can never issue another licence for the copies already out there; leaking it means anybody can.',
-            'Put the PUBLIC key in config/licence.php and commit it. That is what switches licensing on.',
-            'Issue your first licence — to yourself, with no expiry — before you deploy, or your own install goes read-only.',
-        ]);
+        $this->line('The line to put in .env, with the newlines already escaped:');
+        $this->newLine();
+        $this->line('LICENCE_PUBLIC_KEY="'.$this->forEnv($public).'"');
+
+        $this->newLine();
+        $this->nextSteps();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Write both keys to files rather than making somebody copy them out of a
+     * terminal.
+     *
+     * A PEM is nine lines long. Copying it out of a Windows console and into a
+     * one-line .env is where this goes wrong, and it goes wrong silently: the
+     * key reads as rubbish and every licence looks forged. Two files and one
+     * pre-escaped line remove the whole problem.
+     */
+    private function writeTo(string $folder, string $private, string $public): int
+    {
+        if (! is_dir($folder) && ! @mkdir($folder, 0755, true)) {
+            $this->error("Could not make the folder [{$folder}].");
+
+            return self::FAILURE;
+        }
+
+        $privatePath = rtrim($folder, '/\\').DIRECTORY_SEPARATOR.'licence-private.pem';
+        $publicPath = rtrim($folder, '/\\').DIRECTORY_SEPARATOR.'licence-public.pem';
+
+        file_put_contents($privatePath, $private);
+        file_put_contents($publicPath, $public);
+
+        // Owner only. Does nothing on Windows, and costs nothing to ask for.
+        @chmod($privatePath, 0600);
+
+        $this->newLine();
+        $this->components->twoColumnDetail('<fg=yellow;options=bold>Private key</>', $privatePath);
+        $this->components->twoColumnDetail('<fg=green;options=bold>Public key</>', $publicPath);
+
+        $this->newLine();
+        $this->line('The line to put in .env, with the newlines already escaped:');
+        $this->newLine();
+        $this->line('LICENCE_PUBLIC_KEY="'.$this->forEnv($public).'"');
+
+        $this->newLine();
+        $this->nextSteps();
+
+        return self::SUCCESS;
+    }
+
+    /** A PEM as one line, the way .env can hold it. */
+    private function forEnv(string $pem): string
+    {
+        return str_replace("\n", '\\n', trim($pem));
+    }
+
+    private function nextSteps(): void
+    {
+        $this->components->bulletList([
+            'Move the PRIVATE key somewhere only you can reach, and delete it from here. Not in this repository, not on a shop’s server, not in a chat message. Losing it means you can never issue another licence for the copies already out there; leaking it means anybody can.',
+            'Put the PUBLIC key line in .env — or in config/licence.php if you want every copy to carry it. Either one switches licensing on, and nothing works until step three.',
+            'Issue yourself a licence with no end date BEFORE you do anything else, or this install goes read-only: php artisan licence:issue "Your shop" --forever --key=…',
+        ]);
     }
 
     /**

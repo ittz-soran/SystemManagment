@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Services\Licence;
 use App\Support\OpenSslConfig;
+use Dotenv\Dotenv;
 use Tests\TestCase;
 
 /**
@@ -141,5 +143,85 @@ class LicenceKeysTest extends TestCase
         OpenSslConfig::find();
 
         $this->addToAssertionCount(1);
+    }
+
+    // =====================================================================
+    // Writing the keys out instead of making somebody copy them
+    // =====================================================================
+
+    /**
+     * A PEM is nine lines. Copying it out of a Windows console and into a
+     * one-line .env is where this goes wrong, and it goes wrong silently — the
+     * key reads as rubbish and every licence looks forged.
+     */
+    public function test_it_can_write_both_keys_to_files(): void
+    {
+        $folder = sys_get_temp_dir().'/licence-'.uniqid();
+
+        $this->artisan('licence:keys', ['--write' => $folder])->assertSuccessful();
+
+        $private = $folder.'/licence-private.pem';
+        $public = $folder.'/licence-public.pem';
+
+        $this->assertFileExists($private);
+        $this->assertFileExists($public);
+
+        $this->assertStringContainsString('BEGIN PRIVATE KEY', file_get_contents($private));
+        $this->assertStringContainsString('BEGIN PUBLIC KEY', file_get_contents($public));
+
+        // And they are a real pair: one signs, the other checks.
+        $licence = Licence::sign(
+            ['shop' => 'Soran Store', 'host' => null, 'expires' => null],
+            file_get_contents($private),
+        );
+
+        config(['licence.public_key' => file_get_contents($public), 'licence.key' => $licence]);
+        app(Licence::class)->forget();
+
+        $this->assertSame(Licence::VALID, app(Licence::class)->state());
+
+        @unlink($private);
+        @unlink($public);
+        @rmdir($folder);
+    }
+
+    /** The line to paste, with the newlines already escaped for .env. */
+    public function test_it_prints_an_env_ready_public_key(): void
+    {
+        $folder = sys_get_temp_dir().'/licence-'.uniqid();
+
+        $this->artisan('licence:keys', ['--write' => $folder])
+            ->expectsOutputToContain('LICENCE_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n')
+            ->assertSuccessful();
+
+        @unlink($folder.'/licence-private.pem');
+        @unlink($folder.'/licence-public.pem');
+        @rmdir($folder);
+    }
+
+    /**
+     * And that escaped line really does survive .env and come back as a key
+     * OpenSSL will accept — which is the only thing that matters about it.
+     */
+    public function test_the_escaped_line_survives_a_real_env_file(): void
+    {
+        $folder = sys_get_temp_dir().'/licence-'.uniqid();
+        mkdir($folder, 0755, true);
+
+        $this->artisan('licence:keys', ['--write' => $folder])->assertSuccessful();
+
+        $pem = trim(file_get_contents($folder.'/licence-public.pem'));
+
+        file_put_contents($folder.'/.env', 'LICENCE_PUBLIC_KEY="'.str_replace("\n", '\n', $pem).'"'."\n");
+
+        $read = Dotenv::createArrayBacked([$folder])->load()['LICENCE_PUBLIC_KEY'];
+
+        $this->assertNotFalse(openssl_pkey_get_public($read), 'OpenSSL accepts it after the round trip');
+        $this->assertSame($pem, trim($read));
+
+        foreach (['/.env', '/licence-private.pem', '/licence-public.pem'] as $file) {
+            @unlink($folder.$file);
+        }
+        @rmdir($folder);
     }
 }
