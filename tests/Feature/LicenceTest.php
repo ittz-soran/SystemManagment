@@ -203,6 +203,57 @@ class LicenceTest extends TestCase
         $this->assertSame(Licence::INVALID, $this->state());
     }
 
+    /**
+     * A public key pasted without its header still works.
+     *
+     * `licence:keys` prints a full PEM, and what a person copies off a screen is
+     * the interesting-looking middle. Soran pasted exactly that into
+     * config/licence.php — and OpenSSL refuses a key with no
+     * `-----BEGIN PUBLIC KEY-----`, so the first licence he issued would have
+     * been reported as unreadable. The message would have pointed at the
+     * licence, and the fault was in the key.
+     */
+    public function test_a_public_key_pasted_without_its_header_still_works(): void
+    {
+        $licence = $this->licensed();
+
+        $bare = trim(str_replace(
+            ['-----BEGIN PUBLIC KEY-----', '-----END PUBLIC KEY-----'],
+            '',
+            self::$public,
+        ));
+
+        config(['licence.public_key' => $bare, 'licence.key' => $licence]);
+
+        $this->assertSame(Licence::VALID, $this->state());
+    }
+
+    /** Including as one long line, which is how it survives a copy and paste. */
+    public function test_a_public_key_flattened_onto_one_line_still_works(): void
+    {
+        $licence = $this->licensed();
+
+        $flat = preg_replace('/\s+/', '', str_replace(
+            ['-----BEGIN PUBLIC KEY-----', '-----END PUBLIC KEY-----'],
+            '',
+            self::$public,
+        ));
+
+        config(['licence.public_key' => $flat, 'licence.key' => $licence]);
+
+        $this->assertSame(Licence::VALID, $this->state());
+    }
+
+    /** And something that is not a key at all is still refused. */
+    public function test_rubbish_in_the_public_key_does_not_become_a_key(): void
+    {
+        $licence = $this->licensed();
+
+        config(['licence.public_key' => 'this is not a key', 'licence.key' => $licence]);
+
+        $this->assertSame(Licence::INVALID, $this->state());
+    }
+
     // =====================================================================
     // The copied folder
     // =====================================================================

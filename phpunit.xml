@@ -27,6 +27,16 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!--
+            The suite runs unlicensed, the way an install that was never sold
+            does. Once a real public key sits in config/licence.php as the
+            default, every copy from this repository requires a licence — which
+            is the point, and would otherwise mean 56 tests failing because the
+            middleware refused their POSTs rather than because anything is
+            wrong. LicenceTest sets its own key and licence per case.
+        -->
+        <env name="LICENCE_PUBLIC_KEY" value=""/>
+        <env name="LICENCE_KEY" value=""/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
