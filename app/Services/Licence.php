@@ -137,6 +137,34 @@ final class Licence
         return self::encode($body).'.'.self::encode($signature);
     }
 
+    /**
+     * A public key as OpenSSL insists on seeing it.
+     *
+     * `licence:keys` prints a full PEM, header and footer included, and OpenSSL
+     * will not read one without them — but what a person copies off a screen is
+     * the interesting-looking middle. Soran pasted exactly that into
+     * config/licence.php, and it would have failed as "this licence cannot be
+     * read" on the first licence he issued, which points at the licence rather
+     * than at the key and would have sent him looking in the wrong place.
+     *
+     * A bare base64 body is unambiguous here, so it is simply wrapped rather
+     * than refused. Anything already carrying its header is left exactly as it
+     * is.
+     */
+    private static function armour(string $key): string
+    {
+        $key = trim($key);
+
+        if ($key === '' || str_contains($key, 'BEGIN')) {
+            return $key;
+        }
+
+        // Re-wrapped at 64 characters, in case it arrived as one long line.
+        $body = chunk_split(preg_replace('/\s+/', '', $key), 64, "\n");
+
+        return "-----BEGIN PUBLIC KEY-----\n".$body.'-----END PUBLIC KEY-----';
+    }
+
     /** @return array<string, mixed> */
     private function verify(): array
     {
@@ -166,7 +194,7 @@ final class Licence
             return [...$blank, 'state' => self::INVALID];
         }
 
-        $public = openssl_pkey_get_public(trim((string) config('licence.public_key')));
+        $public = openssl_pkey_get_public(self::armour((string) config('licence.public_key')));
 
         // A signature that does not verify is the whole point: the shop can
         // read this string, and can change nothing in it.
