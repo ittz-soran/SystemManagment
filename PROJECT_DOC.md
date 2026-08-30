@@ -780,6 +780,50 @@ copying the folder to another domain fail. Somebody with the source and the
 server can delete the check — no licence written in PHP can stop that, and one
 that claimed otherwise would only be lying about it.
 
+## 8g. Setting a new shop up — the .sql template
+
+Every new customer needs the same empty database: the tables, the 56
+permissions, the settings, the nine document counters, the Cash Customer, the
+expense categories and one administrator. On the seller's own machine that is
+`migrate --seed`. On a shop's hosting it is phpMyAdmin and an Import button,
+because shared hosting has no terminal — so the useful shape is one .sql file.
+
+`php artisan install:sql` makes it. `--shop`, `--email` and `--password` say
+whose it is; omit the password and one is generated and printed once, because it
+is stored as a hash and cannot be read back out of the file.
+
+**Generated, never kept.** A template committed to the repository is a template
+that quietly stops matching the migrations, and the day it is noticed is the day
+a customer's install is missing a column. Run the command after any update
+instead, and the file is right by construction.
+
+**A scratch schema, dropped in a `finally`.** The command creates
+`sm_template_<random>`, migrates and seeds *that*, dumps it and drops it —
+including after a failure, because a scratch database left behind is a puzzle
+for whoever finds it next. The shop's own data is never read, never written and
+never at risk; the command refuses outright if the invented name somehow matches
+the live one.
+
+**Nothing of the seller's shop travels with it.** Two things had to be taken out
+by hand. `SettingSeeder`'s default `shop_name` is the seller's own shop, so an
+unnamed template is written as "My Shop" rather than his. And mysqldump's header
+names the schema it read, which is that random scratch name — so its comments
+are turned off (`--skip-comments`) and the command writes its own header saying
+what the file is, who the administrator is, and how to import it. `--no-create-db`
+means the file names no database at all: it goes into whichever empty one it is
+imported into, whatever the hosting called it.
+
+**Sharing the awkward parts.** The dump runs through
+`BackupService::dumpDatabaseTo()`, so it reuses the tool-finding — including the
+two places XAMPP hides `mysqldump` — and the temporary credentials file that the
+nightly backup already got right, rather than growing a second copy of both.
+
+**Verify by importing it.** The suite runs on SQLite and cannot make this file,
+so what the tests hold is that the command refuses cleanly rather than producing
+something that is not MySQL, and that the options the notes tell people to type
+all exist. The real check is the one that matters and has to be done by hand:
+import the file into an empty database, point .env at it, and sign in.
+
 ## 8b. Technical Standards
 
 ### Timezone
@@ -1320,6 +1364,7 @@ it before it has been read destroys the only record of what went wrong.
 | 2026-08-29 | **The licence** (Section 8f), the last thing needed to sell this monthly. RSA-signed, checked offline, pasted into .env: the shop can read it and cannot change a word, and it will not run on another domain. OpenSSL rather than sodium because Laravel already requires `ext-openssl`, so it is guaranteed wherever this app runs. Empty public key means no licensing at all, so nothing changes for installs that were never sold. Fourteen days of warning, then grace days, then read-only — and read-only keeps reading, printing, deleting, Settings, the authenticator and signing in, because a shop locked out of its own records never pays another invoice. Two real bugs found by driving it rather than testing it: a Carbon object in the cache came back from the file driver as an incomplete class and 500'd the settings page, invisible to a suite that runs on the array driver (there is now a test that uses a serialising one); and off the web Laravel invents a request saying `localhost`, so `licence:show` called every valid licence wrong-domain. Also a flaky test of my own: changing the last base64 character can decode to identical bytes, so the tamper test now flips a byte in the middle. Suite: 584 tests, 583 passing, 1 skipped. | — |
 | 2026-08-29 | **`licence:keys` failed on Soran's own machine** with `OpenSSL would not make a key. error:80000003:system library::No such process` — OpenSSL's way of saying it cannot find openssl.cnf, which PHP for Windows ships without a path to and XAMPP ships twice without mentioning. The bug was really the message: nothing in it said what was missing or what to do. It now searches the usual places, honours `OPENSSL_CONF` when it points at a real file, takes `--config`, prints the whole error queue rather than its last line, names both XAMPP paths, and says that only making the pair needs the file — signing and checking do not, so no shop's server ever does. Suite: 595 tests, 594 passing, 1 skipped. | — |
 | 2026-08-30 | **Setting the licence up locked the live shop out**, exactly as designed and not at all as wanted: putting `LICENCE_PUBLIC_KEY` in .env switches licensing on, and until a `LICENCE_KEY` follows it the state is `missing` and the shop is read-only. The order matters and nothing said so loudly enough. `licence:keys` now takes `--write=FOLDER`, saving both PEMs and printing the public one as a single .env-ready line with its newlines escaped — a nine-line PEM copied out of a Windows console into a one-line .env fails silently, and every licence then looks forged. Its closing advice now leads with "issue yourself a `--forever` licence BEFORE you do anything else". Verified the whole chain end to end against a real .env: own licence valid, customer's valid, customer's refused on another domain. Suite: 598 tests, 597 passing, 1 skipped. | — |
+| 2026-08-30 | **A clean .sql template for a new customer** (Section 8g), at Soran's request: shared hosting has no terminal, so `migrate --seed` is not available where these installs land — phpMyAdmin and an Import button are. `install:sql` builds a fresh database in a scratch schema, dumps it and drops the scratch in a `finally`, so the shop's own data is never touched and nothing is left behind after a failure. Generated rather than committed, because a template kept in the repository quietly stops matching the migrations and the day that is noticed is the day a customer is missing a column. Two things of the seller's had to be taken out by hand, both found by importing the file and reading it rather than by trusting it: `SettingSeeder`'s default shop name is *his* shop, so an unnamed template says "My Shop"; and mysqldump's header names the schema it read, which is the random scratch name — its comments are off now and the command writes its own, saying what the file is and how to import it. `--no-create-db` means it names no database at all and goes wherever it is imported. Verified by importing into an empty database and driving it in a browser: signed in as the generated administrator, eleven screens, no errors, nothing of any other shop in it. The suite runs on SQLite and cannot make the file, so what it holds is that the command refuses cleanly and that the options the notes tell people to type all exist. Suite: 604 tests, 603 passing, 1 skipped. | — |
 | 2026-08-19 | Design finalised — FIFO, pricing, returns, locking settled. Doc rewritten clean. | Scaffold Laravel, install Breeze, write migrations |
 | 2026-08-19 | Added: per-user permissions, SKU/barcode rules, cash refunds, document numbering, USD entry helper | Same |
 | 2026-08-19 | Review pass: batch locking (concurrency), `stock_adjustments` table, `document_no` everywhere, Cash Customer, timezone, soft deletes + bulk delete, indexes, backups, below-cost warning, stock-cache rule | — |

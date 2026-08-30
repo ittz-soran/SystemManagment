@@ -11,6 +11,9 @@ Three ways to run it, in order of how much you need:
 Whichever you pick, read [Before you open the shop with it](#before-you-open-the-shop-with-it)
 at the end. It is short and it is the part that matters.
 
+Selling the system to somebody rather than installing your own? See
+[Setting a shop up from a .sql file](#setting-a-shop-up-from-a-sql-file).
+
 ---
 
 ## What the machine needs
@@ -302,6 +305,52 @@ the same credentials, so it works — but check it once, deliberately:
 php artisan backup:check
 php artisan backup:run
 ```
+
+---
+
+## Setting a shop up from a .sql file
+
+This one is for whoever *sells* the system rather than whoever runs it. A new
+shop needs the same empty database every time — the tables, the permissions, the
+settings, the document counters, the Cash Customer and one administrator — and
+on most hosting there is no terminal to run `migrate --seed` in. There is
+phpMyAdmin and an Import button.
+
+Make the file on your own machine, the one with MySQL on it:
+
+```bash
+php artisan install:sql --shop="Bazaar Electronics" --email=owner@bazaar.com
+```
+
+It writes `storage/app/install-<today>.sql`, and prints the administrator's
+password once. **Write that password down.** It is in the file as a hash and
+cannot be read back out of it.
+
+| | |
+|---|---|
+| `--shop` | the shop's name, as it appears in the topbar. Defaults to "My Shop" |
+| `--email` | the administrator's email — this is what they sign in with |
+| `--password` | theirs, if you want to choose it. Leave it out and one is generated |
+| `--out` | where to write it. A folder is fine; the usual name goes inside it |
+
+Then, on the shop's hosting:
+
+1. Make an empty database. Any name — the file names none of its own, so it goes
+   into whichever one you import it into.
+2. Open it in phpMyAdmin, choose **Import**, and pick the file.
+3. Set the site's `.env` — `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `APP_URL`
+   — and `LICENCE_KEY` if you are licensing it.
+4. Sign in as the administrator, change that password, and set up the
+   authenticator before you hand it over.
+
+**Make the file fresh each time**, after any update. It is generated rather than
+kept in the repository on purpose: a saved one quietly stops matching the
+migrations, and the day you notice is the day a customer's install is missing a
+column.
+
+The command builds the database in a scratch schema of its own and drops it
+afterwards, including if something fails partway. It never reads or writes your
+own shop's data, and nothing of your shop travels in the file.
 
 ---
 
