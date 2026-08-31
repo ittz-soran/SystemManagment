@@ -66,11 +66,12 @@ class ShopIsolationTest extends TestCase
     }
 
     /** Boot the shared codebase as one shop, in its own process, and ask it about itself. */
-    private function ask(string $php, bool $boot = false): array
+    private function ask(string $php, bool $boot = false, ?string $public = null): array
     {
         $script = sprintf(
-            '<?php define("SHOP_HOME", %s); require %s; $app = require %s; %s echo json_encode(%s);',
+            '<?php define("SHOP_HOME", %s); %s require %s; $app = require %s; %s echo json_encode(%s);',
             var_export($this->home, true),
+            $public === null ? '' : sprintf('define("SHOP_PUBLIC", %s);', var_export($public, true)),
             var_export(base_path('vendor/autoload.php'), true),
             var_export(base_path('bootstrap/app.php'), true),
             $boot ? '$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();' : '',
@@ -165,6 +166,36 @@ class ShopIsolationTest extends TestCase
             $answer['has_app_provider'],
             'AppServiceProvider is named only in the shared bootstrap/providers.php, so its absence means the shop read a providers list of its own',
         );
+    }
+
+    /**
+     * A public folder somewhere else entirely.
+     *
+     * Hosting that will not let a document root leave public_html does not
+     * stop any of this: the shop's .env, storage and compiled caches stay in
+     * shops/<name> where no address reaches them, and only the six-file public
+     * folder moves. The front controller says where it is.
+     */
+    public function test_the_public_folder_can_live_somewhere_else(): void
+    {
+        $elsewhere = $this->home.'-public_html/soran';
+        mkdir($elsewhere, 0755, true);
+
+        try {
+            $paths = $this->ask('[
+                "public" => $app->publicPath(),
+                "storage" => $app->storagePath(),
+                "bootstrap" => $app->bootstrapPath(),
+            ]', public: $elsewhere);
+
+            $this->assertSame($elsewhere, $paths['public'], 'the domain points here');
+
+            // The parts that must never be on the web stay where they were.
+            $this->assertSame($this->home.'/storage', $paths['storage']);
+            $this->assertSame($this->home.'/bootstrap', $paths['bootstrap']);
+        } finally {
+            $this->rmrf(dirname($elsewhere));
+        }
     }
 
     /** With no SHOP_HOME, nothing moves — a single-shop install is untouched. */

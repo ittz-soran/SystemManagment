@@ -46,6 +46,20 @@ if ($shop !== null && ! is_dir($shop)) {
     throw new RuntimeException("SHOP_HOME points at [{$shop}], which is not a folder.");
 }
 
+/*
+ * Where this shop's public folder is, which is not always under SHOP_HOME.
+ *
+ * Some hosting will not let a domain's document root sit outside public_html.
+ * Then the shop's private files still live in shops/<name> — .env, storage and
+ * the compiled caches, the things that must never be on the web — while the
+ * six-file public folder the domain points at sits in public_html instead.
+ * Both arrangements are safe; only this one path differs between them, so the
+ * front controller says where it is and everything else follows.
+ */
+$shopPublic = defined('SHOP_PUBLIC')
+    ? rtrim((string) constant('SHOP_PUBLIC'), '/\\')
+    : ($shop !== null ? $shop.'/public' : null);
+
 $app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
@@ -86,7 +100,7 @@ if ($shop !== null) {
     $app->useEnvironmentPath($shop)
         ->useStoragePath($shop.'/storage')
         ->useBootstrapPath($shop.'/bootstrap')
-        ->usePublicPath($shop.'/public');
+        ->usePublicPath($shopPublic);
 }
 
 return $app;
