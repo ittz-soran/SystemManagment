@@ -83,10 +83,21 @@ The **providers list deliberately stays with the code.** `Application::configure
 |---|---|
 | One install, copied per customer | 27,187 files (26,783 of them the framework) |
 | One shop, this way | about 40 files, plus what the shop stores |
-| Six customers, copied | ~163,000 files — past most cPanel inode limits |
+| Six customers, copied | ~163,000 files |
 | Six customers, this way | ~28,000 — roughly one install, for ever |
 
-Soran's account was at **41,506 files** with two shops. Inodes, not gigabytes, are the ceiling.
+**The file count is no longer the reason.** cPanel reports File Usage as
+`48,130 / ∞` — the account has no inode limit, so the ceiling this was first
+argued from does not exist. That argument was over-weighted and is corrected
+here rather than quietly dropped.
+
+**The decision stands on the reason that actually matters: an update is one
+upload instead of one per customer.** Copying the system per shop means every
+bug fix is repeated by hand as many times as there are customers, and the
+first one that gets skipped is a shop running old code against a migrated
+database — silent, and discovered by the shopkeeper rather than by Soran. One
+shared folder makes that class of failure impossible rather than unlikely.
+Disk is a distant second, and inodes are now no reason at all.
 
 ---
 
@@ -104,6 +115,7 @@ Checked on the real account rather than assumed. Do not re-litigate these.
 | cPanel UAPI | **answers** at `/usr/bin/uapi` — the panel can create databases and users itself |
 | Plain SQL `CREATE DATABASE` | denied, which is normal on cPanel. Use UAPI. |
 | Domain | Cloudflare DNS, proxied. SSL/TLS must be **Full (strict)**. |
+| File Usage | `48,130 / ∞` — no inode limit on this account |
 
 **Document roots cannot leave `public_html`.** Tested: cPanel silently created its own folder inside `public_html` and ignored the path typed in. So the arrangement is:
 
@@ -263,15 +275,35 @@ Mockups were built and approved against the shop system's own stylesheet, so the
 
 ## 10. Where the code lives
 
-**Recommended: the same repository, in a `panel/` folder, deployed separately.**
+**Its own GitHub repository**, created by Soran. Settled — build there, not in
+this one.
 
-`smart-store/` and `panel/` are uploaded to different places on the server, so a customer never receives the panel's code even though it shares a repository. One `git pull` updates both.
+That keeps the two apart in the way that matters: `smart-store/` is uploaded to
+customers' hosting, and the panel's source never travels with it. It also means
+the panel has its own branch names, its own history and its own test suite,
+none of which the shop system has to carry.
 
-**The alternative considered:** the panel as a *role* of the shop system, switched on by its own `.env`, sharing one `vendor/`. That saves ~27,000 inodes, which on this account is not nothing. It was not chosen because it couples the two — a panel bug becomes a shop bug — and because the shop system is the thing being sold and should not grow a second purpose.
+What crosses between them is deliberately small and one-directional:
 
-**Confirm with Soran before the first commit**, and if inodes turn out to be tighter than expected, the role approach is the fallback. Either way: **`panel/` must never be uploaded inside `smart-store/`.**
+- The panel **reads** `PANEL_DOC.md` and `PROJECT_DOC.md` for the rules.
+- The panel **runs** the shop system's artisan commands with `SHOP_HOME` set —
+  `install:sql`, `licence:show`, `migrate`, `backup:run`, the data check. It
+  does this as a subprocess against the shared codebase on the server, not by
+  importing any of its classes.
+- The panel **reuses the look** — Bootstrap 5.3 and the shop system's compiled
+  stylesheet — by copying `build/` at deploy time, not by depending on it.
 
----
+**The licence public key** is the one constant both sides need. The shop system
+holds it in `config/licence.php`; the panel needs the same value to verify a
+pasted licence before delivering it (Section 6). Copy it into the panel's own
+config. It is public by design — the private half is the secret, and that never
+leaves Soran's machine.
+
+**Never upload the panel inside `smart-store/`.** Separate repositories make
+that unlikely rather than impossible.
+
+> **To fill in on the first session:** the repository's name, so this file can
+> say it.
 
 ## 11. Build order
 
@@ -292,6 +324,7 @@ Mockups were built and approved against the shop system's own stylesheet, so the
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-08-31 | **The last open questions closed**, all four from Soran. The panel gets its own GitHub repository, so its source never travels to a customer's hosting with the shop system. The `sys` folder beside `public_html` was a mistake and is deleted. Halabja-phone is backed up, and its database stays in cPanel because that is what a rebuilt install restores from. And File Usage reads `48,130 / ∞` — **there is no inode limit on this account**, so the ceiling the shared codebase was first argued from does not exist. Section 3 corrected rather than quietly left: the decision stands, but on updating once instead of once per customer, which was always the larger half of it. The only ceiling left is how many databases the plan allows, still unknown. | Confirm the repository name, then `shop:provision` |
 | 2026-08-31 | **One codebase, many shops** (Section 3). `SHOP_HOME` and `SHOP_PUBLIC` move a shop's `.env`, storage, compiled caches and public folder; everything else is shared. Built the naive way first on purpose, against two real MariaDB databases with config cached on both, and watched the second shop report the first shop's database, shop name and administrator with its own paths still looking correct — then fixed it and verified each shop reads only its own. `ShopIsolationTest` spawns real processes because `SHOP_HOME` is a constant. Two findings: `Container::when()` is contextual binding and would have returned the wrong object from `bootstrap/app.php`; and `config:cache` re-requires `bootstrapPath('app.php')`, so a shop needs a one-line file there. Also corrected a hardcoded `SHOP_HOME.'/public'` that assumed a layout this hosting does not allow. Suite: 614 tests, 613 passing, 1 skipped. | `shop:provision` |
 | 2026-08-31 | **Hosting measured** (Section 4), by three checkers run on the real account. `proc_open` allowed with all three binaries, cPanel UAPI answering, PHP 8.3.33, MariaDB 11.4.13. Document roots cannot leave `public_html` — tested, cPanel ignored the path and made its own folder. Found Halabja-phone's install serving `.env` and `laravel.log` to anyone; the folder has since been deleted, and its database must be kept. | — |
 | 2026-08-30 | **Design settled.** Schema, pages and the four decisions: shared codebase; the panel may do everything with hold-to-confirm; it reads shops directly on the same server; the private key never leaves Soran's own machine. Page mockups built against the shop system's stylesheet and approved. | — |
@@ -300,8 +333,25 @@ Mockups were built and approved against the shop system's own stylesheet, so the
 
 ## 13. Open questions
 
-- **Where the code lives** (Section 10) — same repository in `panel/`, recommended but not confirmed with Soran.
-- **The `sys` folder at `/home/soransto/sys`**, beside `public_html` rather than inside it. Seen in File Manager, contents unknown. Ask before putting anything near it.
-- **How many databases the hosting plan allows.** One per shop, and it is the real ceiling on customers. Not readable from PHP — Soran must check cPanel → MySQL Databases.
-- **The inode allowance**, same reason. cPanel → Statistics → File Usage.
-- **Backups of the panel's own database.** The shop system backs itself up nightly; the panel holds the customer list, the licence history and the payment record, and losing it is worse than losing a shop. Decide before go-live.
+**Still open**
+
+- **How many databases the hosting plan allows.** One per shop, and it is now
+  the only real ceiling on how many customers fit on this account — the inode
+  limit turned out not to exist. Not readable from PHP. Soran to check
+  cPanel → **MySQL Databases**, where the heading reads something like
+  "MySQL Databases (3 / 25)", or the plan's own feature list. Worth knowing
+  before selling the next shop, not urgent before building.
+
+**Settled**
+
+- **Where the code lives** — its own GitHub repository. See Section 10.
+- **The `sys` folder at `/home/soransto/sys`** — it was a mistake and has been
+  deleted. Nothing depended on it.
+- **The inode allowance** — `48,130 / ∞`. No limit. Section 3 is corrected.
+- **Backups** — Soran has a backup of Halabja-phone, so their trading history
+  survives the folder being deleted. Its **database must stay in cPanel**: that
+  is what a rebuilt install restores from.
+- **Backups of the panel's own database** — it holds the customer list, the
+  licence history and the payment record, and losing it is worse than losing
+  any one shop. It reuses the shop system's `BackupService`, nightly, with the
+  off-machine copy, and a restore drill before go-live.
