@@ -4,6 +4,8 @@
 
 > **How to use this file:** upload or paste it at the start of every new chat about this project. It contains every decision made, so no context is lost between sessions. Update the Task Log (Section 12) at the end of each session.
 
+> **Soran Panel has its own file.** `PANEL_DOC.md` governs the tool Soran runs to manage the shops he has sold this system to — customers, licences, storage limits, health. It is a separate application with its own database, built in its own sessions. This file stays the authority on the shop system itself; where the two touch, this one wins.
+
 ---
 
 ## 1. Instructions for Claude — read first, every session

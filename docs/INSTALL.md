@@ -130,9 +130,19 @@ up uploaded as, say, `sys/`, and the shop is reached at
 `https://your-domain.com/sys/public/`. That works, with two cautions.
 
 Everything above `public/` is then reachable over the web as well — including
-`.env`, with the database password in it. Either point the domain (or a
-subdomain) at `public/` in the host's control panel, or put an `.htaccess` in
-`sys/` that denies everything except `public/`.
+`.env`, which holds the database password **and `APP_KEY`, the key that decrypts
+every staff member's authenticator secret**. A browser will show it as a page of
+plain text to anybody who guesses the URL.
+
+The system now ships an `.htaccess` in its own root that denies the lot, and a
+matching grant in `public/.htaccess` that lets the shop itself through. Both are
+needed and neither works alone: the denial cascades into subfolders, so without
+the grant the shop returns 403 to everybody. Verified against Apache 2.4 in both
+directions — `.env` refused with them, served in full without them.
+
+That is the net, not the fix. The fix is to point the domain, or a subdomain, at
+`public/` in the host's control panel, so nothing above it is on the web at all
+and no `.htaccess` has to be right for the shop to be safe.
 
 Set `APP_URL` to the address the browser actually uses, subdirectory included:
 
