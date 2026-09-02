@@ -92,8 +92,21 @@ class ShopProvision extends Command
         $home = $this->absolute($this->option('home') ?: dirname(base_path()).'/shops/'.$name);
         $public = $this->absolute($this->option('public') ?: $home.'/public');
 
-        foreach (['home' => $home, 'public' => $public] as $label => $path) {
-            if ($this->occupied($path)) {
+        /*
+         * The public folder gets an allowance the home folder does not.
+         *
+         * On cPanel the document root is created by the act of creating the
+         * subdomain, and that has to happen first — the domain must point
+         * somewhere before a shop is built for it. cPanel leaves `cgi-bin`
+         * behind in it, and Let's Encrypt puts its challenges in `.well-known`.
+         * Neither is a site. Counting them as content refused every shop that
+         * had a domain pointed at it, which is every shop.
+         *
+         * Nothing but this command has any business making the home folder, so
+         * that one stays strict.
+         */
+        foreach (['home' => [$home, []], 'public' => [$public, ['cgi-bin', '.well-known']]] as $label => [$path, $ignoring]) {
+            if ($this->occupied($path, $ignoring)) {
                 $this->components->error("The {$label} folder [{$path}] already has something in it.");
                 $this->line(
                     '  Refusing to write into it. If this is a live shop, provisioning over it would'
@@ -461,13 +474,14 @@ class ShopProvision extends Command
      * subdomain is added, and refusing that would mean refusing every shop set
      * up the ordinary way round.
      */
-    private function occupied(string $path): bool
+    /** @param  list<string>  $ignoring  entries that are not content */
+    private function occupied(string $path, array $ignoring = []): bool
     {
         if (! is_dir($path)) {
             return file_exists($path);
         }
 
-        return (bool) array_diff((array) scandir($path), ['.', '..']);
+        return (bool) array_diff((array) scandir($path), ['.', '..', ...$ignoring]);
     }
 
     private function absolute(string $path): string

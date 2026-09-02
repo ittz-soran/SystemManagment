@@ -202,6 +202,32 @@ class ShopProvisionTest extends TestCase
         $this->assertSame(0, $this->provision('bazaar'));
     }
 
+    /**
+     * And cPanel does not leave it empty — it leaves `cgi-bin` in it, and
+     * Let's Encrypt adds `.well-known`. Neither is a site, and counting them as
+     * content refused every shop that had a domain pointed at it first, which
+     * is the only order the domain can be set up in.
+     */
+    public function test_what_cpanel_leaves_in_a_new_document_root_is_not_in_the_way(): void
+    {
+        mkdir($this->public('bazaar').'/cgi-bin', 0755, true);
+        mkdir($this->public('bazaar').'/.well-known', 0755, true);
+
+        $this->assertSame(0, $this->provision('bazaar'));
+
+        // Written into, and what cPanel left is still there.
+        $this->assertFileExists($this->public('bazaar').'/index.php');
+        $this->assertDirectoryExists($this->public('bazaar').'/cgi-bin');
+    }
+
+    /** The shop's own folder gets no such allowance — nothing else makes it. */
+    public function test_a_home_folder_with_cgi_bin_in_it_is_still_refused(): void
+    {
+        mkdir($this->home('bazaar').'/cgi-bin', 0755, true);
+
+        $this->assertSame(1, $this->provision('bazaar'));
+    }
+
     public function test_it_refuses_a_name_that_cannot_be_a_folder_or_a_subdomain(): void
     {
         foreach (['../escape', 'Bazaar', 'has space', '', 'a'.str_repeat('b', 40)] as $name) {
