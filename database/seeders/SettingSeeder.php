@@ -14,7 +14,12 @@ class SettingSeeder extends Seeder
     /** @var array<string, string|null> */
     public const DEFAULTS = [
         // Layer 1 — shop info, printed on invoices and shown on the login page.
-        'shop_name' => 'Soran Store',
+        //
+        // Overridden per install from SHOP_NAME — see run(). This value is the
+        // last resort and is deliberately nobody's real shop: it used to be the
+        // seller's own, which meant every customer opened their till on the
+        // first morning and read somebody else's name above their sales.
+        'shop_name' => 'My Shop',
         'shop_name_ku' => null,
         'shop_name_ar' => null,
         'shop_name_fa' => null,
@@ -75,7 +80,27 @@ class SettingSeeder extends Seeder
 
     public function run(): void
     {
-        foreach (self::DEFAULTS as $key => $value) {
+        /*
+         * The shop's own name, from whoever is installing it.
+         *
+         * Same shape as ADMIN_PASSWORD in DatabaseSeeder, and for the same
+         * reason: the two things that must be this customer's rather than the
+         * default are their name and their password, and both are known at the
+         * moment the install is made. SHOP_NAME is set by the panel when it
+         * creates a customer, or by hand for a single install.
+         *
+         * APP_NAME is not used for this, deliberately. It is Laravel's own name
+         * for the application and shows up in mail and exception pages; the
+         * shop's name is a setting the owner can change afterwards from the
+         * Settings page, and the two stop being the same the first time they do.
+         */
+        $defaults = self::DEFAULTS;
+
+        if (($name = trim((string) env('SHOP_NAME', ''))) !== '') {
+            $defaults['shop_name'] = $name;
+        }
+
+        foreach ($defaults as $key => $value) {
             Setting::firstOrCreate(['key' => $key], ['value' => $value]);
         }
 
