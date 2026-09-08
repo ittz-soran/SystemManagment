@@ -251,16 +251,27 @@
                             <div class="fw-medium">
                                 ${escapeHtml(line.name)}
                                 ${line.kind === 'service'
-                                    ? `<span class="badge text-bg-light">@json(__('Service'))</span>`
+                                    ? `<span class="badge text-bg-light">${@json(__('Service'))}</span>`
                                     : line.kind === 'used'
-                                        ? `<span class="badge text-bg-light">@json(__('Second-hand'))</span>`
+                                        ? `<span class="badge text-bg-light">${@json(__('Second-hand'))}</span>`
                                         : ''}
                             </div>
-                            <div class="small text-secondary" dir="ltr">${escapeHtml(line.sku)}</div>
+                            {{-- The SKU and what is left on the shelf, together on
+                                 one line under the name. The stock note used to
+                                 live under the quantity box, which pushed that box
+                                 above the price box beside it and left the two
+                                 inputs on different levels — visible in every
+                                 language, and the thing Soran marked first. --}}
+                            <div class="small text-secondary d-flex flex-wrap align-items-center gap-2">
+                                <span dir="ltr">${escapeHtml(line.sku)}</span>
+                                ${line.kind === 'service' ? '' : `
+                                    <span class="opacity-50" aria-hidden="true">&bull;</span>
+                                    <span class="${line.stock > 0 ? '' : 'text-danger fw-semibold'}">${format(line.stock)} ${@json(__('in stock'))}</span>`}
+                            </div>
                             ${line.condition ? `<div class="small text-secondary">${escapeHtml(line.condition)}</div>` : ''}
                             <div class="small text-warning ${line.belowCost ? '' : 'd-none'}" data-role="below-cost">
                                 <i class="bi bi-exclamation-triangle"></i>
-                                @json(__('Below cost: this unit cost')) ${format(line.cost ?? 0)}
+                                ${@json(__('Below cost: this unit cost'))} ${format(line.cost ?? 0)}
                             </div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                         </td>
@@ -270,9 +281,6 @@
                                    name="lines[${index}][quantity]" value="${line.quantity}"
                                    data-role="qty" data-index="${index}"
                                    data-numpad="@json(__('Quantity'))" data-numpad-min="1">
-                            ${line.kind === 'service'
-                                ? ''
-                                : `<div class="small text-secondary text-end">${format(line.stock)} @json(__('in stock'))</div>`}
                         </td>
                         <td>
                             <input type="number" min="0" step="1" dir="ltr"
@@ -426,8 +434,8 @@
                         </span>
                         <span class="small">
                             ${product.kind === 'service'
-                                ? `<span class="text-secondary me-2">@json(__('service'))</span>`
-                                : `<span class="text-secondary me-2">${format(product.quantity)} @json(__('in stock'))</span>`}
+                                ? `<span class="text-secondary me-2">${@json(__('service'))}</span>`
+                                : `<span class="text-secondary me-2">${format(product.quantity)} ${@json(__('in stock'))}</span>`}
                             <span class="fw-semibold">${format(product.sale_price)}</span>
                         </span>`;
                     item.addEventListener('click', () => addProduct(product));

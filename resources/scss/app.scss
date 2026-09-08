@@ -138,12 +138,38 @@ th.money {
 
 // Section 9b: icons with direction must mirror; clocks, logos and product
 // images must not.
+// This is the ONLY place a directional icon is flipped. The back link used to
+// choose its own arrow with a `$isRtl ?` as well, and the two correct fixes
+// cancelled: the arrow pointed the wrong way in all three RTL languages while
+// both halves looked right on their own. Soran found it before any test did.
+//
+// Rotation is not direction: arrow-repeat and arrow-counterclockwise stay as
+// they are, or undo would come out looking like redo.
 [dir='rtl'] .bi-arrow-left,
 [dir='rtl'] .bi-arrow-right,
+[dir='rtl'] .bi-arrow-right-circle-fill,
+[dir='rtl'] .bi-arrow-return-left,
+[dir='rtl'] .bi-arrow-return-right,
+[dir='rtl'] .bi-arrow-down-left,
+[dir='rtl'] .bi-arrow-up-right,
 [dir='rtl'] .bi-chevron-left,
 [dir='rtl'] .bi-chevron-right,
 [dir='rtl'] .bi-box-arrow-right {
   transform: scaleX(-1);
+}
+
+// Bootstrap's spacing utilities are physical in the build this app imports, so
+// `ms-auto` compiles to `margin-left: auto` and pushes a thing to the RIGHT of
+// its row — which in RTL is the side it came from. The topbar's whole control
+// group sat 254px from the left edge with the free space stranded beside it.
+//
+// Only the auto margins are corrected here. The numbered ones (`me-1` on an
+// icon, say) are a few pixels on the wrong side rather than a control group in
+// the wrong half of the screen, and flipping all of them at once would move
+// something on every screen in the shop with nothing asking for it.
+[dir='rtl'] {
+  .ms-auto { margin-left: 0 !important; margin-right: auto !important; }
+  .me-auto { margin-right: 0 !important; margin-left: auto !important; }
 }
 
 // The help panel arrives from the end of the line, whichever end that is.
@@ -547,4 +573,40 @@ a.stat-tile {
 // Sorani and Arabic, whose glyphs are not the same width as Latin ones.
 .guide-body {
   max-width: 68ch;
+}
+
+// A button group reads inside-out in RTL.
+//
+// Bootstrap rounds the group's outer corners with physical properties: the DOM
+// first child gets the left corners, the last gets the right. Under dir="rtl"
+// the row is drawn right-to-left, so the first child sits on the RIGHT while
+// still wearing left corners — the outer edges come out square and the join in
+// the middle comes out rounded. The negative margin that collapses the shared
+// border pulls the wrong way too, leaving a hairline gap.
+//
+// Measured before this rule, on the cart's × and + pair in Sorani: the + sat at
+// the right of the pair with `border-radius: 4px 0 0 4px`.
+[dir='rtl'] {
+  .btn-group > .btn:not(:first-child),
+  .btn-group > .btn-group:not(:first-child) {
+    margin-left: 0;
+    margin-right: calc(var(--bs-border-width) * -1);
+  }
+
+  .btn-group > .btn:not(:last-child):not(.dropdown-toggle),
+  .btn-group > .btn-group:not(:last-child) > .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-top-right-radius: var(--bs-btn-border-radius);
+    border-bottom-right-radius: var(--bs-btn-border-radius);
+  }
+
+  .btn-group > .btn:nth-child(n + 3),
+  .btn-group > :not(.btn-check) + .btn,
+  .btn-group > .btn-group:not(:first-child) > .btn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: var(--bs-btn-border-radius);
+    border-bottom-left-radius: var(--bs-btn-border-radius);
+  }
 }
