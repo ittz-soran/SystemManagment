@@ -73,5 +73,19 @@
                 </ul>
             @endisset
         </div>
+
+        {{-- The way on, for a reader whose question was bigger than this
+             screen. Pinned to the bottom of the drawer rather than left at the
+             end of the text, so it is findable without reading to the end.
+
+             It leaves the page, which is exactly why it is not the first thing
+             offered: the point of this panel is not losing the half-typed sale
+             behind it. --}}
+        <div class="offcanvas-header border-top">
+            <a href="{{ route('guide.index') }}" class="btn btn-sm btn-outline-primary w-100">
+                <i class="bi bi-book" aria-hidden="true"></i>
+                {{ __('Open the full guide') }}
+            </a>
+        </div>
     </div>
 @endif

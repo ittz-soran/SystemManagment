@@ -11,6 +11,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
@@ -364,6 +365,14 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // ---- System ----------------------------------------------------------
+    /*
+     * The guide. No permission on either route, deliberately — the reader most
+     * likely to need it is the newest assistant, holding the fewest
+     * permissions in the shop. It reads none of the shop's data.
+     */
+    Route::get('guide', [GuideController::class, 'index'])->name('guide.index');
+    Route::get('guide/{topic}', [GuideController::class, 'show'])->name('guide.show');
+
     Route::get('activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('permission:activity_logs.view')->name('activity-logs.index');
 

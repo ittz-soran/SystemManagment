@@ -539,3 +539,12 @@ a.stat-tile {
     --bs-btn-border-color: var(--bs-warning-text-emphasis);
   }
 }
+
+// The guide is the one place in this system with paragraphs in it. A line of
+// text running the full width of a desktop card is measurably harder to read —
+// the eye loses its place coming back to the start — so the body is held to a
+// comfortable measure. In characters rather than pixels, so it stays right in
+// Sorani and Arabic, whose glyphs are not the same width as Latin ones.
+.guide-body {
+  max-width: 68ch;
+}
