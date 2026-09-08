@@ -45,6 +45,8 @@
     <div class="flex-grow-1 min-vw-0 d-flex flex-column">
         @include('layouts.topbar')
 
+        @include('partials.screen-help')
+
         <main class="flex-grow-1 p-3 p-lg-4">
             {{-- Storage running out is the one warning that has to arrive
                  before the thing it warns about, because the thing it warns
