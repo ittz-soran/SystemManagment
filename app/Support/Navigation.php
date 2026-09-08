@@ -18,7 +18,7 @@ use App\Models\User;
 final class Navigation
 {
     /**
-     * @return array<string|int, list<array{route: string, permission: string, icon: string, label: string, admin?: bool}>>
+     * @return array<string|int, list<array{route: string, permission: ?string, icon: string, label: string, admin?: bool}>>
      */
     public static function groups(): array
     {
@@ -53,6 +53,9 @@ final class Navigation
                 ['route' => 'reports.index', 'permission' => 'reports.view', 'icon' => 'graph-up', 'label' => __('Reports')],
             ],
             __('System') => [
+                // No permission: the reader most likely to need the guide is the
+                // newest assistant, holding the fewest permissions in the shop.
+                ['route' => 'guide.index', 'permission' => null, 'icon' => 'book', 'label' => __('Guide')],
                 ['route' => 'activity-logs.index', 'permission' => 'activity_logs.view', 'icon' => 'clock-history', 'label' => __('Activity log')],
                 ['route' => 'data.index', 'permission' => 'data.manage', 'icon' => 'arrow-down-up', 'label' => __('Import & export')],
                 ['route' => 'settings.edit', 'permission' => 'settings.manage', 'icon' => 'gear', 'label' => __('Settings')],
@@ -89,12 +92,20 @@ final class Navigation
      * would offer a link the router then refuses, which is the one thing
      * Section 9b says never to do.
      *
-     * @param  array{route: string, permission: string, icon: string, label: string, admin?: bool}  $item
+     * @param  array{route: string, permission: ?string, icon: string, label: string, admin?: bool}  $item
      */
     public static function allows(User $user, array $item): bool
     {
         if (($item['admin'] ?? false) && ! $user->isAdmin()) {
             return false;
+        }
+
+        // A null permission is a screen that is open to everybody who is signed
+        // in — the guide, so far. Written as null rather than as an invented
+        // key like 'guide.view' that nothing would ever check, because a
+        // permission nobody can be refused is a lie in the permissions editor.
+        if ($item['permission'] === null) {
+            return true;
         }
 
         return $user->hasPermission($item['permission']);

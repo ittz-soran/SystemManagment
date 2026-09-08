@@ -1300,3 +1300,59 @@ document.addEventListener('DOMContentLoaded', () => {
     show(true);
     schedule();
 });
+
+/*
+ * Filtering the guide as somebody types.
+ *
+ * In the browser rather than on the server, and over every word of every topic
+ * rather than only the titles: the whole text of each topic is already on the
+ * page in data-search, so a shop on a slow connection gets an answer per
+ * keystroke instead of per round trip. A word typed as several — "customer
+ * return" — has to match all of them, which is how people search.
+ *
+ * A group heading with nothing left under it is hidden too, or the page keeps
+ * five headings over an empty list and looks broken rather than empty.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('guide-search');
+    if (!box) return;
+
+    const none = document.getElementById('guide-no-results');
+    const groups = Array.from(document.querySelectorAll('[data-guide-group]'));
+
+    const filter = () => {
+        const words = box.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        let shown = 0;
+
+        groups.forEach((group) => {
+            let inGroup = 0;
+
+            group.querySelectorAll('[data-guide-topic]').forEach((topic) => {
+                const haystack = topic.dataset.search || '';
+                const hit = words.every((word) => haystack.includes(word));
+
+                topic.classList.toggle('d-none', !hit);
+                if (hit) inGroup += 1;
+            });
+
+            group.classList.toggle('d-none', inGroup === 0);
+            shown += inGroup;
+        });
+
+        if (none) {
+            none.textContent = none.dataset.none || '';
+            none.classList.toggle('d-none', shown > 0);
+        }
+    };
+
+    box.addEventListener('input', filter);
+
+    // Escape clears, because a filtered list with the box out of view looks
+    // like a guide that has lost most of its pages.
+    box.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && box.value !== '') {
+            box.value = '';
+            filter();
+        }
+    });
+});
