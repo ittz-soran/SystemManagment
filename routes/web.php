@@ -42,15 +42,6 @@ Route::get('/', fn () => redirect()->route('dashboard'));
 Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
 
 Route::middleware(['auth'])->group(function () {
-    /*
-     * Putting the first-week checklist away.
-     *
-     * No permission of its own: it is on the dashboard, which every reader can
-     * open, and the card is only ever shown to an admin in the first place.
-     */
-    Route::delete('setup-checklist', [DashboardController::class, 'hideSetup'])
-        ->name('setup.hide');
-
     /**
      * One box for the whole shop. No permission of its own: it holds none, and
      * every group inside it is behind the permission of the screen it leads to.
