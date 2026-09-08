@@ -9,6 +9,8 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\StockBatch;
 use App\Models\Supplier;
+use App\Services\SetupProgress;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -35,7 +37,22 @@ use Illuminate\View\View;
  */
 class DashboardController extends Controller
 {
-    public function index(Request $request): View
+    /**
+     * Put the first-week checklist away.
+     *
+     * A shop setting itself up over a fortnight should not be nagged on every
+     * page in between, and one that is never going to finish step five should
+     * not be reminded of it for ever. Stored as a setting rather than per user,
+     * because it is the shop that is set up, not the person looking.
+     */
+    public function hideSetup(SetupProgress $setup): RedirectResponse
+    {
+        $setup->hide();
+
+        return back()->with('success', __('Put away. You can still find all of this in the Guide.'));
+    }
+
+    public function index(Request $request, SetupProgress $setup): View
     {
         $user = $request->user();
         $today = today();
@@ -91,6 +108,17 @@ class DashboardController extends Controller
 
         return view('dashboard', [
             'cards' => $cards,
+
+            /*
+             * The first-week checklist, for a shop that has not finished
+             * setting itself up.
+             *
+             * Admin only. Three of its five steps need permissions an ordinary
+             * user does not have — Settings, suppliers, the catalogue — and a
+             * list of instructions somebody cannot follow is worse than no list
+             * at all. The person setting a new shop up is its owner.
+             */
+            'setup' => $user->isAdmin() && $setup->shouldShow() ? $setup : null,
 
             'customersOwe' => $user->hasPermission('customers.view')
                 ? (int) Customer::sum('balance')

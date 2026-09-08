@@ -146,6 +146,29 @@ th.money {
   transform: scaleX(-1);
 }
 
+// The help panel arrives from the end of the line, whichever end that is.
+//
+// This app imports Bootstrap's LTR build and flips it with dir="rtl", which
+// works for everything laid out with logical properties — the sidebar moves to
+// the right on its own. `.offcanvas-end` is not one of those: Bootstrap pins it
+// with a physical `right: 0`, so in Sorani the help slid in over the sidebar
+// while the screen it was explaining stayed uncovered on the left.
+//
+// Found by opening it in Sorani rather than by reading the stylesheet. What
+// bootstrap.rtl.css would do, written out for the one component that needs it.
+[dir='rtl'] .offcanvas-end {
+  right: auto;
+  left: 0;
+  border-right: var(--bs-offcanvas-border-width) solid var(--bs-offcanvas-border-color);
+  border-left: 0;
+  transform: translateX(-100%);
+}
+
+[dir='rtl'] .offcanvas-end.showing,
+[dir='rtl'] .offcanvas-end.show:not(.hiding) {
+  transform: none;
+}
+
 // ---------------------------------------------------------------------------
 // Print — Section 9b: a separate minimal layout, black on white.
 // ---------------------------------------------------------------------------

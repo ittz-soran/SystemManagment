@@ -51,6 +51,28 @@
             <div class="text-secondary" id="app-clock-date">&nbsp;</div>
         </div>
 
+        {{--
+            Help for whatever screen this is.
+
+            Before the language and theme buttons rather than after, because it
+            is the one a lost reader is looking for and the eye stops at the
+            first thing in a row. Shown only where there is something to say —
+            a button that opens an empty drawer teaches people to stop pressing
+            it.
+
+            No permission of its own, deliberately: the reader most likely to
+            need help is a new user holding the fewest permissions in the shop.
+        --}}
+        @if(App\Support\ScreenHelp::has(request()->route()?->getName()))
+            <button class="btn btn-sm btn-primary" type="button"
+                    data-bs-toggle="offcanvas" data-bs-target="#screen-help"
+                    aria-controls="screen-help"
+                    title="{{ __('Help for this screen') }}"
+                    aria-label="{{ __('Help for this screen') }}">
+                <i class="bi bi-question-lg" aria-hidden="true"></i>
+            </button>
+        @endif
+
         {{-- Language switch. Section 2: text and direction change together. --}}
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"

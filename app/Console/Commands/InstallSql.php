@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Setting;
 use App\Models\User;
 use App\Services\BackupService;
 use Illuminate\Console\Command;
@@ -65,9 +64,8 @@ class InstallSql extends Command
         $password = $this->option('password') ?: Str::password(16, symbols: false);
         $out = $this->outputPath();
 
-        // SettingSeeder's default shop name is the seller's own shop, which is
-        // the right default on the machine this is developed on and the wrong
-        // one to hand a customer. Anything but that, unless asked.
+        // A template made without a name is still somebody's shop tomorrow, so
+        // it gets a neutral one rather than the seeder's fallback.
         $shop = (string) ($this->option('shop') ?: 'My Shop');
 
         $this->components->info("Building a fresh database in a scratch schema [{$scratch}].");
@@ -124,6 +122,12 @@ class InstallSql extends Command
         $previous = getenv('ADMIN_PASSWORD');
         putenv('ADMIN_PASSWORD='.$password);
 
+        // Same lever the panel uses, rather than a second way of doing it:
+        // SettingSeeder reads SHOP_NAME, so the name is right from the moment
+        // the row is written instead of corrected afterwards.
+        $previousName = getenv('SHOP_NAME');
+        putenv('SHOP_NAME='.$shop);
+
         try {
             DB::purge('sm_template');
 
@@ -132,8 +136,6 @@ class InstallSql extends Command
 
             $this->components->info('Seeding the permissions, settings and counters.');
             Artisan::call('db:seed', ['--database' => 'sm_template', '--force' => true], $this->output);
-
-            Setting::put('shop_name', $shop);
 
             if ($email = $this->option('email')) {
                 User::where('email', 'admin@example.com')
@@ -144,6 +146,7 @@ class InstallSql extends Command
             Config::set('database.default', $original);
 
             $previous === false ? putenv('ADMIN_PASSWORD') : putenv('ADMIN_PASSWORD='.$previous);
+            $previousName === false ? putenv('SHOP_NAME') : putenv('SHOP_NAME='.$previousName);
         }
     }
 
