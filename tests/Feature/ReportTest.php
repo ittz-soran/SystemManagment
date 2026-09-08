@@ -17,6 +17,7 @@ use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\StockAdjustmentService;
+use Database\Seeders\SettingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -125,7 +126,7 @@ class ReportTest extends TestCase
     {
         // The seeded administrator no longer has a password this test could
         // know — that is the point of it — so give it one to log in with.
-        $admin = \App\Models\User::where('email', 'admin@example.com')->firstOrFail();
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
         $admin->forceFill(['password' => 'a-strong-password-2026'])->save();
 
         $this->post(route('login'), [
@@ -146,7 +147,7 @@ class ReportTest extends TestCase
      */
     public function test_saving_settings_busts_the_cache(): void
     {
-        $this->assertSame('Soran Store', setting('shop_name'));
+        $this->assertSame(SettingSeeder::DEFAULTS['shop_name'], setting('shop_name'));
 
         $this->actingAs($this->admin)->put(route('settings.update'), [
             'shop_name' => 'New Name',

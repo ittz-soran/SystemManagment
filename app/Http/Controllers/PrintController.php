@@ -6,6 +6,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Services\SetupProgress;
 use Illuminate\View\View;
 
 /**
@@ -14,8 +15,13 @@ use Illuminate\View\View;
  */
 class PrintController extends Controller
 {
-    public function sale(Sale $sale): View
+    public function sale(Sale $sale, SetupProgress $setup): View
     {
+        // The last step of the setup checklist, and the only one that cannot be
+        // read from the shop's own data: printing leaves no trace of its own.
+        // Written at most once, ever, and only from the page that does it.
+        $setup->recordPrinted();
+
         return view('print.sale', [
             'sale' => $sale->load('customer', 'user', 'items.product'),
         ]);
