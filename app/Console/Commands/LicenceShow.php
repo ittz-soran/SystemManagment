@@ -11,16 +11,40 @@ use Illuminate\Console\Command;
  * For the telephone call that starts "it says my licence is wrong" — this
  * answers, in one line, whether the string is missing, unsigned, for another
  * domain, or simply out of date.
+ *
+ * `--json` is for the panel (PANEL_DOC Section 8): it runs this command through
+ * the shared codebase with SHOP_HOME set, to record what the shop itself thinks
+ * as a cross-check against what the panel believes. The prose above cannot be
+ * read by a machine — it is coloured, translated and deliberately a sentence
+ * rather than a state — so the state is offered raw beside it. Neither format
+ * computes anything the other does not; both print the same Licence::check().
  */
 class LicenceShow extends Command
 {
-    protected $signature = 'licence:show';
+    protected $signature = 'licence:show {--json : Print the answer as JSON instead of prose}';
 
     protected $description = 'Say what this copy makes of its licence';
 
     public function handle(Licence $licence): int
     {
         $found = $licence->check();
+
+        if ($this->option('json')) {
+            $this->output->writeln(json_encode([
+                'state' => $found['state'],
+                'shop' => $found['shop'],
+                'host' => $found['host'],
+                'expires' => $found['expires']?->toDateString(),
+                'days_left' => $found['days_left'],
+                'id' => $found['id'],
+                'allows_writing' => $licence->allowsWriting(),
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+            // Zero whatever the licence says. The caller asked a question and
+            // got an answer; a non-zero exit here would read to a script as
+            // "the command failed" rather than "the licence has run out".
+            return self::SUCCESS;
+        }
 
         $this->newLine();
         $this->components->twoColumnDetail('State', match ($found['state']) {
