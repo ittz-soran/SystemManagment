@@ -61,5 +61,12 @@
         </tfoot>
     </table>
 
+    {{-- The total written out. On paper this is the point of it: a digit can be
+         changed with a pen and a sentence cannot, which is why invoices have
+         carried the amount in words for as long as there have been invoices. --}}
+    <div class="mt-2 fw-semibold">
+        {{ App\Support\AmountInWords::for($sale->total_amount) }}
+    </div>
+
     <div class="small mt-4">{{ __('Served by :name', ['name' => $sale->user->name]) }}</div>
 @endsection
