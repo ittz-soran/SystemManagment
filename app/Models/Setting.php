@@ -37,45 +37,38 @@ class Setting extends Model
     }
 
     /**
-     * @return array<string, string|null>
+     * Every setting, read once and kept.
      *
-     * ⚠️ The whole body is guarded, not just the settings query.
+     * ⚠️ Both the cache and the table are guarded, and for different reasons.
      *
-     * The first version guarded only `pluck()`, on the reasoning that the
-     * settings table does not exist until migrations run. But the default
-     * cache store is `database` — so `Cache::get()` reads a `cache` table that
-     * does not exist either, one line ABOVE the try, and threw before the
-     * guard was ever reached.
-     *
-     * That made every artisan command fail on a fresh checkout, because
-     * routes/console.php reads settings at load time to schedule the backup,
-     * and routes/console.php loads for every command there is. `composer
-     * install` runs `package:discover` and so could not finish:
+     * **The cache**, because Laravel's default store is the database. An
+     * install whose .env does not name one asks a `cache` table that does not
+     * exist until migrations create it — and this method is reached from
+     * middleware on every page, from the seeders, and from routes/console.php,
+     * which loads for every artisan command there is. So `migrate --seed` died
+     * on it and left a shop half built; `composer install` could not finish,
+     * because `package:discover` is an artisan command too:
      *
      *     Database file at path [database/database.sqlite] does not exist
      *     ... SQL: select * from "cache" where "key" in (settings)
      *
-     * A `.env` is not the answer either. The shared codebase the panel
-     * provisions shops from is a library and a set of commands, not an
-     * install — it has no shop and needs no database of its own, and
-     * `shop:provision` has to run there before any database exists.
+     * A cache is an optimisation, and an optimisation may not be able to take
+     * the shop down. An unreachable one falls through to the table, which is
+     * slower and entirely correct.
+     *
+     * **The table**, because there may be no database at all. The shared
+     * codebase the panel provisions shops from is a library and a set of
+     * commands, not an install: it has no shop, needs no database of its own,
+     * and `shop:provision` has to run there before any database exists. A `.env`
+     * is not the answer to that.
+     *
+     * Nothing is cached on the way out of either failure, so it recovers the
+     * moment the tables exist, without anything needing to be flushed.
+     *
+     * @return array<string, string|null>
      */
     public static function cached(): array
     {
-        /*
-         * The cache is an optimisation, and an optimisation may not be able to
-         * take the shop down.
-         *
-         * Laravel's default cache store is the database, so on an install whose
-         * .env does not name one, this line asks a `cache` table that does not
-         * exist yet — and this method is reached from middleware on every page
-         * AND from the seeders. The whole of `migrate --seed` died on it, which
-         * meant a new shop provisioned with a partial .env got a half-built
-         * database and no clue why.
-         *
-         * Reading a setting must survive every store being unavailable, exactly
-         * as it already survived the settings table being absent.
-         */
         try {
             $cached = Cache::get(self::CACHE_KEY);
 
@@ -83,29 +76,22 @@ class Setting extends Model
                 return $cached;
             }
         } catch (Throwable) {
-            $cached = null;
+            // Unreachable store. Answer from the table instead.
         }
 
+        try {
             $values = self::query()->pluck('value', 'key')->all();
-
-            Cache::forever(self::CACHE_KEY, $values);
-
-            return $values;
         } catch (QueryException) {
             // No database, or no tables in it yet. Callers fall back to their
             // own defaults rather than the app failing to boot on the login
             // screen — or artisan failing to run at all.
-            //
-            // Deliberately not cached, so it recovers the moment the tables
-            // exist, without anything needing to be flushed.
             return [];
         }
 
         try {
             Cache::forever(self::CACHE_KEY, $values);
         } catch (Throwable) {
-            // Unreachable cache: answer from the table every time instead. Slower
-            // and entirely correct.
+            // Read every time rather than not at all.
         }
 
         return $values;
