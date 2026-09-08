@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
-use Throwable;
 
 /**
  * Section 8c: read on every page, changed perhaps twice a year — so cached
@@ -27,13 +26,7 @@ class Setting extends Model
 
     public static function flushCache(): void
     {
-        try {
-            Cache::forget(self::CACHE_KEY);
-        } catch (Throwable) {
-            // Same reasoning as cached(): a cache that cannot be reached must
-            // not stop a setting being saved. The next read finds no cache and
-            // goes to the table, which is the correct answer anyway.
-        }
+        Cache::forget(self::CACHE_KEY);
     }
 
     /**
@@ -62,29 +55,12 @@ class Setting extends Model
      */
     public static function cached(): array
     {
-        /*
-         * The cache is an optimisation, and an optimisation may not be able to
-         * take the shop down.
-         *
-         * Laravel's default cache store is the database, so on an install whose
-         * .env does not name one, this line asks a `cache` table that does not
-         * exist yet — and this method is reached from middleware on every page
-         * AND from the seeders. The whole of `migrate --seed` died on it, which
-         * meant a new shop provisioned with a partial .env got a half-built
-         * database and no clue why.
-         *
-         * Reading a setting must survive every store being unavailable, exactly
-         * as it already survived the settings table being absent.
-         */
         try {
             $cached = Cache::get(self::CACHE_KEY);
 
             if (is_array($cached)) {
                 return $cached;
             }
-        } catch (Throwable) {
-            $cached = null;
-        }
 
             $values = self::query()->pluck('value', 'key')->all();
 
@@ -100,15 +76,6 @@ class Setting extends Model
             // exist, without anything needing to be flushed.
             return [];
         }
-
-        try {
-            Cache::forever(self::CACHE_KEY, $values);
-        } catch (Throwable) {
-            // Unreachable cache: answer from the table every time instead. Slower
-            // and entirely correct.
-        }
-
-        return $values;
     }
 
     public static function put(string $key, mixed $value): void

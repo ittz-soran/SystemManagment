@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
@@ -13,14 +12,11 @@ use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
-use App\Services\BackupService;
 use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\SystemResetService;
-use Database\Seeders\SettingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -110,7 +106,7 @@ class SystemResetTest extends TestCase
             'purchase_returns', 'purchase_return_items', 'payments', 'account_transactions',
             'stock_batches', 'stock_movements', 'stock_adjustments', 'expenses',
         ] as $table) {
-            $this->assertSame(0, DB::table($table)->count(), "{$table} should be empty after a reset");
+            $this->assertSame(0, \Illuminate\Support\Facades\DB::table($table)->count(), "{$table} should be empty after a reset");
         }
 
         // The catalogue that was entered carefully survives.
@@ -119,7 +115,7 @@ class SystemResetTest extends TestCase
         $this->assertDatabaseHas('customers', ['name' => 'Karwan']);
         $this->assertDatabaseHas('categories', ['name' => 'Flash drives']);
         $this->assertDatabaseHas('users', ['email' => 'admin@example.com']);
-        $this->assertSame(SettingSeeder::DEFAULTS['shop_name'], setting('shop_name'));
+        $this->assertSame('Soran Store', setting('shop_name'));
     }
 
     /** Section 4: both are caches of tables that no longer have any rows. */
@@ -179,7 +175,7 @@ class SystemResetTest extends TestCase
 
         // And it is a backup of the shop as it WAS: restoring it brings the
         // sales back, which is the whole reason for taking it.
-        app(BackupService::class)->restore($result['backup']);
+        app(\App\Services\BackupService::class)->restore($result['backup']);
 
         $this->assertGreaterThan(0, Sale::count());
     }
@@ -253,7 +249,7 @@ class SystemResetTest extends TestCase
 
         $this->assertStringContainsString(
             'Backup:',
-            (string) ActivityLog::firstOrFail()->description,
+            (string) \App\Models\ActivityLog::firstOrFail()->description,
         );
     }
 
@@ -266,7 +262,7 @@ class SystemResetTest extends TestCase
             ->assertOk()
             ->assertSee(__('Danger zone'))
             ->assertSee(__('Start fresh'))
-            ->assertSee(__('Type :name to confirm', ['name' => SettingSeeder::DEFAULTS['shop_name']]));
+            ->assertSee(__('Type :name to confirm', ['name' => 'Soran Store']));
     }
 
     public function test_a_closed_period_replaces_the_button_with_the_reason(): void
