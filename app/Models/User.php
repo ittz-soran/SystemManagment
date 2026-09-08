@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 
-#[Fillable(['name', 'email', 'password', 'role', 'cost_visibility', 'cost_markup_percent', 'is_active', 'language', 'theme', 'items_per_page'])]
+#[Fillable(['name', 'email', 'password', 'role', 'cost_visibility', 'cost_markup_percent', 'is_active', 'language', 'date_language', 'clock_24_hour', 'theme', 'items_per_page'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable
 {
@@ -54,6 +54,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'items_per_page' => 'integer',
+            'clock_24_hour' => 'boolean',
             'cost_markup_percent' => 'integer',
 
             // Encrypted at rest. A database dump that hands over both the

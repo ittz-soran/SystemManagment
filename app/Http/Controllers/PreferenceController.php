@@ -43,7 +43,14 @@ class PreferenceController extends Controller
             'language' => ['required', Rule::in(array_keys(SetUserPreferences::LANGUAGES))],
             'theme' => ['required', Rule::in(['light', 'dark', 'auto'])],
             'items_per_page' => ['required', 'integer', 'min:5', 'max:200'],
+            // Two separate questions with separate answers: somebody reading
+            // the shop in Sorani may still want dates written the way his
+            // supplier writes them, and a twelve-hour clock is a habit rather
+            // than a language.
+            'date_language' => ['required', Rule::in(['interface', 'english'])],
         ]);
+
+        $data['clock_24_hour'] = $request->boolean('clock_24_hour');
 
         $request->user()->forceFill($data)->save();
 
