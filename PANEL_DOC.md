@@ -12,7 +12,21 @@
 
 - This is a **PHP/Laravel control panel** that Soran runs to manage the shops he sells Smart Soran Store System to. He hosts every customer himself.
 - **Follow this doc.** Where it does not describe something, ask rather than invent. Soran's standing instruction across this project: *"use my doc, if not describe it dont touch just work on doc."*
-- **Git:** develop and push only to the branch named at the start of the session. **Never open a pull request unless explicitly asked.**
+- **Git: the panel has its own branch.** Develop and push only to the branch
+  named at the start of the session, and never onto the shop system's branch.
+  **Never open a pull request unless explicitly asked.**
+
+  This is a rule paid for. On 8 September both chats were pushing to
+  `claude/session-start-qf069o`; both edited `app/Models/Setting.php` the same
+  afternoon; git merged them with no conflict and produced a `catch` with no
+  `try`, so artisan would not start and `composer install` could not finish.
+  That was merged to main and reverted, and the revert then deleted four files
+  on the next merge **without raising a conflict**. Shop-system changes the
+  panel needs — `shop:provision`, `licence:show --json`, `data:check` — still
+  belong in the shop system's repository, but on a branch of their own, as a
+  pull request Soran merges.
+- **After merging anything, run the whole suite before pushing.** A clean merge
+  is not a working merge.
 - **Show results before pushing.** Screenshots of real screens, or command output — not a description of what the code would do.
 - **Reproduce before fixing, verify in the real thing.** This project has twice shipped bugs that only a real engine or a real browser would have caught: a MariaDB reserved word that SQLite accepted, and a Carbon object in the cache that the array driver tolerated. If a change depends on MySQL, a browser, or Apache, test it there.
 - **Four rules that govern everything here:**

@@ -18,6 +18,18 @@
   1. **FIFO costing (Section 5).** Every stock-in creates a batch; every stock-out consumes the oldest batch first and records which batch it came from.
   2. **Batch cost = the unit price typed by the user (Section 6).** Discounts never change it.
   3. **Locks are computed live, never stored (Section 8).**
+- **Branches: one per chat.** This chat pushes only to the branch named at the
+  start of the session, and **Soran Panel work goes on its own branch**. Two
+  sessions sharing a branch has already cost a day: both edited
+  `app/Models/Setting.php` on the same afternoon, git merged them without
+  raising a conflict, and the result was a `catch` with no `try` — artisan
+  would not start and `composer install` could not finish. It was then merged
+  to main and reverted, and the revert deleted four files on the next merge
+  **with no conflict raised at all**. Separate branches turn that into two
+  clean pull requests instead.
+- **After merging anything, run the whole suite before pushing.** A clean merge
+  is not a working merge; git reported success on a file that no longer
+  parsed.
 - If a decision changes, **update this file** — don't just say it in chat.
 
 ---
