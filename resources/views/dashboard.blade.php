@@ -3,6 +3,10 @@
 @section('title', __('Dashboard'))
 
 @section('content')
+    @isset($setup)
+        @include('partials.setup-checklist', ['setup' => $setup])
+    @endisset
+
     {{--
         Every panel is behind the permission of the screen it summarises — see
         DashboardController. A reader who holds none of them is not shown an
