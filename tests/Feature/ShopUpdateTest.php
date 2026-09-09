@@ -252,6 +252,44 @@ class ShopUpdateTest extends TestCase
         $this->assertSame($stamp, filemtime($this->public.'/build/manifest.json'));
     }
 
+    /**
+     * A shared codebase with no build must say so, not call it nothing to do.
+     *
+     * This is the exact state Soran's server reached: `public/build` gone from
+     * the shared folder, every shop still serving the stylesheet it was
+     * provisioned with, and this command answering "Already up to date." The
+     * most dangerous answer available, because it ends the search.
+     */
+    public function test_a_missing_shared_build_is_reported_rather_than_skipped(): void
+    {
+        // Bring the shop fully up to date first, so migrations cannot be what
+        // the command complains about.
+        $this->asJson('shop:update', '--no-backup');
+
+        $build = base_path('public/build');
+        $moved = $build.'-moved-'.bin2hex(random_bytes(4));
+
+        rename($build, $moved);
+
+        try {
+            $result = $this->asJson('shop:update', '--no-backup');
+
+            $this->assertFalse($result['updated'], 'a shop serving last month’s stylesheet is not up to date');
+            $this->assertSame('no-build', $result['reason']);
+            $this->assertStringNotContainsString('Already up to date', $result['message']);
+
+            // And it names the folder, because the person reading this is
+            // usually not the person who moved it. UNESCAPED_SLASHES because
+            // json_encode writes public\/build by default.
+            $this->assertStringContainsString(
+                'public/build',
+                json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            );
+        } finally {
+            rename($moved, $build);
+        }
+    }
+
     /** The panel parses this, so a renamed key is a silent null in a customer's health row. */
     public function test_the_json_shape_is_what_the_panel_reads(): void
     {
