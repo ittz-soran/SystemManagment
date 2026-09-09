@@ -301,9 +301,37 @@ What crosses between them is deliberately small and one-directional:
 
 - The panel **reads** `PANEL_DOC.md` and `PROJECT_DOC.md` for the rules.
 - The panel **runs** the shop system's artisan commands with `SHOP_HOME` set —
-  `install:sql`, `licence:show`, `migrate`, `backup:run`, the data check. It
-  does this as a subprocess against the shared codebase on the server, not by
-  importing any of its classes.
+  `install:sql`, `licence:show`, `shop:update`, `backup:run`, the data check.
+  It does this as a subprocess against the shared codebase on the server, not
+  by importing any of its classes.
+
+  **`shop:update` is the "push the update to customers" action.** After `git
+  pull` lands in the shared codebase, every shop is already running the new
+  code — immediately, all of them — against a database that has not been
+  migrated and a public folder holding the old stylesheet. This is the command
+  that finishes the job, per shop:
+
+  ```
+  php /home/soransto/shops/<name>/artisan shop:update --json
+  ```
+
+  It backs up, migrates, clears that shop's compiled config/routes/views, and
+  copies the new `build/` in — files first, manifest last, so the shop is never
+  serving a manifest naming files that have not arrived. It is idempotent: a
+  shop with nothing pending answers `Already up to date.` and is not touched.
+  `--pretend` rehearses, `--no-backup` skips the backup.
+
+  **One process per shop, and that is forced rather than chosen.** `SHOP_HOME`
+  is a constant, so a process *is* a shop: the panel loops over its customers
+  and spawns one of these each. That is also what makes one shop's failure its
+  own rather than the batch's — show the result per customer row.
+
+  The JSON is `{updated, reason, message, steps[]}`, each step
+  `{step, done, detail}`. `reason` is `ok`, `failed`, `not-a-shop` (it was run
+  against the shared codebase) or `unreachable` (that shop's database did not
+  answer — which is **not** the same as nothing to do, and must never be shown
+  as up to date). A refusal also exits non-zero, so the panel can tell without
+  parsing.
 - The panel **reuses the look** — Bootstrap 5.3 and the shop system's compiled
   stylesheet — by copying `build/` at deploy time, not by depending on it.
 

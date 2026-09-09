@@ -56,6 +56,44 @@
                             </select>
                         </div>
 
+                        {{-- Two questions rather than one, because they have
+                             separate answers: a shopkeeper reading the system in
+                             Sorani may still want dates written the way his
+                             supplier writes them, and a twelve-hour clock is a
+                             habit rather than a language. --}}
+                        <div class="mb-3">
+                            <label for="date_language" class="form-label">{{ __('Dates and times') }}</label>
+                            <select id="date_language" name="date_language" class="form-select">
+                                @foreach([
+                                    'interface' => __('In the language above'),
+                                    'english' => __('Always in English'),
+                                ] as $value => $label)
+                                    <option value="{{ $value }}" @selected((auth()->user()->date_language ?? 'interface') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                {{ __('Changes the weekday and month names on the clock — Wednesday 9 September, or چوارشەممە ٩ی ئەیلول.') }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check form-switch">
+                            {{-- The unchecked box has to reach the server too, or
+                                 turning this off would look like not answering.
+                                 The controller reads it with boolean(). --}}
+                            <input type="hidden" name="clock_24_hour" value="0">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="clock_24_hour" name="clock_24_hour" value="1"
+                                   {{-- ?? false, because a User built by create() carries only what was
+                                        passed to it: the column's database default has not been
+                                        read back, and strict mode turns that into a 500 rather
+                                        than a silent null. --}}
+                                   @checked(auth()->user()->clock_24_hour ?? false)>
+                            <label class="form-check-label" for="clock_24_hour">
+                                {{ __('Twenty-four hour clock') }}
+                            </label>
+                            <div class="form-text">{{ __('Off, the clock shows am and pm.') }}</div>
+                        </div>
+
                         <div class="mb-3">
                             <label for="items_per_page" class="form-label">{{ __('Rows per page') }}</label>
                             <input id="items_per_page" type="number" min="5" max="200" name="items_per_page" dir="ltr"

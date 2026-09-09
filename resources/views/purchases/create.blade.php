@@ -283,7 +283,7 @@
                                           class="form-control form-control-sm text-end"
                                           value="${line.enteredAmount}" data-role="usd" data-index="${index}"
                                           data-numpad="${escapeHtml(line.name)} (USD)" data-numpad-decimals="2">
-                                   <div class="small text-secondary text-end" data-role="converted">= ${format(line.price)} @json(__('IQD'))</div>`
+                                   <div class="small text-secondary text-end" data-role="converted">= ${format(line.price)} ${@json(__('IQD'))}</div>`
                                 : `<input type="number" min="0" step="1" dir="ltr"
                                           class="form-control form-control-sm text-end"
                                           value="${line.price}" data-role="price" data-index="${index}"

@@ -130,7 +130,15 @@
                              visible. It is the number Soran reads out to the
                              customer." --}}
                         <div class="text-secondary small">{{ __('Total') }}</div>
-                        <div class="running-total mb-3" id="running-total">0</div>
+                        <div class="running-total" id="running-total">0</div>
+
+                        {{-- The figure written out, the oldest anti-fraud device
+                             on an invoice: a digit can be changed with a pen and
+                             a sentence cannot. Written in the browser because
+                             the total moves on every keystroke, from the word
+                             lists the server hands over. --}}
+                        <div class="small text-secondary mb-3" id="running-total-words"
+                             data-words="{{ json_encode(App\Support\AmountInWords::vocabulary(), JSON_UNESCAPED_UNICODE) }}"></div>
 
                         @if($editing)
                             <div class="alert alert-secondary py-2 small mb-0">
@@ -224,6 +232,74 @@
             const cartBody = document.getElementById('cart-body');
             const cartEmpty = document.getElementById('cart-empty');
             const totalEl = document.getElementById('running-total');
+            const wordsEl = document.getElementById('running-total-words');
+
+            /*
+             * The total in words, written here rather than fetched.
+             *
+             * The figure moves on every keystroke, so asking the server would
+             * be a request per character. The server hands over the vocabulary
+             * once — in the reader's language — and this does the joining. The
+             * same joining as App\Support\AmountInWords, which is what the
+             * printed invoice uses; AmountInWordsTest holds the two to the same
+             * answers.
+             */
+            const vocab = (() => {
+                try { return JSON.parse(wordsEl.dataset.words); } catch { return null; }
+            })();
+
+            const inWords = (n) => {
+                if (! vocab || ! Number.isFinite(n) || n < 0 || n > vocab.max) return '';
+                if (n === 1) return vocab.oneDinar;
+
+                const join = (parts) => parts.filter(Boolean).reduce(
+                    (carry, next) => (carry === null
+                        ? next
+                        : vocab.join.split('{f}').join(carry).split('{s}').join(next)),
+                    null,
+                ) ?? '';
+
+                const underThousand = (v) => {
+                    const parts = [];
+                    if (v >= 100) { parts.push(vocab.hundreds[Math.floor(v / 100)]); v %= 100; }
+                    if (v >= 20) {
+                        const t = vocab.tens[Math.floor(v / 10)];
+                        parts.push(v % 10 === 0
+                            ? t
+                            : vocab.tensUnits.split('{t}').join(t).split('{u}').join(vocab.units[v % 10]));
+                        v = 0;
+                    }
+                    if (v >= 10) { parts.push(vocab.teens[v - 10]); v = 0; }
+                    if (v > 0) { parts.push(vocab.units[v]); }
+                    return join(parts);
+                };
+
+                if (n === 0) return vocab.currency.split('__').join(vocab.units[0]);
+
+                const parts = [];
+                let rest = n;
+
+                [[1e9, 2], [1e6, 1], [1e3, 0]].forEach(([size, scale]) => {
+                    if (rest >= size) {
+                        const count = Math.floor(rest / size);
+                        parts.push(
+                            count === 1 ? vocab.ones[scale]
+                                : count === 2 ? vocab.twos[scale]
+                                    : underThousand(count) + ' ' + vocab.scales[scale],
+                        );
+                        rest %= size;
+                    }
+                });
+
+                if (rest > 0) parts.push(underThousand(rest));
+
+                return vocab.currency.split('__').join(join(parts));
+            };
+
+            const showTotal = (total) => {
+                totalEl.textContent = format(total);
+                if (wordsEl) wordsEl.textContent = inWords(Math.round(total));
+            };
             const paidInput = document.getElementById('amount_paid');
             const dueNote = document.getElementById('due-note');
             const saveButton = document.getElementById('save-sale');
@@ -251,16 +327,27 @@
                             <div class="fw-medium">
                                 ${escapeHtml(line.name)}
                                 ${line.kind === 'service'
-                                    ? `<span class="badge text-bg-light">@json(__('Service'))</span>`
+                                    ? `<span class="badge text-bg-light">${@json(__('Service'))}</span>`
                                     : line.kind === 'used'
-                                        ? `<span class="badge text-bg-light">@json(__('Second-hand'))</span>`
+                                        ? `<span class="badge text-bg-light">${@json(__('Second-hand'))}</span>`
                                         : ''}
                             </div>
-                            <div class="small text-secondary" dir="ltr">${escapeHtml(line.sku)}</div>
+                            {{-- The SKU and what is left on the shelf, together on
+                                 one line under the name. The stock note used to
+                                 live under the quantity box, which pushed that box
+                                 above the price box beside it and left the two
+                                 inputs on different levels — visible in every
+                                 language, and the thing Soran marked first. --}}
+                            <div class="small text-secondary d-flex flex-wrap align-items-center gap-2">
+                                <span dir="ltr">${escapeHtml(line.sku)}</span>
+                                ${line.kind === 'service' ? '' : `
+                                    <span class="opacity-50" aria-hidden="true">&bull;</span>
+                                    <span class="${line.stock > 0 ? '' : 'text-danger fw-semibold'}">${format(line.stock)} ${@json(__('in stock'))}</span>`}
+                            </div>
                             ${line.condition ? `<div class="small text-secondary">${escapeHtml(line.condition)}</div>` : ''}
                             <div class="small text-warning ${line.belowCost ? '' : 'd-none'}" data-role="below-cost">
                                 <i class="bi bi-exclamation-triangle"></i>
-                                @json(__('Below cost: this unit cost')) ${format(line.cost ?? 0)}
+                                ${@json(__('Below cost: this unit cost'))} ${format(line.cost ?? 0)}
                             </div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                         </td>
@@ -270,9 +357,6 @@
                                    name="lines[${index}][quantity]" value="${line.quantity}"
                                    data-role="qty" data-index="${index}"
                                    data-numpad="@json(__('Quantity'))" data-numpad-min="1">
-                            ${line.kind === 'service'
-                                ? ''
-                                : `<div class="small text-secondary text-end">${format(line.stock)} @json(__('in stock'))</div>`}
                         </td>
                         <td>
                             <input type="number" min="0" step="1" dir="ltr"
@@ -313,7 +397,7 @@
                 if (hold) hold.disabled = cart.length === 0;
 
                 const total = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
-                totalEl.textContent = format(total);
+                showTotal(total);
                 updateDue(total);
             }
 
@@ -426,8 +510,8 @@
                         </span>
                         <span class="small">
                             ${product.kind === 'service'
-                                ? `<span class="text-secondary me-2">@json(__('service'))</span>`
-                                : `<span class="text-secondary me-2">${format(product.quantity)} @json(__('in stock'))</span>`}
+                                ? `<span class="text-secondary me-2">${@json(__('service'))}</span>`
+                                : `<span class="text-secondary me-2">${format(product.quantity)} ${@json(__('in stock'))}</span>`}
                             <span class="fw-semibold">${format(product.sale_price)}</span>
                         </span>`;
                     item.addEventListener('click', () => addProduct(product));
@@ -503,7 +587,7 @@
                 row.querySelector('[data-role="below-cost"]').classList.toggle('d-none', ! line.belowCost);
 
                 const total = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
-                totalEl.textContent = format(total);
+                showTotal(total);
                 updateDue(total);
             }
 

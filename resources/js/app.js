@@ -650,15 +650,57 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    const box = time.closest('.app-clock');
+    const read = (name, fallback) => {
+        try {
+            return JSON.parse(box.dataset[name]);
+        } catch {
+            return fallback;
+        }
+    };
+
+    const weekdays = read('weekdays', []);
+    const months = read('months', []);
+    const meridiem = read('meridiem', ['am', 'pm']);
+    const english = box.dataset.english === '1';
+    const hour12 = box.dataset.hour12 === '1';
+
+    // Latin digits whatever the language, because the rest of the system writes
+    // its numbers that way — a price is 60,000 in Sorani too, and a clock that
+    // disagreed with the money beside it would just look broken.
+    const two = (n) => String(n).padStart(2, '0');
+
+    const fill = (template, values) =>
+        Object.entries(values).reduce((out, [key, value]) => out.split(':' + key).join(value), template);
+
     const tick = () => {
         const now = new Date();
 
-        time.textContent = now.toLocaleTimeString('en-US', {
-            hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
-        });
+        if (english) {
+            time.textContent = now.toLocaleTimeString('en-GB', {
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12,
+            });
 
-        date.textContent = now.toLocaleDateString('en-GB', {
-            weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+            date.textContent = now.toLocaleDateString('en-GB', {
+                weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+            });
+
+            return;
+        }
+
+        const hours = now.getHours();
+        const shown = hour12 ? (hours % 12 || 12) : hours;
+        const clock = `${hour12 ? shown : two(shown)}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
+
+        time.textContent = hour12
+            ? fill(box.dataset.timeFormat, { time: clock, meridiem: meridiem[hours < 12 ? 0 : 1] })
+            : clock;
+
+        date.textContent = fill(box.dataset.dateFormat, {
+            weekday: weekdays[now.getDay()] ?? '',
+            day: now.getDate(),
+            month: months[now.getMonth()] ?? '',
+            year: now.getFullYear(),
         });
     };
 

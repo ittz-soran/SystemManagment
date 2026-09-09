@@ -30,6 +30,11 @@
    data-back-generic="{{ __('Back') }}"
    @unless($named) data-back-auto @endunless
    @if($remember) data-back-to="{{ $remember }}" @endif>
-    <i class="bi bi-arrow-{{ $isRtl ? 'right' : 'left' }}"></i>
+    {{-- Always the left arrow. The stylesheet mirrors every directional icon
+         under [dir='rtl'], so choosing the icon here as well flipped it twice
+         and it came out pointing the wrong way in Kurdish, Arabic and Persian
+         — two correct fixes cancelling each other. One mechanism, in CSS, so
+         that markup written later cannot forget it. --}}
+    <i class="bi bi-arrow-left"></i>
     <span>{{ $named ? $label : __('Back') }}</span>
 </a>
