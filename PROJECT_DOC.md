@@ -40,6 +40,14 @@
   if they forget. Task-log rows written before 2026-09-08 say "needs
   `npm run build` on deploy" — that was true then and is not true now; several
   of them survived long enough for Soran to try to follow one.
+- **A server that had `public/build` before 7eb22d0 must clear it once.** That
+  commit stopped ignoring the folder, so git now owns 36 files at paths the
+  server already had as *untracked*. Git refuses to merge over untracked files
+  — `error: The following untracked working tree files would be overwritten by
+  merge` — and the panel reports it as "changes here that are not committed",
+  which is true but does not name the folder. One-time cure, on the shared
+  codebase only: move `public/build` aside, pull, and the pull brings a fresh
+  one. Soran hit this and the pull silently did nothing for a day.
 - If a decision changes, **update this file** — don't just say it in chat.
 
 ---
