@@ -81,8 +81,19 @@ class ShopUpdate extends Command
         }
 
         $assets = $this->assetsDiffer();
+        $noBuild = $this->sharedBuildMissing();
 
-        if ($pending === 0 && ! $assets) {
+        if ($noBuild) {
+            // Said before anything else and repeated at the end, because a
+            // shop cannot be up to date without it however green the rest is.
+            $this->steps[] = [
+                'step' => 'assets',
+                'done' => false,
+                'detail' => 'the shared codebase has no public/build — this shop is still serving its old stylesheet',
+            ];
+        }
+
+        if ($pending === 0 && ! $assets && ! $noBuild) {
             $this->steps[] = ['step' => 'check', 'done' => false, 'detail' => 'already up to date'];
 
             return $this->finish(true, 'Already up to date.');
@@ -111,6 +122,15 @@ class ShopUpdate extends Command
             $this->steps[] = ['step' => 'failed', 'done' => false, 'detail' => $e->getMessage()];
 
             return $this->finish(false, 'Stopped: '.$e->getMessage());
+        }
+
+        if ($noBuild) {
+            return $this->refuse(
+                'no-build',
+                'The shared codebase has no public/build, so this shop’s assets were not touched.',
+                'Restore it and run this again:'
+                .PHP_EOL.'  cd '.base_path().' && git checkout -- public/build',
+            );
         }
 
         return $this->finish(true, 'This shop is up to date.');
@@ -151,17 +171,29 @@ class ShopUpdate extends Command
         }
     }
 
+    /**
+     * Has the shared codebase got a build to hand out at all?
+     *
+     * It always should: `public/build` is committed, so a pull carries it. It
+     * can still be absent — a half-finished cleanup, a folder moved aside and
+     * never moved back — and that state used to be read as "nothing to copy",
+     * which is the most dangerous answer available. The command reported
+     * "Already up to date" while every shop went on serving the stylesheet it
+     * was provisioned with. Soran lost an afternoon to exactly that.
+     */
+    private function sharedBuildMissing(): bool
+    {
+        return ! is_file(base_path('public/build/manifest.json'));
+    }
+
     /** Is the shop's public/build behind the shared one? */
     private function assetsDiffer(): bool
     {
-        $shared = base_path('public/build/manifest.json');
-
-        if (! is_file($shared)) {
-            // Nothing to copy. Not an error: a shop can be updated for its
-            // database alone, and AssetBuildTest is what guards the build.
+        if ($this->sharedBuildMissing()) {
             return false;
         }
 
+        $shared = base_path('public/build/manifest.json');
         $theirs = $this->shopPublic().'/build/manifest.json';
 
         return ! is_file($theirs)
