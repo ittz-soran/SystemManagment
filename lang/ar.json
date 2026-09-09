@@ -249,7 +249,7 @@
     "Changed": "تم التغيير",
     "changed": "تم التغيير",
     "Change language": "تغيير اللغة",
-    "Changes the weekday and month names on the clock — Wednesday 9 September, or چوارشەممە ٩ی سەرماوەز.": "يغيّر أسماء الأيام والشهور على الساعة — Wednesday 9 September، أو چوارشەممە ٩ی سەرماوەز.",
+    "Changes the weekday and month names on the clock — Wednesday 9 September, or چوارشەممە ٩ی ئەیلول.": "يغيّر أسماء الأيام والشهور على الساعة — Wednesday 9 September، أو چوارشەممە ٩ی ئەیلول.",
     "Change theme": "تغيير المظهر",
     "Changing a price or a quantity": "تغيير سعر أو كمية",
     "Check DB_HOST, DB_PORT, DB_USERNAME and DB_PASSWORD in .env, and that the database server is running.": "تحقّق من DB_HOST و DB_PORT و DB_USERNAME و DB_PASSWORD في .env، ومن أن خادم قاعدة البيانات يعمل.",

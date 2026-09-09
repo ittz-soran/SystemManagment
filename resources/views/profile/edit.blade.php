@@ -72,7 +72,7 @@
                                 @endforeach
                             </select>
                             <div class="form-text">
-                                {{ __('Changes the weekday and month names on the clock — Wednesday 9 September, or چوارشەممە ٩ی سەرماوەز.') }}
+                                {{ __('Changes the weekday and month names on the clock — Wednesday 9 September, or چوارشەممە ٩ی ئەیلول.') }}
                             </div>
                         </div>
 

@@ -60,17 +60,23 @@ class CalendarNamesTest extends TestCase
         $this->assertSame('January', CalendarNames::months()[0]);
         $this->assertSame('December', CalendarNames::months()[11]);
 
-        // The date Soran wrote out by hand: Wednesday 9 September 2026.
+        // Wednesday 9 September 2026, the date Soran wrote out by hand.
+        //
+        // The month names are the ones used on paperwork in Iraq rather than
+        // the Kurdish solar calendar's — ئەیلول, not سەرماوەز. Soran chose
+        // them, and the shop was already half-using them: the guide's own
+        // worked example says حوزەیران and ئاب.
         App::setLocale('ckb');
         $this->assertSame('چوارشەممە', CalendarNames::weekdays()[3]);
-        $this->assertSame('سەرماوەز', CalendarNames::months()[8]);
+        $this->assertSame('ئەیلول', CalendarNames::months()[8]);
+        $this->assertSame('حوزەیران', CalendarNames::months()[5]);
     }
 
     /**
      * A format that lost a placeholder loses that part of the date, silently.
      *
      * The order and the joining words differ per language — Kurdish puts an
-     * izafe on the day, ٩ی سەرماوەز — so the whole pattern is translated rather
+     * izafe on the day, ٩ی ئەیلول — so the whole pattern is translated rather
      * than assembled. Which means a translator can drop `:year` and nothing but
      * this will say so.
      */
@@ -102,7 +108,7 @@ class CalendarNamesTest extends TestCase
             ->assertOk()
             ->assertSee('data-weekdays', false)
             ->assertSee('data-months', false)
-            ->assertSee('سەرماوەز', false)
+            ->assertSee('ئەیلول', false)
             ->assertSee('سەرلەبەیانی', false)
             ->assertSee('data-hour12="1"', false);
     }

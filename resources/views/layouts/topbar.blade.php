@@ -48,7 +48,7 @@
              on the wall beside it.
 
              Written in the reader's own language unless they asked otherwise —
-             چوارشەممە ٩ی سەرماوەز rather than Wed, 09 Sep. The names travel as
+             چوارشەممە ٩ی ئەیلول rather than Wed, 09 Sep. The names travel as
              data because the clock is drawn in the browser, and they come from
              __() rather than from Intl: no browser has the Kurdish month names
              Soran uses, and going through __() means translations:check counts

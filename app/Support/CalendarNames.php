@@ -12,16 +12,18 @@ namespace App\Support;
  *
  * `Intl` has no useful Sorani data in most browsers, and where it has any it
  * gives the Arabic-derived month names used in Iraqi paperwork. Soran asked for
- * the Kurdish ones — سەرماوەز for September — which no library will produce.
+ * the Kurdish ones — ئەیلول for September — which no library will produce.
  *
  * And going through `__()` means `translations:check` counts them: a month left
  * untranslated fails the build instead of appearing in English on one screen of
  * an otherwise Kurdish shop.
  *
- * The months are the twelve Gregorian months under their Kurdish names, in
- * order. This is not the Kurdish solar calendar — that starts at Newroz and
- * would put a different name against September — it is the naming convention
- * Soran uses, mapped one to one onto the months his customers' invoices carry.
+ * The Kurdish months are the ones Iraqi paperwork uses — ئەیلول for September
+ * — rather than the Kurdish solar calendar's. They were the solar ones first,
+ * and Soran corrected it in a single word. He is right twice over: those are
+ * the names on the invoices his customers hand him, and the shop was already
+ * half-using them — the guide's own worked example about two costs says
+ * حوزەیران and ئاب.
  */
 final class CalendarNames
 {
@@ -69,7 +71,7 @@ final class CalendarNames
      * How the parts of a date go together.
      *
      * A format rather than a concatenation, because the order and the joining
-     * words differ: Kurdish puts an izafe on the day — ٩ی سەرماوەز — and
+     * words differ: Kurdish puts an izafe on the day — ٩ی ئەیلول — and
      * English wants a comma after the weekday. Assembling it in JavaScript
      * would ship one language's punctuation to all four.
      */
