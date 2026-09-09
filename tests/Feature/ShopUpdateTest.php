@@ -302,6 +302,13 @@ class ShopUpdateTest extends TestCase
         $this->assertIsBool($result['updated']);
         $this->assertIsArray($result['steps']);
 
+        // Which folders it worked with, every time. Leaving them out cost two
+        // rounds of guessing on Soran's server: "36 file(s) copied" says
+        // nothing if the copy went somewhere no web server serves.
+        $this->assertSame($this->home, $result['home']);
+        $this->assertSame($this->public, $result['public']);
+        $this->assertArrayHasKey('public_from', $result);
+
         foreach ($result['steps'] as $step) {
             $this->assertArrayHasKey('step', $step);
             $this->assertArrayHasKey('done', $step);
