@@ -329,7 +329,11 @@ class ShopUpdate extends Command
             throw new RuntimeException("could not write [{$to}/manifest.json].");
         }
 
-        $this->steps[] = ['step' => 'assets', 'done' => true, 'detail' => "{$copied} file(s) copied, manifest last"];
+        $this->steps[] = [
+            'step' => 'assets',
+            'done' => true,
+            'detail' => "{$copied} file(s) copied into {$to}, manifest last",
+        ];
     }
 
     /** @return list<string> */
@@ -345,6 +349,27 @@ class ShopUpdate extends Command
         ));
     }
 
+    /**
+     * The two folders this run is actually working with.
+     *
+     * Reported every time, because not reporting them cost two rounds of
+     * guessing: "36 file(s) copied" is worthless if the copy went somewhere no
+     * web server serves. A shop whose entry point predates SHOP_PUBLIC falls
+     * back to <home>/public, which on this hosting is nowhere near the
+     * document root — and the only visible symptom is a shop that never
+     * changes however often it is updated.
+     *
+     * @return array<string, string>
+     */
+    private function folders(): array
+    {
+        return [
+            'home' => defined('SHOP_HOME') ? rtrim((string) constant('SHOP_HOME'), '/\\') : '',
+            'public' => $this->shopPublic(),
+            'public_from' => defined('SHOP_PUBLIC') ? 'SHOP_PUBLIC' : 'defaulted to <home>/public',
+        ];
+    }
+
     private function refuse(string $reason, string $message, string $advice): int
     {
         if ($this->option('json')) {
@@ -353,6 +378,7 @@ class ShopUpdate extends Command
                 'reason' => $reason,
                 'message' => $message,
                 'steps' => $this->steps,
+                ...$this->folders(),
             ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return self::FAILURE;
@@ -372,6 +398,7 @@ class ShopUpdate extends Command
                 'reason' => $ok ? 'ok' : 'failed',
                 'message' => $message,
                 'steps' => $this->steps,
+                ...$this->folders(),
             ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return $ok ? self::SUCCESS : self::FAILURE;
@@ -379,6 +406,10 @@ class ShopUpdate extends Command
 
         foreach ($this->steps as $step) {
             $this->line(sprintf('  %s %s — %s', $step['done'] ? '✓' : '·', $step['step'], $step['detail']));
+        }
+
+        foreach ($this->folders() as $label => $value) {
+            $this->line(sprintf('  %-12s %s', $label, $value));
         }
 
         $ok ? $this->components->info($message) : $this->components->error($message);
