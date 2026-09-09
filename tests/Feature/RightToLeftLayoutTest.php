@@ -97,6 +97,37 @@ class RightToLeftLayoutTest extends TestCase
     }
 
     /**
+     * A search box's outer corners are the rounded ones, in both directions.
+     *
+     * Same fault as the button group and the same cause: Bootstrap rounds an
+     * input group's ends physically, so under dir="rtl" the magnifier sits at
+     * the right of the topbar wearing left corners. The border-removal
+     * utilities go the same way — `border-end-0` on the icon is meant to drop
+     * the edge facing the input and physically drops the outer one, which is
+     * why the box also looked broken open on one side.
+     */
+    public function test_input_groups_are_rounded_on_the_outside_in_rtl(): void
+    {
+        $scss = $this->scss();
+
+        $this->assertMatchesRegularExpression(
+            '/\.input-group:not\(\.has-validation\) > :not\(:last-child\)[^{]*\{[^}]*border-top-right-radius:\s*var\(--app-input-group-radius\)/s',
+            $scss,
+            'the last element of an RTL input group is the left-hand one',
+        );
+
+        // Sized with a variable rather than a number, or the small search box
+        // in the topbar gets the large radius and nothing else does.
+        $this->assertStringContainsString('.input-group-sm { --app-input-group-radius: var(--bs-border-radius-sm); }', $scss);
+
+        $this->assertMatchesRegularExpression(
+            '/\.border-end-0\s*\{[^}]*border-right-width:\s*var\(--bs-border-width\)/s',
+            $scss,
+            'border-end-0 must drop the left edge in RTL',
+        );
+    }
+
+    /**
      * `@json()` prints its own quotes, which is right in a script and wrong in
      * markup.
      *
