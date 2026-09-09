@@ -14,7 +14,21 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# The compiled CSS, JS and fonts are COMMITTED, deliberately.
+#
+# Normally these are built on the machine that deploys. These installs land on
+# shared cPanel hosting with no terminal and no Node, so there is nowhere to
+# run `npm run build` at the far end — the assets have to arrive with the code
+# or they do not arrive at all. Committing them makes `git pull` a complete
+# deploy instead of a pull plus a manual upload that is easy to forget.
+#
+# The cost is real and accepted: every asset change writes ~1.1 MB of new
+# binaries into the history, and whoever changes anything under resources/ must
+# run `npm run build` and commit the result in the same commit. A stale build
+# committed is worse than none — the shop would serve last week's stylesheet
+# against this week's markup. AssetBuildTest is what catches that.
+#
+# /public/build is NOT ignored.
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage

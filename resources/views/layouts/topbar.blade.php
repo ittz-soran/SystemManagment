@@ -44,10 +44,29 @@
             <span class="app-connection-word d-none"></span>
         </span>
 
-        {{-- The wall clock. Twelve hours, because that is how the shop reads the
-             time, and the machine's own so it agrees with the wall. --}}
-        <div class="app-clock text-end d-none d-md-block lh-sm" dir="ltr">
-            <div class="fw-semibold" id="app-clock-time">&nbsp;</div>
+        {{-- The wall clock: the machine's own time, so it agrees with the clock
+             on the wall beside it.
+
+             Written in the reader's own language unless they asked otherwise —
+             چوارشەممە ٩ی ئەیلول rather than Wed, 09 Sep. The names travel as
+             data because the clock is drawn in the browser, and they come from
+             __() rather than from Intl: no browser has the Kurdish month names
+             Soran uses, and going through __() means translations:check counts
+             them.
+
+             Not dir="ltr" any more on the date — the words are the reader's, so
+             the line runs the reader's way. The time keeps its own direction:
+             1:29:45 is a number and reads left to right in every language. --}}
+        @php($clock24 = (bool) (auth()->user()?->clock_24_hour ?? false))
+        <div class="app-clock text-end d-none d-md-block lh-sm"
+             data-weekdays="{{ json_encode(App\Support\CalendarNames::weekdays(), JSON_UNESCAPED_UNICODE) }}"
+             data-months="{{ json_encode(App\Support\CalendarNames::months(), JSON_UNESCAPED_UNICODE) }}"
+             data-meridiem="{{ json_encode(App\Support\CalendarNames::meridiem(), JSON_UNESCAPED_UNICODE) }}"
+             data-date-format="{{ App\Support\CalendarNames::dateFormat() }}"
+             data-time-format="{{ App\Support\CalendarNames::timeFormat() }}"
+             data-english="{{ (auth()->user()?->date_language ?? 'interface') === 'english' ? '1' : '' }}"
+             data-hour12="{{ $clock24 ? '' : '1' }}">
+            <div class="fw-semibold" id="app-clock-time" dir="ltr">&nbsp;</div>
             <div class="text-secondary" id="app-clock-date">&nbsp;</div>
         </div>
 
