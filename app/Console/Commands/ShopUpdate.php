@@ -219,6 +219,11 @@ class ShopUpdate extends Command
             throw new RuntimeException('the migration failed. The backup taken a moment ago is the way back.');
         }
 
+        // The banner asks this question through a one-minute cache, so a shop
+        // that has just been updated should stop warning about it now rather
+        // than in a minute's time.
+        app(\App\Services\SchemaVersion::class)->forget();
+
         $this->steps[] = ['step' => 'migrate', 'done' => true, 'detail' => 'schema brought up to date'];
     }
 

@@ -51,6 +51,9 @@
             {{-- Storage running out is the one warning that has to arrive
                  before the thing it warns about, because the thing it warns
                  about is the shop being unable to record a sale. --}}
+            {{-- Before the storage banner: a shop running code its database
+                 has not caught up with is broken now, not soon. --}}
+            <x-update-banner />
             <x-storage-banner />
             <x-licence-banner />
 

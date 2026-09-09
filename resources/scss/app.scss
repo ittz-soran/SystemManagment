@@ -610,3 +610,53 @@ a.stat-tile {
     border-bottom-left-radius: var(--bs-btn-border-radius);
   }
 }
+
+// An input group reads inside-out in RTL too, for the same reason as the
+// button group: Bootstrap rounds the outer corners with physical properties.
+//
+// The topbar's search box is where Soran saw it — the magnifier sits at the
+// right of the row wearing left corners, "Ctrl K" at the left wearing right
+// ones, so the box is square where it should be round and round where the
+// parts meet. Measured before this rule: the icon had `4px 0 0 4px`.
+//
+// The border-removal utilities go the same way. `border-end-0` on the icon is
+// meant to drop the edge that faces the input; physically it drops the outer
+// edge instead, which is why the box also looked broken open on one side.
+[dir='rtl'] {
+  // Bootstrap sizes the corners per group; a hard-coded 6px would put a large
+  // radius on the small search box in the topbar and nowhere else.
+  .input-group { --app-input-group-radius: var(--bs-border-radius); }
+  .input-group-sm { --app-input-group-radius: var(--bs-border-radius-sm); }
+  .input-group-lg { --app-input-group-radius: var(--bs-border-radius-lg); }
+
+  .input-group > :not(:first-child):not(.dropdown-menu):not(.valid-tooltip):not(.valid-feedback):not(.invalid-tooltip):not(.invalid-feedback) {
+    margin-left: 0;
+    margin-right: calc(var(--bs-border-width) * -1);
+    border-top-left-radius: var(--app-input-group-radius);
+    border-bottom-left-radius: var(--app-input-group-radius);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .input-group:not(.has-validation) > :not(:last-child):not(.dropdown-toggle):not(.dropdown-menu):not(.form-floating) {
+    border-top-right-radius: var(--app-input-group-radius);
+    border-bottom-right-radius: var(--app-input-group-radius);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  // The one in the middle of three keeps square corners on both sides.
+  .input-group > :not(:first-child):not(:last-child):not(.dropdown-menu) {
+    border-radius: 0;
+  }
+
+  .border-end-0 {
+    border-right-width: var(--bs-border-width) !important;
+    border-left-width: 0 !important;
+  }
+
+  .border-start-0 {
+    border-left-width: var(--bs-border-width) !important;
+    border-right-width: 0 !important;
+  }
+}
