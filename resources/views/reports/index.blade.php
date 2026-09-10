@@ -109,6 +109,48 @@
         @endforeach
     </div>
 
+    {{-- The shape of the period, before the tables that give its exact figures.
+         Three single-series charts, drawn as inline SVG and HTML by the server:
+         these shops sit on shared hosting behind a slow connection, and the
+         reader prints this page. --}}
+    @php
+        // Ranked by what each one actually brought in, not by how many went out
+        // the door — the units ranking is the table further down. One cable a
+        // day and one laptop a month are different questions.
+        $bestSellers = collect($topProducts)
+            ->sortByDesc('revenue')
+            ->take(8)
+            ->map(fn ($row) => ['label' => $row['product']->name, 'value' => $row['revenue']])
+            ->values()->all();
+
+        $spending = $expensesByCategory
+            ->map(fn ($row) => ['label' => $row->category->name, 'value' => (int) $row->total])
+            ->values()->all();
+    @endphp
+
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <x-chart.line
+                :title="__('Sales day by day')"
+                :subtitle="__('Sales less returns, every day of the period')"
+                :points="$dailySales" />
+        </div>
+
+        <div class="col-lg-6">
+            <x-chart.bars
+                :title="__('Best sellers')"
+                :rows="$bestSellers"
+                :empty="__('Nothing sold in this period.')" />
+        </div>
+
+        <div class="col-lg-6">
+            <x-chart.bars
+                :title="__('Where the money went')"
+                :rows="$spending"
+                :empty="__('No expenses in this period.')" />
+        </div>
+    </div>
+
     <div class="row g-3">
         <div class="col-lg-6">
             <div class="card h-100">
@@ -246,9 +288,11 @@
             </div>
         @endif
 
-        <div class="col-lg-6">
+        <div class="col-12">
             <div class="card h-100">
-                <div class="card-header">{{ __('Top products') }}</div>
+                <div class="card-header">{{ __('Top products') }}
+                    <span class="small text-secondary fw-normal">— {{ __('by units sold') }}</span>
+                </div>
                 @if($topProducts->isEmpty())
                     <x-empty-state icon="box-seam" :message="__('Nothing sold in this period.')" />
                 @else
@@ -271,28 +315,6 @@
                                     </td>
                                     <td class="money">{{ number_format($row['units']) }}</td>
                                     <td class="money">{{ money($row['revenue'], false) }}</td>
-                                </tr>
-                            @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
-        </div>
-
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header">{{ __('Expenses by category') }}</div>
-                @if($expensesByCategory->isEmpty())
-                    <x-empty-state icon="cash-stack" :message="__('No expenses in this period.')" />
-                @else
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <tbody>
-                            @foreach($expensesByCategory as $row)
-                                <tr>
-                                    <td>{{ $row->category->name }}</td>
-                                    <td class="money">{{ money($row->total, false) }}</td>
                                 </tr>
                             @endforeach
                             </tbody>

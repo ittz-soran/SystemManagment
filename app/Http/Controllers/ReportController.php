@@ -62,6 +62,7 @@ class ReportController extends Controller
             'from' => $from,
             'to' => $to,
             'profit' => $this->profit($from, $to),
+            'dailySales' => $this->dailySales($from, $to),
             'topProducts' => $this->topProducts($from, $to),
             'cash' => $this->cash($from, $to),
             'expensesByCategory' => $this->expensesByCategory($from, $to),
@@ -370,6 +371,72 @@ class ReportController extends Controller
         }
 
         return $rows;
+    }
+
+    /**
+     * What the shop took each day of the period, net of returns.
+     *
+     * Every day in the range gets a point, including the ones with nothing on
+     * them. Skipping the empty days would draw a line straight from Thursday to
+     * Sunday and make a closed weekend look like ordinary trade — the flat
+     * stretch is the reading.
+     *
+     * Both columns are plain dates, so the grouping is the column itself and
+     * needs no engine-specific date function. What comes back is keyed on the
+     * first ten characters of it rather than on the whole value: MySQL hands
+     * back `2026-09-10` from a DATE column and SQLite hands back the
+     * `2026-09-10 00:00:00` Laravel wrote into it, and a report that only
+     * matched one of the two would draw a flat line on half the shops.
+     *
+     * @return list<array{label: string, value: int}>
+     */
+    private function dailySales(Carbon $from, Carbon $to): array
+    {
+        $sold = $this->totalPerDay(
+            Sale::whereBetween('sale_date', [$from, $to]), 'sale_date', 'total_amount'
+        );
+
+        $returned = $this->totalPerDay(
+            SaleReturn::whereBetween('return_date', [$from, $to]), 'return_date', 'total_amount'
+        );
+
+        $points = [];
+
+        for ($day = $from->copy()->startOfDay(); $day->lte($to); $day->addDay()) {
+            $key = $day->toDateString();
+
+            $points[] = [
+                // Numerals rather than month names: seven of these sit across a
+                // narrow axis, and a Kurdish month name is four words long. The
+                // chart is drawn left-to-right in every language, so the date
+                // reads left-to-right too.
+                'label' => $day->format('j/n'),
+                'value' => ($sold[$key] ?? 0) - ($returned[$key] ?? 0),
+            ];
+        }
+
+        return $points;
+    }
+
+    /**
+     * One total per calendar day, keyed `Y-m-d`.
+     *
+     * @return array<string, int>
+     */
+    private function totalPerDay($query, string $dateColumn, string $amountColumn): array
+    {
+        $totals = [];
+
+        $rows = $query->groupBy($dateColumn)
+            ->selectRaw("$dateColumn as day, SUM($amountColumn) as total")
+            ->pluck('total', 'day');
+
+        foreach ($rows as $day => $total) {
+            $key = substr((string) $day, 0, 10);
+            $totals[$key] = ($totals[$key] ?? 0) + (int) $total;
+        }
+
+        return $totals;
     }
 
     /** Ranked by units actually sold, net of what came back. */

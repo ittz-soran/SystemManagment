@@ -232,6 +232,103 @@ class ReportTest extends TestCase
     }
 
     /** Runs the Section 10b scenario so the report has its numbers to read. */
+    // ---- The charts -----------------------------------------------------
+    //
+    // App\Support\Chart's own arithmetic is proved in ChartTest. What is proved
+    // here is the series the page hands it: one point per day, the empty days
+    // included, and returns taken off the day they came back on.
+
+    public function test_the_daily_series_has_a_point_for_every_day_of_the_period(): void
+    {
+        $this->runSection10bScenario();
+
+        $points = $this->actingAs($this->admin)
+            ->get(route('reports.index', [
+                'from' => today()->subDays(6)->toDateString(),
+                'to' => today()->toDateString(),
+            ]))
+            ->viewData('dailySales');
+
+        // Seven days asked for, seven points back. Leaving the quiet days out
+        // would draw a line straight from Thursday to Sunday and make a closed
+        // weekend look like ordinary trade.
+        $this->assertCount(7, $points);
+        $this->assertSame(array_fill(0, 6, 0), array_column(array_slice($points, 0, 6), 'value'));
+
+        // Today: 120,000 sold less the 60,000 that came back on the same day.
+        $this->assertSame(60_000, $points[6]['value']);
+    }
+
+    public function test_a_return_comes_off_the_day_it_came_back_on(): void
+    {
+        $category = Category::create(['name' => 'Test']);
+
+        $product = Product::create([
+            'name' => 'Product P', 'sku' => 'P', 'category_id' => $category->id, 'unit' => 'pcs',
+            'purchase_price' => 0, 'sale_price' => 30_000, 'quantity' => 0,
+        ]);
+
+        app(PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'A']),
+            lines: [['product_id' => $product->id, 'quantity' => 5, 'unit_price' => 10_000]],
+            user: $this->admin, purchaseDate: today()->subDays(3),
+        );
+
+        $sale = app(SaleService::class)->create(
+            customer: Customer::create(['name' => 'C']),
+            lines: [['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 30_000]],
+            user: $this->admin, saleDate: today()->subDays(2),
+        );
+
+        // Sold on Monday, brought back on Tuesday. The money leaves Tuesday,
+        // not Monday — Monday's takings were real when they were taken.
+        app(SaleReturnService::class)->create(
+            sale: $sale,
+            lines: [['sale_item_id' => $sale->items()->firstOrFail()->id, 'quantity' => 1]],
+            user: $this->admin, returnDate: today()->subDay(),
+        );
+
+        $points = $this->actingAs($this->admin)
+            ->get(route('reports.index', [
+                'from' => today()->subDays(2)->toDateString(),
+                'to' => today()->toDateString(),
+            ]))
+            ->viewData('dailySales');
+
+        $this->assertSame([60_000, -30_000, 0], array_column($points, 'value'));
+    }
+
+    public function test_the_reports_page_draws_the_charts(): void
+    {
+        $this->runSection10bScenario();
+
+        Expense::create([
+            'document_no' => 'EXP-00001',
+            'title' => 'Rent',
+            'expense_category_id' => ExpenseCategory::firstOrFail()->id,
+            'amount' => 14_000,
+            'expense_date' => today(),
+            'user_id' => $this->admin->id,
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('reports.index', [
+            'from' => today()->subDays(6)->toDateString(),
+            'to' => today()->toDateString(),
+        ]))->assertOk();
+
+        // The trend is an SVG the server wrote, not a canvas a script fills in
+        // later: this page gets printed, and a canvas prints as an empty box.
+        $response->assertSee('app-chart-stroke', escape: false);
+        $response->assertSee('<path d="M', escape: false);
+
+        // And the two rankings drew a bar apiece.
+        $response->assertSee(__('Best sellers'));
+        $response->assertSee(__('Where the money went'));
+        $response->assertSee('app-chart-bar-fill', escape: false);
+        $response->assertSee('Product P');
+        $response->assertSee('Rent');
+    }
+
     private function runSection10bScenario(): void
     {
         $category = Category::create(['name' => 'Test']);
