@@ -38,7 +38,7 @@ class ShopDoctorTest extends TestCase
     {
         $report = $this->report();
 
-        foreach (['shop', 'database', 'drivers', 'assets', 'licence', 'errors'] as $section) {
+        foreach (['shop', 'database', 'drivers', 'dependencies', 'assets', 'licence', 'errors'] as $section) {
             $this->assertArrayHasKey($section, $report);
         }
 
@@ -128,6 +128,46 @@ class ShopDoctorTest extends TestCase
         }
 
         $this->assertNotSame('MISSING', $drivers['sessions table']);
+    }
+
+    /**
+     * The libraries, because a pull never brings them.
+     *
+     * `vendor/` is gitignored, so a release that adds a package leaves the
+     * server running source that references a class it has not got. The
+     * symptom is a 500 on exactly the screens that use it and nothing
+     * anywhere else — which is how the authenticator page came to fail on
+     * Soran's shop while the rest of it looked perfectly healthy.
+     */
+    public function test_it_checks_the_php_packages_a_pull_does_not_bring(): void
+    {
+        $dependencies = $this->report()['dependencies'];
+
+        $this->assertSame('present', $dependencies['vendor']);
+        $this->assertArrayHasKey('composer install overdue', $dependencies);
+        $this->assertSame(['none'], $dependencies['packages missing']);
+
+        // Named on its own, because it is one screen rather than a vague state.
+        $this->assertSame('present', $dependencies['qr code library']);
+    }
+
+    /**
+     * "No errors" and "there is no log" are different answers.
+     *
+     * I printed them identically and it cost a round: a 500 that leaves
+     * nothing in Laravel's log never reached Laravel, and knowing that is
+     * worth more than the absence of a line.
+     */
+    public function test_it_says_which_logs_it_looked_in(): void
+    {
+        $errors = $this->report()['errors'];
+
+        $this->assertNotEmpty($errors, 'it must always say where it looked');
+
+        $joined = implode("\n", $errors);
+
+        $this->assertStringContainsString('laravel', $joined);
+        $this->assertStringContainsString('error_log', $joined, 'the web server writes elsewhere and that is where a fatal lands');
     }
 
     /** It reports and it does not repair — a fix would destroy the evidence. */

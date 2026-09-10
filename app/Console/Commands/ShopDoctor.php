@@ -44,6 +44,7 @@ class ShopDoctor extends Command
             'shop' => $this->shop(),
             'database' => $this->database(),
             'drivers' => $this->drivers(),
+            'dependencies' => $this->dependencies(),
             'assets' => $this->assets(),
             'licence' => $this->licence(),
             'errors' => $this->errors((int) $this->option('errors')),
@@ -213,7 +214,75 @@ class ShopDoctor extends Command
             'cache store' => $cache,
             'cache table' => $tableFor($cache, config('cache.stores.database.table', 'cache')),
             'storage writable' => is_writable(storage_path('logs')),
+            'sessions folder' => $this->folderState(storage_path('framework/sessions')),
+            'views folder' => $this->folderState(storage_path('framework/views')),
+            'php version' => PHP_VERSION,
+            'memory limit' => ini_get('memory_limit'),
+            'php error log' => ini_get('error_log') ?: '(the web server decides)',
         ];
+    }
+
+    /**
+     * Whether the PHP packages on disk match the ones the code expects.
+     *
+     * `vendor/` is gitignored, so a pull brings the code and never the
+     * libraries it leans on. A release that adds a package leaves the server
+     * with source that references a class it has not got — and the symptom is
+     * a 500 on precisely the screens that use it, with everything else fine.
+     *
+     * That is exactly the shape of the authenticator page failing on Soran's
+     * shop: `composer.lock` last changed in the commit that added
+     * bacon/bacon-qr-code, which is what draws the QR code on it.
+     *
+     * @return array<string, mixed>
+     */
+    private function dependencies(): array
+    {
+        $lock = base_path('composer.lock');
+        $autoload = base_path('vendor/autoload.php');
+
+        if (! is_file($autoload)) {
+            return ['vendor' => 'MISSING — run composer install'];
+        }
+
+        $report = [
+            'vendor' => 'present',
+            // A lock file newer than the autoloader means packages changed
+            // after the last install. The one signal that names the cure.
+            'composer install overdue' => is_file($lock) && filemtime($lock) > filemtime($autoload),
+        ];
+
+        $required = array_keys(json_decode((string) file_get_contents(base_path('composer.json')), true)['require'] ?? []);
+
+        $missing = array_values(array_filter(
+            $required,
+            fn (string $package) => ! str_starts_with($package, 'php')
+                && ! str_starts_with($package, 'ext-')
+                && ! is_dir(base_path('vendor/'.$package)),
+        ));
+
+        $report['packages missing'] = $missing === [] ? ['none'] : $missing;
+
+        // Named one by one because each is a screen that will answer 500.
+        $report['qr code library'] = class_exists(\BaconQrCode\Writer::class) ? 'present' : 'MISSING — the authenticator page will fail';
+
+        return $report;
+    }
+
+    /**
+     * A folder Laravel writes into on ordinary requests.
+     *
+     * With the file session driver, saving a preference writes here — and a
+     * folder that is missing or read-only turns exactly those requests into a
+     * 500 while every page that only reads keeps working.
+     */
+    private function folderState(string $path): string
+    {
+        return match (true) {
+            ! is_dir($path) => 'MISSING — '.$path,
+            ! is_writable($path) => 'NOT WRITABLE — '.$path,
+            default => 'writable',
+        };
     }
 
     /**
@@ -273,18 +342,64 @@ class ShopDoctor extends Command
      */
     private function errors(int $limit): array
     {
-        $path = storage_path('logs/laravel.log');
+        $found = [];
 
-        if (! is_file($path)) {
-            return [];
+        foreach ($this->logFiles() as $label => $path) {
+            if (! is_file($path)) {
+                // "Nothing recorded" and "there is no log" are different
+                // answers and I printed them the same way, which cost a round:
+                // a 500 that leaves no line in Laravel's log never reached
+                // Laravel, and that is the single most useful thing to know.
+                $found[] = "{$label}: not there — {$path}";
+
+                continue;
+            }
+
+            $lines = $this->errorsIn($path, $limit);
+
+            $found[] = $lines === []
+                ? "{$label}: present, no errors in it — {$path}"
+                : "{$label}: {$path}";
+
+            foreach ($lines as $line) {
+                $found[] = '  '.$line;
+            }
         }
+
+        return $found;
+    }
+
+    /**
+     * Every place an error could have landed.
+     *
+     * Laravel's own log is the obvious one and it is not the only one. A fatal
+     * before the framework boots, or one the web server raises itself, never
+     * reaches Laravel's handler at all — on cPanel those go to an `error_log`
+     * beside the script that ran, which is the shop's public folder.
+     *
+     * @return array<string, string>
+     */
+    private function logFiles(): array
+    {
+        $public = rtrim(defined('SHOP_PUBLIC') ? (string) constant('SHOP_PUBLIC') : public_path(), '/\\');
+
+        return [
+            'laravel' => storage_path('logs/laravel.log'),
+            'php (public folder)' => $public.'/error_log',
+            'php (shop folder)' => (defined('SHOP_HOME') ? rtrim((string) constant('SHOP_HOME'), '/\\') : base_path()).'/error_log',
+        ];
+    }
+
+    /** @return list<string> */
+    private function errorsIn(string $path, int $limit): array
+    {
 
         // Only the tail: a shop that has been trading for months has a log
         // nobody wants read into memory.
         $handle = @fopen($path, 'r');
 
         if ($handle === false) {
-            return ['the log could not be opened'];
+            return ['could not be opened — check its permissions'];
         }
 
         fseek($handle, max(0, filesize($path) - 256_000));
@@ -294,8 +409,16 @@ class ShopDoctor extends Command
         $found = [];
 
         foreach (explode("\n", $tail) as $line) {
+            // Laravel's own format, and the plainer one PHP and the web server
+            // write. Neither is worth missing.
             if (preg_match('/^\[[\d\-: ]+\]\s+\w+\.(ERROR|CRITICAL|EMERGENCY):\s*(.*)$/', $line, $m)) {
                 $found[] = mb_substr(trim($m[2]), 0, 300);
+
+                continue;
+            }
+
+            if (preg_match('/(PHP (Fatal|Parse|Warning)|mod_fcgid|Premature end|Allowed memory size)/i', $line)) {
+                $found[] = mb_substr(trim($line), 0, 300);
             }
         }
 
