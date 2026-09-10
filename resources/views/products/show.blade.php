@@ -209,6 +209,22 @@
     {{-- A service has no batches and no movements: nothing was ever bought for
          it, so there is nothing to draw down. Saying so beats two empty tables
          that look like something has gone wrong. --}}
+    {{-- Does this thing still move? The movement table below answers it
+         eventually; a line answers it at a glance. --}}
+    @isset($trend)
+        <div class="mb-4">
+            <x-chart.trend
+                :title="__('Sold, over the last ninety days')"
+                :labels="$trend['labels']"
+                :notes="$trend['notes']"
+                :series="$trend['series']"
+                :level="$trend['level']"
+                :height="150"
+                :band-height="80"
+                :empty="__('Nothing sold yet.')" />
+        </div>
+    @endisset
+
     @if($product->isService())
         <div class="card mb-4">
             <div class="card-body text-secondary small mb-0">

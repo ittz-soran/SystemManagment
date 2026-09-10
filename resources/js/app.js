@@ -1398,3 +1398,203 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/*
+ * The trend chart's crosshair.
+ *
+ * The chart is already drawn when this runs — the server wrote the SVG, and the
+ * page prints from it whether or not any of this executes. What is added here
+ * is the part paper cannot have: a line under the pointer and a readout of
+ * every series on that day at once.
+ *
+ * The figures are not computed here. They arrive already formatted, because the
+ * thousands separator, the digits and the currency word are all the reader's
+ * own, and rebuilding them in JavaScript would ship one language's punctuation
+ * to all four.
+ */
+document.querySelectorAll('[data-trend]').forEach((chart) => {
+    let data;
+
+    try {
+        data = JSON.parse(chart.dataset.trend);
+    } catch (error) {
+        return;
+    }
+
+    const days = data.labels.length;
+
+    if (days < 2) {
+        return;
+    }
+
+    const plots = [...chart.querySelectorAll('[data-plot]')];
+    const lines = data.series.concat(data.level ? [data.level] : []);
+
+    // A series the reader has switched off. The chart is at its most useful
+    // when one big line can be got out of the way: a single restock flattens
+    // everything else on a shared scale, and turning it off opens the rest up.
+    const hidden = new Set();
+
+    // ---- the layer over each drawing -------------------------------------
+
+    const hairs = [];
+    const knobs = [];
+
+    plots.forEach((plot) => {
+        const hair = document.createElement('div');
+        hair.className = 'app-trend-hair';
+        hair.hidden = true;
+        plot.appendChild(hair);
+        hairs.push(hair);
+
+        const forThisPlot = plot.dataset.plot === 'level'
+            ? (data.level ? [data.level] : [])
+            : data.series;
+
+        forThisPlot.forEach((series) => {
+            const knob = document.createElement('div');
+            knob.className = 'app-trend-knob';
+            knob.dataset.tone = series.tone;
+            knob.dataset.series = series.key;
+            knob.hidden = true;
+            plot.appendChild(knob);
+            knobs.push({ node: knob, series });
+        });
+    });
+
+    const tip = document.createElement('div');
+    tip.className = 'app-trend-tip';
+    tip.dir = 'auto';
+    tip.hidden = true;
+    chart.appendChild(tip);
+
+    // ---- reading the pointer ---------------------------------------------
+
+    const dayUnder = (clientX) => {
+        const box = plots[0].getBoundingClientRect();
+
+        if (box.width === 0) {
+            return 0;
+        }
+
+        const across = (clientX - box.left) / box.width;
+
+        return Math.max(0, Math.min(days - 1, Math.round(across * (days - 1))));
+    };
+
+    const show = (index, clientX) => {
+        const across = (index / (days - 1)) * 100;
+
+        hairs.forEach((hair) => {
+            hair.style.left = across + '%';
+            hair.hidden = false;
+        });
+
+        knobs.forEach(({ node, series }) => {
+            if (hidden.has(series.key)) {
+                node.hidden = true;
+
+                return;
+            }
+
+            node.style.left = across + '%';
+            node.style.bottom = (series.at[index] * 100) + '%';
+            node.hidden = false;
+        });
+
+        // Built as nodes rather than as a string of markup: a product name or a
+        // shop's own wording goes in here, and innerHTML with a name in it is
+        // how a stray quote becomes a broken page at best.
+        tip.textContent = '';
+
+        const when = document.createElement('div');
+        when.className = 'when';
+        when.textContent = data.notes[index]
+            ? data.labels[index] + ' · ' + data.notes[index]
+            : data.labels[index];
+        tip.appendChild(when);
+
+        lines.forEach((series) => {
+            if (hidden.has(series.key)) {
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'app-trend-read';
+
+            const swatch = document.createElement('span');
+            swatch.className = 'app-trend-swatch';
+            swatch.dataset.tone = series.tone;
+            row.appendChild(swatch);
+
+            const name = document.createElement('span');
+            name.textContent = series.name;
+            row.appendChild(name);
+
+            const value = document.createElement('span');
+            value.className = 'val';
+            value.textContent = series.text[index];
+            row.appendChild(value);
+
+            tip.appendChild(row);
+        });
+
+        tip.hidden = false;
+
+        // Kept inside the card, and on whichever side of the pointer has room.
+        const box = chart.getBoundingClientRect();
+        const offset = clientX - box.left;
+        const width = tip.offsetWidth;
+
+        tip.style.left = Math.max(0, Math.min(box.width - width, offset + 14)) + 'px';
+    };
+
+    const clear = () => {
+        hairs.forEach((hair) => { hair.hidden = true; });
+        knobs.forEach(({ node }) => { node.hidden = true; });
+        tip.hidden = true;
+    };
+
+    chart.addEventListener('pointermove', (event) => show(dayUnder(event.clientX), event.clientX));
+    chart.addEventListener('pointerdown', (event) => show(dayUnder(event.clientX), event.clientX));
+    chart.addEventListener('pointerleave', clear);
+
+    // ---- the legend becomes a set of switches ----------------------------
+    //
+    // Plain text until now, on purpose: a button that does nothing is a promise
+    // the printed page cannot keep, so the legend only becomes one once there
+    // is a script here to honour it.
+
+    const card = chart.closest('.card') || document;
+
+    card.querySelectorAll('.app-trend-chip[data-series]').forEach((chip) => {
+        const key = chip.dataset.series;
+
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.setAttribute('aria-pressed', 'true');
+
+        const toggle = () => {
+            hidden.has(key) ? hidden.delete(key) : hidden.add(key);
+
+            const off = hidden.has(key);
+            chip.setAttribute('aria-pressed', off ? 'false' : 'true');
+
+            chart.querySelectorAll('[data-series="' + key + '"]').forEach((node) => {
+                if (node !== chip) {
+                    node.style.display = off ? 'none' : '';
+                }
+            });
+
+            clear();
+        };
+
+        chip.addEventListener('click', toggle);
+        chip.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggle();
+            }
+        });
+    });
+});

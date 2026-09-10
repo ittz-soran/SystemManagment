@@ -206,13 +206,46 @@ th.money {
     display: none !important;
   }
 
+  // Paper has no dark mode. Setting the body white was not enough on its own:
+  // `.bg-body-tertiary` on <body> is one of Bootstrap's `!important` utilities
+  // and won, and every card and table carries its own background besides. So
+  // the tokens are turned back to paper here rather than the elements, which
+  // catches the ones written since as well.
+  //
+  // The text goes with them. A shop working in dark mode has a pale grey for
+  // its secondary text — right on a dark screen, invisible on white paper, and
+  // that is most of the small print on a report.
+  :root,
+  body,
+  .card,
+  .table {
+    --bs-body-bg: #fff;
+    --bs-tertiary-bg-rgb: 255, 255, 255;
+    // The named twins as well as the rgb one: a chip or a track that reads
+    // `var(--bs-tertiary-bg)` directly printed as a dark pill on white paper.
+    --bs-tertiary-bg: #f4f5f6;
+    --bs-secondary-bg: #e9ecef;
+    --bs-body-color: #000;
+    // The -rgb twin as well as the colour: Bootstrap's `.text-body` is built
+    // from the rgb triple and its own opacity, so setting only the colour left
+    // every `.text-body` figure on a printed report near-white on white paper.
+    --bs-body-color-rgb: 0, 0, 0;
+    --bs-secondary-color: #{rgba(#000, .65)};
+    --bs-secondary-color-rgb: 0, 0, 0;
+    --bs-emphasis-color: #000;
+    --bs-emphasis-color-rgb: 0, 0, 0;
+    --bs-heading-color: #000;
+    --bs-border-color: #999;
+    --bs-card-bg: #fff;
+    --bs-card-color: #000;
+    --bs-card-border-color: #999;
+    --bs-table-color: #000;
+    --bs-table-bg: transparent;
+  }
+
   body {
     background: #fff !important;
     color: #000 !important;
-  }
-
-  .table {
-    --bs-table-color: #000;
   }
 }
 
@@ -658,5 +691,415 @@ a.stat-tile {
   .border-start-0 {
     border-left-width: var(--bs-border-width) !important;
     border-right-width: 0 !important;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Charts
+// ---------------------------------------------------------------------------
+//
+// One hue, because every chart in this shop plots a single series: takings by
+// day, best sellers, where the money went. Colour here carries magnitude, not
+// identity, so a second hue would be decoration claiming to be data.
+//
+// The dark values are a separate step for the dark surface rather than the same
+// blue dimmed — both were validated against their own surface (lightness band,
+// chroma floor, 3:1 contrast) rather than picked by eye.
+:root {
+  --app-chart-series: #2a78d6;
+  --app-chart-wash: rgba(42, 120, 214, 0.12);
+  --app-chart-grid: var(--bs-border-color);
+  --app-chart-track: var(--bs-secondary-bg);
+}
+
+[data-bs-theme='dark'] {
+  --app-chart-series: #3987e5;
+  --app-chart-wash: rgba(57, 135, 229, 0.16);
+}
+
+.app-chart-line {
+  position: relative;
+}
+
+// What the top gridline stands for. Gridlines that mean nothing are decoration.
+.app-chart-top {
+  position: absolute;
+  inset-block-start: -.35rem;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
+.app-chart-svg {
+  width: 100%;
+  height: 10rem;
+  display: block;
+  overflow: visible;
+}
+
+.app-chart-grid {
+  stroke: var(--app-chart-grid);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.app-chart-area { fill: var(--app-chart-wash); }
+
+.app-chart-stroke {
+  fill: none;
+  stroke: var(--app-chart-series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  // The viewBox is stretched to fit its box, which would stretch the stroke
+  // with it and give a 2px line a different weight on a wide screen.
+  vector-effect: non-scaling-stroke;
+}
+
+.app-chart-dot {
+  fill: var(--app-chart-series);
+  // The surface ring, so the dot stays legible where it sits on the line.
+  stroke: var(--bs-body-bg);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+// Each date is placed at the fraction of the plot it belongs above rather than
+// spaced evenly, because the labels are thinned: on a ten-day chart the last two
+// sit a tenth apart, and spacing the survivors evenly slides every one of them
+// off its own reading.
+.app-chart-axis {
+  position: relative;
+  height: 1.2em;
+  margin-top: .35rem;
+
+  > span {
+    position: absolute;
+    white-space: nowrap;
+  }
+
+  span {
+    flex: 1 1 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
+
+.app-chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.app-chart-bar-row {
+  display: grid;
+  // Name, bar, number. The bar takes what the two ends do not.
+  grid-template-columns: minmax(6rem, 9rem) 1fr minmax(4.5rem, auto);
+  align-items: center;
+  gap: .75rem;
+}
+
+.app-chart-bar-track {
+  background: var(--app-chart-track);
+  border-radius: var(--bs-border-radius-sm);
+  height: .75rem;
+  overflow: hidden;
+}
+
+.app-chart-bar-fill {
+  background: var(--app-chart-series);
+  height: 100%;
+  // Square where it leaves the baseline, rounded at the data end.
+  border-radius: 0 var(--bs-border-radius-sm) var(--bs-border-radius-sm) 0;
+}
+
+// The bars are laid out in HTML, so the row mirrors on its own in RTL — but a
+// bar grows from the reader's start edge, and its rounded end belongs at the
+// end it grew to.
+[dir='rtl'] .app-chart-bar-fill {
+  border-radius: var(--bs-border-radius-sm) 0 0 var(--bs-border-radius-sm);
+}
+
+// Printed reports carry the charts. Backgrounds are dropped by default when
+// printing, and a chart with no fill is a chart with no data.
+//
+// And paper has no dark mode. The rule above already turns the page white, but
+// a card carries its own background, so a shop working in dark mode printed a
+// black sheet — and these fills, now forced to print, would have made it a
+// black sheet with ink on it. The chart's own colours are pinned to the light
+// ones for the same reason: the dark series is a lighter blue, chosen to sit on
+// a dark surface, and it is too pale for paper.
+@media print {
+  .app-chart-bar-fill,
+  .app-chart-bar-track,
+  .app-chart-area,
+  .app-chart-stroke,
+  .app-chart-dot {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .card {
+    --app-chart-series: #2a78d6;
+    --app-chart-wash: rgba(42, 120, 214, 0.12);
+    --app-chart-track: #e9ecef;
+    --app-chart-grid: #ced4da;
+  }
+
+  .app-chart-dot {
+    stroke: #fff;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The trend chart — several readings across the same days.
+//
+// Flows share one scale because that is what makes them comparable; a level
+// gets its own band beneath them, labelled with its own range. What this
+// refuses to do is the point: a chart with two y-axes, one down each side, lets
+// whoever drew it slide the lines until they cross wherever looks good, and the
+// crossing means nothing.
+//
+// The hues are the validated categorical trio — worst adjacent CVD ΔE 9.2 on
+// the light surface, 9.4 on the dark. The level wears a neutral on purpose, so
+// it never reads as a fourth thing of the same kind.
+// ---------------------------------------------------------------------------
+
+:root {
+  --app-trend-1: #2a78d6;
+  --app-trend-2: #eb6834;
+  --app-trend-3: #1baf7a;
+  --app-trend-0: #78868f;
+  --app-trend-band: rgba(120, 134, 143, .18);
+}
+
+[data-bs-theme='dark'] {
+  --app-trend-1: #3987e5;
+  --app-trend-2: #d95926;
+  --app-trend-3: #199e70;
+  --app-trend-0: #6d7a86;
+  --app-trend-band: rgba(109, 122, 134, .22);
+}
+
+.app-trend {
+  position: relative;
+  display: grid;
+  // Value axis, the drawing, the names of the lines where they end.
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: .5rem;
+  row-gap: .2rem;
+}
+
+.app-trend-axis,
+.app-trend-plot,
+.app-trend-ends {
+  height: var(--app-trend-height, 240px);
+}
+
+.app-trend-axis,
+.app-trend-ends,
+.app-trend-plot {
+  position: relative;
+}
+
+// The figures beside the drawing rather than inside it: the SVG is stretched to
+// fit its box, which would stretch any text in it out of shape.
+.app-trend-axis {
+  min-width: 2.5rem;
+
+  > span {
+    position: absolute;
+    inset-inline-end: 0;
+    transform: translateY(50%);
+    line-height: 1;
+    white-space: nowrap;
+    font-size: .6875rem;
+    color: var(--bs-secondary-color);
+  }
+}
+
+.app-trend-ends {
+  min-width: 2.75rem;
+
+  > span {
+    position: absolute;
+    inset-inline-start: 0;
+    transform: translateY(50%);
+    line-height: 1;
+    white-space: nowrap;
+    font-size: .6875rem;
+    font-weight: 600;
+  }
+}
+
+.app-trend-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.app-trend-line {
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  // The viewBox is stretched to fit its box, which would stretch the stroke
+  // with it and give a 2px line a different weight on a wide screen.
+  vector-effect: non-scaling-stroke;
+}
+
+.app-trend-band {
+  fill: var(--app-trend-band);
+  stroke: none;
+}
+
+.app-trend-swatch {
+  display: inline-block;
+  width: .6rem;
+  height: .6rem;
+  border-radius: .15rem;
+  flex: 0 0 auto;
+}
+
+@each $tone in (0, 1, 2, 3) {
+  .app-trend-line[data-tone='#{$tone}'] { stroke: var(--app-trend-#{$tone}); }
+  .app-trend-ends > span[data-tone='#{$tone}'] { color: var(--app-trend-#{$tone}); }
+  .app-trend-swatch[data-tone='#{$tone}'] { background: var(--app-trend-#{$tone}); }
+  .app-trend-knob[data-tone='#{$tone}'] { background: var(--app-trend-#{$tone}); }
+}
+
+.app-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .5rem;
+  margin-bottom: .6rem;
+}
+
+.app-trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 2rem;
+  // Logical, because this app imports Bootstrap's LTR build and the chip sits
+  // in the page's own direction rather than the chart's.
+  padding-block: .1rem;
+  padding-inline: .45rem .6rem;
+  background: var(--bs-tertiary-bg);
+}
+
+.app-trend-chip[role='button'] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.app-trend-chip[aria-pressed='false'] {
+  opacity: .4;
+}
+
+.app-trend-bandname {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin-top: .6rem;
+}
+
+.app-trend-dates {
+  position: relative;
+  height: 1.25em;
+  margin-top: .15rem;
+
+  > span {
+    position: absolute;
+    white-space: nowrap;
+    color: var(--bs-secondary-color);
+  }
+}
+
+// ---- the crosshair, added by the script over a drawing already there -------
+
+.app-trend-hair {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--bs-secondary-color);
+  opacity: .45;
+  pointer-events: none;
+}
+
+.app-trend-knob {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, 50%);
+  // The surface ring, so a knob stays legible where it sits on its own line.
+  box-shadow: 0 0 0 2px var(--bs-body-bg);
+  pointer-events: none;
+}
+
+.app-trend-tip {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  pointer-events: none;
+  min-width: 9.5rem;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: .5rem;
+  box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .18);
+  padding: .45rem .6rem;
+  font-size: .75rem;
+
+  .when {
+    font-weight: 600;
+    padding-bottom: .3rem;
+    margin-bottom: .3rem;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  // Not `.row`: Bootstrap's grid owns that name, and its `.row > *` rule sets
+  // every child to full width, which stands the three parts of a line on top of
+  // one another.
+  .app-trend-read {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+
+  .app-trend-read + .app-trend-read { margin-top: .15rem; }
+
+  .val {
+    margin-inline-start: auto;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Paper cannot be hovered, and the crosshair is a hover. The chart underneath
+// it is the whole drawing and prints on its own.
+@media print {
+  .app-trend-hair,
+  .app-trend-knob,
+  .app-trend-tip {
+    display: none !important;
+  }
+
+  .app-trend-line,
+  .app-trend-band {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .card {
+    --app-trend-1: #2a78d6;
+    --app-trend-2: #eb6834;
+    --app-trend-3: #1baf7a;
+    --app-trend-0: #78868f;
+    --app-trend-band: rgba(120, 134, 143, .18);
   }
 }

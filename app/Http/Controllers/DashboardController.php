@@ -9,9 +9,11 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\StockBatch;
 use App\Models\Supplier;
+use App\Services\DailyTotals;
 use App\Services\SetupProgress;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -52,7 +54,74 @@ class DashboardController extends Controller
         return back()->with('success', __('Put away. You can still find all of this in the Guide.'));
     }
 
-    public function index(Request $request, SetupProgress $setup): View
+    /**
+     * The last four weeks, for whoever is looking.
+     *
+     * Every line here is behind the permission of the screen it summarises —
+     * the same rule the tiles above it follow. A dashboard that draws a
+     * purchases line for somebody kept out of the purchases screen has told
+     * them what withholding it was for.
+     *
+     * Null when there is nothing they may see, so the card goes away rather
+     * than appearing as an empty frame.
+     *
+     * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>, level: ?array<string, mixed>}|null
+     */
+    private function trend(DailyTotals $totals, $user): ?array
+    {
+        $from = today()->subDays(27)->startOfDay();
+        $to = today()->endOfDay();
+
+        $axis = $totals->axis($totals->days($from, $to));
+        $flows = $totals->flows($from, $to);
+
+        $series = [];
+
+        if ($user->hasPermission('sales.view')) {
+            $series[] = ['name' => __('Sales'), 'short' => __('Sales'), 'tone' => 1,
+                         'values' => array_values($flows['sales'])];
+        }
+
+        if ($user->hasPermission('purchases.view')) {
+            $series[] = ['name' => __('Purchases'), 'short' => __('Bought'), 'tone' => 2,
+                         'values' => array_values($flows['purchases'])];
+        }
+
+        $level = null;
+
+        // Profit and the shelf's worth are both cost figures, and the doc puts
+        // the shop's own numbers behind reports.view rather than products.view:
+        // the salesperson needs to know what is in stock and what it sells for.
+        if ($user->hasPermission('reports.view') && $user->hasPermission('sales.view')) {
+            $seen = array_map(fn (int $cost) => cost_seen($cost), $flows['cost']);
+
+            if (! in_array(null, $seen, true)) {
+                $series[] = ['name' => __('Profit'), 'short' => __('Profit'), 'tone' => 3,
+                             'values' => array_values($totals->profit($flows['sales'], $seen))];
+
+                $level = [
+                    'name' => __('Stock value'),
+                    'values' => array_map(
+                        fn (int $value) => (int) cost_seen($value),
+                        array_values($totals->stockValue($from, $to)),
+                    ),
+                ];
+            }
+        }
+
+        if ($series === []) {
+            return null;
+        }
+
+        return [
+            'labels' => $axis['labels'],
+            'notes' => $axis['notes'],
+            'series' => $series,
+            'level' => $level,
+        ];
+    }
+
+    public function index(Request $request, SetupProgress $setup, DailyTotals $totals): View
     {
         $user = $request->user();
         $today = today();
@@ -108,6 +177,12 @@ class DashboardController extends Controller
 
         return view('dashboard', [
             'cards' => $cards,
+
+            // The last four weeks, drawn the same way the reports page draws
+            // them. Four tiles say what today was; a shopkeeper standing at the
+            // counter wants to know whether today was normal, and only a line
+            // going back a month can answer that.
+            'trend' => $this->trend($totals, $user),
 
             /*
              * The first-week checklist, for a shop that has not finished

@@ -84,6 +84,58 @@ if (! function_exists('money_if')) {
     }
 }
 
+if (! function_exists('money_short')) {
+    /**
+     * A figure short enough to sit on a chart axis.
+     *
+     * 3,023,976 down to 3M. An axis is read at a glance and five gridlines of
+     * seven digits each is a wall of numerals — the exact figure is a hover
+     * away, and the tooltip gives it in full.
+     *
+     * The suffixes go through `__()` rather than being appended, because "M"
+     * is an English abbreviation: a Kurdish shop should get the Kurdish one,
+     * and `translations:check` only counts what it can see.
+     */
+    function money_short(int|float|null $amount): string
+    {
+        $value = (int) round($amount ?? 0);
+        $size = abs($value);
+
+        // Digits stay English everywhere in this app (Section 9b), which is what
+        // number_format gives.
+        $trim = function (string $formatted): string {
+            return str_contains($formatted, '.')
+                ? rtrim(rtrim($formatted, '0'), '.')
+                : $formatted;
+        };
+
+        // A gridline's label has to name the value the line is drawn at, so a
+        // figure that is not a whole unit keeps its decimal: an axis reading
+        // 13 k beside a line at 12,500 is a small lie told five times.
+        $scaled = fn (int $unit): string => $trim(
+            number_format($value / $unit, $value % $unit === 0 ? 0 : 1)
+        );
+
+        // 999,999 rounds to 1,000 thousand, which is a million and should say so
+        // rather than sit on the axis as "1,000 k".
+        $millions = $size >= 1_000_000 || abs(round($value / 1_000)) >= 1_000;
+
+        // Both suffixes are written out as literals rather than passed in as a
+        // key, because `translations:check` tokenises the source: `__($key)`
+        // is invisible to it, and an axis in English on an otherwise Kurdish
+        // screen would ship without failing anything.
+        if ($millions) {
+            return __(':amount M', ['amount' => $scaled(1_000_000)]);
+        }
+
+        if ($size >= 10_000) {
+            return __(':amount k', ['amount' => $scaled(1_000)]);
+        }
+
+        return number_format($value);
+    }
+}
+
 if (! function_exists('cost_seen')) {
     /**
      * A cost figure as the signed-in reader is allowed to work from it.
