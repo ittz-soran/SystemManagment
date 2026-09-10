@@ -48,6 +48,13 @@
   which is true but does not name the folder. One-time cure, on the shared
   codebase only: move `public/build` aside, pull, and the pull brings a fresh
   one. Soran hit this and the pull silently did nothing for a day.
+- **A pull does not bring `vendor/`.** It is gitignored, so a release that adds
+  a PHP package leaves the server running source that references a class it has
+  not got — and the symptom is a 500 on exactly the screens that use it, with
+  everything else healthy and nothing in Laravel's log. **`composer install` is
+  part of every deploy that changes `composer.lock`.** `shop:doctor` reports
+  whether it is overdue; it took days to find because every other signal was
+  green.
 - If a decision changes, **update this file** — don't just say it in chat.
 
 ---
