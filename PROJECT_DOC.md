@@ -55,6 +55,13 @@
   part of every deploy that changes `composer.lock`.** `shop:doctor` reports
   whether it is overdue; it took days to find because every other signal was
   green.
+- **A test must not depend on what happens to be installed.** Two `BackupTest`
+  cases asked for `mysqldump` and `mysql` by name, so they passed only on
+  machines without the MySQL client — green in this container, red on every
+  GitHub runner, where it ships with the image. CI had been red for weeks and
+  looked like the code was broken. Tool-lookup tests now use a name that cannot
+  exist (`no-such-tool-<random>`), and the suite is proved both ways: with the
+  client on PATH and without.
 - If a decision changes, **update this file** — don't just say it in chat.
 
 ---
