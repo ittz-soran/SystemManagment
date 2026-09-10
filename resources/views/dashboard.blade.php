@@ -32,6 +32,21 @@
         @endforeach
     </div>
 
+    {{-- The tiles above say what today was. This says whether today was normal,
+         which is the question somebody standing at the counter actually has. --}}
+    @isset($trend)
+        <div class="mb-4">
+            <x-chart.trend
+                :title="__('The last four weeks')"
+                :subtitle="__('Hover any day to read every line at once.')"
+                :labels="$trend['labels']"
+                :notes="$trend['notes']"
+                :series="$trend['series']"
+                :level="$trend['level']"
+                :height="200" />
+        </div>
+    @endisset
+
     <div class="row g-3 mb-4">
         @foreach([
             ['label' => __('Customers owe the shop'), 'value' => $customersOwe, 'route' => 'customers.index'],

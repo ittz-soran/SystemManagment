@@ -130,10 +130,15 @@
 
     <div class="row g-3 mb-4">
         <div class="col-12">
-            <x-chart.line
-                :title="__('Sales day by day')"
-                :subtitle="__('Sales less returns, every day of the period')"
-                :points="$dailySales" />
+            <x-chart.trend
+                :title="__('The period, day by day')"
+                :subtitle="__('Sales and purchases are net of returns. Hover any day to read every line at once.')"
+                :labels="$trend['labels']"
+                :notes="$trend['notes']"
+                :series="$trend['series']"
+                :level="$trend['level']">
+                {{ __('The shelf is drawn on its own scale beneath, because what stock is worth is not money that moved — it is what stayed.') }}
+            </x-chart.trend>
         </div>
 
         <div class="col-lg-6">
@@ -191,24 +196,20 @@
         </div>
 
         <div class="col-lg-6">
-            <div class="card mb-3">
-                <div class="card-header">{{ __('Cash movement') }}</div>
-                <table class="table table-sm align-middle mb-0">
-                    <tbody>
-                    <tr>
-                        <td>{{ __('In') }}</td>
-                        <td class="money text-success">{{ money($cash['in'], false) }}</td>
-                    </tr>
-                    <tr>
-                        <td>{{ __('Out') }}</td>
-                        <td class="money text-danger">{{ money($cash['out'], false) }}</td>
-                    </tr>
-                    <tr class="fw-semibold border-top">
-                        <td>{{ __('Net') }}</td>
-                        <td class="money">{{ money($cash['net'], false) }}</td>
-                    </tr>
-                    </tbody>
-                </table>
+            <div class="mb-3">
+                <x-chart.trend
+                    :title="__('Cash movement')"
+                    :subtitle="__('The till, not the ledger: a sale on credit is revenue today and cash next month.')"
+                    :labels="$cashTrend['labels']"
+                    :notes="$cashTrend['notes']"
+                    :series="$cashTrend['series']"
+                    :height="150">
+                    <span class="d-inline-flex flex-wrap gap-3">
+                        <span>{{ __('In') }}: <span class="text-body fw-semibold">{{ money($cash['in']) }}</span></span>
+                        <span>{{ __('Out') }}: <span class="text-body fw-semibold">{{ money($cash['out']) }}</span></span>
+                        <span>{{ __('Net') }}: <span class="text-body fw-semibold">{{ money($cash['net']) }}</span></span>
+                    </span>
+                </x-chart.trend>
             </div>
 
             <div class="card">

@@ -12,6 +12,7 @@ use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
+use App\Services\DailyTotals;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
 use App\Services\MasterDataTransfer;
@@ -172,10 +173,57 @@ class ProductController extends Controller
             ->with('success', __('Product saved'));
     }
 
-    public function show(Request $request, Product $product): View
+    /**
+     * One product's ninety days.
+     *
+     * Units and revenue on one scale would be nonsense — six units and 180,000
+     * dinars are not comparable quantities — so the takings ride as the level
+     * beneath, on a scale and a label of their own. The same arrangement the
+     * shop-wide chart uses for the shelf, for the same reason.
+     *
+     * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>, level: ?array<string, mixed>}
+     */
+    private function trend(DailyTotals $totals, Product $product): array
+    {
+        $from = today()->subDays(89)->startOfDay();
+        $to = today()->endOfDay();
+
+        $axis = $totals->axis($totals->days($from, $to));
+        $sold = $totals->forProduct($product, $from, $to);
+
+        return [
+            'labels' => $axis['labels'],
+            'notes' => $axis['notes'],
+            'series' => [[
+                'name' => __('Units sold'), 'short' => __('Units'), 'tone' => 1,
+                'unit' => 'count', 'values' => array_values($sold['units']),
+            ]],
+            'level' => [
+                'name' => __('Takings'),
+                'values' => array_values($sold['revenue']),
+            ],
+        ];
+    }
+
+    public function show(Request $request, Product $product, DailyTotals $totals): View
     {
         return view('products.show', [
             'product' => $product->load('category'),
+
+            /*
+             * Ninety days of this one thing, drawn the same way the reports
+             * page draws the shop.
+             *
+             * The question a shopkeeper has on this page is whether it still
+             * moves — and a hundred movement rows answer it eventually, while a
+             * line answers it at a glance. Units and takings both, because they
+             * are different questions: a cable that goes out ten a day and a
+             * laptop that goes out once a month can take the same money.
+             *
+             * A service is never in stock and a second-hand item is one unit
+             * sold once, so neither has a trend to draw.
+             */
+            'trend' => $product->kind === Product::KIND_STOCK ? $this->trend($totals, $product) : null,
             'batches' => $product->stockBatches()->with('source')->fifoOrder()->get(),
             'movements' => StockMovement::where('product_id', $product->id)
                 ->with(['batch', 'reference'])

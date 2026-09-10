@@ -99,6 +99,66 @@ class ChartTest extends TestCase
     }
 
     #[Test]
+    public function several_series_share_one_maximum(): void
+    {
+        // A chart whose lines each have their own scale is not one chart, it is
+        // several drawn on top of one another, and where they cross means
+        // nothing.
+        $this->assertSame(
+            50_000,
+            Chart::sharedMax(['sales' => [10_000, 4_000], 'purchases' => [47_300, 0]]),
+        );
+
+        $this->assertSame(0, Chart::sharedMax(['a' => [0, 0], 'b' => []]));
+        $this->assertSame(0, Chart::sharedMax([]));
+    }
+
+    #[Test]
+    public function a_level_gets_a_window_around_where_it_actually_sits(): void
+    {
+        // Stock value sits at eighty-odd million and moves by four across a
+        // month. Drawn from zero it is a straight line — true, and useless.
+        [$floor, $ceiling] = Chart::window([87_882_112, 92_086_290]);
+
+        $this->assertLessThan(87_882_112, $floor);
+        $this->assertGreaterThan(92_086_290, $ceiling);
+
+        // And both ends are round, because those two figures are printed beside
+        // the band and read as its range. A label saying "87 M" for a line
+        // drawn at 86,831,067 is a rounding presented as a reading.
+        $this->assertSame(0, $floor % 1_000_000);
+        $this->assertSame(0, $ceiling % 1_000_000);
+    }
+
+    #[Test]
+    public function a_level_that_never_moved_still_gets_a_window(): void
+    {
+        // A shop that bought nothing and sold nothing all month has a flat
+        // shelf. Zero span would divide by zero and draw nothing at all.
+        [$floor, $ceiling] = Chart::window([5_000_000, 5_000_000]);
+
+        $this->assertLessThan(5_000_000, $floor);
+        $this->assertGreaterThan(5_000_000, $ceiling);
+
+        // Nothing to draw is not a window at all.
+        $this->assertSame([0, 0], Chart::window([]));
+    }
+
+    #[Test]
+    public function a_reading_is_placed_between_the_floor_and_the_ceiling(): void
+    {
+        $this->assertSame([0.0, 0.5, 1.0], Chart::within([100, 150, 200], 100, 200));
+
+        // Outside the window is held at its edge rather than drawn out of the
+        // card.
+        $this->assertSame([0.0, 1.0], Chart::within([50, 500], 100, 200));
+
+        // A window with no span cannot place anything, and says so rather than
+        // dividing by zero.
+        $this->assertSame([0.0, 0.0], Chart::within([100, 100], 100, 100));
+    }
+
+    #[Test]
     public function a_short_axis_keeps_every_label(): void
     {
         $labels = ['1/9', '2/9', '3/9'];

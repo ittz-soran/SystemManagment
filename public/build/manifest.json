@@ -132,13 +132,13 @@
     "src": "resources/fonts/bootstrap-icons-subset.woff2"
   },
   "resources/js/app.js": {
-    "file": "assets/app-uK4VOygj.js",
+    "file": "assets/app-s9md-gkx.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/scss/app.scss": {
-    "file": "assets/app-BQ_dAkgm.css",
+    "file": "assets/app-D4KT8ci0.css",
     "name": "app",
     "names": [
       "app.css"

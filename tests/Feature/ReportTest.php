@@ -238,7 +238,7 @@ class ReportTest extends TestCase
     // here is the series the page hands it: one point per day, the empty days
     // included, and returns taken off the day they came back on.
 
-    public function test_the_daily_series_has_a_point_for_every_day_of_the_period(): void
+    public function test_the_trend_has_a_point_for_every_day_of_the_period(): void
     {
         $this->runSection10bScenario();
 
@@ -247,16 +247,19 @@ class ReportTest extends TestCase
                 'from' => today()->subDays(6)->toDateString(),
                 'to' => today()->toDateString(),
             ]))
-            ->viewData('dailySales');
+            ->viewData('trend');
 
         // Seven days asked for, seven points back. Leaving the quiet days out
         // would draw a line straight from Thursday to Sunday and make a closed
         // weekend look like ordinary trade.
-        $this->assertCount(7, $points);
-        $this->assertSame(array_fill(0, 6, 0), array_column(array_slice($points, 0, 6), 'value'));
+        $sales = $points['series'][0]['values'];
+
+        $this->assertCount(7, $points['labels']);
+        $this->assertCount(7, $sales);
+        $this->assertSame(array_fill(0, 6, 0), array_slice($sales, 0, 6));
 
         // Today: 120,000 sold less the 60,000 that came back on the same day.
-        $this->assertSame(60_000, $points[6]['value']);
+        $this->assertSame(60_000, $sales[6]);
     }
 
     public function test_a_return_comes_off_the_day_it_came_back_on(): void
@@ -293,9 +296,9 @@ class ReportTest extends TestCase
                 'from' => today()->subDays(2)->toDateString(),
                 'to' => today()->toDateString(),
             ]))
-            ->viewData('dailySales');
+            ->viewData('trend');
 
-        $this->assertSame([60_000, -30_000, 0], array_column($points, 'value'));
+        $this->assertSame([60_000, -30_000, 0], $points['series'][0]['values']);
     }
 
     public function test_the_reports_page_draws_the_charts(): void
@@ -318,7 +321,7 @@ class ReportTest extends TestCase
 
         // The trend is an SVG the server wrote, not a canvas a script fills in
         // later: this page gets printed, and a canvas prints as an empty box.
-        $response->assertSee('app-chart-stroke', escape: false);
+        $response->assertSee('app-trend-line', escape: false);
         $response->assertSee('<path d="M', escape: false);
 
         // And the two rankings drew a bar apiece.

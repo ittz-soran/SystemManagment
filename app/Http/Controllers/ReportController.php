@@ -15,6 +15,7 @@ use App\Models\SaleReturn;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Services\DailyTotals;
 use App\Support\TradeProfit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -54,7 +55,7 @@ class ReportController extends Controller
         ];
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, DailyTotals $totals): View
     {
         [$from, $to] = $this->range($request);
 
@@ -62,7 +63,8 @@ class ReportController extends Controller
             'from' => $from,
             'to' => $to,
             'profit' => $this->profit($from, $to),
-            'dailySales' => $this->dailySales($from, $to),
+            'trend' => $this->trend($totals, $from, $to),
+            'cashTrend' => $this->cashTrend($totals, $from, $to),
             'topProducts' => $this->topProducts($from, $to),
             'cash' => $this->cash($from, $to),
             'expensesByCategory' => $this->expensesByCategory($from, $to),
@@ -374,69 +376,91 @@ class ReportController extends Controller
     }
 
     /**
-     * What the shop took each day of the period, net of returns.
+     * The trend chart's data: the three flows, and the shelf beneath them.
      *
-     * Every day in the range gets a point, including the ones with nothing on
-     * them. Skipping the empty days would draw a line straight from Thursday to
-     * Sunday and make a closed weekend look like ordinary trade — the flat
-     * stretch is the reading.
+     * Sales, purchases and profit share one scale because all three are the
+     * same kind of thing — money that moved that day. Stock value is not: it is
+     * what the shelf was worth at closing, it carries in from yesterday, and it
+     * sits thirty times higher than the tallest flow. So it comes back as a
+     * separate level, and the component draws it as a band with a scale and a
+     * label of its own rather than as a fourth line on a second axis.
      *
-     * Both columns are plain dates, so the grouping is the column itself and
-     * needs no engine-specific date function. What comes back is keyed on the
-     * first ten characters of it rather than on the whole value: MySQL hands
-     * back `2026-09-10` from a DATE column and SQLite hands back the
-     * `2026-09-10 00:00:00` Laravel wrote into it, and a report that only
-     * matched one of the two would draw a flat line on half the shops.
+     * Cost decides who sees what. Profit is a subtraction away from cost and
+     * stock value *is* a cost, so both are built from what this reader is
+     * allowed to work from — and dropped entirely when that is nothing, rather
+     * than drawn from a figure they were never meant to have.
      *
-     * @return list<array{label: string, value: int}>
+     * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>, level: ?array<string, mixed>}
      */
-    private function dailySales(Carbon $from, Carbon $to): array
+    private function trend(DailyTotals $totals, Carbon $from, Carbon $to): array
     {
-        $sold = $this->totalPerDay(
-            Sale::whereBetween('sale_date', [$from, $to]), 'sale_date', 'total_amount'
-        );
+        $days = $totals->days($from, $to);
+        $axis = $totals->axis($days);
+        $flows = $totals->flows($from, $to);
 
-        $returned = $this->totalPerDay(
-            SaleReturn::whereBetween('return_date', [$from, $to]), 'return_date', 'total_amount'
-        );
+        $series = [
+            ['name' => __('Sales'), 'short' => __('Sales'), 'tone' => 1,
+             'values' => array_values($flows['sales'])],
+            ['name' => __('Purchases'), 'short' => __('Bought'), 'tone' => 2,
+             'values' => array_values($flows['purchases'])],
+        ];
 
-        $points = [];
+        // cost_seen() answers null when this reader may not see cost at all,
+        // and a marked-up figure when the shop shows them one. Running the
+        // day's real cost through it settles both questions at once.
+        $seen = array_map(fn (int $cost) => cost_seen($cost), $flows['cost']);
+        $costHidden = in_array(null, $seen, true);
 
-        for ($day = $from->copy()->startOfDay(); $day->lte($to); $day->addDay()) {
-            $key = $day->toDateString();
+        $level = null;
 
-            $points[] = [
-                // Numerals rather than month names: seven of these sit across a
-                // narrow axis, and a Kurdish month name is four words long. The
-                // chart is drawn left-to-right in every language, so the date
-                // reads left-to-right too.
-                'label' => $day->format('j/n'),
-                'value' => ($sold[$key] ?? 0) - ($returned[$key] ?? 0),
+        if (! $costHidden) {
+            $series[] = [
+                'name' => __('Profit'), 'short' => __('Profit'), 'tone' => 3,
+                'values' => array_values($totals->profit($flows['sales'], $seen)),
+            ];
+
+            $level = [
+                'name' => __('Stock value'),
+                'values' => array_map(
+                    fn (int $value) => (int) cost_seen($value),
+                    array_values($totals->stockValue($from, $to)),
+                ),
             ];
         }
 
-        return $points;
+        return [
+            'labels' => $axis['labels'],
+            'notes' => $axis['notes'],
+            'series' => $series,
+            'level' => $level,
+        ];
     }
 
     /**
-     * One total per calendar day, keyed `Y-m-d`.
+     * The till, day by day: what came in and what went out.
      *
-     * @return array<string, int>
+     * Payments rather than sales, and that is the point of drawing it beside
+     * the profit chart. A sale on credit is revenue today and cash next month,
+     * which is how a shop with good figures still cannot pay a supplier on
+     * Thursday. Two flows, one scale, and no level — so no band.
+     *
+     * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>}
      */
-    private function totalPerDay($query, string $dateColumn, string $amountColumn): array
+    private function cashTrend(DailyTotals $totals, Carbon $from, Carbon $to): array
     {
-        $totals = [];
+        $axis = $totals->axis($totals->days($from, $to));
+        $cash = $totals->cash($from, $to);
 
-        $rows = $query->groupBy($dateColumn)
-            ->selectRaw("$dateColumn as day, SUM($amountColumn) as total")
-            ->pluck('total', 'day');
-
-        foreach ($rows as $day => $total) {
-            $key = substr((string) $day, 0, 10);
-            $totals[$key] = ($totals[$key] ?? 0) + (int) $total;
-        }
-
-        return $totals;
+        return [
+            'labels' => $axis['labels'],
+            'notes' => $axis['notes'],
+            'series' => [
+                ['name' => __('In'), 'short' => __('In'), 'tone' => 3,
+                 'values' => array_values($cash['in'])],
+                ['name' => __('Out'), 'short' => __('Out'), 'tone' => 2,
+                 'values' => array_values($cash['out'])],
+            ],
+        ];
     }
 
     /** Ranked by units actually sold, net of what came back. */

@@ -163,6 +163,87 @@ final class Chart
     }
 
     /**
+     * One maximum for several series, so they can be read against each other.
+     *
+     * A chart whose lines each have their own scale is not one chart, it is
+     * several drawn on top of one another, and where they cross means nothing.
+     *
+     * @param  array<int|string, list<int|float>>  $series
+     */
+    public static function sharedMax(array $series): int
+    {
+        $highest = 0;
+
+        foreach ($series as $values) {
+            foreach ($values as $value) {
+                $highest = max($highest, (int) ceil($value));
+            }
+        }
+
+        return self::niceMax($highest);
+    }
+
+    /**
+     * The floor and ceiling for a level — a reading that is never near zero.
+     *
+     * Stock value sits at eighty-odd million and moves by four across a month.
+     * Drawn from zero it is a straight line: true, and useless. A level gets a
+     * window around the range it actually occupies, which is why it is drawn
+     * apart from the flows and labelled with its own scale rather than sharing
+     * theirs — a reader who is told the axis starts at 86M is informed, one who
+     * is not told is misled.
+     *
+     * @param  list<int|float>  $values
+     * @return array{0: int, 1: int}
+     */
+    public static function window(array $values, float $pad = 0.25): array
+    {
+        if ($values === []) {
+            return [0, 0];
+        }
+
+        $low = (int) floor(min($values));
+        $high = (int) ceil(max($values));
+
+        // A level that never moved still needs a window to sit in the middle of.
+        $span = ($high - $low) ?: max(1, (int) abs($high));
+        $margin = (int) ceil($span * $pad);
+
+        // Snapped to a round step, because the two figures printed beside the
+        // band are read as the band's range. An axis labelled "87 M" whose line
+        // is really at 86,831,067 is a rounding presented as a reading.
+        $step = 10 ** max(0, strlen((string) $span) - 1);
+
+        return [
+            max(0, (int) (floor(($low - $margin) / $step) * $step)),
+            (int) (ceil(($high + $margin) / $step) * $step),
+        ];
+    }
+
+    /**
+     * Where each value sits between a floor and a ceiling, as a fraction.
+     *
+     * `fractions()` measures from zero, which is right for money that moved and
+     * wrong for a level in its own window.
+     *
+     * @param  list<int|float>  $values
+     * @return list<float>
+     */
+    public static function within(array $values, int $floor, int $max): array
+    {
+        $span = $max - $floor;
+
+        if ($span <= 0) {
+            return array_map(fn () => 0.0, $values);
+        }
+
+        return array_map(
+            fn ($value) => max(0.0, min(1.0, ($value - $floor) / $span)),
+            $values,
+        );
+    }
+
+    /**
      * The labels an axis actually shows, each with the fraction across the plot
      * it belongs above.
      *

@@ -221,6 +221,10 @@ th.money {
   .table {
     --bs-body-bg: #fff;
     --bs-tertiary-bg-rgb: 255, 255, 255;
+    // The named twins as well as the rgb one: a chip or a track that reads
+    // `var(--bs-tertiary-bg)` directly printed as a dark pill on white paper.
+    --bs-tertiary-bg: #f4f5f6;
+    --bs-secondary-bg: #e9ecef;
     --bs-body-color: #000;
     // The -rgb twin as well as the colour: Bootstrap's `.text-body` is built
     // from the rgb triple and its own opacity, so setting only the colour left
@@ -844,5 +848,258 @@ a.stat-tile {
 
   .app-chart-dot {
     stroke: #fff;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The trend chart — several readings across the same days.
+//
+// Flows share one scale because that is what makes them comparable; a level
+// gets its own band beneath them, labelled with its own range. What this
+// refuses to do is the point: a chart with two y-axes, one down each side, lets
+// whoever drew it slide the lines until they cross wherever looks good, and the
+// crossing means nothing.
+//
+// The hues are the validated categorical trio — worst adjacent CVD ΔE 9.2 on
+// the light surface, 9.4 on the dark. The level wears a neutral on purpose, so
+// it never reads as a fourth thing of the same kind.
+// ---------------------------------------------------------------------------
+
+:root {
+  --app-trend-1: #2a78d6;
+  --app-trend-2: #eb6834;
+  --app-trend-3: #1baf7a;
+  --app-trend-0: #78868f;
+  --app-trend-band: rgba(120, 134, 143, .18);
+}
+
+[data-bs-theme='dark'] {
+  --app-trend-1: #3987e5;
+  --app-trend-2: #d95926;
+  --app-trend-3: #199e70;
+  --app-trend-0: #6d7a86;
+  --app-trend-band: rgba(109, 122, 134, .22);
+}
+
+.app-trend {
+  position: relative;
+  display: grid;
+  // Value axis, the drawing, the names of the lines where they end.
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: .5rem;
+  row-gap: .2rem;
+}
+
+.app-trend-axis,
+.app-trend-plot,
+.app-trend-ends {
+  height: var(--app-trend-height, 240px);
+}
+
+.app-trend-axis,
+.app-trend-ends,
+.app-trend-plot {
+  position: relative;
+}
+
+// The figures beside the drawing rather than inside it: the SVG is stretched to
+// fit its box, which would stretch any text in it out of shape.
+.app-trend-axis {
+  min-width: 2.5rem;
+
+  > span {
+    position: absolute;
+    inset-inline-end: 0;
+    transform: translateY(50%);
+    line-height: 1;
+    white-space: nowrap;
+    font-size: .6875rem;
+    color: var(--bs-secondary-color);
+  }
+}
+
+.app-trend-ends {
+  min-width: 2.75rem;
+
+  > span {
+    position: absolute;
+    inset-inline-start: 0;
+    transform: translateY(50%);
+    line-height: 1;
+    white-space: nowrap;
+    font-size: .6875rem;
+    font-weight: 600;
+  }
+}
+
+.app-trend-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.app-trend-line {
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  // The viewBox is stretched to fit its box, which would stretch the stroke
+  // with it and give a 2px line a different weight on a wide screen.
+  vector-effect: non-scaling-stroke;
+}
+
+.app-trend-band {
+  fill: var(--app-trend-band);
+  stroke: none;
+}
+
+.app-trend-swatch {
+  display: inline-block;
+  width: .6rem;
+  height: .6rem;
+  border-radius: .15rem;
+  flex: 0 0 auto;
+}
+
+@each $tone in (0, 1, 2, 3) {
+  .app-trend-line[data-tone='#{$tone}'] { stroke: var(--app-trend-#{$tone}); }
+  .app-trend-ends > span[data-tone='#{$tone}'] { color: var(--app-trend-#{$tone}); }
+  .app-trend-swatch[data-tone='#{$tone}'] { background: var(--app-trend-#{$tone}); }
+  .app-trend-knob[data-tone='#{$tone}'] { background: var(--app-trend-#{$tone}); }
+}
+
+.app-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .5rem;
+  margin-bottom: .6rem;
+}
+
+.app-trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 2rem;
+  // Logical, because this app imports Bootstrap's LTR build and the chip sits
+  // in the page's own direction rather than the chart's.
+  padding-block: .1rem;
+  padding-inline: .45rem .6rem;
+  background: var(--bs-tertiary-bg);
+}
+
+.app-trend-chip[role='button'] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.app-trend-chip[aria-pressed='false'] {
+  opacity: .4;
+}
+
+.app-trend-bandname {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin-top: .6rem;
+}
+
+.app-trend-dates {
+  position: relative;
+  height: 1.25em;
+  margin-top: .15rem;
+
+  > span {
+    position: absolute;
+    white-space: nowrap;
+    color: var(--bs-secondary-color);
+  }
+}
+
+// ---- the crosshair, added by the script over a drawing already there -------
+
+.app-trend-hair {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--bs-secondary-color);
+  opacity: .45;
+  pointer-events: none;
+}
+
+.app-trend-knob {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, 50%);
+  // The surface ring, so a knob stays legible where it sits on its own line.
+  box-shadow: 0 0 0 2px var(--bs-body-bg);
+  pointer-events: none;
+}
+
+.app-trend-tip {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  pointer-events: none;
+  min-width: 9.5rem;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: .5rem;
+  box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .18);
+  padding: .45rem .6rem;
+  font-size: .75rem;
+
+  .when {
+    font-weight: 600;
+    padding-bottom: .3rem;
+    margin-bottom: .3rem;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  // Not `.row`: Bootstrap's grid owns that name, and its `.row > *` rule sets
+  // every child to full width, which stands the three parts of a line on top of
+  // one another.
+  .app-trend-read {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+
+  .app-trend-read + .app-trend-read { margin-top: .15rem; }
+
+  .val {
+    margin-inline-start: auto;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Paper cannot be hovered, and the crosshair is a hover. The chart underneath
+// it is the whole drawing and prints on its own.
+@media print {
+  .app-trend-hair,
+  .app-trend-knob,
+  .app-trend-tip {
+    display: none !important;
+  }
+
+  .app-trend-line,
+  .app-trend-band {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .card {
+    --app-trend-1: #2a78d6;
+    --app-trend-2: #eb6834;
+    --app-trend-3: #1baf7a;
+    --app-trend-0: #78868f;
+    --app-trend-band: rgba(120, 134, 143, .18);
   }
 }
