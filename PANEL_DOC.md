@@ -305,6 +305,17 @@ What crosses between them is deliberately small and one-directional:
   It does this as a subprocess against the shared codebase on the server, not
   by importing any of its classes.
 
+  **`shop:doctor` is how a customer's shop is diagnosed.** One command, one
+  output: which folders it is using and where the public path came from, the
+  database and any columns the code writes that it has not got, the session and
+  cache drivers and whether their tables exist, the manifest hashes on both
+  sides and whether the stylesheet the page links to is actually there, the
+  licence, and **the errors that shop has recorded** — its log lives under its
+  own storage folder, not the shared codebase's, which is why nobody finds it.
+  It reports and never repairs: a command that fixed what it found would
+  destroy the evidence. `--json` for the panel; give every customer row a
+  button for it.
+
   **`shop:update` is the "push the update to customers" action.** After `git
   pull` lands in the shared codebase, every shop is already running the new
   code — immediately, all of them — against a database that has not been
