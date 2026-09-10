@@ -292,22 +292,46 @@ class BackupTest extends TestCase
      */
     public function test_a_missing_tool_says_where_to_find_it_and_what_to_set(): void
     {
-        config(['backup.mysqldump' => 'mysqldump']);
+        // Named after nothing that could be installed. This test used to ask
+        // for `mysqldump` by name and passed only on machines that happen not
+        // to have it — green here, red on every GitHub runner, where the MySQL
+        // client ships with the image. A test about what happens when a tool is
+        // absent must not depend on whether it is.
+        config(['backup.mysqldump' => $this->impossibleTool()]);
 
+        $message = $this->refusalFor('mysqldump');
+
+        $this->assertStringContainsString('xampp', $message);
+        $this->assertStringContainsString('MYSQLDUMP_PATH', $message);
+
+        config(['backup.mysql' => $this->impossibleTool()]);
+
+        $this->assertStringContainsString('MYSQL_PATH', $this->refusalFor('mysql'));
+    }
+
+    /** A name no machine can have on PATH or in a database server's bin folder. */
+    private function impossibleTool(): string
+    {
+        return 'no-such-tool-'.bin2hex(random_bytes(8));
+    }
+
+    /**
+     * The message given when nothing can be found, or a clear failure.
+     *
+     * Not `$this->fail()` inside the try: PHPUnit's AssertionFailedError
+     * extends RuntimeException, so the catch swallowed it and the report read
+     * "Expected: A missing tool must be reported… To contain: xampp", which
+     * describes neither what was wrong nor where.
+     */
+    private function refusalFor(string $key): string
+    {
         try {
-            $this->tool('mysqldump', 'definitely-not-a-real-tool');
-            $this->fail('A missing tool must be reported, not silently skipped.');
+            $found = $this->tool($key, $this->impossibleTool());
         } catch (\RuntimeException $e) {
-            $this->assertStringContainsString('xampp', $e->getMessage());
-            $this->assertStringContainsString('MYSQLDUMP_PATH', $e->getMessage());
+            return $e->getMessage();
         }
 
-        try {
-            $this->tool('mysql', 'definitely-not-a-real-tool');
-            $this->fail('A missing tool must be reported, not silently skipped.');
-        } catch (\RuntimeException $e) {
-            $this->assertStringContainsString('MYSQL_PATH', $e->getMessage());
-        }
+        $this->fail("A missing tool must be reported, not silently skipped — [{$key}] resolved to [{$found}].");
     }
 
     /** An explicit path wins, so a wrong one is reported rather than worked around. */
@@ -321,12 +345,20 @@ class BackupTest extends TestCase
         );
     }
 
-    /** A tool that is on PATH is found by name, with no configuration at all. */
+    /**
+     * A tool that is on PATH is found by name, with no configuration at all.
+     *
+     * The configured name is one that cannot exist, so the search has to fall
+     * through it to reach the one that can. Asking for `mysql` here instead
+     * made the answer depend on whether MySQL was installed on the machine
+     * running the suite — which is how this was green locally and red in CI.
+     */
     public function test_a_tool_on_the_path_is_found_by_name(): void
     {
-        config(['backup.mysql' => 'mysql']);
+        config(['backup.mysql' => $this->impossibleTool()]);
 
-        // php is the one executable this suite can be certain is on PATH.
+        // php is the one executable this suite can be certain is on PATH: it
+        // is what is running the suite.
         $this->assertSame('php', $this->tool('mysql', 'php'));
     }
 
