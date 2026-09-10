@@ -60,8 +60,15 @@ class User extends Authenticatable
             // Encrypted at rest. A database dump that hands over both the
             // password hashes and the thing that resets them has handed over
             // the shop.
-            'two_factor_secret' => 'encrypted',
-            'two_factor_recovery_codes' => 'encrypted:array',
+            // App\Casts\Unreadable rather than Laravel's `encrypted`: that one
+            // throws when APP_KEY has changed since the value was written, and
+            // Eloquent decrypts every cast attribute while working out what is
+            // dirty — so saving a user for ANY reason decrypted their
+            // authenticator secret. A changed key took out logging out,
+            // changing language, changing theme and saving a preference, all at
+            // once, on a shop where nothing else was wrong.
+            'two_factor_secret' => \App\Casts\Unreadable::class,
+            'two_factor_recovery_codes' => \App\Casts\Unreadable::class.':array',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -82,7 +89,15 @@ class User extends Authenticatable
         // setup screen they do not need is the harmless direction to be wrong.
         $attributes = $this->getAttributes();
 
-        return ! empty($attributes['two_factor_secret']) && ! empty($attributes['two_factor_confirmed_at']);
+        if (empty($attributes['two_factor_secret']) || empty($attributes['two_factor_confirmed_at'])) {
+            return false;
+        }
+
+        // And it has to be readable. A secret encrypted with a key that is gone
+        // would otherwise make this say yes, and the sign-in screen would then
+        // demand a code that can never be right — locking somebody out of their
+        // own shop over a secret nobody can use.
+        return $this->two_factor_secret !== null;
     }
 
     /**

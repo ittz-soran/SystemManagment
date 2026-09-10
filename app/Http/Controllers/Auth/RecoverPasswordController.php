@@ -93,7 +93,13 @@ class RecoverPasswordController extends Controller
     /** The phone, or one of the eight codes written down when it was set up. */
     private function accepts(User $user, string $code): bool
     {
-        if (Totp::check($user->two_factor_secret, $code)) {
+        // The secret can read as null now: absent, or written with an APP_KEY
+        // that is gone. Either way there is no phone to check against, and
+        // Totp::check takes a string — so this is a TypeError rather than a
+        // refusal if it is not asked first.
+        $secret = $user->two_factor_secret;
+
+        if ($secret !== null && Totp::check($secret, $code)) {
             return true;
         }
 
