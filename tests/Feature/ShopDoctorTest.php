@@ -170,6 +170,27 @@ class ShopDoctorTest extends TestCase
         $this->assertStringContainsString('error_log', $joined, 'the web server writes elsewhere and that is where a fatal lands');
     }
 
+    /**
+     * The command line and the browser must be talking about the same shop.
+     *
+     * Two separate files name a shop — the `artisan` a command runs through
+     * and the `index.php` the domain points at — and nothing compared them.
+     * A shop whose two entry points disagree is diagnosed healthy from the
+     * command line while the browser talks to a different install, with a
+     * different database and a different log: every answer right, every answer
+     * about the wrong shop.
+     */
+    public function test_it_compares_the_command_line_and_the_browser_entry_points(): void
+    {
+        $shop = $this->report()['shop'];
+
+        $this->assertArrayHasKey('web entry point', $shop);
+
+        // Run against the shared codebase there is nothing to compare, and
+        // saying "they disagree" there would be a false alarm on every run.
+        $this->assertSame('not a shop — nothing to compare', $shop['web entry point']);
+    }
+
     /** It reports and it does not repair — a fix would destroy the evidence. */
     public function test_it_changes_nothing(): void
     {

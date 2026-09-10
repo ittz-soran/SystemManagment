@@ -103,6 +103,57 @@ class ShopDoctor extends Command
             'shared codebase' => base_path(),
             'code version' => $this->gitDescription(),
             'app url' => config('app.url'),
+            ...$this->webEntryPoint(),
+        ];
+    }
+
+    /**
+     * What the *browser* thinks this shop is.
+     *
+     * Two separate files name a shop: the `artisan` this command was run
+     * through, and the `index.php` the domain points at. Nothing has ever
+     * compared them — so a shop whose two entry points disagree is diagnosed
+     * healthy from the command line while the browser is talking to a
+     * different install entirely, with a different database and a different
+     * log. Every answer is right and about the wrong shop.
+     *
+     * That is not a theory: this report came back healthy in every section
+     * while Laravel's log did not exist at all, which is only possible if the
+     * web is writing somewhere else or cannot write.
+     *
+     * @return array<string, string>
+     */
+    private function webEntryPoint(): array
+    {
+        if (! defined('SHOP_HOME')) {
+            // The shared codebase's own index.php names no shop, correctly.
+            return ['web entry point' => 'not a shop — nothing to compare'];
+        }
+
+        $public = rtrim(defined('SHOP_PUBLIC') ? (string) constant('SHOP_PUBLIC') : public_path(), '/\\');
+        $index = $public.'/index.php';
+
+        if (! is_file($index)) {
+            return ['web entry point' => 'MISSING — '.$index];
+        }
+
+        $source = (string) file_get_contents($index);
+
+        preg_match("/define\s*\(\s*'SHOP_HOME'\s*,\s*'([^']*)'/", $source, $home);
+        preg_match("/define\s*\(\s*'SHOP_PUBLIC'\s*,\s*(__DIR__|'[^']*')/", $source, $pub);
+
+        $webHome = isset($home[1]) ? rtrim($home[1], '/\\') : null;
+        $cliHome = defined('SHOP_HOME') ? rtrim((string) constant('SHOP_HOME'), '/\\') : null;
+
+        return [
+            'web entry point' => $index,
+            'web SHOP_HOME' => $webHome ?? 'not defined in it',
+            'web SHOP_PUBLIC' => $pub[1] ?? 'not defined in it',
+            // The loud one. Disagreement here explains a healthy report and a
+            // broken shop at the same time.
+            'cli and web agree' => $webHome !== null && $webHome === $cliHome
+                ? 'yes'
+                : 'NO — the command line and the browser are using different shops',
         ];
     }
 
@@ -214,6 +265,11 @@ class ShopDoctor extends Command
             'cache store' => $cache,
             'cache table' => $tableFor($cache, config('cache.stores.database.table', 'cache')),
             'storage writable' => is_writable(storage_path('logs')),
+            // Written by the command line as one user and by the web server as
+            // possibly another. A logs folder the web cannot write turns the
+            // first error into a 500 that records nothing — which is exactly
+            // what an empty log beside a failing shop looks like.
+            'logs folder owner' => $this->ownerOf(storage_path('logs')),
             'sessions folder' => $this->folderState(storage_path('framework/sessions')),
             'views folder' => $this->folderState(storage_path('framework/views')),
             'php version' => PHP_VERSION,
@@ -267,6 +323,20 @@ class ShopDoctor extends Command
         $report['qr code library'] = class_exists(\BaconQrCode\Writer::class) ? 'present' : 'MISSING — the authenticator page will fail';
 
         return $report;
+    }
+
+    /** Who owns a folder, and what it lets them do. */
+    private function ownerOf(string $path): string
+    {
+        if (! is_dir($path)) {
+            return 'MISSING — '.$path;
+        }
+
+        $owner = function_exists('posix_getpwuid')
+            ? (posix_getpwuid(fileowner($path))['name'] ?? fileowner($path))
+            : fileowner($path);
+
+        return sprintf('%s, mode %s', $owner, substr(sprintf('%o', fileperms($path)), -4));
     }
 
     /**
