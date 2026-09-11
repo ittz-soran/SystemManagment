@@ -167,7 +167,7 @@ class DashboardController extends Controller
                 // cost setting on top of the permission.
                 'label' => __('Stock value'),
                 'value' => $user->hasPermission('reports.view')
-                    ? (int) StockBatch::sum(DB::raw('quantity_remaining * unit_cost'))
+                    ? (int) StockBatch::sum(DB::raw(StockBatch::VALUE))
                     : null,
                 'icon' => 'boxes',
                 'note' => __('At FIFO cost'),

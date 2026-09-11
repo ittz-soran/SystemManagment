@@ -46,7 +46,7 @@ final class TradeProfit
             ->whereIn('product_id', $ids())
             ->where('reference_type', $reference)
             ->whereBetween('occurred_at', [$from, $to])
-            ->sum(DB::raw($sign.'quantity * unit_cost'));
+            ->sum(DB::raw($sign.StockMovement::VALUE));
 
         $cost = $moved(StockMovement::REF_SALE, '-') - $moved(StockMovement::REF_SALE_RETURN, '');
 

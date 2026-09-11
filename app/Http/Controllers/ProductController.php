@@ -113,7 +113,7 @@ class ProductController extends Controller
             // left the till for the units still on the shelf.
             'stockValue' => $request->user()->hasPermission('reports.view')
                 ? (int) StockBatch::whereIn('product_id', Product::stocked()->select('id'))
-                    ->sum(DB::raw('quantity_remaining * unit_cost'))
+                    ->sum(DB::raw(StockBatch::VALUE))
                 : null,
 
             // The other side of the same shelf: what those units would fetch at
