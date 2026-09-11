@@ -7,12 +7,15 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\StockBatch;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\PurchaseService;
+use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -69,9 +72,12 @@ class ProveLocking extends Command
                             {--stock=5 : Units put on the shelf}
                             {--want=4 : Units each till tries to take}
                             {--products=1 : How many different items each sale touches}
+                            {--mixed : Race sales against RETURNS rather than against each other}
+                            {--rounds=6 : How many times a mixed racer repeats its work}
                             {--child : Internal. One racer, started by the run above.}
                             {--ids= : Internal. The products to sell, comma separated.}
                             {--reverse : Internal. Sell them in the opposite order.}
+                            {--returning= : Internal. The sale this racer gives back, by id.}
                             {--at= : Internal. The instant to strike, as a unix timestamp.}';
 
     protected $description = 'Prove that two tills cannot oversell the same item on this machine\'s database';
@@ -96,6 +102,17 @@ class ProveLocking extends Command
     private const REFUSED = 3;
 
     /**
+     * The engine killed this transaction to break a cycle.
+     *
+     * Its own ending, and the whole point of `--mixed`. A deadlock is not a
+     * crash and not a refusal: the data is left correct, because InnoDB rolls
+     * the victim back completely. What the shopkeeper gets is a 500 on a sale
+     * that should have worked, at random, under load — which is why it must not
+     * be counted with either of the other two.
+     */
+    private const DEADLOCKED = 4;
+
+    /**
      * One till, trying to take its units at the agreed instant.
      *
      * The three endings are kept apart on purpose. A racer that crashes and a
@@ -116,6 +133,10 @@ class ProveLocking extends Command
             usleep(200);
         }
 
+        if (($returning = (int) $this->option('returning')) > 0) {
+            return $this->giveBack($returning);
+        }
+
         try {
             $ids = array_map('intval', explode(',', (string) $this->option('ids')));
 
@@ -128,22 +149,28 @@ class ProveLocking extends Command
                 $ids = array_reverse($ids);
             }
 
-            app(SaleService::class)->create(
-                // The named test customer, not `first()`. The first customer in
-                // a seeded shop is the Cash Customer, who must pay in full — so
-                // every racer was refused by the business rules before it ever
-                // reached a lock, and this tool has never once measured the
-                // thing it exists to measure.
-                customer: Customer::where('name', self::CUSTOMER)->firstOrFail(),
-                lines: array_map(fn (int $id) => [
-                    'product_id' => $id,
-                    'quantity' => (int) $this->option('want'),
-                    'unit_price' => 10_000,
-                ], $ids),
-                user: User::where('email', 'admin@example.com')->firstOrFail(),
-                saleDate: now(),
-                amountPaid: 0,
-            );
+            $rounds = $this->option('rounds') !== null && (int) $this->option('rounds') > 0
+                ? (int) $this->option('rounds')
+                : 1;
+
+            for ($round = 0; $round < $rounds; $round++) {
+                app(SaleService::class)->create(
+                    // The named test customer, not `first()`. The first customer
+                    // in a seeded shop is the Cash Customer, who must pay in full
+                    // — so every racer was refused by the business rules before
+                    // it ever reached a lock, and this tool has never once
+                    // measured the thing it exists to measure.
+                    customer: Customer::where('name', self::CUSTOMER)->firstOrFail(),
+                    lines: array_map(fn (int $id) => [
+                        'product_id' => $id,
+                        'quantity' => (int) $this->option('want'),
+                        'unit_price' => 10_000,
+                    ], $ids),
+                    user: User::where('email', 'admin@example.com')->firstOrFail(),
+                    saleDate: now(),
+                    amountPaid: 0,
+                );
+            }
 
             return self::SOLD;
         } catch (InsufficientStockException $e) {
@@ -151,10 +178,90 @@ class ProveLocking extends Command
 
             return self::REFUSED;
         } catch (Throwable $e) {
+            if ($this->isADeadlock($e)) {
+                $this->line('deadlocked while selling: '.$e->getMessage());
+
+                return self::DEADLOCKED;
+            }
+
             $this->line('broke: '.$e::class.': '.$e->getMessage());
 
             return self::BROKE;
         }
+    }
+
+    /**
+     * The other half of the pair: a customer bringing goods back.
+     *
+     * This is the racer a sale cannot be. A sale takes the SALE counter and a
+     * return takes the SALE_RETURN counter — different rows — so the two never
+     * serialise the way two sales do. They then reach the same product's batch
+     * rows, and reach them in opposite orders: `consume()` locks oldest batch
+     * first, `reverseMovements()` newest first. That is the cycle, and nothing
+     * reachable through two sales can produce it.
+     *
+     * It gives the same units back and takes them again, round after round, so
+     * the stock it leaves behind is unchanged and the run can be repeated.
+     */
+    private function giveBack(int $saleId): int
+    {
+        $rounds = max(1, (int) $this->option('rounds'));
+
+        try {
+            for ($round = 0; $round < $rounds; $round++) {
+                $sale = Sale::with('items')->findOrFail($saleId);
+
+                $lines = $sale->items
+                    ->map(fn ($item) => [
+                        'sale_item_id' => $item->id,
+                        'quantity' => (int) $item->quantity - (int) $item->quantity_returned,
+                    ])
+                    ->filter(fn (array $line) => $line['quantity'] > 0)
+                    ->values()
+                    ->all();
+
+                if ($lines === []) {
+                    break;
+                }
+
+                app(SaleReturnService::class)->create(
+                    sale: $sale,
+                    lines: $lines,
+                    user: User::where('email', 'admin@example.com')->firstOrFail(),
+                    returnDate: now(),
+                );
+            }
+
+            return self::SOLD;
+        } catch (Throwable $e) {
+            if ($this->isADeadlock($e)) {
+                $this->line('deadlocked while returning: '.$e->getMessage());
+
+                return self::DEADLOCKED;
+            }
+
+            $this->line('broke while returning: '.$e::class.': '.$e->getMessage());
+
+            return self::BROKE;
+        }
+    }
+
+    /**
+     * Whether the engine killed this transaction to break a cycle.
+     *
+     * Read from the SQLSTATE rather than the message: 40001 is the standard's
+     * serialization failure and both MySQL and MariaDB use it for this. The
+     * message is matched as well because a lock WAIT TIMEOUT is the same fault
+     * wearing a different number — a cycle the engine did not detect quickly
+     * enough, which is still a sale the shopkeeper watched fail.
+     */
+    private function isADeadlock(Throwable $e): bool
+    {
+        $said = $e->getMessage();
+
+        return str_contains($said, '40001')
+            || str_contains($said, 'Deadlock found')
+            || str_contains($said, 'Lock wait timeout');
     }
 
     // ---- The proof ------------------------------------------------------
@@ -219,6 +326,12 @@ class ProveLocking extends Command
         $products = $this->shelf($stock, $howMany);
         $ids = $products->pluck('id')->implode(',');
 
+        // The sales the returning racers will hand back, made before the clock
+        // starts so that nothing in the race depends on anything else in it.
+        $toGiveBack = $this->option('mixed')
+            ? $this->salesToGiveBack($products, intdiv($racers, 2), $want)
+            : collect();
+
         // Far enough ahead that every racer has booted and is waiting on it.
         $at = microtime(true) + 3.0;
         $php = (new PhpExecutableFinder)->find() ?: 'php';
@@ -235,8 +348,16 @@ class ProveLocking extends Command
                 '--at='.$at,
             ];
 
-            // Every other till takes the same items in the opposite order.
-            if ($i % 2 === 0) {
+            // In a mixed run, every other racer is a customer bringing goods
+            // back rather than a till selling them — which is the only way to
+            // get two different lock orders onto the same rows.
+            if ($this->option('mixed') && $i % 2 === 0) {
+                $arguments[] = '--returning='.$toGiveBack->shift();
+                $arguments[] = '--rounds='.$this->option('rounds');
+            } elseif ($this->option('mixed')) {
+                $arguments[] = '--rounds='.$this->option('rounds');
+            } elseif ($i % 2 === 0) {
+                // Every other till takes the same items in the opposite order.
                 $arguments[] = '--reverse';
             }
 
@@ -251,8 +372,11 @@ class ProveLocking extends Command
 
         // A racer that never got as far as trying makes the whole run
         // meaningless, so it is reported as that and not as a verdict.
+        $deadlocked = array_filter($processes, fn (Process $p) => $p->getExitCode() === self::DEADLOCKED);
+
         $broken = array_filter($processes, fn (Process $p) => $p->getExitCode() !== self::SOLD
-            && $p->getExitCode() !== self::REFUSED);
+            && $p->getExitCode() !== self::REFUSED
+            && $p->getExitCode() !== self::DEADLOCKED);
 
         if ($broken !== []) {
             $this->newLine();
@@ -275,15 +399,45 @@ class ProveLocking extends Command
             return self::FAILURE;
         }
 
+        /*
+         * Reported before the stock verdict and separately from it, because a
+         * deadlock leaves the DATA correct — InnoDB rolls its victim back
+         * whole. Counting it as a pass because nothing was oversold would be
+         * reporting the one fault this mode exists to find as a clean run.
+         */
+        if ($deadlocked !== []) {
+            $this->newLine();
+            $this->components->error(sprintf(
+                '%d of %d transactions were killed by the engine to break a deadlock.',
+                count($deadlocked), $racers,
+            ));
+            $this->line('  The data is still correct — InnoDB rolls the victim back whole. What the');
+            $this->line('  shopkeeper sees is a 500 on a sale that should have worked, under load,');
+            $this->line('  at random. What each one said:');
+            $this->newLine();
+
+            foreach ($deadlocked as $process) {
+                foreach (preg_split('/\R/', trim($process->getOutput())) as $line) {
+                    if (trim($line) !== '') {
+                        $this->line('    <fg=yellow>'.$line.'</>');
+                    }
+                }
+            }
+
+            $this->newLine();
+        }
+
         $won = count(array_filter($endings, fn (?int $code) => $code === self::SOLD));
 
-        return $this->verdict($products, $won, $stock, $want, $racers);
+        $verdict = $this->verdict($products, $won, $stock, $want, $racers);
+
+        return $deadlocked === [] ? $verdict : self::FAILURE;
     }
 
     /**
      * The contested items, each with its own batch and a known number of units.
      *
-     * @return \Illuminate\Support\Collection<int, Product>
+     * @return Collection<int, Product>
      */
     private function shelf(int $stock, int $howMany)
     {
@@ -303,18 +457,59 @@ class ProveLocking extends Command
             'quantity' => 0,
         ]));
 
-        app(PurchaseService::class)->create(
-            supplier: $supplier,
-            lines: $products->map(fn (Product $p) => [
-                'product_id' => $p->id, 'quantity' => $stock, 'unit_price' => 1_000,
-            ])->all(),
-            user: $admin,
-            purchaseDate: now(),
-        );
+        /*
+         * Several deliveries rather than one, so each product has several
+         * batch rows. One batch is one row, and one row cannot be half of a
+         * cycle: the fault being looked for needs a transaction holding row A
+         * and wanting row B while another holds B and wants A.
+         */
+        $deliveries = $this->option('mixed') ? 4 : 1;
+        $each = max(1, intdiv($stock, $deliveries));
+
+        foreach (range(1, $deliveries) as $delivery) {
+            app(PurchaseService::class)->create(
+                supplier: $supplier,
+                lines: $products->map(fn (Product $p) => [
+                    'product_id' => $p->id,
+                    'quantity' => $delivery === $deliveries ? $stock - $each * ($deliveries - 1) : $each,
+                    'unit_price' => 1_000 * $delivery,
+                ])->all(),
+                user: $admin,
+                purchaseDate: now()->subDays($deliveries - $delivery),
+            );
+        }
 
         Customer::firstOrCreate(['name' => self::CUSTOMER]);
 
         return $products;
+    }
+
+    /**
+     * Sales made before the race, for the returning racers to hand back.
+     *
+     * Each one spans several batches on purpose. A sale that fits inside one
+     * batch locks one row, and one row cannot be part of a cycle — the whole
+     * fault being looked for is two transactions holding row A and row B in
+     * opposite orders, which needs at least two rows each.
+     *
+     * @return Collection<int, int>
+     */
+    private function salesToGiveBack($products, int $howMany, int $want)
+    {
+        $customer = Customer::where('name', self::CUSTOMER)->firstOrFail();
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+
+        return collect(range(1, max(1, $howMany)))->map(fn () => app(SaleService::class)->create(
+            customer: $customer,
+            lines: $products->map(fn (Product $p) => [
+                'product_id' => $p->id,
+                'quantity' => $want,
+                'unit_price' => 10_000,
+            ])->all(),
+            user: $admin,
+            saleDate: now(),
+            amountPaid: 0,
+        )->id);
     }
 
     private function verdict($products, int $won, int $stock, int $want, int $racers): int
@@ -339,17 +534,60 @@ class ProveLocking extends Command
         // silent. The data to check them is already here.
         $sales = Sale::where('customer_id', Customer::where('name', self::CUSTOMER)->value('id'))->get();
         $numbered = $sales->pluck('document_no')->unique()->count();
-        $billed = (int) $sales->sum('total_amount');
+        /*
+         * Net of what came back. In a mixed run half the racers are returning
+         * goods, so the sales alone are not what the customer owes — and the
+         * first version of this check said so loudly and wrongly, reporting a
+         * lost update on a balance that was exactly right. A tool that cries
+         * wolf about the ledger is worse than no tool, because the next real
+         * one gets waved away.
+         */
+        $billed = (int) $sales->sum('total_amount') - (int) SaleReturn::sum('total_amount');
         $owed = (int) Customer::where('name', self::CUSTOMER)->value('balance');
+
+        // A mixed run is about deadlocks, not about how many units are left: the
+        // returning racers put stock back as fast as the selling ones take it,
+        // so there is no arithmetic here that predicts the shelf. Those rows are
+        // shown as read rather than judged.
+        $mixed = (bool) $this->option('mixed');
 
         $this->newLine();
         $this->table(['What', 'Result', 'Should be'], [
-            ['Sales that went through', $won, $allowed],
-            ['Units left in the batches', $remaining, $howMany * ($stock - ($allowed * $want))],
+            ['Sales that went through', $won, $mixed ? '—' : $allowed],
+            ['Units left in the batches', $remaining, $mixed ? '—' : $howMany * ($stock - ($allowed * $want))],
             ['products.quantity cache', $cached, $remaining],
             ['Invoice numbers, all different', $numbered, $sales->count()],
             ['What the customer owes', number_format($owed), number_format($billed)],
         ]);
+
+        if ($mixed) {
+            // The two that still mean something when returns are in the mix: the
+            // cache must agree with the batches, and no two documents may share
+            // a number.
+            if ($cached !== $remaining) {
+                $this->components->error('THE CACHED QUANTITY DISAGREES WITH THE BATCHES.');
+
+                return self::FAILURE;
+            }
+
+            if ($numbered !== $sales->count()) {
+                $this->components->error('TWO SALES SHARE AN INVOICE NUMBER.');
+
+                return self::FAILURE;
+            }
+
+            if ($owed !== $billed) {
+                $this->components->error('THE CUSTOMER BALANCE LOST AN UPDATE.');
+                $this->line('  Sales less returns come to '.number_format($billed)
+                    .' but the balance says '.number_format($owed).'.');
+
+                return self::FAILURE;
+            }
+
+            $this->components->info('Stock, numbering and the balance all agree after the race.');
+
+            return self::SUCCESS;
+        }
 
         $expected = $howMany * ($stock - ($allowed * $want));
 

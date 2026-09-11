@@ -104,6 +104,12 @@ class FifoService
 
         // Section 5 (Concurrency): lock BEFORE checking. A check outside the lock
         // is worthless — two staff can both read "5 available" and both consume 4.
+        //
+        // In one canonical order first, so a sale and a return cannot hold one
+        // another's rows — see claim(). The select below then reads
+        // rows this transaction already owns.
+        $this->claim([$product->id]);
+
         $batches = StockBatch::where('product_id', $product->id)
             ->withStock()
             ->fifoOrder()
@@ -180,10 +186,11 @@ class FifoService
         // Lock every batch of this product, not just the ones with stock — a
         // return refills batches that have reached 0, and an empty batch is not
         // closed.
-        StockBatch::where('product_id', $product->id)
-            ->fifoOrder()
-            ->lockForUpdate()
-            ->get();
+        //
+        // In ascending id, NOT fifoOrder(): this path and consume() must claim
+        // the same rows in the same direction or they deadlock against each
+        // other. See claim().
+        $this->claim([$product->id]);
 
         $movements = StockMovement::where('reference_type', StockMovement::REF_SALE)
             ->where('reference_item_id', $saleItem->id)
@@ -265,6 +272,11 @@ class FifoService
     ): StockMovement {
         $this->assertInTransaction();
 
+        // One row, but a single row is still half of a cycle — the other side
+        // only has to hold it and want another of the same product. Claimed the
+        // same way as every other path first. See claim().
+        $this->claim([$batch->product_id]);
+
         $locked = StockBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
 
         // Section 7: purchase returns are limited by the batch — you can't send
@@ -313,6 +325,17 @@ class FifoService
         $this->assertInTransaction();
 
         $products = collect();
+
+        /*
+         * Every batch row this will touch, claimed in one order before any of
+         * it happens — see claim(). The loop below still walks the
+         * movements newest-first, which it must, but by then the rows are
+         * already held: the ORDER OF THE LOOP stops being a lock order at all.
+         * That distinction is the fix. Before it, this walked descending while
+         * consume() walked ascending, and a sale meeting a return on the same
+         * product was a cycle.
+         */
+        $this->claim($movements->pluck('product_id'));
 
         $this->assertStillReversible($movements);
 
@@ -377,6 +400,7 @@ class FifoService
         }
 
         $batches = StockBatch::whereIn('id', $needed->keys())
+            ->orderBy('id')
             ->lockForUpdate()
             ->get()
             ->keyBy('id');
@@ -407,6 +431,90 @@ class FifoService
         return (int) StockMovement::where('reference_type', $referenceType)
             ->where('reference_id', $referenceId)
             ->max('sequence') + 1;
+    }
+
+    /**
+     * Take every batch lock this operation needs, in ONE order, before anything else.
+     *
+     * **Why this exists — measured on MariaDB 10.11, 2026-09-11.**
+     *
+     * The batch rows were locked in three different orders in this one file:
+     * `consume()` took them oldest-first (`fifoOrder()`), `reverseMovements()`
+     * newest-first and one at a time, and `restoreForSaleItem()` in whatever
+     * order the engine felt like returning a `whereIn`. Any two of those running
+     * at once on the same product is a cycle — one transaction holding row A and
+     * waiting for row B while the other holds B and waits for A — and InnoDB
+     * ends it by killing one of them.
+     *
+     * Two sales could never show this. A sale takes the SALE counter row inside
+     * its own transaction, so **two tills serialise from their first statement**
+     * and never contend on a batch at all. A sale and a RETURN take different
+     * counter rows — `PREFIX_SALE` and `PREFIX_SALE_RETURN` — so nothing
+     * serialises them, and they reach the same shelf in opposite directions.
+     * Racing six of them, three were killed:
+     *
+     *     SQLSTATE[40001]: Serialization failure: 1213 Deadlock found
+     *     SQL: select * from stock_batches where product_id = 1
+     *          and quantity_remaining > 0
+     *          order by received_at asc, sequence asc, id asc for update
+     *
+     * A deadlock does not corrupt anything — InnoDB rolls its victim back whole,
+     * which is why the ledger stayed exactly right and every test stayed green.
+     * What the shopkeeper gets is a sale that fails with a 500, at random, only
+     * when the shop is busy: the hardest kind of fault to report and the easiest
+     * to disbelieve.
+     *
+     * So every path claims the same rows in the same order first — ascending
+     * `id`, which every row has and nothing re-dates. FIFO order is NOT usable
+     * for this: it sorts by `received_at`, and a back-dated delivery puts a new
+     * row in the middle of the sequence. After this call the rows are already
+     * held, so the FIFO select that follows introduces no new lock order — it
+     * reads rows this transaction already owns.
+     *
+     * Locking every batch of the product rather than only the ones with stock is
+     * deliberate: "which rows have stock" is itself a moving target, and two
+     * transactions disagreeing about the set to lock is the same fault wearing a
+     * different hat.
+     *
+     * **The second measurement, and why the products table is here too.**
+     *
+     * Ordering the batch rows alone moved the cycle rather than closing it. The
+     * `products` row is a lock target in its own right: `syncProductQuantity`
+     * UPDATEs it, and every `sale_items` or `sale_return_items` insert takes a
+     * foreign-key lock on it on the way past. So a sale held products and wanted
+     * batches while a return held batches and wanted products — the same cycle,
+     * one table along:
+     *
+     *     selling:   select * from stock_batches where product_id in (1)
+     *                order by id asc for update
+     *     returning: insert into sale_return_items (...)
+     *
+     * Hence both tables, always the same way round: products first, then their
+     * batches, each ascending by id. And hence PUBLIC, called at the TOP of the
+     * transaction rather than partway down inside `consume()` — a sale inserts
+     * its lines, and takes that foreign-key lock, before it ever reaches the
+     * stock, so a claim made after the first insert is already too late.
+     *
+     * @param  array<int, int>|Collection<int, int>  $productIds
+     */
+    public function claim($productIds): void
+    {
+        $this->assertInTransaction();
+
+        $ids = collect($productIds)->map(fn ($id) => (int) $id)->filter()->unique()->sort()->values();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        // The parent rows first: every line insert references one, and
+        // syncProductQuantity writes to it at the end of the same transaction.
+        Product::whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+
+        StockBatch::whereIn('product_id', $ids)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
     }
 
     private function assertInTransaction(): void
