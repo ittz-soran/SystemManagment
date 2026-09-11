@@ -5,11 +5,11 @@ namespace Tests\Feature;
 use App\Models\Permission;
 use App\Models\User;
 use App\Services\SchemaVersion;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
+use Tests\UsesItsOwnDatabase;
 
 /**
  * A shop running code its own database has not caught up with.
@@ -31,7 +31,10 @@ use Tests\TestCase;
  */
 class SchemaVersionTest extends TestCase
 {
-    use RefreshDatabase;
+    // One of these drops the migrations table to see what the banner does
+    // when it cannot ask. On MySQL that commits and leaves the shared schema
+    // looking as though it had never been migrated, so it gets its own.
+    use UsesItsOwnDatabase;
 
     private User $admin;
 

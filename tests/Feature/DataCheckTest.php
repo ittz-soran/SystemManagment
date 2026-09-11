@@ -16,6 +16,7 @@ use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\StockAdjustmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -363,7 +364,11 @@ class DataCheckTest extends TestCase
     {
         $first = DB::table('sales')->orderBy('id')->first();
 
-        DB::statement('drop index sales_document_no_unique');
+        // Through the schema builder rather than raw SQL: dropping an index is
+        // `DROP INDEX name` in SQLite and `ALTER TABLE t DROP INDEX name` in
+        // MySQL, and this test exists to catch an index that has gone missing
+        // on a real shop's database — which is never SQLite.
+        Schema::table('sales', fn (Blueprint $table) => $table->dropUnique('sales_document_no_unique'));
 
         DB::table('sales')->insert([
             'document_no' => $first->document_no,

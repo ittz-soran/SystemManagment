@@ -3,6 +3,7 @@ name: Tests
 on:
   push:
     branches:
+      - main
       - master
       - '*.x'
   pull_request:
@@ -46,4 +47,75 @@ jobs:
         run: php artisan key:generate
 
       - name: Execute tests
+        run: php artisan test
+
+  # The shops run MariaDB on shared cPanel hosting. The suite above runs on
+  # SQLite, which cannot see an engine difference — and that blind spot has cost
+  # two outages with a fully green suite: `as lines` (LINES is reserved in
+  # MariaDB, ordinary in SQLite) and `quantity * unit_cost` (unsigned in MySQL,
+  # so a negative quantity wrapped and raised error 1690). Both would have been
+  # caught here.
+  #
+  # MariaDB 10.11 rather than MySQL 8 because that is what the shops actually
+  # run, and it is the engine the suite has been verified against by hand.
+  mariadb:
+    runs-on: ubuntu-latest
+
+    name: MariaDB
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: shop_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: 8.4
+          # pdo_mysql for the suite, and pcntl because ConcurrencyTest forks to
+          # put two real transactions in flight at once.
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate app key
+        run: php artisan key:generate
+
+      # phpunit.xml pins the connection to SQLite, and Dotenv never overrides a
+      # variable that is already in the environment — so these have to be set
+      # here rather than written into a file.
+      #
+      # root, because four test classes create and drop a scratch database of
+      # their own: restoring a backup and proving the batch lock both have to
+      # commit, and neither may do that in the schema the rest of the suite is
+      # sharing. See tests/UsesItsOwnDatabase.php.
+      - name: Execute tests against MariaDB
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: shop_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          DB_URL: ''
         run: php artisan test

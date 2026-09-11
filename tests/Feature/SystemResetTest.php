@@ -19,9 +19,9 @@ use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\SystemResetService;
 use Database\Seeders\SettingSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
+use Tests\UsesItsOwnDatabase;
 
 /**
  * "Start fresh" — the go-live tool that clears the testing period.
@@ -33,7 +33,9 @@ use Tests\TestCase;
  */
 class SystemResetTest extends TestCase
 {
-    use RefreshDatabase;
+    // Restoring a backup drops every table and puts it back. On MySQL that
+    // commits, so it must not happen in the schema every other test shares.
+    use UsesItsOwnDatabase;
 
     private User $admin;
 

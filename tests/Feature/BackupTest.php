@@ -7,9 +7,9 @@ use App\Models\Product;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\BackupService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
+use Tests\UsesItsOwnDatabase;
 
 /**
  * Section 8b: "An untested backup is not a backup."
@@ -20,7 +20,9 @@ use Tests\TestCase;
  */
 class BackupTest extends TestCase
 {
-    use RefreshDatabase;
+    // Restoring a backup drops every table and puts it back. On MySQL that
+    // commits, so it must not happen in the schema every other test shares.
+    use UsesItsOwnDatabase;
 
     private string $local;
 

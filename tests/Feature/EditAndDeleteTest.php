@@ -139,7 +139,10 @@ class EditAndDeleteTest extends TestCase
         }
 
         $this->assertSame(90_000, (int) $sale->refresh()->total_amount);
-        $this->assertSame(3, $sale->items()->sum('quantity'));
+        // Cast, because MySQL hands an aggregate back as a string where SQLite
+        // gives an int. Every figure in the app goes through (int) for this
+        // reason; the assertion should too.
+        $this->assertSame(3, (int) $sale->items()->sum('quantity'));
     }
 
     /**

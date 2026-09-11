@@ -12,6 +12,7 @@ use App\Services\PurchaseService;
 use App\Services\SaleService;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
+use Tests\UsesItsOwnDatabase;
 
 /**
  * Section 5 (Concurrency) and Section 11: two concurrent sales of the same
@@ -30,6 +31,10 @@ use Tests\TestCase;
  */
 class ConcurrencyTest extends TestCase
 {
+    // It commits real transactions on purpose, and rebuilds the schema to do
+    // it. Both are fine in a database nobody else is using.
+    use UsesItsOwnDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -55,7 +60,6 @@ class ConcurrencyTest extends TestCase
 
     public function test_two_concurrent_sales_cannot_oversell_the_same_product(): void
     {
-        $this->artisan('migrate:fresh --seed');
 
         $user = User::where('email', 'admin@example.com')->firstOrFail();
         $category = Category::create(['name' => 'Test']);
