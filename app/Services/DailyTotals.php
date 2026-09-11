@@ -64,14 +64,16 @@ class DailyTotals
 
         // Outgoing movements are stored negative and a return puts the cost
         // back, so one signed sum over both kinds is the day's real cost of
-        // goods sold.
+        // goods sold. A sale's quantity is negative and a return's is positive,
+        // so negating covers both — and this is exactly the sum that has to be
+        // signed, since a return makes it go the other way.
         $cost = $this->sum(
             StockMovement::whereIn('reference_type', [
                 StockMovement::REF_SALE,
                 StockMovement::REF_SALE_RETURN,
             ]),
             'occurred_at',
-            '-quantity * unit_cost',
+            '-'.StockMovement::VALUE,
             $from,
             $to,
         );
@@ -125,7 +127,9 @@ class DailyTotals
      */
     public function stockValue(Carbon $from, Carbon $to): array
     {
-        $moved = StockMovement::selectRaw('occurred_at as day, SUM(quantity * unit_cost) as total')
+        // Every movement, incoming and outgoing, which is what makes the signed
+        // expression compulsory here rather than merely tidy.
+        $moved = StockMovement::selectRaw('occurred_at as day, SUM('.StockMovement::VALUE.') as total')
             ->where('occurred_at', '<=', $to)
             ->groupBy('occurred_at')
             ->orderBy('occurred_at')

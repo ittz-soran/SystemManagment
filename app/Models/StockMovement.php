@@ -27,6 +27,21 @@ use Illuminate\Support\Carbon;
 ])]
 class StockMovement extends Model
 {
+    /**
+     * What a movement was worth, as SQL — signed, and safe on every engine.
+     *
+     * `quantity` is signed (a movement out of the shop is negative) and
+     * `unit_cost` is an UNSIGNED BIGINT. MySQL promotes a signed-by-unsigned
+     * product to unsigned, so the moment a negative quantity meets a cost the
+     * whole expression wraps and the query dies with "BIGINT UNSIGNED value is
+     * out of range". SQLite has no unsigned types at all, so the same SQL runs
+     * perfectly in the tests and takes the shop down in the morning.
+     *
+     * The cast is therefore not a precaution, it is the arithmetic: use this
+     * anywhere the rows being summed can include an outgoing movement.
+     */
+    public const VALUE = 'quantity * CAST(unit_cost AS SIGNED)';
+
     public const REF_PURCHASE = 'purchase';
 
     public const REF_SALE = 'sale';

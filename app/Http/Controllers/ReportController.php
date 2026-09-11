@@ -188,7 +188,7 @@ class ReportController extends Controller
         return StockMovement::where('reference_type', $type)
             ->whereIn('reference_id', $ids)
             ->groupBy('reference_id')
-            ->selectRaw('reference_id, SUM(-quantity * unit_cost) as cost')
+            ->selectRaw('reference_id, SUM(-'.StockMovement::VALUE.') as cost')
             ->pluck('cost', 'reference_id')
             ->map(fn ($cost) => (int) $cost)
             ->all();
@@ -218,7 +218,7 @@ class ReportController extends Controller
         $byReturn = StockMovement::where('reference_type', StockMovement::REF_SALE_RETURN)
             ->whereIn('reference_id', $returns->keys())
             ->groupBy('reference_id')
-            ->selectRaw('reference_id, SUM(quantity * unit_cost) as cost')
+            ->selectRaw('reference_id, SUM('.StockMovement::VALUE.') as cost')
             ->pluck('cost', 'reference_id');
 
         $bySale = [];
@@ -288,11 +288,11 @@ class ReportController extends Controller
         // average and not the product's purchase_price.
         $cogs = (int) StockMovement::where('reference_type', StockMovement::REF_SALE)
             ->whereBetween('occurred_at', [$from, $to])
-            ->sum(DB::raw('-quantity * unit_cost'));
+            ->sum(DB::raw('-'.StockMovement::VALUE));
 
         $cogsReversed = (int) StockMovement::where('reference_type', StockMovement::REF_SALE_RETURN)
             ->whereBetween('occurred_at', [$from, $to])
-            ->sum(DB::raw('quantity * unit_cost'));
+            ->sum(DB::raw(StockMovement::VALUE));
 
         $grossProfit = $revenue - ($cogs - $cogsReversed);
 
@@ -312,7 +312,7 @@ class ReportController extends Controller
         $writeOffs = (int) StockMovement::where('reference_type', StockMovement::REF_ADJUSTMENT)
             ->where('quantity', '<', 0)
             ->whereBetween('occurred_at', [$from, $to])
-            ->sum(DB::raw('-quantity * unit_cost'));
+            ->sum(DB::raw('-'.StockMovement::VALUE));
 
         $expenses = (int) Expense::whereBetween('expense_date', [$from, $to])->sum('amount');
 
@@ -510,7 +510,7 @@ class ReportController extends Controller
     private function position(): array
     {
         return [
-            'stock_value' => (int) StockBatch::sum(DB::raw('quantity_remaining * unit_cost')),
+            'stock_value' => (int) StockBatch::sum(DB::raw(StockBatch::VALUE)),
             'customers_owe' => (int) Customer::sum('balance'),
             'owed_to_suppliers' => (int) Supplier::sum('balance'),
         ];

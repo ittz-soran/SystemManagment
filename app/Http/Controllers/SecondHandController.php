@@ -109,7 +109,7 @@ class SecondHandController extends Controller
         // and this figure is the shop's money.
         $heldValue = (int) StockBatch::query()
             ->whereIn('product_id', $used->clone())
-            ->sum(DB::raw('quantity_remaining * unit_cost'));
+            ->sum(DB::raw(StockBatch::VALUE));
 
         // What the shelf would make at the prices on it. An expectation, not a
         // fact, and labelled as one.
@@ -124,7 +124,7 @@ class SecondHandController extends Controller
 
         $spent = (int) StockBatch::query()
             ->whereIn('product_id', $bought->clone()->select('id'))
-            ->sum(DB::raw('quantity_in * unit_cost'));
+            ->sum(DB::raw(StockBatch::PAID));
 
         $trade = TradeProfit::between(Product::used(), $from, $to);
 

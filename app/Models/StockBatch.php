@@ -23,6 +23,21 @@ use Illuminate\Support\Carbon;
 ])]
 class StockBatch extends Model
 {
+    /**
+     * What a batch's remaining units are worth, as SQL.
+     *
+     * `unit_cost` is an UNSIGNED BIGINT, and MySQL promotes any product it takes
+     * part in to unsigned. Nothing here can go negative — a batch cannot hold
+     * fewer than none — so this cast changes no answer; it exists so that every
+     * `unit_cost` multiplication in the codebase looks the same and none of them
+     * is a judgement call about signs. See StockMovement::VALUE, where the same
+     * cast is the difference between a working report and a 500.
+     */
+    public const VALUE = 'quantity_remaining * CAST(unit_cost AS SIGNED)';
+
+    /** What the batch cost when it arrived, whatever is left of it now. */
+    public const PAID = 'quantity_in * CAST(unit_cost AS SIGNED)';
+
     public const SOURCE_PURCHASE = 'purchase';
 
     public const SOURCE_ADJUSTMENT = 'adjustment';
