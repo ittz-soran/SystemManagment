@@ -21,10 +21,23 @@ use Tests\TestCase;
  */
 class InstallSqlTest extends TestCase
 {
+    /**
+     * Both refusal tests describe what happens on a driver that cannot be
+     * dumped, and on MySQL there is no such driver to point at: the command
+     * simply works. Skipped rather than bent into passing, because a test that
+     * has been reworded until it goes green on both engines is testing neither.
+     */
+    private function onlyWhereItCannotDump(): void
+    {
+        if (in_array(\DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            $this->markTestSkipped('This is about refusing a driver that cannot be dumped. This one can.');
+        }
+    }
+
     /** On SQLite it says so, rather than producing a file that is not MySQL. */
     public function test_it_refuses_on_a_database_it_cannot_make_a_mysql_file_from(): void
     {
-        $this->assertSame('sqlite', \DB::connection()->getDriverName(), 'the suite is on SQLite');
+        $this->onlyWhereItCannotDump();
 
         $this->artisan('install:sql')
             ->expectsOutputToContain('This makes a MySQL file')
@@ -53,6 +66,8 @@ class InstallSqlTest extends TestCase
      */
     public function test_the_dump_helper_refuses_a_driver_it_cannot_dump(): void
     {
+        $this->onlyWhereItCannotDump();
+
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('MySQL or MariaDB');
 
