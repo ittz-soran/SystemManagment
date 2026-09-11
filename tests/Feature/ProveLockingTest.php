@@ -66,7 +66,7 @@ class ProveLockingTest extends TestCase
         $this->artisan('stock:prove-locking', [
             '--child' => true,
             '--database' => 'scratch',
-            '--product' => 1,
+            '--ids' => '1',
             '--want' => 4,
             '--at' => microtime(true),
         ])
