@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientStockException;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\StockBatch;
 use App\Models\Supplier;
 use App\Models\User;
@@ -37,6 +38,28 @@ use Throwable;
  * rebuilds it from nothing, because proving this needs real committed
  * transactions — there is no way to do it inside something that can be rolled
  * back afterwards.
+ *
+ * **What running it for the first time taught, 2026-09-11.**
+ *
+ * Two things it checks now that it did not before. Overselling is the loudest
+ * failure but not the only one: two sales sharing an invoice number, or a
+ * customer balance that lost an update, are just as broken and entirely silent.
+ * Both are checked from data the run already produces.
+ *
+ * And one thing worth knowing before reading a green result. `document_no` is
+ * taken *inside* the sale's transaction, with `lockForUpdate()` on the counter
+ * row (DocumentNumberService), so that row is held until the sale commits —
+ * which means **two tills serialise from their very first statement**. Sales
+ * cannot deadlock against each other at all, and the product-order sort in
+ * SaleService is defence in depth rather than the thing standing between this
+ * shop and a cycle. That was not a guess: the multi-item race was run again
+ * with the sort commented out and passed identically. So a green result here is
+ * evidence about overselling, numbering and balances; it is not evidence that
+ * the sort works, because nothing reachable through a sale can test it.
+ *
+ * The practical consequence is throughput, not correctness: the shop makes one
+ * sale at a time, shop-wide. At a few tens of milliseconds each that is hundreds
+ * a minute, which is not a limit a counter will ever meet.
  */
 class ProveLocking extends Command
 {
@@ -45,8 +68,10 @@ class ProveLocking extends Command
                             {--racers=2 : How many tills to race}
                             {--stock=5 : Units put on the shelf}
                             {--want=4 : Units each till tries to take}
+                            {--products=1 : How many different items each sale touches}
                             {--child : Internal. One racer, started by the run above.}
-                            {--product= : Internal.}
+                            {--ids= : Internal. The products to sell, comma separated.}
+                            {--reverse : Internal. Sell them in the opposite order.}
                             {--at= : Internal. The instant to strike, as a unix timestamp.}';
 
     protected $description = 'Prove that two tills cannot oversell the same item on this machine\'s database';
@@ -57,6 +82,9 @@ class ProveLocking extends Command
     }
 
     // ---- The racer ------------------------------------------------------
+
+    /** Sold on loan, so the racers are refused by stock or by nothing at all. */
+    private const CUSTOMER = 'Contested customer';
 
     /** The sale went through. */
     private const SOLD = 0;
@@ -89,13 +117,29 @@ class ProveLocking extends Command
         }
 
         try {
+            $ids = array_map('intval', explode(',', (string) $this->option('ids')));
+
+            // Half the tills ring the same basket up backwards. That is the
+            // deadlock Section 5 warns about: two sales holding one another's
+            // first item and each waiting for the other's second. The service
+            // is supposed to sort the lines by product before it locks
+            // anything, and this is the only way to find out whether it does.
+            if ($this->option('reverse')) {
+                $ids = array_reverse($ids);
+            }
+
             app(SaleService::class)->create(
-                customer: Customer::firstOrFail(),
-                lines: [[
-                    'product_id' => (int) $this->option('product'),
+                // The named test customer, not `first()`. The first customer in
+                // a seeded shop is the Cash Customer, who must pay in full — so
+                // every racer was refused by the business rules before it ever
+                // reached a lock, and this tool has never once measured the
+                // thing it exists to measure.
+                customer: Customer::where('name', self::CUSTOMER)->firstOrFail(),
+                lines: array_map(fn (int $id) => [
+                    'product_id' => $id,
                     'quantity' => (int) $this->option('want'),
                     'unit_price' => 10_000,
-                ]],
+                ], $ids),
                 user: User::where('email', 'admin@example.com')->firstOrFail(),
                 saleDate: now(),
                 amountPaid: 0,
@@ -166,9 +210,14 @@ class ProveLocking extends Command
         $stock = max(1, (int) $this->option('stock'));
         $want = max(1, (int) $this->option('want'));
 
-        $this->components->info("Racing {$racers} tills for {$stock} units, each wanting {$want}.");
+        $howMany = max(1, (int) $this->option('products'));
 
-        $product = $this->shelf($stock);
+        $this->components->info($howMany === 1
+            ? "Racing {$racers} tills for {$stock} units, each wanting {$want}."
+            : "Racing {$racers} tills over {$howMany} items — half of them ringing the basket up backwards.");
+
+        $products = $this->shelf($stock, $howMany);
+        $ids = $products->pluck('id')->implode(',');
 
         // Far enough ahead that every racer has booted and is waiting on it.
         $at = microtime(true) + 3.0;
@@ -177,14 +226,21 @@ class ProveLocking extends Command
         $processes = [];
 
         foreach (range(1, $racers) as $i) {
-            $processes[] = tap(new Process([
+            $arguments = [
                 $php, 'artisan', 'stock:prove-locking',
                 '--child',
                 '--database='.$database,
-                '--product='.$product->id,
+                '--ids='.$ids,
                 '--want='.$want,
                 '--at='.$at,
-            ], base_path(), null, null, 60))->start();
+            ];
+
+            // Every other till takes the same items in the opposite order.
+            if ($i % 2 === 0) {
+                $arguments[] = '--reverse';
+            }
+
+            $processes[] = tap(new Process($arguments, base_path(), null, null, 60))->start();
         }
 
         foreach ($processes as $process) {
@@ -221,58 +277,105 @@ class ProveLocking extends Command
 
         $won = count(array_filter($endings, fn (?int $code) => $code === self::SOLD));
 
-        return $this->verdict($product, $won, $stock, $want);
+        return $this->verdict($products, $won, $stock, $want, $racers);
     }
 
-    /** One product, one batch, a known number of units. */
-    private function shelf(int $stock): Product
+    /**
+     * The contested items, each with its own batch and a known number of units.
+     *
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function shelf(int $stock, int $howMany)
     {
         $this->call('migrate:fresh', ['--seed' => true, '--force' => true]);
 
-        $product = Product::create([
-            'name' => 'Contested item',
-            'sku' => 'LOCK-1',
-            'category_id' => Category::firstOrCreate(['name' => 'Test'])->id,
+        $category = Category::firstOrCreate(['name' => 'Test']);
+        $admin = User::where('email', 'admin@example.com')->firstOrFail();
+        $supplier = Supplier::create(['name' => 'Test supplier']);
+
+        $products = collect(range(1, $howMany))->map(fn (int $n) => Product::create([
+            'name' => 'Contested item '.$n,
+            'sku' => 'LOCK-'.$n,
+            'category_id' => $category->id,
             'unit' => 'pcs',
             'purchase_price' => 1_000,
             'sale_price' => 10_000,
             'quantity' => 0,
-        ]);
+        ]));
 
         app(PurchaseService::class)->create(
-            supplier: Supplier::create(['name' => 'Test supplier']),
-            lines: [['product_id' => $product->id, 'quantity' => $stock, 'unit_price' => 1_000]],
-            user: User::where('email', 'admin@example.com')->firstOrFail(),
+            supplier: $supplier,
+            lines: $products->map(fn (Product $p) => [
+                'product_id' => $p->id, 'quantity' => $stock, 'unit_price' => 1_000,
+            ])->all(),
+            user: $admin,
             purchaseDate: now(),
         );
 
-        Customer::firstOrCreate(['name' => 'Test customer']);
+        Customer::firstOrCreate(['name' => self::CUSTOMER]);
 
-        return $product;
+        return $products;
     }
 
-    private function verdict(Product $product, int $won, int $stock, int $want): int
+    private function verdict($products, int $won, int $stock, int $want, int $racers): int
     {
         DB::purge();
         $this->connect();
 
-        $remaining = (int) StockBatch::where('product_id', $product->id)->sum('quantity_remaining');
-        $cached = (int) Product::findOrFail($product->id)->quantity;
+        $ids = $products->pluck('id');
+        $howMany = $ids->count();
 
-        // How many could honestly have won: 5 units and 4 wanted each means one.
-        $allowed = intdiv($stock, $want);
+        $remaining = (int) StockBatch::whereIn('product_id', $ids)->sum('quantity_remaining');
+        $cached = (int) Product::whereIn('id', $ids)->sum('quantity');
+
+        // How many could honestly have won. The shelf is one limit and the
+        // number of tills is the other — eight tills cannot make ten sales, and
+        // a tool that expects them to reports a healthy lock as a deadlock.
+        $allowed = min($racers, intdiv($stock, $want));
+
+        // Section 5 names three things that need locking, not one. Overselling
+        // is the loudest, but a shop is just as broken by two invoices sharing a
+        // number, or by a balance that lost an update — and both of those are
+        // silent. The data to check them is already here.
+        $sales = Sale::where('customer_id', Customer::where('name', self::CUSTOMER)->value('id'))->get();
+        $numbered = $sales->pluck('document_no')->unique()->count();
+        $billed = (int) $sales->sum('total_amount');
+        $owed = (int) Customer::where('name', self::CUSTOMER)->value('balance');
 
         $this->newLine();
         $this->table(['What', 'Result', 'Should be'], [
             ['Sales that went through', $won, $allowed],
-            ['Units left in the batches', $remaining, $stock - ($allowed * $want)],
+            ['Units left in the batches', $remaining, $howMany * ($stock - ($allowed * $want))],
             ['products.quantity cache', $cached, $remaining],
+            ['Invoice numbers, all different', $numbered, $sales->count()],
+            ['What the customer owes', number_format($owed), number_format($billed)],
         ]);
 
-        $expected = $stock - ($allowed * $want);
+        $expected = $howMany * ($stock - ($allowed * $want));
+
+        // Reported before the stock verdict, because a shop that oversells knows
+        // within the hour and one that double-numbers an invoice finds out from
+        // its accountant in March.
+        if ($numbered !== $sales->count()) {
+            $this->components->error('TWO SALES SHARE AN INVOICE NUMBER.');
+            $this->line('  '.$sales->count().' sales went through carrying only '.$numbered.' distinct numbers.');
+            $this->line('  The document_counters row is not being locked (Section 7b), so two');
+            $this->line('  tills read the same next number and both took it.');
+
+            return self::FAILURE;
+        }
+
+        if ($owed !== $billed) {
+            $this->components->error('THE CUSTOMER BALANCE LOST AN UPDATE.');
+            $this->line('  The sales add up to '.number_format($billed).' but the balance says '.number_format($owed).'.');
+            $this->line('  Two tills read the same balance and each wrote its own total over');
+            $this->line('  the other. Look at LedgerService and the lock on the account row.');
+
+            return self::FAILURE;
+        }
 
         if ($won === $allowed && $remaining === $expected && $cached === $remaining) {
-            $this->components->info('The lock holds. Two tills cannot oversell the same item on this database.');
+            $this->components->info('The locks hold: no overselling, no shared invoice number, no lost balance.');
 
             return self::SUCCESS;
         }
