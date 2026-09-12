@@ -46,6 +46,16 @@ class SaleService
         }
 
         return DB::transaction(function () use ($customer, $lines, $user, $saleDate, $amountPaid, $paymentMethod) {
+            /*
+             * Every row this sale will contend for, claimed in one order before
+             * anything is written — FifoService::claim(). It must be here, at
+             * the very top, rather than left to consume(): inserting a sale line
+             * takes a foreign-key lock on its product, so by the time the stock
+             * is reached this transaction is already holding rows a return may
+             * be waiting for. Measured on MariaDB 10.11 — see that method.
+             */
+            $this->fifo->claim(array_column($lines, 'product_id'));
+
             // Section 4: sales have NO discount field. Price is per line.
             $totalAmount = array_sum(array_map(
                 fn (array $l) => $l['quantity'] * $l['unit_price'],

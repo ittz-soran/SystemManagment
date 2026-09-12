@@ -51,6 +51,17 @@ class SaleReturnService
         }
 
         return DB::transaction(function () use ($sale, $lines, $user, $returnDate, $reason, $paymentMethod) {
+            /*
+             * The same claim a sale makes, in the same order, before anything is
+             * written — FifoService::claim(). This is the other half of the pair
+             * that deadlocked: a sale and a return take DIFFERENT document
+             * counter rows, so nothing serialises them the way two sales are
+             * serialised, and they met on the same shelf facing opposite ways.
+             */
+            $this->fifo->claim(
+                $sale->items()->whereIn('id', array_column($lines, 'sale_item_id'))->pluck('product_id')
+            );
+
             $return = SaleReturn::create([
                 'document_no' => $this->numbers->next(DocumentNumberService::PREFIX_SALE_RETURN),
                 'sale_id' => $sale->id,
