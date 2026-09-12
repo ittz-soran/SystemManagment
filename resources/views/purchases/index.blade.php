@@ -92,13 +92,13 @@
                                            aria-label="{{ __('Select :document', ['document' => $purchase->document_no]) }}">
                                 </td>
                             @endcan
-                            <td class="fw-medium" dir="ltr">
-                                {{ $purchase->document_no }}
+                            <td class="fw-medium">
+                                <span class="app-code">{{ $purchase->document_no }}</span>
                                 @if($purchase->supplier_invoice_no)
-                                    <div class="small text-secondary">{{ $purchase->supplier_invoice_no }}</div>
+                                    <div class="small text-secondary app-code">{{ $purchase->supplier_invoice_no }}</div>
                                 @endif
                             </td>
-                            <td dir="ltr">{{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }}</td>
+                            <td><span class="app-code">{{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td>{{ $purchase->supplier->name }}</td>
                             <td><x-status-badge :status="$purchase->status" /></td>
                             <td class="money">{{ money($purchase->grand_total, false) }}</td>

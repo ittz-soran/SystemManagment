@@ -736,6 +736,32 @@ a.stat-tile {
   overflow: visible;
 }
 
+/*
+ * A code that must READ left-to-right but SIT with the page's text.
+ *
+ * ⚠️ `dir="ltr"` on a block element sets its text ALIGNMENT as well as its
+ * direction, so in Kurdish, Arabic or Persian a SKU line written that way hugs
+ * the left edge while the product name above it sits on the right. Soran
+ * pointed at exactly that on the Products list — `GD-BT208 · 6972496470268`
+ * stranded on the wrong side of the row, under a name on the correct one.
+ *
+ * An inline-block fixes both halves at once. Inside it the direction is LTR, so
+ * `GD-BT208 · 6972496470268` reads in the right order with the separator in the
+ * right place; outside it, it is one inline box that the parent aligns by the
+ * PARENT's direction — which is the page's. `isolate` keeps its characters from
+ * reordering against the RTL text around it.
+ *
+ * Use this for anything that is a code rather than words: SKUs, barcodes,
+ * document numbers, versions, percentages, sizes. Not for a chart or a printed
+ * layout that is deliberately left-to-right as a whole — those want the
+ * alignment too, and they keep `dir="ltr"` on the block.
+ */
+.app-code {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .app-chart-grid {
   stroke: var(--app-chart-grid);
   stroke-width: 1;

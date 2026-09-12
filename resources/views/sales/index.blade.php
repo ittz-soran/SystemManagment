@@ -92,8 +92,8 @@
                                            aria-label="{{ __('Select :document', ['document' => $sale->document_no]) }}">
                                 </td>
                             @endcan
-                            <td class="fw-medium" dir="ltr">{{ $sale->document_no }}</td>
-                            <td dir="ltr">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</td>
+                            <td class="fw-medium"><span class="app-code">{{ $sale->document_no }}</span></td>
+                            <td><span class="app-code">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td>{{ $sale->customer->displayName() }}</td>
                             <td><x-status-badge :status="$sale->status" /></td>
                             <td class="money">{{ money($sale->total_amount, false) }}</td>

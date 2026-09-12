@@ -198,7 +198,7 @@
                                     <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-medium">
                                         {{ $product->name }}
                                     </a>
-                                    <div class="small text-secondary" dir="ltr">
+                                    <div class="small text-secondary app-code">
                                         {{ $product->sku }}@if($product->barcode) · {{ $product->barcode }}@endif
                                     </div>
                                 </td>

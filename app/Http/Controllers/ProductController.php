@@ -484,10 +484,35 @@ class ProductController extends Controller
             ->where(fn ($q) => $q->where('barcode', $term)->orWhere('sku', $term))
             ->first();
 
+        /*
+         * Name, SKU and barcode — all three, on a partial term.
+         *
+         * **This matched the name alone until 2026-09-12**, when Soran said the
+         * box suggested nothing for a SKU. It was matching a code only as a
+         * whole exact string, so typing `BT208` out of `GD-BT208` found nothing
+         * and the search looked broken. At a till that is the wrong way round:
+         * the SKU is printed on the box in your hand, and the name is whatever
+         * somebody typed months ago.
+         *
+         * ⚠️ The `where(fn …)` around the three is not tidiness. An ungrouped
+         * `orWhere` escapes `active()` and `ofKind()` above it, and the till
+         * would then be offered a discontinued product, or a purchase screen a
+         * service it cannot buy. There is a test for exactly that.
+         */
         $products = $exact
             ? collect([$exact])
             : Product::active()->ofKind($kinds)
-                ->where('name', 'like', '%'.$term.'%')->orderBy('name')->limit(15)->get();
+                ->where(fn ($q) => $q
+                    ->where('name', 'like', '%'.$term.'%')
+                    ->orWhere('sku', 'like', '%'.$term.'%')
+                    ->orWhere('barcode', 'like', '%'.$term.'%'))
+                // A code the term STARTS, before a name that merely contains it:
+                // somebody typing `OT48` is reading it off a box, not browsing.
+                ->orderByRaw('CASE WHEN sku LIKE ? OR barcode LIKE ? THEN 0 ELSE 1 END',
+                    [$term.'%', $term.'%'])
+                ->orderBy('name')
+                ->limit(15)
+                ->get();
 
         return response()->json([
             'exact' => (bool) $exact,
