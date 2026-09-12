@@ -11,6 +11,7 @@ use App\Models\StockBatch;
 use App\Models\Supplier;
 use App\Services\DailyTotals;
 use App\Services\SetupProgress;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -67,6 +68,49 @@ class DashboardController extends Controller
      *
      * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>, level: ?array<string, mixed>}|null
      */
+    /**
+     * A total is not an answer — who, and how many, is.
+     *
+     * **The card said 222,000 and nothing else**, with half of itself empty;
+     * Soran drew a question mark in the space. A single figure cannot tell a
+     * shopkeeper the one thing that decides what to do about it: whether that
+     * is one customer who has not paid, or twenty who each owe a little. The
+     * first is a phone call this afternoon and the second is how a shop works.
+     *
+     * So: the total, how many owe it, and the three largest by name — because
+     * "ring Hawkar" is a thing somebody can act on before lunch, and a number
+     * is not.
+     *
+     * Three, not five. This sits beside a figure in half a card, and a list
+     * long enough to need scrolling has stopped being a summary.
+     *
+     * @param  Builder<covariant \Illuminate\Database\Eloquent\Model>  $accounts
+     * @return array{total: int, count: int, top: list<array{name: string, balance: int}>}
+     */
+    private function whoOwes($accounts): array
+    {
+        // Owing only, and this is about ZERO rather than about negatives: the
+        // suite's own invariant check forbids a negative balance outright, and
+        // Section 7 keeps the ledger from writing one. What this keeps out is
+        // the settled accounts — a shop with four hundred customers and two
+        // debts must read "2 accounts", not "400".
+        $owing = (clone $accounts)->where('balance', '>', 0);
+
+        return [
+            'total' => (int) (clone $owing)->sum('balance'),
+            'count' => (int) (clone $owing)->count(),
+            'top' => (clone $owing)
+                ->orderByDesc('balance')
+                ->limit(3)
+                ->get()
+                ->map(fn ($account) => [
+                    'name' => method_exists($account, 'displayName') ? $account->displayName() : $account->name,
+                    'balance' => (int) $account->balance,
+                ])
+                ->all(),
+        ];
+    }
+
     /**
      * A line of costs as the reader is allowed to see them, or nothing.
      *
@@ -304,11 +348,11 @@ class DashboardController extends Controller
             'setup' => $user->isAdmin() && $setup->shouldShow() ? $setup : null,
 
             'customersOwe' => $user->hasPermission('customers.view')
-                ? (int) Customer::sum('balance')
+                ? $this->whoOwes(Customer::query())
                 : null,
 
             'owedToSuppliers' => $user->hasPermission('suppliers.view')
-                ? (int) Supplier::sum('balance')
+                ? $this->whoOwes(Supplier::query())
                 : null,
 
             // Section 8c: a product with no reorder_level falls back to the

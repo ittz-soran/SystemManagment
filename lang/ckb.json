@@ -1501,6 +1501,7 @@
     "Your shop’s own colour, font and logo": "ڕەنگ و فۆنت و لۆگۆی تایبەت بە دوکانەکەت",
     "You still owe :amount": "هێشتا :amount قەرزاری",
     "zero": "سفر",
+    "{0}Nobody|{1}:count account|[2,*]:count accounts": "{0}کەس|{1}:count هەژمار|[2,*]:count هەژمار",
     "{0}bought today|{1}held :count day|[2,*]held :count days": "{0}ئەمڕۆ کڕدرا|{1}:count ڕۆژە ماوە|[2,*]:count ڕۆژە ماوە",
     "{0}Every balance already matched its ledger|{1}:count balance corrected from the ledger|[2,*]:count balances corrected from the ledger": "{0}هەموو باڵانسێک پێشتر لەگەڵ دەفتەرەکەی دەگونجا|{1}:count باڵانس لە دەفتەرەکەوە ڕاستکرایەوە|[2,*]:count باڵانس لە دەفتەرەکەوە ڕاستکرانەوە",
     "{0}No recovery codes left. Make a new set.|{1}One recovery code left.|[2,*]:count recovery codes left.": "{0}هیچ کۆدێکی گەڕاندنەوە نەماوە. دەستەیەکی نوێ دروست بکە.|{1}یەک کۆدی گەڕاندنەوە ماوە.|[2,*]:count کۆدی گەڕاندنەوە ماوە.",

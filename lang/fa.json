@@ -1501,6 +1501,7 @@
     "Your shop’s own colour, font and logo": "رنگ، قلم و نشان ویژهٔ فروشگاهت",
     "You still owe :amount": "هنوز :amount بدهکارید",
     "zero": "صفر",
+    "{0}Nobody|{1}:count account|[2,*]:count accounts": "{0}هیچ‌کس|{1}:count حساب|[2,*]:count حساب",
     "{0}bought today|{1}held :count day|[2,*]held :count days": "{0}امروز خریداری شد|{1}:count روز نگهداری|[2,*]:count روز نگهداری",
     "{0}Every balance already matched its ledger|{1}:count balance corrected from the ledger|[2,*]:count balances corrected from the ledger": "{0}همه مانده‌ها با دفتر خود مطابق بودند|{1}:count مانده از روی دفتر کل اصلاح شد|[2,*]:count مانده از روی دفتر کل اصلاح شدند",
     "{0}No recovery codes left. Make a new set.|{1}One recovery code left.|[2,*]:count recovery codes left.": "{0}هیچ کد بازیابی نمانده. دستهٔ تازه بسازید.|{1}یک کد بازیابی مانده.|[2,*]:count کد بازیابی مانده.",

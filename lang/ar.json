@@ -1501,6 +1501,7 @@
     "Your shop’s own colour, font and logo": "لون متجرك وخطه وشعاره",
     "You still owe :amount": "ما زلت مديناً بـ :amount",
     "zero": "صفر",
+    "{0}Nobody|{1}:count account|[2,*]:count accounts": "{0}لا أحد|{1}حساب واحد|{2}حسابان|[3,10]:count حسابات|[11,*]:count حسابًا",
     "{0}bought today|{1}held :count day|[2,*]held :count days": "{0}اشتُريت اليوم|{1}لدينا منذ يوم|[2,*]لدينا منذ :count أيام",
     "{0}Every balance already matched its ledger|{1}:count balance corrected from the ledger|[2,*]:count balances corrected from the ledger": "{0}كل رصيد كان مطابقاً لدفتره|{1}تم تصحيح رصيد واحد من دفتر الأستاذ|[2,*]تم تصحيح :count أرصدة من دفتر الأستاذ",
     "{0}No recovery codes left. Make a new set.|{1}One recovery code left.|[2,*]:count recovery codes left.": "{0}لم تبقَ رموز استرداد. أنشئ مجموعة جديدة.|{1}بقي رمز استرداد واحد.|[2,*]بقيت :count رموز استرداد.",
