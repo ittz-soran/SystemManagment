@@ -17,22 +17,37 @@
             <div class="col-6 col-xl-3">
                 <div class="card h-100">
                     <div class="card-body">
-                        <div class="d-flex align-items-center gap-2 text-secondary small mb-1">
-                            <i class="bi bi-{{ $card['icon'] }}"></i>{{ $card['label'] }}
+                        {{-- The note rides on the label's line, at the far end.
+                             Moved there by Soran, 2026-09-12: it used to sit
+                             between the figure and the chart, which pushed the
+                             chart down into the card's edge and left the top
+                             corner empty. Both are secondary text, so they
+                             belong on the same line — and `justify-content-
+                             between` puts the note on the correct side in all
+                             four languages without a rule per direction. --}}
+                        <div class="d-flex align-items-center justify-content-between gap-2 text-secondary small mb-1">
+                            <span class="d-inline-flex align-items-center gap-2 text-truncate">
+                                <i class="bi bi-{{ $card['icon'] }}"></i>{{ $card['label'] }}
+                            </span>
+                            @if($card['note'])
+                                <span class="text-nowrap">{{ $card['note'] }}</span>
+                            @endif
                         </div>
+
                         <div class="fs-4 fw-semibold money">
                             {{ $card['cost'] ? cost_money($card['value']) : money_if($card['value'] !== null, $card['value']) }}
                         </div>
-                        @if($card['note'])
-                            <div class="small text-secondary">{{ $card['note'] }}</div>
-                        @endif
 
                         {{-- The shape of the last four weeks behind the figure:
                              the tile says what today was, this says whether
                              today was normal. Absent, not empty, when the
-                             reader may not see the figure — see the controller. --}}
+                             reader may not see the figure — see the controller.
+                             In the measure's own colour, which is the colour it
+                             wears on the chart below. --}}
                         @if(($card['spark'] ?? null) !== null)
-                            <x-chart.spark :values="$card['spark']" />
+                            <x-chart.spark :values="$card['spark']"
+                                           :tone="$card['tone'] ?? null"
+                                           :level="$card['level'] ?? false" />
                         @endif
                     </div>
                 </div>
