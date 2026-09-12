@@ -95,15 +95,13 @@
 
             {{-- Section 9: filter by one or SEVERAL categories at once. --}}
             <div class="col-md-4">
-                <label for="categories" class="form-label small">{{ __('Categories') }}</label>
-                <select id="categories" name="categories[]" multiple size="1" class="form-select form-select-sm">
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}"
-                                @selected(in_array($category->id, (array) request('categories', [])))>
-                            {{ $category->name }}
-                        </option>
-                    @endforeach
-                </select>
+                <label for="pick-categories" class="form-label small">{{ __('Categories') }}</label>
+                <x-checkbox-select
+                    name="categories[]"
+                    :label="__('Categories')"
+                    :options="$categories->pluck('name', 'id')->all()"
+                    :selected="(array) request('categories', [])"
+                    :all="__('All categories')" />
             </div>
 
             <div class="col-md-2">
@@ -198,7 +196,7 @@
                                     <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-medium">
                                         {{ $product->name }}
                                     </a>
-                                    <div class="small text-secondary" dir="ltr">
+                                    <div class="small text-secondary app-code">
                                         {{ $product->sku }}@if($product->barcode) · {{ $product->barcode }}@endif
                                     </div>
                                 </td>
@@ -260,7 +258,6 @@
                                         @endif
                                     @else
                                         <x-row-actions
-                                            :view="route('products.show', $product)"
                                             :edit="Gate::allows('products.edit') ? route('products.edit', $product) : null"
                                             :delete="Gate::allows('products.delete') ? route('products.destroy', $product) : null"
                                             :delete-label="__('Delete :name? Products with stock history are deactivated instead.', ['name' => $product->name])" />

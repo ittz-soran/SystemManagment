@@ -106,7 +106,6 @@
                                      engine refuses an edit whose units have since
                                      been sold, and the refusal explains itself. --}}
                                 <x-row-actions
-                                    :view="route('stock-adjustments.show', $adjustment)"
                                     :edit-modal="Gate::allows('stock_adjustments.edit') ? '#adjustment-edit' : null"
                                     :edit-data="[
                                         'action' => route('stock-adjustments.update', $adjustment),

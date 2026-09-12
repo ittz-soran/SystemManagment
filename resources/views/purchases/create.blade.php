@@ -259,7 +259,7 @@
                     row.innerHTML = `
                         <td>
                             <div class="fw-medium">${escapeHtml(line.name)}</div>
-                            <div class="small text-secondary" dir="ltr">${escapeHtml(line.sku)}</div>
+                            <div class="small text-secondary app-code">${escapeHtml(line.sku)}</div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                             <input type="hidden" name="lines[${index}][entered_currency]" value="${line.currency}">
                             <input type="hidden" name="lines[${index}][entered_amount]" value="${line.currency === 'USD' ? Math.round(line.enteredAmount * 100) : ''}">

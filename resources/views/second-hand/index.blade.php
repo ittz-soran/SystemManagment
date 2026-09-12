@@ -182,7 +182,7 @@
                                 @else
                                     <span class="badge text-bg-success">{{ __('In stock') }}</span>
                                 @endif
-                                <div class="small text-secondary" dir="ltr">{{ $item->sku }}</div>
+                                <div class="small text-secondary app-code">{{ $item->sku }}</div>
                                 @if($item->condition_note)
                                     <div class="small text-secondary">{{ $item->condition_note }}</div>
                                 @endif

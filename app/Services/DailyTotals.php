@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -191,6 +192,29 @@ class DailyTotals
         }
 
         return ['in' => $moneyIn, 'out' => $moneyOut];
+    }
+
+    /**
+     * What the shop spent on itself, day by day.
+     *
+     * A flow, and the one the tiles needed that nothing else here provided —
+     * `flows()` is about goods, and rent is not goods. Kept apart from the cash
+     * in `cash()` for the same reason: an expense is a cost whether or not it
+     * has been paid yet, and the till is a different question.
+     *
+     * @return array<string, int>
+     */
+    public function expenses(Carbon $from, Carbon $to): array
+    {
+        $spent = $this->sum(Expense::query(), 'expense_date', 'amount', $from, $to);
+
+        $perDay = [];
+
+        foreach ($this->days($from, $to) as $day) {
+            $perDay[$day] = $spent[$day] ?? 0;
+        }
+
+        return $perDay;
     }
 
     /**

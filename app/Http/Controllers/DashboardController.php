@@ -11,6 +11,7 @@ use App\Models\StockBatch;
 use App\Models\Supplier;
 use App\Services\DailyTotals;
 use App\Services\SetupProgress;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -67,9 +68,115 @@ class DashboardController extends Controller
      *
      * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>, level: ?array<string, mixed>}|null
      */
-    private function trend(DailyTotals $totals, $user): ?array
+    /**
+     * A total is not an answer — who, and how many, is.
+     *
+     * **The card said 222,000 and nothing else**, with half of itself empty;
+     * Soran drew a question mark in the space. A single figure cannot tell a
+     * shopkeeper the one thing that decides what to do about it: whether that
+     * is one customer who has not paid, or twenty who each owe a little. The
+     * first is a phone call this afternoon and the second is how a shop works.
+     *
+     * So: the total, how many owe it, and the three largest by name — because
+     * "ring Hawkar" is a thing somebody can act on before lunch, and a number
+     * is not.
+     *
+     * Three, not five. This sits beside a figure in half a card, and a list
+     * long enough to need scrolling has stopped being a summary.
+     *
+     * @param  Builder<covariant \Illuminate\Database\Eloquent\Model>  $accounts
+     * @return array{total: int, count: int, top: list<array{name: string, balance: int}>}
+     */
+    private function whoOwes($accounts): array
     {
-        $from = today()->subDays(27)->startOfDay();
+        // Owing only, and this is about ZERO rather than about negatives: the
+        // suite's own invariant check forbids a negative balance outright, and
+        // Section 7 keeps the ledger from writing one. What this keeps out is
+        // the settled accounts — a shop with four hundred customers and two
+        // debts must read "2 accounts", not "400".
+        $owing = (clone $accounts)->where('balance', '>', 0);
+
+        return [
+            'total' => (int) (clone $owing)->sum('balance'),
+            'count' => (int) (clone $owing)->count(),
+            'top' => (clone $owing)
+                ->orderByDesc('balance')
+                ->limit(3)
+                ->get()
+                ->map(fn ($account) => [
+                    'name' => method_exists($account, 'displayName') ? $account->displayName() : $account->name,
+                    'balance' => (int) $account->balance,
+                ])
+                ->all(),
+        ];
+    }
+
+    /**
+     * A line of costs as the reader is allowed to see them, or nothing.
+     *
+     * `cost_seen()` returns null for a reader shown no cost at all, and a line
+     * drawn from nulls would be a shape made out of the very figures being
+     * withheld — Section 2's masking undone by a picture of it. All or none.
+     *
+     * @param  array<string, int>  $values
+     * @return list<int>|null
+     */
+    private function costsSeen(array $values): ?array
+    {
+        $seen = array_map(fn (int $value) => cost_seen($value), array_values($values));
+
+        return in_array(null, $seen, true) ? null : array_map('intval', $seen);
+    }
+
+    /**
+     * The windows the trend chart can be read over.
+     *
+     * Named rather than a pair of dates in the query string: this is a switch
+     * beside a chart, not a filter, and "from 2026-08-16 to 2026-09-12" is a
+     * thing to type rather than a thing to press. The lists have real date
+     * fields for the other job.
+     *
+     * @return array<string, array{label: string, from: Carbon}>
+     */
+    private function windows(): array
+    {
+        /*
+         * Two labels each, and that is not duplication.
+         *
+         * The button has room for two words; the heading over the chart has to
+         * say what is being shown, in words, or it lies the moment the switch
+         * moves off its default — a chart headed "The last four weeks" while
+         * showing this month is worse than one with no heading at all.
+         */
+        return [
+            'weeks' => [
+                'label' => __('4 weeks'),
+                'title' => __('The last four weeks'),
+                'from' => today()->subDays(27),
+            ],
+            'month' => [
+                'label' => __('This month'),
+                'title' => __('This month'),
+                'from' => today()->startOfMonth(),
+            ],
+            'quarter' => [
+                'label' => __('3 months'),
+                'title' => __('The last three months'),
+                'from' => today()->subMonthsNoOverflow(3)->addDay(),
+            ],
+        ];
+    }
+
+    /**
+     * @param  string  $window  a key of windows(), or anything at all — an
+     *                          unknown one falls back rather than throwing,
+     *                          because it arrives from the query string
+     */
+    private function trend(DailyTotals $totals, $user, string $window = 'weeks'): ?array
+    {
+        $windows = $this->windows();
+
+        $from = ($windows[$window] ?? $windows['weeks'])['from']->copy()->startOfDay();
         $to = today()->endOfDay();
 
         $axis = $totals->axis($totals->days($from, $to));
@@ -79,12 +186,12 @@ class DashboardController extends Controller
 
         if ($user->hasPermission('sales.view')) {
             $series[] = ['name' => __('Sales'), 'short' => __('Sales'), 'tone' => 1,
-                         'values' => array_values($flows['sales'])];
+                'values' => array_values($flows['sales'])];
         }
 
         if ($user->hasPermission('purchases.view')) {
             $series[] = ['name' => __('Purchases'), 'short' => __('Bought'), 'tone' => 2,
-                         'values' => array_values($flows['purchases'])];
+                'values' => array_values($flows['purchases'])];
         }
 
         $level = null;
@@ -97,7 +204,7 @@ class DashboardController extends Controller
 
             if (! in_array(null, $seen, true)) {
                 $series[] = ['name' => __('Profit'), 'short' => __('Profit'), 'tone' => 3,
-                             'values' => array_values($totals->profit($flows['sales'], $seen))];
+                    'values' => array_values($totals->profit($flows['sales'], $seen))];
 
                 $level = [
                     'name' => __('Stock value'),
@@ -127,9 +234,31 @@ class DashboardController extends Controller
         $today = today();
         $threshold = (int) setting('low_stock_threshold', 0);
 
+        // From the query string, so it survives a refresh and can be
+        // bookmarked. Validated by windows() rather than here: an unknown one
+        // falls back to four weeks instead of throwing, because a person can
+        // type anything into a URL and a dashboard is not the place to argue.
+        $window = (string) $request->query('trend', 'weeks');
+
         $sellsCount = $user->hasPermission('sales.view')
             ? Sale::whereDate('sale_date', $today)->count()
             : null;
+
+        /*
+         * The shape of the last four weeks, for the line behind each figure.
+         *
+         * The same window the trend chart uses, and read once for all four
+         * tiles: `flows()` is one pass that answers sales and purchases
+         * together, and asking it per tile would be four passes for one answer.
+         *
+         * Each tile's line is behind the same permission as its figure. A line
+         * is data too — the shape of somebody's purchasing is worth withholding
+         * from a reader who is kept out of the purchases screen, and a chart
+         * that leaks what the number withholds is the number not withheld.
+         */
+        $sparkFrom = today()->subDays(27)->startOfDay();
+        $sparkTo = today()->endOfDay();
+        $sparkFlows = $totals->flows($sparkFrom, $sparkTo);
 
         $cards = [
             [
@@ -138,6 +267,9 @@ class DashboardController extends Controller
                     ? (int) Sale::whereDate('sale_date', $today)->sum('total_amount')
                     : null,
                 'icon' => 'cart-check',
+                'spark' => $user->hasPermission('sales.view')
+                    ? array_values($sparkFlows['sales'])
+                    : null,
                 'note' => $sellsCount === null
                     ? null
                     : trans_choice('{0}No sales yet|{1}:count sale|[2,*]:count sales', $sellsCount, ['count' => $sellsCount]),
@@ -149,6 +281,9 @@ class DashboardController extends Controller
                     ? (int) Purchase::whereDate('purchase_date', $today)->sum('grand_total')
                     : null,
                 'icon' => 'bag-check',
+                'spark' => $user->hasPermission('purchases.view')
+                    ? array_values($sparkFlows['purchases'])
+                    : null,
                 'note' => null,
                 'cost' => false,
             ],
@@ -158,6 +293,10 @@ class DashboardController extends Controller
                     ? (int) Expense::whereDate('expense_date', $today)->sum('amount')
                     : null,
                 'icon' => 'cash-stack',
+                'spark' => $user->hasPermission('expenses.view')
+                    ? array_values($totals->expenses($sparkFrom, $sparkTo))
+                    : null,
+
                 'note' => null,
                 'cost' => false,
             ],
@@ -170,6 +309,17 @@ class DashboardController extends Controller
                     ? (int) StockBatch::sum(DB::raw(StockBatch::VALUE))
                     : null,
                 'icon' => 'boxes',
+
+                /*
+                 * The shelf's worth is a COST, so it goes through the reader's
+                 * own cost setting as well as the permission — exactly as the
+                 * figure above it does. `cost_seen()` returns null for a reader
+                 * shown no cost at all, and a line of nulls would draw a shape
+                 * out of the very thing being withheld.
+                 */
+                'spark' => $user->hasPermission('reports.view')
+                    ? $this->costsSeen($totals->stockValue($sparkFrom, $sparkTo))
+                    : null,
                 'note' => __('At FIFO cost'),
                 'cost' => true,
             ],
@@ -182,7 +332,9 @@ class DashboardController extends Controller
             // them. Four tiles say what today was; a shopkeeper standing at the
             // counter wants to know whether today was normal, and only a line
             // going back a month can answer that.
-            'trend' => $this->trend($totals, $user),
+            'trend' => $this->trend($totals, $user, $window),
+            'trendWindows' => $this->windows(),
+            'trendWindow' => $window,
 
             /*
              * The first-week checklist, for a shop that has not finished
@@ -196,11 +348,11 @@ class DashboardController extends Controller
             'setup' => $user->isAdmin() && $setup->shouldShow() ? $setup : null,
 
             'customersOwe' => $user->hasPermission('customers.view')
-                ? (int) Customer::sum('balance')
+                ? $this->whoOwes(Customer::query())
                 : null,
 
             'owedToSuppliers' => $user->hasPermission('suppliers.view')
-                ? (int) Supplier::sum('balance')
+                ? $this->whoOwes(Supplier::query())
                 : null,
 
             // Section 8c: a product with no reorder_level falls back to the

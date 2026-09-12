@@ -55,6 +55,9 @@
                 <button class="btn btn-sm btn-outline-primary">{{ __('Filter') }}</button>
                 <a href="{{ route('expenses.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
             </div>
+            <div class="col-12">
+                <x-date-presets />
+            </div>
         </div>
     </form>
 
@@ -95,7 +98,6 @@
                             <td class="money">{{ money($expense->amount, false) }}</td>
                             <td class="text-end">
                                 <x-row-actions
-                                    :view="route('expenses.show', $expense)"
                                     :edit-modal="Gate::allows('expenses.edit') ? '#expense-edit' : null"
                                     :edit-data="[
                                         'action' => route('expenses.update', $expense),

@@ -736,6 +736,87 @@ a.stat-tile {
   overflow: visible;
 }
 
+/*
+ * The buttons at the end of a row.
+ *
+ * **Soran circled these, 2026-09-12.** Measured, they were 32 wide by 38 tall:
+ * not square, and narrower than a thumb. This shop is run from an iPad behind a
+ * counter, and 32px is under every touch-target guideline there is — the reason
+ * they felt wrong was that they were being missed.
+ *
+ * Square, and sized from the row rather than from the icon. The group keeps its
+ * shared border so three buttons read as one control, and the delete keeps its
+ * colour: the trash icon and the red say the same thing twice, which on the one
+ * irreversible action in the row is worth the repetition.
+ */
+.app-row-actions .btn {
+  // 2.375rem, not 2.25: Bootstrap gives the button 38px of height from its
+  // own padding and border, and a 36px minimum would leave it 36 wide by 38
+  // tall — the not-quite-square that made these look wrong in the first place.
+  --app-row-action: 2.375rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--app-row-action);
+  min-height: var(--app-row-action);
+  padding-inline: .4rem;
+}
+
+// A thumb needs more than a mouse does, and a phone or tablet is where this
+// shop is actually used. Not a media query on width: a small laptop with a
+// trackpad wants the compact row, and `pointer: coarse` asks the real question.
+@media (pointer: coarse) {
+  .app-row-actions .btn { --app-row-action: 2.75rem; }
+}
+
+/*
+ * A dropdown of checkboxes, standing in for a multiple select.
+ *
+ * See components/checkbox-select.blade.php. The height is matched to
+ * `.form-control-sm` deliberately: this control sits in a filter row between
+ * two of them, and the whole reason it exists is that the thing it replaced did
+ * not line up with its neighbours.
+ */
+.app-picker {
+  // Bootstrap's own small-control height, so the row is level.
+  min-height: calc(1.5em + .5rem + calc(var(--bs-border-width) * 2));
+}
+
+.app-picker-menu {
+  max-height: 16rem;
+  overflow-y: auto;
+  // Never narrower than the button it hangs from: a menu that is half the width
+  // of its own control reads as a mistake.
+  min-width: 100%;
+}
+
+/*
+ * A code that must READ left-to-right but SIT with the page's text.
+ *
+ * ⚠️ `dir="ltr"` on a block element sets its text ALIGNMENT as well as its
+ * direction, so in Kurdish, Arabic or Persian a SKU line written that way hugs
+ * the left edge while the product name above it sits on the right. Soran
+ * pointed at exactly that on the Products list — `GD-BT208 · 6972496470268`
+ * stranded on the wrong side of the row, under a name on the correct one.
+ *
+ * An inline-block fixes both halves at once. Inside it the direction is LTR, so
+ * `GD-BT208 · 6972496470268` reads in the right order with the separator in the
+ * right place; outside it, it is one inline box that the parent aligns by the
+ * PARENT's direction — which is the page's. `isolate` keeps its characters from
+ * reordering against the RTL text around it.
+ *
+ * Use this for anything that is a code rather than words: SKUs, barcodes,
+ * document numbers, versions, percentages, sizes. Not for a chart or a printed
+ * layout that is deliberately left-to-right as a whole — those want the
+ * alignment too, and they keep `dir="ltr"` on the block.
+ */
+.app-code {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .app-chart-grid {
   stroke: var(--app-chart-grid);
   stroke-width: 1;
@@ -961,6 +1042,81 @@ a.stat-tile {
   border-radius: .15rem;
   flex: 0 0 auto;
 }
+
+/*
+ * The sparkline in a dashboard tile.
+ *
+ * Reuses the trend chart's tones on purpose: the blue line in the tile and the
+ * blue line in the chart below it are the same measure, and a reader who has to
+ * learn two colour schemes on one screen has been given two screens.
+ *
+ * No axis, no grid, no hover. See components/chart/spark.blade.php for why.
+ */
+.app-spark {
+  position: relative;
+  height: var(--app-spark-height, 28px);
+  margin-top: .35rem;
+  // Room on the trailing edge for the dot, which sits ON the last point and
+  // would otherwise be clipped in half by the tile's own edge.
+  padding-inline-end: 3px;
+}
+
+.app-spark-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.app-spark-line {
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  // As on the trend chart: the viewBox is stretched, and without this a hairline
+  // becomes a different weight on every screen width.
+  vector-effect: non-scaling-stroke;
+}
+
+.app-spark-fill {
+  stroke: none;
+  opacity: .12;
+}
+
+.app-spark-now {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  transform: translate(-50%, 50%);
+  // The tile's own background, so the dot reads as sitting on the line rather
+  // than being a kink in it.
+  box-shadow: 0 0 0 1.5px var(--bs-card-bg, var(--bs-body-bg));
+}
+
+/*
+ * One neutral line for every tile, and this is a decision rather than a
+ * shortcut.
+ *
+ * The obvious thing was to paint each tile in its measure's colour from the
+ * trend chart below — blue sales, orange purchases — so the eye links the two.
+ * Three of the four tiles can do that. Expenses is not on that chart, and
+ * there is no fifth tone: painting it orange said it was purchases, and
+ * painting it grey said it was the shelf's worth, because tone 0 already reads
+ * grey by design (the validator marks it below the chroma floor, correctly —
+ * it is the level band, deliberately set apart from the flows).
+ *
+ * Two lines the same colour meaning two different things on one screen is a
+ * worse fault than no colour mapping at all. And the mapping was never load
+ * bearing: every tile is labelled, the chart below has its own legend and end
+ * labels, and colour is only doing real work when several lines SHARE one plot
+ * — which is the chart's job, not the tile's.
+ *
+ * So the tiles say "shape" and the chart says "which". Identity stays in the
+ * words, where a colourblind reader and a printed page can both reach it.
+ */
+.app-spark-line { stroke: var(--bs-secondary-color); }
+.app-spark-fill { fill: var(--bs-secondary-color); }
+.app-spark-now { background: var(--bs-secondary-color); }
 
 @each $tone in (0, 1, 2, 3) {
   .app-trend-line[data-tone='#{$tone}'] { stroke: var(--app-trend-#{$tone}); }

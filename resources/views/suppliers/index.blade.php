@@ -58,7 +58,6 @@
                             </td>
                             <td class="text-end">
                                 <x-row-actions
-                                    :view="route('suppliers.show', $supplier)"
                                     :edit-modal="Gate::allows('suppliers.edit') && ! ($supplier->is_system ?? false) ? '#supplier-edit' : null"
                                     :edit-data="[
                                         'action' => route('suppliers.update', $supplier),

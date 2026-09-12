@@ -53,8 +53,7 @@
                                 {{ money($seller->balance, false) }}
                             </td>
                             <td class="text-end">
-                                <x-row-actions :view="route('suppliers.show', $seller)" />
-                            </td>
+                                </td>
                         </tr>
                     @endforeach
                     </tbody>

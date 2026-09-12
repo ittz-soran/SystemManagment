@@ -1,5 +1,20 @@
 @props([
     'view' => null,
+
+    /*
+     * Printing, straight from the list.
+     *
+     * Added 2026-09-12 when the eye button went. The eye had been the row's only
+     * action on the sale, purchase and return lists, and once the document
+     * number itself became the link it was a second copy of that link in the
+     * place nobody looks first — but taking it away left an empty column with a
+     * heading over it, which is worse than the redundancy was.
+     *
+     * Print is what belongs there instead. It is the one thing a shop does to a
+     * finished document from a list — hand the customer their invoice — and
+     * doing it without opening the record first saves the trip.
+     */
+    'print' => null,
     'edit' => null,
     // Some records are edited in a modal rather than on a page of their own —
     // a supplier is three fields, and a whole screen for them would be a page
@@ -26,10 +41,19 @@
     $deleteLocked = $deleteState && ! $deleteState['allowed'];
 @endphp
 
-<div class="btn-group btn-group-sm">
+<div class="btn-group btn-group-sm app-row-actions">
     @if($view)
         <a href="{{ $view }}" class="btn btn-outline-secondary" title="{{ __('View') }}">
             <i class="bi bi-eye"></i>
+        </a>
+    @endif
+
+    @if($print)
+        {{-- A new tab: the printed sheet replaces the page otherwise, and the
+             shopkeeper's place in a filtered, paged list is gone with it. --}}
+        <a href="{{ $print }}" target="_blank" rel="noopener"
+           class="btn btn-outline-secondary" title="{{ __('Print') }}">
+            <i class="bi bi-printer"></i>
         </a>
     @endif
 

@@ -26,6 +26,14 @@
                         @if($card['note'])
                             <div class="small text-secondary">{{ $card['note'] }}</div>
                         @endif
+
+                        {{-- The shape of the last four weeks behind the figure:
+                             the tile says what today was, this says whether
+                             today was normal. Absent, not empty, when the
+                             reader may not see the figure — see the controller. --}}
+                        @if(($card['spark'] ?? null) !== null)
+                            <x-chart.spark :values="$card['spark']" />
+                        @endif
                     </div>
                 </div>
             </div>
@@ -37,35 +45,77 @@
     @isset($trend)
         <div class="mb-4">
             <x-chart.trend
-                :title="__('The last four weeks')"
+                :title="($trendWindows[$trendWindow] ?? $trendWindows['weeks'])['title']"
                 :subtitle="__('Hover any day to read every line at once.')"
                 :labels="$trend['labels']"
                 :notes="$trend['notes']"
                 :series="$trend['series']"
                 :level="$trend['level']"
-                :height="200" />
+                :height="200">
+                <x-slot:periods>
+                    @foreach($trendWindows as $key => $window)
+                        <a href="{{ request()->fullUrlWithQuery(['trend' => $key]) }}"
+                           class="btn {{ $key === $trendWindow ? 'btn-secondary' : 'btn-outline-secondary' }}"
+                           @if($key === $trendWindow) aria-current="true" @endif>{{ $window['label'] }}</a>
+                    @endforeach
+                </x-slot:periods>
+            </x-chart.trend>
         </div>
     @endisset
 
+    {{-- A total is not an answer. See DashboardController::whoOwes(): one
+         customer who has not paid is a phone call this afternoon, and twenty
+         who each owe a little is how a shop works — and 222,000 looks the same
+         either way. --}}
     <div class="row g-3 mb-4">
         @foreach([
-            ['label' => __('Customers owe the shop'), 'value' => $customersOwe, 'route' => 'customers.index'],
-            ['label' => __('The shop owes suppliers'), 'value' => $owedToSuppliers, 'route' => 'suppliers.index'],
+            ['label' => __('Customers owe the shop'), 'owed' => $customersOwe,
+             'route' => 'customers.index', 'each' => 'customers.show'],
+            ['label' => __('The shop owes suppliers'), 'owed' => $owedToSuppliers,
+             'route' => 'suppliers.index', 'each' => 'suppliers.show'],
         ] as $balance)
+            {{-- ⚠️ The card STAYS when the reader may not see it, masked.
+                 Section 2 and SecurityTest: "a missing one says the shop has no
+                 such figure; a masked one says there is one and it is not
+                 theirs." A first version of this used @continue and deleted the
+                 card outright — the suite caught it, correctly. --}}
+            @php($owed = $balance['owed'])
+
             <div class="col-md-6">
                 <div class="card h-100">
-                    <div class="card-body d-flex align-items-center justify-content-between">
-                        <div>
-                            <div class="text-secondary small">{{ $balance['label'] }}</div>
-                            <div class="fs-5 fw-semibold money">
-                                {{ money_if($balance['value'] !== null, $balance['value']) }}
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between gap-2">
+                            <div>
+                                <div class="text-secondary small">{{ $balance['label'] }}</div>
+                                <div class="fs-5 fw-semibold money">
+                                    {{ money_if($owed !== null, $owed['total'] ?? null) }}
+                                </div>
+
+                                @isset($owed)
+                                    <div class="small text-secondary">
+                                        {{ trans_choice('{0}Nobody|{1}:count account|[2,*]:count accounts',
+                                            $owed['count'], ['count' => $owed['count']]) }}
+                                    </div>
+                                @endisset
                             </div>
+
+                            {{-- Section 9b: never a link that leads to access denied. --}}
+                            @isset($owed)
+                                <a href="{{ route($balance['route']) }}" class="btn btn-sm btn-outline-secondary">
+                                    {{ __('View') }}
+                                </a>
+                            @endisset
                         </div>
-                        {{-- Section 9b: never a link that leads to access denied. --}}
-                        @if($balance['value'] !== null)
-                            <a href="{{ route($balance['route']) }}" class="btn btn-sm btn-outline-secondary">
-                                {{ __('View') }}
-                            </a>
+
+                        @if(($owed['top'] ?? []) !== [])
+                            <ul class="list-unstyled small mb-0 mt-3 border-top pt-2">
+                                @foreach($owed['top'] as $account)
+                                    <li class="d-flex justify-content-between gap-2 py-1">
+                                        <span class="text-truncate">{{ $account['name'] }}</span>
+                                        <span class="money text-nowrap">{{ money($account['balance'], false) }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
                         @endif
                     </div>
                 </div>

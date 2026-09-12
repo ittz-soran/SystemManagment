@@ -69,7 +69,7 @@
                                     <a href="{{ route('products.show', $item->product) }}" class="text-decoration-none">
                                         {{ $item->product->name }}
                                     </a>
-                                    <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
+                                    <div class="small text-secondary app-code">{{ $item->product->sku }}</div>
                                 </td>
                                 <td class="money">{{ number_format($item->quantity) }}</td>
                                 <td class="money {{ $item->quantity_returned > 0 ? 'text-warning' : 'text-secondary' }}">

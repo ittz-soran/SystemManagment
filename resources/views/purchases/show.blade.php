@@ -76,7 +76,7 @@
                                     <a href="{{ route('products.show', $item->product) }}" class="text-decoration-none">
                                         {{ $item->product->name }}
                                     </a>
-                                    <div class="small text-secondary" dir="ltr">
+                                    <div class="small text-secondary app-code">
                                         {{ $item->product->sku }}
                                         @if($item->entered_currency === 'USD' && $item->entered_amount)
                                             · {{ __('entered as $:amount', ['amount' => number_format($item->entered_amount / 100, 2)]) }}

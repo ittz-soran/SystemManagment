@@ -48,9 +48,11 @@
                 <label for="to" class="form-label small">{{ __('To') }}</label>
                 <input id="to" type="date" name="to" value="{{ request('to') }}" class="form-control form-control-sm">
             </div>
-            <div class="col-12 d-flex gap-2">
+            <div class="col-12 d-flex gap-2 flex-wrap align-items-center">
                 <button class="btn btn-sm btn-outline-primary">{{ __('Filter') }}</button>
                 <a href="{{ route('sales.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
+
+                <span class="ms-auto"><x-date-presets /></span>
             </div>
         </div>
     </form>
@@ -92,16 +94,16 @@
                                            aria-label="{{ __('Select :document', ['document' => $sale->document_no]) }}">
                                 </td>
                             @endcan
-                            <td class="fw-medium" dir="ltr">{{ $sale->document_no }}</td>
-                            <td dir="ltr">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</td>
-                            <td>{{ $sale->customer->displayName() }}</td>
+                            <td><x-document-link :document="$sale" :kind="false" /></td>
+                            <td><span class="app-code">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td><x-document-link :document="$sale->customer" :kind="false" /></td>
                             <td><x-status-badge :status="$sale->status" /></td>
                             <td class="money">{{ money($sale->total_amount, false) }}</td>
                             <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">
                                 {{ money($sale->amountDue(), false) }}
                             </td>
                             <td class="text-end">
-                                <x-row-actions :view="route('sales.show', $sale)" />
+                                <x-row-actions :print="route('sales.print', $sale)" />
                             </td>
                         </tr>
                     @endforeach
