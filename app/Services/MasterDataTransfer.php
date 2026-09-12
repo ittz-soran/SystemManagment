@@ -7,9 +7,12 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Units;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 
 /**
@@ -406,7 +409,7 @@ class MasterDataTransfer
 
     // ------------------------------------------------------------- per entity
 
-    private function query(string $entity): \Illuminate\Database\Eloquent\Builder
+    private function query(string $entity): Builder
     {
         return match ($entity) {
             'products' => Product::with('category')->orderBy('name'),
@@ -451,9 +454,9 @@ class MasterDataTransfer
             'products' => [
                 'name' => ['required', 'string', 'max:255'],
                 'sku' => ['nullable', 'string', 'max:255',
-                    \Illuminate\Validation\Rule::unique('products', 'sku')->ignore($ignore)],
+                    Rule::unique('products', 'sku')->ignore($ignore)],
                 'barcode' => ['nullable', 'string', 'max:32',
-                    \Illuminate\Validation\Rule::unique('products', 'barcode')->ignore($ignore)],
+                    Rule::unique('products', 'barcode')->ignore($ignore)],
                 'category' => ['required', 'string', 'max:255'],
                 'unit' => ['nullable', 'string', 'max:32'],
                 // Section 2: IQD is whole numbers only, never decimal.
@@ -518,7 +521,7 @@ class MasterDataTransfer
                 'sku' => $text('sku'),
                 'barcode' => $text('barcode'),
                 'category_id' => $this->categoryId($row['category']),
-                'unit' => $text('unit', 'pcs'),
+                'unit' => $text('unit', Units::default()),
                 'purchase_price' => (int) $row['purchase_price'],
                 'sale_price' => (int) $row['sale_price'],
                 'reorder_level' => ($row['reorder_level'] ?? '') === '' ? null : (int) $row['reorder_level'],

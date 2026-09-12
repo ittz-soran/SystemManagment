@@ -9,6 +9,7 @@ use App\Services\BackupService;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
 use App\Services\SystemResetService;
+use App\Support\Units;
 use Database\Seeders\SettingSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,6 +44,7 @@ class SettingController extends Controller
     private const OPERATIONAL_KEYS = [
         'timezone', 'usd_rate', 'books_closed_before',
         'low_stock_threshold', 'sku_prefix', 'date_format',
+        'units', 'default_unit',
     ];
 
     /** Section 4 — barcode labels: the printer, the stock, and what is on them. */
@@ -92,6 +94,13 @@ class SettingController extends Controller
         $backups = app(BackupService::class);
 
         return view('settings.edit', [
+            // Section 8c — the shop's own units, and the one a new product
+            // starts on. Read here rather than in the Blade so the page has one
+            // reading of them: the textarea and the default's datalist must
+            // agree, and two calls could not disagree today but a third would.
+            'units' => Units::all(),
+            'defaultUnit' => Units::default(),
+
             'shopKeys' => self::SHOP_KEYS,
             'appearanceKeys' => self::APPEARANCE_KEYS,
             'operationalKeys' => self::OPERATIONAL_KEYS,
@@ -117,6 +126,15 @@ class SettingController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
+        /*
+         * Tidied before it is checked, not after: an admin who leaves a blank
+         * line or types "kg" twice has not made a mistake worth an error
+         * message, and the default has to be checked against the list as it
+         * will actually be stored.
+         */
+        $units = Units::parse((string) $request->input('units', ''));
+        $request->merge(['units' => implode(PHP_EOL, $units)]);
+
         $data = $request->validate([
             'shop_name' => ['required', 'string', 'max:255'],
             'shop_name_ku' => ['nullable', 'string', 'max:255'],
@@ -141,6 +159,18 @@ class SettingController extends Controller
             'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'sku_prefix' => ['required', 'string', 'max:8'],
             'date_format' => ['required', 'string', 'max:32'],
+
+            // Section 8c — the units a product can be measured in. A label
+            // rather than a record; App\Support\Units says why.
+            'units' => ['required', 'string', 'max:2000'],
+
+            /*
+             * ⚠️ The default must be one of them. A default that is not on the
+             * list is not a default at all — every new product would start on a
+             * unit its own dropdown refuses to show, and the first person to
+             * open one and save would change it without meaning to.
+             */
+            'default_unit' => ['required', 'string', 'max:32', Rule::in($units)],
 
             'backup_frequency' => ['required', 'in:daily,weekly'],
             'backup_time' => ['required', 'date_format:H:i'],

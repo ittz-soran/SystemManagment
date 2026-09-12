@@ -1017,7 +1017,25 @@ Cache::rememberForever('settings', fn () => Setting::pluck('value', 'key'));
 | `low_stock_threshold` | global default when a product has no `reorder_level` |
 | `sku_prefix` | currently `SS` — configurable in case the shop is renamed |
 | `date_format` | printed and displayed dates |
+| `units` | what a product can be measured in — one per line |
+| `default_unit` | what a new product starts on |
 | Backup status | last backup time and a manual "Back up now" button (Section 8b) |
+
+### Units — a list, not a table
+
+`products.unit` (Section 4) stays the plain string it is. Settings holds the list the dropdown offers and which one a new product starts on; nothing is normalised into a `units` table, and that is a decision rather than an omission:
+
+- **Nothing hangs off a unit.** A category groups products and is reported on. "kg" has no properties, no children and no history worth keeping.
+- **Import and export name the unit as text.** A supplier's spreadsheet is not going to know anybody's row id.
+- **A foreign key would make tidying the list impossible.** A shop that stops selling cable by the metre either cannot remove "m", or removes it and orphans every product measured in it.
+
+Rules:
+
+- The product form shows a **select**, filled from `units`, exactly as Category does.
+- ⚠️ **A product's own unit is always in its dropdown**, even after the shop takes it off the list. Otherwise opening a product measured in a retired unit and saving an unrelated field silently re-measures it — a data change made by looking at a page.
+- `default_unit` must be one of `units`. A default the dropdown refuses to show is not a default.
+- Validation on the product stays `string, max:32` and is **not** restricted to the list, so an import carrying a unit nobody has typed yet still lands.
+- Taking a unit off the list changes no existing product.
 
 **Guard the whole page** behind a `settings.manage` permission — these values change invoices, costing, and the edit window across the entire system.
 

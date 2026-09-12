@@ -205,6 +205,53 @@
                                 <div class="form-text" dir="ltr">{{ now()->format(setting('date_format', 'Y-m-d')) }}</div>
                             </div>
                         </div>
+
+                        {{-- Section 8c: what a product can be measured in.
+                             A textarea rather than a row of add/remove buttons,
+                             because this is a list somebody writes once and
+                             barely touches — and a plain list can be pasted,
+                             reordered and read at a glance, which no widget
+                             built out of buttons manages. --}}
+                        <hr class="my-4">
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="units" class="form-label">{{ __('Units') }}</label>
+                                <textarea id="units" name="units" rows="6"
+                                          class="form-control @error('units') is-invalid @enderror"
+                                          dir="ltr" required>{{ old('units', implode(PHP_EOL, $units)) }}</textarea>
+                                @error('units')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="form-text">
+                                    {{ __('One per line. These are what the Unit dropdown offers when you add a product.') }}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="default_unit" class="form-label">{{ __('Default unit') }}</label>
+                                {{-- A datalist rather than a select, so a unit
+                                     added in the box beside this one can be made
+                                     the default in the same save. With no
+                                     JavaScript it is an ordinary text box, and
+                                     the server checks it is on the list either
+                                     way. --}}
+                                <input id="default_unit" name="default_unit" list="unit-options" dir="ltr"
+                                       class="form-control @error('default_unit') is-invalid @enderror"
+                                       value="{{ old('default_unit', $defaultUnit) }}" required>
+                                <datalist id="unit-options">
+                                    @foreach($units as $unit)
+                                        <option value="{{ $unit }}"></option>
+                                    @endforeach
+                                </datalist>
+                                @error('default_unit')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="form-text">
+                                    {{ __('What a new product starts on. It must be one of the units listed.') }}
+                                </div>
+
+                                <div class="alert alert-light border small mt-3 mb-0">
+                                    {{ __('Taking a unit off the list changes nothing about products already measured in it — they keep it, and it stays in their own dropdown.') }}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

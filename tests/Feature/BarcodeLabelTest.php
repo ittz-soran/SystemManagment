@@ -381,6 +381,8 @@ class BarcodeLabelTest extends TestCase
             'low_stock_threshold' => 5,
             'sku_prefix' => 'SS',
             'date_format' => 'Y-m-d',
+            'units' => "pcs\nkg",
+            'default_unit' => 'pcs',
             'backup_frequency' => 'daily',
             'backup_time' => '02:15',
             'backup_weekday' => 5,

@@ -161,6 +161,8 @@ class ReportTest extends TestCase
             'low_stock_threshold' => 3,
             'sku_prefix' => 'XX',
             'date_format' => 'd/m/Y',
+            'units' => "pcs\nkg",
+            'default_unit' => 'pcs',
             // Section 8c: the backup schedule is on this page too, and the form
             // posts every layer at once.
             'backup_frequency' => 'daily',

@@ -50,8 +50,19 @@
 
                     <div class="col-md-6">
                         <label for="unit" class="form-label">{{ __('Unit') }}</label>
-                        <input id="unit" name="unit" value="{{ old('unit', $product->unit ?? 'pcs') }}"
-                               class="form-control @error('unit') is-invalid @enderror" required>
+                        {{-- Section 8c: the shop's own list, edited in Settings.
+                             A product measured in a unit since taken off that
+                             list still finds it here — see Units::forSelect, and
+                             the silent re-measuring it exists to prevent. --}}
+                        <select id="unit" name="unit"
+                                class="form-select @error('unit') is-invalid @enderror" required>
+                            @foreach(App\Support\Units::forSelect($product->unit ?? null) as $unit)
+                                <option value="{{ $unit }}"
+                                        @selected(old('unit', $product->unit ?? App\Support\Units::default()) === $unit)>
+                                    {{ $unit }}
+                                </option>
+                            @endforeach
+                        </select>
                         @error('unit')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                 </div>

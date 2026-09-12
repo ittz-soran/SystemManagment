@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Setting;
+use App\Support\Units;
 use Illuminate\Database\Seeder;
 
 /**
@@ -48,6 +49,12 @@ class SettingSeeder extends Seeder
         'low_stock_threshold' => '5',
         'sku_prefix' => 'SS',
         'date_format' => 'Y-m-d',
+
+        // Section 8c — what a product can be measured in, one per line, and
+        // which one a new product starts on. A label rather than a record; see
+        // App\Support\Units for why there is no units table.
+        'units' => Units::SEEDED,
+        'default_unit' => 'pcs',
 
         // Section 8b — backups. These override the .env defaults so an admin can
         // change them from the Settings page without touching a file on the
