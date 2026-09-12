@@ -20,12 +20,24 @@
     A flat line is drawn deliberately rather than skipped. "Nothing happened for
     four weeks" is a real answer and an empty box is not.
 
-    One neutral colour for every tile, never the measure's colour from the chart
-    below — see `.app-spark-line` in app.scss for why that was tried and undone.
+    The colour is the measure's own, the one it wears on the trend chart below —
+    so a reader learns the colours once for the whole screen rather than once
+    per section. Left off, the line is the neutral the level wears. See
+    `.app-spark-line` in app.scss, and the tone table above it.
+
+    ⚠️ A LEVEL is not drawn from zero, and a flow is. A day with no sales really
+    is zero and the line should touch the floor; the shelf has never in its life
+    been worth nothing, so drawing it from zero puts every reading in the top
+    two percent of the box and the tile becomes one solid block with a flat edge
+    — which is exactly what it looked like, and it said nothing at all. So a
+    level is drawn over its own range instead, which is the same choice the
+    trend chart's band makes for the same reading and the same reason.
 --}}
 @props([
     'values' => [],
     'height' => 28,
+    'tone' => null,     // 1|2|3|4 — the measure's tone. Null for the level's neutral.
+    'level' => false,   // A reading that carries in from yesterday — see above.
 ])
 
 @php
@@ -40,12 +52,31 @@
     // Its own scale, always. These are four different quantities in four
     // different units, and a shared scale would flatten three of them to
     // nothing to make room for the largest.
-    $max = $enough ? max(max($values), 1) : 1;
+    $high = $enough ? max($values) : 1;
+    $low = $enough ? min($values) : 0;
 
-    // Negative days exist — a day of returns outruns its sales — and drawing
-    // from zero would clip them off the bottom without saying so.
-    $floor = $enough ? min(0, min($values)) : 0;
-    $span = max(1, $max - $floor);
+    /*
+     * A flow is drawn from zero, because a day with no sales really is zero and
+     * the line should touch the floor. Negative days exist too — a day of
+     * returns outruns its sales — and drawing from zero would clip them off the
+     * bottom without saying so.
+     *
+     * A level ignores zero and is drawn over its own range, with a margin at
+     * each end so neither the highest nor the lowest reading is sliced in half
+     * by the tile's edge. A perfectly unchanging level has no range to speak
+     * of, so it borrows a fraction of itself and lands as a flat line across
+     * the middle, which is the true answer.
+     */
+    if ($level) {
+        $margin = max(1, (int) ceil(($high - $low ?: abs($high)) * .18));
+        $floor = $low - $margin;
+        $ceiling = $high + $margin;
+    } else {
+        $floor = min(0, $low);
+        $ceiling = max($high, 1);
+    }
+
+    $span = max(1, $ceiling - $floor);
 
     $points = $enough
         ? array_map(fn ($v, $i) => [
@@ -56,7 +87,8 @@
 @endphp
 
 @if($enough)
-    <div class="app-spark" dir="ltr" style="--app-spark-height: {{ $height }}px" aria-hidden="true">
+    <div class="app-spark" dir="ltr" @if($tone) data-tone="{{ $tone }}" @endif
+         style="--app-spark-height: {{ $height }}px" aria-hidden="true">
         <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" class="app-spark-svg" focusable="false">
             <path d="{{ Chart::areaPath($points, 1000) }}" class="app-spark-fill" />
             <path d="{{ Chart::path($points) }}" fill="none" class="app-spark-line" />

@@ -941,15 +941,24 @@ a.stat-tile {
 // whoever drew it slide the lines until they cross wherever looks good, and the
 // crossing means nothing.
 //
-// The hues are the validated categorical trio — worst adjacent CVD ΔE 9.2 on
-// the light surface, 9.4 on the dark. The level wears a neutral on purpose, so
-// it never reads as a fourth thing of the same kind.
+// The hues are the validated categorical set — checked against EVERY pair, not
+// only adjacent ones, because lines share one plot: worst all-pairs CVD ΔE 9.2
+// on the light surface and 8.1 on the dark, and worst normal-vision ΔE 18.0 and
+// 17.7. The level wears a neutral on purpose, so it never reads as another
+// thing of the same kind.
+//
+// Tone 4 (magenta) is expenses, added when Soran asked for the dashboard tiles
+// to carry their measure's colour. Violet was the obvious fourth and is the one
+// that cannot be used: #8b5cf6 against tone 1's blue is ΔE 4.8 under deuteranopia
+// and 13.6 even in full colour — two lines a reader cannot tell apart. The
+// validator said so in one run, which is the entire reason it gets run.
 // ---------------------------------------------------------------------------
 
 :root {
   --app-trend-1: #2a78d6;
   --app-trend-2: #eb6834;
   --app-trend-3: #1baf7a;
+  --app-trend-4: #b5449b;
   --app-trend-0: #78868f;
   --app-trend-band: rgba(120, 134, 143, .18);
 }
@@ -958,6 +967,7 @@ a.stat-tile {
   --app-trend-1: #3987e5;
   --app-trend-2: #d95926;
   --app-trend-3: #199e70;
+  --app-trend-4: #c95cb0;
   --app-trend-0: #6d7a86;
   --app-trend-band: rgba(109, 122, 134, .22);
 }
@@ -1094,31 +1104,41 @@ a.stat-tile {
 }
 
 /*
- * One neutral line for every tile, and this is a decision rather than a
- * shortcut.
+ * Each tile in its own measure's colour — asked for by Soran, 2026-09-12:
+ * *"can add some colors for this 4 new charts to more beautiful design"*.
  *
- * The obvious thing was to paint each tile in its measure's colour from the
- * trend chart below — blue sales, orange purchases — so the eye links the two.
- * Three of the four tiles can do that. Expenses is not on that chart, and
- * there is no fifth tone: painting it orange said it was purchases, and
- * painting it grey said it was the shelf's worth, because tone 0 already reads
- * grey by design (the validator marks it below the chroma floor, correctly —
- * it is the level band, deliberately set apart from the flows).
+ * These were four neutral grey lines, and that was a decision at the time: the
+ * three flows had tones on the chart below but expenses had none, and there was
+ * no fourth hue to give it. Rather than paint it a colour that already meant
+ * something else, all four went grey.
  *
- * Two lines the same colour meaning two different things on one screen is a
- * worse fault than no colour mapping at all. And the mapping was never load
- * bearing: every tile is labelled, the chart below has its own legend and end
- * labels, and colour is only doing real work when several lines SHARE one plot
- * — which is the chart's job, not the tile's.
+ * The right fix was the missing hue, not the missing colour. Tone 4 exists now
+ * (see the palette above, and what the validator refused on the way), so each
+ * tile wears the colour its measure wears on the chart below it — blue sales,
+ * orange purchases, magenta expenses. A reader who learns the colours once has
+ * learnt them for the whole screen.
  *
- * So the tiles say "shape" and the chart says "which". Identity stays in the
- * words, where a colourblind reader and a printed page can both reach it.
+ * Stock value keeps the level's neutral, and keeps it for the same reason the
+ * band below is neutral: it is not a flow. Three coloured tiles and one quiet
+ * one is the shape of the data, not an omission — money that MOVED today, and
+ * what is SITTING on the shelf. The validator marks that neutral below the
+ * chroma floor, correctly and irrelevantly: that check is about telling series
+ * apart inside one plot, and these are four separate one-line charts, each with
+ * its own label. Nothing here is identified by colour alone.
  */
-.app-spark-line { stroke: var(--bs-secondary-color); }
-.app-spark-fill { fill: var(--bs-secondary-color); }
-.app-spark-now { background: var(--bs-secondary-color); }
+.app-spark-line { stroke: var(--app-trend-0); }
+.app-spark-fill { fill: var(--app-trend-0); }
+.app-spark-now { background: var(--app-trend-0); }
 
-@each $tone in (0, 1, 2, 3) {
+@each $tone in (1, 2, 3, 4) {
+  .app-spark[data-tone='#{$tone}'] {
+    .app-spark-line { stroke: var(--app-trend-#{$tone}); }
+    .app-spark-fill { fill: var(--app-trend-#{$tone}); }
+    .app-spark-now { background: var(--app-trend-#{$tone}); }
+  }
+}
+
+@each $tone in (0, 1, 2, 3, 4) {
   .app-trend-line[data-tone='#{$tone}'] { stroke: var(--app-trend-#{$tone}); }
   .app-trend-ends > span[data-tone='#{$tone}'] { color: var(--app-trend-#{$tone}); }
   .app-trend-swatch[data-tone='#{$tone}'] { background: var(--app-trend-#{$tone}); }
@@ -1255,6 +1275,7 @@ a.stat-tile {
     --app-trend-1: #2a78d6;
     --app-trend-2: #eb6834;
     --app-trend-3: #1baf7a;
+    --app-trend-4: #b5449b;
     --app-trend-0: #78868f;
     --app-trend-band: rgba(120, 134, 143, .18);
   }

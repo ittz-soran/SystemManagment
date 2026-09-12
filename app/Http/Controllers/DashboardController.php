@@ -274,6 +274,11 @@ class DashboardController extends Controller
                     ? null
                     : trans_choice('{0}No sales yet|{1}:count sale|[2,*]:count sales', $sellsCount, ['count' => $sellsCount]),
                 'cost' => false,
+
+                // The colour this measure wears everywhere on the screen. Tones
+                // 1 to 3 are the flows on the trend chart below; 4 was added for
+                // expenses, which is the only one of the four that is not on it.
+                'tone' => 1,
             ],
             [
                 'label' => __("Today's purchases"),
@@ -286,6 +291,7 @@ class DashboardController extends Controller
                     : null,
                 'note' => null,
                 'cost' => false,
+                'tone' => 2,
             ],
             [
                 'label' => __("Today's expenses"),
@@ -299,6 +305,7 @@ class DashboardController extends Controller
 
                 'note' => null,
                 'cost' => false,
+                'tone' => 4,
             ],
             [
                 // Section 4: stock value is the sum of what each remaining unit
@@ -322,6 +329,16 @@ class DashboardController extends Controller
                     : null,
                 'note' => __('At FIFO cost'),
                 'cost' => true,
+
+                // No tone, on purpose. The shelf's worth is not a flow, and it
+                // wears the level's neutral here for the same reason the band
+                // wears it on the chart below — see `.app-spark` in app.scss.
+                'tone' => null,
+
+                // And it is not drawn from zero. A shelf worth ninety million
+                // every day for a month, drawn from zero, is one solid block
+                // with a flat top — see the component.
+                'level' => true,
             ],
         ];
 
