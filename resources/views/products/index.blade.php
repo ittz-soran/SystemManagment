@@ -95,15 +95,13 @@
 
             {{-- Section 9: filter by one or SEVERAL categories at once. --}}
             <div class="col-md-4">
-                <label for="categories" class="form-label small">{{ __('Categories') }}</label>
-                <select id="categories" name="categories[]" multiple size="1" class="form-select form-select-sm">
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}"
-                                @selected(in_array($category->id, (array) request('categories', [])))>
-                            {{ $category->name }}
-                        </option>
-                    @endforeach
-                </select>
+                <label for="pick-categories" class="form-label small">{{ __('Categories') }}</label>
+                <x-checkbox-select
+                    name="categories[]"
+                    :label="__('Categories')"
+                    :options="$categories->pluck('name', 'id')->all()"
+                    :selected="(array) request('categories', [])"
+                    :all="__('All categories')" />
             </div>
 
             <div class="col-md-2">

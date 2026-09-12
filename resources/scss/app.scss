@@ -737,6 +737,61 @@ a.stat-tile {
 }
 
 /*
+ * The buttons at the end of a row.
+ *
+ * **Soran circled these, 2026-09-12.** Measured, they were 32 wide by 38 tall:
+ * not square, and narrower than a thumb. This shop is run from an iPad behind a
+ * counter, and 32px is under every touch-target guideline there is — the reason
+ * they felt wrong was that they were being missed.
+ *
+ * Square, and sized from the row rather than from the icon. The group keeps its
+ * shared border so three buttons read as one control, and the delete keeps its
+ * colour: the trash icon and the red say the same thing twice, which on the one
+ * irreversible action in the row is worth the repetition.
+ */
+.app-row-actions .btn {
+  // 2.375rem, not 2.25: Bootstrap gives the button 38px of height from its
+  // own padding and border, and a 36px minimum would leave it 36 wide by 38
+  // tall — the not-quite-square that made these look wrong in the first place.
+  --app-row-action: 2.375rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--app-row-action);
+  min-height: var(--app-row-action);
+  padding-inline: .4rem;
+}
+
+// A thumb needs more than a mouse does, and a phone or tablet is where this
+// shop is actually used. Not a media query on width: a small laptop with a
+// trackpad wants the compact row, and `pointer: coarse` asks the real question.
+@media (pointer: coarse) {
+  .app-row-actions .btn { --app-row-action: 2.75rem; }
+}
+
+/*
+ * A dropdown of checkboxes, standing in for a multiple select.
+ *
+ * See components/checkbox-select.blade.php. The height is matched to
+ * `.form-control-sm` deliberately: this control sits in a filter row between
+ * two of them, and the whole reason it exists is that the thing it replaced did
+ * not line up with its neighbours.
+ */
+.app-picker {
+  // Bootstrap's own small-control height, so the row is level.
+  min-height: calc(1.5em + .5rem + calc(var(--bs-border-width) * 2));
+}
+
+.app-picker-menu {
+  max-height: 16rem;
+  overflow-y: auto;
+  // Never narrower than the button it hangs from: a menu that is half the width
+  // of its own control reads as a mistake.
+  min-width: 100%;
+}
+
+/*
  * A code that must READ left-to-right but SIT with the page's text.
  *
  * ⚠️ `dir="ltr"` on a block element sets its text ALIGNMENT as well as its

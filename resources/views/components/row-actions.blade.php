@@ -41,7 +41,7 @@
     $deleteLocked = $deleteState && ! $deleteState['allowed'];
 @endphp
 
-<div class="btn-group btn-group-sm">
+<div class="btn-group btn-group-sm app-row-actions">
     @if($view)
         <a href="{{ $view }}" class="btn btn-outline-secondary" title="{{ __('View') }}">
             <i class="bi bi-eye"></i>
