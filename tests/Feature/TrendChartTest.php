@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\User;
@@ -70,7 +71,7 @@ class TrendChartTest extends TestCase
         ]);
 
         $user->permissions()->sync(
-            \App\Models\Permission::whereIn('key', $permissions)->pluck('id')
+            Permission::whereIn('key', $permissions)->pluck('id')
         );
 
         return $user->fresh();
@@ -106,6 +107,33 @@ class TrendChartTest extends TestCase
             ->assertOk()
             ->assertSee(__('The last four weeks'))
             ->assertSee('app-trend-line', escape: false);
+    }
+
+    /**
+     * The period switch — asked for by Soran, 2026-09-12.
+     *
+     * ⚠️ The heading changes with it. A chart headed "The last four weeks"
+     * while showing this month is worse than one with no heading, and the test
+     * above is what caught the first version doing exactly that.
+     */
+    public function test_the_window_can_be_changed_and_the_heading_follows(): void
+    {
+        $this->actingAs($this->admin)->get(route('dashboard', ['trend' => 'month']))
+            ->assertOk()
+            ->assertSee(__('This month'))
+            ->assertDontSee(__('The last four weeks'));
+
+        $this->actingAs($this->admin)->get(route('dashboard', ['trend' => 'quarter']))
+            ->assertOk()
+            ->assertSee(__('The last three months'));
+    }
+
+    /** A window nobody has heard of falls back rather than throwing. */
+    public function test_an_unknown_window_falls_back_to_four_weeks(): void
+    {
+        $this->actingAs($this->admin)->get(route('dashboard', ['trend' => 'since-the-war']))
+            ->assertOk()
+            ->assertSee(__('The last four weeks'));
     }
 
     public function test_a_reader_kept_from_cost_gets_no_profit_line_and_no_shelf(): void

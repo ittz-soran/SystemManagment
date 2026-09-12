@@ -39,6 +39,14 @@
     'height' => 240,
     'bandHeight' => 92,
     'empty' => null,
+
+    /*
+     * A period switch, put beside the title by whoever knows what the periods
+     * are. Not built in here: this component is given days and told to draw
+     * them, and it has no idea whether the caller can offer other days at all —
+     * a product's own page reads one window and the dashboard reads several.
+     */
+    'periods' => null,
 ])
 
 @php
@@ -182,9 +190,15 @@
 
 <div class="card h-100">
     <div class="card-body">
-        @isset($title)
-            <h2 class="h6 {{ $subtitle ? 'mb-0' : 'mb-3' }}">{{ $title }}</h2>
-        @endisset
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            @isset($title)
+                <h2 class="h6 {{ $subtitle ? 'mb-0' : 'mb-3' }}">{{ $title }}</h2>
+            @endisset
+
+            @isset($periods)
+                <div class="btn-group btn-group-sm">{{ $periods }}</div>
+            @endisset
+        </div>
 
         @isset($subtitle)
             <div class="small text-secondary mb-3">{{ $subtitle }}</div>

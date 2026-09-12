@@ -45,13 +45,21 @@
     @isset($trend)
         <div class="mb-4">
             <x-chart.trend
-                :title="__('The last four weeks')"
+                :title="($trendWindows[$trendWindow] ?? $trendWindows['weeks'])['title']"
                 :subtitle="__('Hover any day to read every line at once.')"
                 :labels="$trend['labels']"
                 :notes="$trend['notes']"
                 :series="$trend['series']"
                 :level="$trend['level']"
-                :height="200" />
+                :height="200">
+                <x-slot:periods>
+                    @foreach($trendWindows as $key => $window)
+                        <a href="{{ request()->fullUrlWithQuery(['trend' => $key]) }}"
+                           class="btn {{ $key === $trendWindow ? 'btn-secondary' : 'btn-outline-secondary' }}"
+                           @if($key === $trendWindow) aria-current="true" @endif>{{ $window['label'] }}</a>
+                    @endforeach
+                </x-slot:periods>
+            </x-chart.trend>
         </div>
     @endisset
 

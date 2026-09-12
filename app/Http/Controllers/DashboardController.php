@@ -13,6 +13,7 @@ use App\Services\DailyTotals;
 use App\Services\SetupProgress;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -83,9 +84,55 @@ class DashboardController extends Controller
         return in_array(null, $seen, true) ? null : array_map('intval', $seen);
     }
 
-    private function trend(DailyTotals $totals, $user): ?array
+    /**
+     * The windows the trend chart can be read over.
+     *
+     * Named rather than a pair of dates in the query string: this is a switch
+     * beside a chart, not a filter, and "from 2026-08-16 to 2026-09-12" is a
+     * thing to type rather than a thing to press. The lists have real date
+     * fields for the other job.
+     *
+     * @return array<string, array{label: string, from: Carbon}>
+     */
+    private function windows(): array
     {
-        $from = today()->subDays(27)->startOfDay();
+        /*
+         * Two labels each, and that is not duplication.
+         *
+         * The button has room for two words; the heading over the chart has to
+         * say what is being shown, in words, or it lies the moment the switch
+         * moves off its default — a chart headed "The last four weeks" while
+         * showing this month is worse than one with no heading at all.
+         */
+        return [
+            'weeks' => [
+                'label' => __('4 weeks'),
+                'title' => __('The last four weeks'),
+                'from' => today()->subDays(27),
+            ],
+            'month' => [
+                'label' => __('This month'),
+                'title' => __('This month'),
+                'from' => today()->startOfMonth(),
+            ],
+            'quarter' => [
+                'label' => __('3 months'),
+                'title' => __('The last three months'),
+                'from' => today()->subMonthsNoOverflow(3)->addDay(),
+            ],
+        ];
+    }
+
+    /**
+     * @param  string  $window  a key of windows(), or anything at all — an
+     *                          unknown one falls back rather than throwing,
+     *                          because it arrives from the query string
+     */
+    private function trend(DailyTotals $totals, $user, string $window = 'weeks'): ?array
+    {
+        $windows = $this->windows();
+
+        $from = ($windows[$window] ?? $windows['weeks'])['from']->copy()->startOfDay();
         $to = today()->endOfDay();
 
         $axis = $totals->axis($totals->days($from, $to));
@@ -142,6 +189,12 @@ class DashboardController extends Controller
         $user = $request->user();
         $today = today();
         $threshold = (int) setting('low_stock_threshold', 0);
+
+        // From the query string, so it survives a refresh and can be
+        // bookmarked. Validated by windows() rather than here: an unknown one
+        // falls back to four weeks instead of throwing, because a person can
+        // type anything into a URL and a dashboard is not the place to argue.
+        $window = (string) $request->query('trend', 'weeks');
 
         $sellsCount = $user->hasPermission('sales.view')
             ? Sale::whereDate('sale_date', $today)->count()
@@ -235,7 +288,9 @@ class DashboardController extends Controller
             // them. Four tiles say what today was; a shopkeeper standing at the
             // counter wants to know whether today was normal, and only a line
             // going back a month can answer that.
-            'trend' => $this->trend($totals, $user),
+            'trend' => $this->trend($totals, $user, $window),
+            'trendWindows' => $this->windows(),
+            'trendWindow' => $window,
 
             /*
              * The first-week checklist, for a shop that has not finished
