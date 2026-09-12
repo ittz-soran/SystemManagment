@@ -26,6 +26,14 @@
                         @if($card['note'])
                             <div class="small text-secondary">{{ $card['note'] }}</div>
                         @endif
+
+                        {{-- The shape of the last four weeks behind the figure:
+                             the tile says what today was, this says whether
+                             today was normal. Absent, not empty, when the
+                             reader may not see the figure — see the controller. --}}
+                        @if(($card['spark'] ?? null) !== null)
+                            <x-chart.spark :values="$card['spark']" />
+                        @endif
                     </div>
                 </div>
             </div>

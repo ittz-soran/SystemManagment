@@ -13,7 +13,6 @@ use App\Services\DailyTotals;
 use App\Services\SetupProgress;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -67,6 +66,23 @@ class DashboardController extends Controller
      *
      * @return array{labels: list<string>, notes: list<string>, series: list<array<string, mixed>>, level: ?array<string, mixed>}|null
      */
+    /**
+     * A line of costs as the reader is allowed to see them, or nothing.
+     *
+     * `cost_seen()` returns null for a reader shown no cost at all, and a line
+     * drawn from nulls would be a shape made out of the very figures being
+     * withheld — Section 2's masking undone by a picture of it. All or none.
+     *
+     * @param  array<string, int>  $values
+     * @return list<int>|null
+     */
+    private function costsSeen(array $values): ?array
+    {
+        $seen = array_map(fn (int $value) => cost_seen($value), array_values($values));
+
+        return in_array(null, $seen, true) ? null : array_map('intval', $seen);
+    }
+
     private function trend(DailyTotals $totals, $user): ?array
     {
         $from = today()->subDays(27)->startOfDay();
@@ -79,12 +95,12 @@ class DashboardController extends Controller
 
         if ($user->hasPermission('sales.view')) {
             $series[] = ['name' => __('Sales'), 'short' => __('Sales'), 'tone' => 1,
-                         'values' => array_values($flows['sales'])];
+                'values' => array_values($flows['sales'])];
         }
 
         if ($user->hasPermission('purchases.view')) {
             $series[] = ['name' => __('Purchases'), 'short' => __('Bought'), 'tone' => 2,
-                         'values' => array_values($flows['purchases'])];
+                'values' => array_values($flows['purchases'])];
         }
 
         $level = null;
@@ -97,7 +113,7 @@ class DashboardController extends Controller
 
             if (! in_array(null, $seen, true)) {
                 $series[] = ['name' => __('Profit'), 'short' => __('Profit'), 'tone' => 3,
-                             'values' => array_values($totals->profit($flows['sales'], $seen))];
+                    'values' => array_values($totals->profit($flows['sales'], $seen))];
 
                 $level = [
                     'name' => __('Stock value'),
@@ -131,6 +147,22 @@ class DashboardController extends Controller
             ? Sale::whereDate('sale_date', $today)->count()
             : null;
 
+        /*
+         * The shape of the last four weeks, for the line behind each figure.
+         *
+         * The same window the trend chart uses, and read once for all four
+         * tiles: `flows()` is one pass that answers sales and purchases
+         * together, and asking it per tile would be four passes for one answer.
+         *
+         * Each tile's line is behind the same permission as its figure. A line
+         * is data too — the shape of somebody's purchasing is worth withholding
+         * from a reader who is kept out of the purchases screen, and a chart
+         * that leaks what the number withholds is the number not withheld.
+         */
+        $sparkFrom = today()->subDays(27)->startOfDay();
+        $sparkTo = today()->endOfDay();
+        $sparkFlows = $totals->flows($sparkFrom, $sparkTo);
+
         $cards = [
             [
                 'label' => __("Today's sales"),
@@ -138,6 +170,9 @@ class DashboardController extends Controller
                     ? (int) Sale::whereDate('sale_date', $today)->sum('total_amount')
                     : null,
                 'icon' => 'cart-check',
+                'spark' => $user->hasPermission('sales.view')
+                    ? array_values($sparkFlows['sales'])
+                    : null,
                 'note' => $sellsCount === null
                     ? null
                     : trans_choice('{0}No sales yet|{1}:count sale|[2,*]:count sales', $sellsCount, ['count' => $sellsCount]),
@@ -149,6 +184,9 @@ class DashboardController extends Controller
                     ? (int) Purchase::whereDate('purchase_date', $today)->sum('grand_total')
                     : null,
                 'icon' => 'bag-check',
+                'spark' => $user->hasPermission('purchases.view')
+                    ? array_values($sparkFlows['purchases'])
+                    : null,
                 'note' => null,
                 'cost' => false,
             ],
@@ -158,6 +196,10 @@ class DashboardController extends Controller
                     ? (int) Expense::whereDate('expense_date', $today)->sum('amount')
                     : null,
                 'icon' => 'cash-stack',
+                'spark' => $user->hasPermission('expenses.view')
+                    ? array_values($totals->expenses($sparkFrom, $sparkTo))
+                    : null,
+
                 'note' => null,
                 'cost' => false,
             ],
@@ -170,6 +212,17 @@ class DashboardController extends Controller
                     ? (int) StockBatch::sum(DB::raw(StockBatch::VALUE))
                     : null,
                 'icon' => 'boxes',
+
+                /*
+                 * The shelf's worth is a COST, so it goes through the reader's
+                 * own cost setting as well as the permission — exactly as the
+                 * figure above it does. `cost_seen()` returns null for a reader
+                 * shown no cost at all, and a line of nulls would draw a shape
+                 * out of the very thing being withheld.
+                 */
+                'spark' => $user->hasPermission('reports.view')
+                    ? $this->costsSeen($totals->stockValue($sparkFrom, $sparkTo))
+                    : null,
                 'note' => __('At FIFO cost'),
                 'cost' => true,
             ],
