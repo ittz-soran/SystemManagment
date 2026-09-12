@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetUserPreferences;
+use App\Support\AlreadyDeleted;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -93,6 +94,20 @@ $app = Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
+        );
+
+        /*
+         * Two people pressing Delete on the same record — see AlreadyDeleted.
+         *
+         * Here rather than in seventeen `destroy` methods because none of them
+         * is ever reached: route model binding resolves the record before the
+         * controller runs, does not see soft-deleted rows, and the framework
+         * has already turned that into a 404 by the time any of our code could
+         * speak. It answers only when the record really was deleted, and
+         * returns null otherwise so a genuine 404 stays a 404.
+         */
+        $exceptions->render(
+            fn (Throwable $e, Request $request) => AlreadyDeleted::answer($e, $request),
         );
     })->create();
 
