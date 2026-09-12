@@ -54,9 +54,12 @@ class PurchaseController extends Controller
         return view('purchases.create', [
             'held' => $held,
             'heldCarts' => HeldCart::ofType(HeldCart::TYPE_PURCHASE)->with('user')->latest()->get(),
-            'cartLines' => $held
-                ? HeldCartController::rebuild($held, fn ($p) => null)
-                : null,
+            // A submit that came back, before a cart that was put down. The
+            // lines are already in old input — losing them means re-scanning
+            // the whole basket to correct one field. See linesFor().
+            'cartLines' => is_array($lines = old('lines'))
+                ? HeldCartController::linesFor($lines, fn ($p) => null)
+                : ($held ? HeldCartController::rebuild($held, fn ($p) => null) : null),
             'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
             // Section 6b: pre-filled from settings, editable per purchase,
             // because the rate you actually paid at is the one that matters.

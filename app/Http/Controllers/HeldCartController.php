@@ -85,17 +85,45 @@ class HeldCartController extends Controller
      */
     public static function rebuild(HeldCart $cart, callable $nextBatchCost): array
     {
-        $products = Product::whereIn('id', collect($cart->lines())->pluck('product_id'))
+        return self::linesFor($cart->lines(), $nextBatchCost);
+    }
+
+    /**
+     * The same shape, from raw lines rather than from a held cart.
+     *
+     * **Split out 2026-09-12, for the submit that comes back.** A sale refused
+     * for a reason the screen could have caught — the Cash Customer not paid in
+     * full — threw the whole basket away and left an empty cart. The lines were
+     * never lost: `store()` sends them back with `withInput()`. Nothing read
+     * them, so the page rebuilt itself empty and the shopkeeper re-scanned
+     * everything to fix one field. At a till with a queue that is the difference
+     * between a correction and a disaster.
+     *
+     * Tolerant of half-typed lines on purpose. These may have come from a
+     * request that failed validation, so a missing quantity is exactly the
+     * case to expect — a line with no usable product is dropped, and anything
+     * else missing comes back as zero for the shopkeeper to correct. Refusing
+     * to render would be losing the basket all over again, for the same reason.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @return array<int, array<string, mixed>>
+     */
+    public static function linesFor(array $lines, callable $nextBatchCost): array
+    {
+        $products = Product::whereIn('id', collect($lines)->pluck('product_id')->filter())
             ->get()
             ->keyBy('id');
 
-        return collect($cart->lines())
+        return collect($lines)
             ->map(function (array $line) use ($products, $nextBatchCost) {
-                $product = $products[$line['product_id']] ?? null;
+                $product = $products[$line['product_id'] ?? null] ?? null;
 
                 if (! $product) {
                     return null;
                 }
+
+                $quantity = (int) ($line['quantity'] ?? 0);
+                $price = (int) ($line['unit_price'] ?? 0);
 
                 $cost = $nextBatchCost($product);
 
@@ -108,15 +136,15 @@ class HeldCartController extends Controller
                     'id' => $product->id,
                     'name' => $product->name,
                     'sku' => $product->sku,
-                    'quantity' => (int) $line['quantity'],
-                    'price' => (int) $line['unit_price'],
+                    'quantity' => $quantity,
+                    'price' => $price,
                     'currency' => $currency,
                     'enteredAmount' => $currency === 'USD'
                         ? round(((int) ($line['entered_amount'] ?? 0)) / 100, 2)
                         : 0,
                     'stock' => (int) $product->quantity,
                     'cost' => $cost,
-                    'belowCost' => $cost !== null && (int) $line['unit_price'] < $cost,
+                    'belowCost' => $cost !== null && $price < $cost,
                     'kind' => $product->kind,
                 ];
             })

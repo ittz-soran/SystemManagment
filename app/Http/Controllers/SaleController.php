@@ -57,9 +57,12 @@ class SaleController extends Controller
             'cashCustomer' => Customer::cashCustomer(),
             'held' => $held,
             'heldCarts' => HeldCart::ofType(HeldCart::TYPE_SALE)->with('user')->latest()->get(),
-            'cartLines' => $held
-                ? HeldCartController::rebuild($held, fn ($p) => $this->sales->nextBatchCost($p))
-                : null,
+            // A submit that came back, before a cart that was put down. The
+            // lines are already in old input — losing them means re-scanning
+            // the whole basket to correct one field. See linesFor().
+            'cartLines' => is_array($lines = old('lines'))
+                ? HeldCartController::linesFor($lines, fn ($p) => $this->sales->nextBatchCost($p))
+                : ($held ? HeldCartController::rebuild($held, fn ($p) => $this->sales->nextBatchCost($p)) : null),
         ]);
     }
 
