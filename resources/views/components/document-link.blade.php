@@ -6,9 +6,15 @@
     :id are the raw columns, and are what the component falls back to when the
     document itself is gone.
 
-    App\Support\DocumentLink decides whether a link is offered at all: documents
-    with no detail page (payments, adjustments) and readers without the
-    permission to open one both get plain text, never a link into a 404 or a 403.
+    App\Support\DocumentLink decides whether a link is offered at all: a document
+    whose type it cannot place, and a reader without the permission to open one,
+    both get plain text — never a link into a 404 or a 403.
+
+    ⚠️ This used to say payments and adjustments have no detail page. They do,
+    and DocumentLink::PAGES has listed both for as long as the constant has
+    existed. Corrected 2026-09-12, on the way to making a row's own number the
+    link into it — a comment that says the opposite of the code is worse than no
+    comment, because it is believed.
 --}}
 @props(['document' => null, 'type' => null, 'id' => null, 'kind' => true])
 

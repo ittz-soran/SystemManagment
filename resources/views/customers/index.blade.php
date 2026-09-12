@@ -60,7 +60,6 @@
                                 {{-- Section 4: the Cash Customer cannot be renamed,
                                      so it is not offered a pencil. --}}
                                 <x-row-actions
-                                    :view="route('customers.show', $customer)"
                                     :edit-modal="Gate::allows('customers.edit') && ! ($customer->is_system ?? false) ? '#customer-edit' : null"
                                     :edit-data="[
                                         'action' => route('customers.update', $customer),

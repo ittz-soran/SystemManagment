@@ -24,6 +24,9 @@
                 <button class="btn btn-sm btn-outline-primary">{{ __('Filter') }}</button>
                 <a href="{{ route('purchase-returns.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
             </div>
+            <div class="col-12">
+                <x-date-presets />
+            </div>
         </div>
     </form>
 
@@ -49,18 +52,18 @@
                     <tbody>
                     @foreach($returns as $return)
                         <tr>
-                            <td class="fw-medium" dir="ltr">{{ $return->document_no }}</td>
+                            <td><x-document-link :document="$return" :kind="false" /></td>
                             <td dir="ltr">{{ $return->return_date->format(setting('date_format', 'Y-m-d')) }}</td>
                             <td dir="ltr">
                                 <a href="{{ route('purchases.show', $return->purchase) }}" class="text-decoration-none">
-                                    {{ $return->purchase->document_no }}
+                                    <x-document-link :document="$return->purchase" :kind="false" />
                                 </a>
                             </td>
                             <td>{{ $return->supplier->name }}</td>
                             <td class="text-secondary small">{{ $return->reason ?: '—' }}</td>
                             <td class="money">{{ money($return->total_amount, false) }}</td>
                             <td class="text-end">
-                                <x-row-actions :view="route('purchase-returns.show', $return)" />
+                                <x-row-actions :print="route('purchase-returns.print', $return)" />
                             </td>
                         </tr>
                     @endforeach

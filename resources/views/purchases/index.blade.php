@@ -48,9 +48,11 @@
                 <label for="to" class="form-label small">{{ __('To') }}</label>
                 <input id="to" type="date" name="to" value="{{ request('to') }}" class="form-control form-control-sm">
             </div>
-            <div class="col-12 d-flex gap-2">
+            <div class="col-12 d-flex gap-2 flex-wrap align-items-center">
                 <button class="btn btn-sm btn-outline-primary">{{ __('Filter') }}</button>
                 <a href="{{ route('purchases.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
+
+                <span class="ms-auto"><x-date-presets /></span>
             </div>
         </div>
     </form>
@@ -93,20 +95,20 @@
                                 </td>
                             @endcan
                             <td class="fw-medium">
-                                <span class="app-code">{{ $purchase->document_no }}</span>
+                                <x-document-link :document="$purchase" :kind="false" />
                                 @if($purchase->supplier_invoice_no)
                                     <div class="small text-secondary app-code">{{ $purchase->supplier_invoice_no }}</div>
                                 @endif
                             </td>
                             <td><span class="app-code">{{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td>{{ $purchase->supplier->name }}</td>
+                            <td><x-document-link :document="$purchase->supplier" :kind="false" /></td>
                             <td><x-status-badge :status="$purchase->status" /></td>
                             <td class="money">{{ money($purchase->grand_total, false) }}</td>
                             <td class="money {{ $purchase->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">
                                 {{ money($purchase->amountDue(), false) }}
                             </td>
                             <td class="text-end">
-                                <x-row-actions :view="route('purchases.show', $purchase)" />
+                                <x-row-actions :print="route('purchases.print', $purchase)" />
                             </td>
                         </tr>
                     @endforeach

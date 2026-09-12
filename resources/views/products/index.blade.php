@@ -260,7 +260,6 @@
                                         @endif
                                     @else
                                         <x-row-actions
-                                            :view="route('products.show', $product)"
                                             :edit="Gate::allows('products.edit') ? route('products.edit', $product) : null"
                                             :delete="Gate::allows('products.delete') ? route('products.destroy', $product) : null"
                                             :delete-label="__('Delete :name? Products with stock history are deactivated instead.', ['name' => $product->name])" />
