@@ -29,6 +29,16 @@
 # against this week's markup. AssetBuildTest is what catches that.
 #
 # /public/build is NOT ignored.
+#
+# An ARCHIVE of it is a different matter. `public/build.zip` was committed on
+# 2026-09-09 — one day after the folder itself started being tracked, so it was
+# already redundant when it arrived — and it sat there unreferenced: nothing in
+# the code, the docs or CI mentioned it, and `shop:provision` copies the folder,
+# never the zip. 0.7 MB in every clone and every pull, and a second copy of the
+# assets that can silently fall out of step with the first. Removed 2026-09-12,
+# and ignored so it cannot come back by hand.
+/public/build.zip
+/public/build.tar.gz
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
