@@ -90,11 +90,58 @@
 - **Admin** — full access, always. Cannot be restricted.
 - **User** — gets a default permission set on creation (login, sale, purchase, view products). The admin then adds or removes individual permissions per user.
 
-**Currency:** Iraqi Dinar (IQD). All prices are whole numbers — 1,500 · 25,000 · 210,000. Stored as **integer BIGINT**, never decimal. Displayed with `number_format()` as `250,000 IQD`.
+**Currency:** Iraqi Dinar (IQD). Every money column is an **integer BIGINT**, never decimal — see Section 2b for what that integer counts and what happens the day the dinar loses three zeros. Displayed through `money()` as `250,000 IQD`.
 
 **Languages:** English (default), Kurdish Sorani, Arabic, Persian. The last three are **RTL** — use Laravel localization (`lang/` files) plus Bootstrap 5's RTL build, switching text and direction together.
 
 **Scope:** single shop, no branches. No expiry-date tracking.
+
+---
+
+## 2b. What the stored integer counts
+
+Every money value in this system is one integer, and that is not negotiable: Section 5's FIFO engine needs a batch cost that is an exact whole number multiplying cleanly by a quantity, because Section 7 promises a return reverses COGS **to the dinar**. Decimal columns, a currency column, per-document rates and revaluation are all out of scope, and Section 6b says so again for the USD helper.
+
+What *is* configurable is one question the system used to answer by assumption: **what does the integer count?**
+
+| `currency_minor_per_major` | the integer counts | `250000` reads | `15500` reads |
+|---|---|---|---|
+| `1` *(today)* | whole dinars | `250,000` | `15,500` |
+| `1000` | fils | `250` | `15.5` |
+
+### The redenomination — and why there is no migration
+
+Iraq's central bank has discussed cutting three zeros off the dinar. Soran described what that means for a shop (2026-09-12), in his own numbers:
+
+```
+250,000 IQD  →  250 IQD
+    250 IQD  →  250 fils
+ 15,500 IQD  →  15.5 IQD
+```
+
+Read those together and they say something useful: the new dinar is worth 1,000 old ones **and** is divided into 1,000 fils — so **one fils is worth exactly one old dinar**. An amount stored today as `250,000` is already the correct count of new fils. Not one row is migrated. The integer stops counting dinars and starts counting fils; only the reading of it changes.
+
+> ⚠️ **This holds only while the two ratios match.** A redenomination of 1,000:1 into a dinar of 100 fils needs every stored amount divided by ten, and that is lossy for any figure not a multiple of ten — which Section 6b's fractional supplier prices can produce. That migration is not written until there is a published ratio to write it against.
+
+### How a figure is written
+
+- **Trailing zeros are trimmed.** `250,000` reads `250`, not `250.000`. `15,500` reads `15.5`. A price list where every figure carries three decimals it does not need is one nobody can scan down.
+- **One number, never two.** `15.5`, never "15 dinars 500 fils".
+- ⚠️ **The written line under an invoice total is the sole exception.** It exists so a digit cannot be altered with a pen, and *"fifteen point five dinars"* is not how a payable amount is ever set down — so `AmountInWords` spells both halves: *fifteen dinars and five hundred fils*, beside a figure reading 15.5.
+- **Quantities are not money.** `373 pcs` stays `373 pcs`. Only amounts divide.
+- **A chart axis counts what the tile beside it counts.** 90,920,109 fils is 90,920 dinars, so the axis reads `90.9 k` — reading the stored count would put `90.9 M` beside a tile saying 90,920.
+
+### Where it lives
+
+`App\Support\Money` is the only place that knows the answer, on the server; `window.appMoney` in the layout head mirrors it for the four cart screens that add up a total between keystrokes.
+
+> ⚠️ `window.appMoney` is inline in the head, **not** in `app.js`. `@vite` emits a deferred module, which runs after every inline script on the page — including a cart's, which draws its first total while parsing. A formatter in the bundle is undefined at the moment it is first needed.
+
+> ⚠️ Both directions are integer arithmetic on strings. `(int) (15.5 * 1000)` is **15499** in PHP. A system that loses one unit per line loses it silently — every total still adds up, each is just a little wrong.
+
+### What is not done yet
+
+**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`, so `currency_minor_per_major` is deliberately **not on the Settings page** — a shop that flipped it today could read 15.5 and not enter it. It becomes an editable setting when the entry half lands.
 
 ---
 

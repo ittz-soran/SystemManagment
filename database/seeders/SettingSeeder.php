@@ -56,6 +56,22 @@ class SettingSeeder extends Seeder
         'units' => Units::SEEDED,
         'default_unit' => 'pcs',
 
+        /*
+         * What the stored integer counts — App\Support\Money.
+         *
+         * 1 while it counts whole dinars, and every figure in the system reads
+         * exactly as it always has. 1000 the day the dinar loses three zeros
+         * and the stored count becomes fils.
+         *
+         * ⚠️ Deliberately NOT on the Settings page. Reading is finished;
+         * TYPING is not — the number fields still take whole units and the
+         * validation still says `integer`, so a shop that flipped this today
+         * could read 15.5 and not enter it. It becomes a setting somebody can
+         * change when the entry half lands. Until then it is here so the
+         * default exists and the reset button knows about it.
+         */
+        'currency_minor_per_major' => '1',
+
         // Section 8b — backups. These override the .env defaults so an admin can
         // change them from the Settings page without touching a file on the
         // server; a null falls back to config/backup.php.

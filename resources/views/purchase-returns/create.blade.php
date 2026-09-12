@@ -209,7 +209,9 @@
             const saveButton = document.getElementById('save-return');
 
             const owed = {{ (int) $purchase->supplier->balance }};
-            const format = (n) => new Intl.NumberFormat('en-US').format(Math.round(n));
+            // One implementation, in app.js — the running total and the
+            // saved invoice must be written the same way. See window.appMoney.
+            const format = (n) => window.appMoney(n);
 
             function recalculate() {
                 let total = 0;

@@ -311,7 +311,9 @@
             let highlighted = -1;
             let searchTimer = null;
 
-            const format = (n) => new Intl.NumberFormat('en-US').format(Math.round(n));
+            // One implementation, in app.js — the running total and the
+            // saved invoice must be written the same way. See window.appMoney.
+            const format = (n) => window.appMoney(n);
 
             function render() {
                 cartBody.innerHTML = '';

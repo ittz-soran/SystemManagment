@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Setting;
+use App\Support\Money;
 use Carbon\CarbonInterface;
 
 if (! function_exists('setting')) {
@@ -18,14 +19,19 @@ if (! function_exists('setting')) {
 
 if (! function_exists('money')) {
     /**
-     * Section 2: IQD is always whole numbers, displayed with thousands separators.
+     * Section 2: money is one stored integer, displayed with thousands separators.
      *
      * Section 9b: numbers and currency stay left-to-right even inside RTL text,
      * which the caller handles with `dir="ltr"` on the containing element.
+     *
+     * The writing itself is `Money::format`, which is the only place in the
+     * system that knows what the integer counts. Today it counts whole dinars
+     * and this is `number_format` with extra steps; the day it counts fils,
+     * every figure on every screen follows from that one class.
      */
     function money(int|float|null $amount, bool $withCurrency = true): string
     {
-        $formatted = number_format((int) $amount);
+        $formatted = Money::format($amount);
 
         return $withCurrency ? $formatted.' '.__('IQD') : $formatted;
     }
@@ -116,23 +122,35 @@ if (! function_exists('money_short')) {
             number_format($value / $unit, $value % $unit === 0 ? 0 : 1)
         );
 
+        /*
+         * ⚠️ Thousands OF WHAT the reader says, not of what is stored.
+         *
+         * An axis is labelled in the units on the page beside it. Once the
+         * stored integer counts fils, a shelf worth 250,000,000 of them is
+         * 250,000 dinars and the axis says "250 k" — reading the stored count
+         * would put "250 M" beside a tile saying 250,000.
+         */
+        $per = Money::minorPerMajor();
+
         // 999,999 rounds to 1,000 thousand, which is a million and should say so
         // rather than sit on the axis as "1,000 k".
-        $millions = $size >= 1_000_000 || abs(round($value / 1_000)) >= 1_000;
+        $millions = $size >= 1_000_000 * $per || abs(round($value / (1_000 * $per))) >= 1_000;
 
         // Both suffixes are written out as literals rather than passed in as a
         // key, because `translations:check` tokenises the source: `__($key)`
         // is invisible to it, and an axis in English on an otherwise Kurdish
         // screen would ship without failing anything.
         if ($millions) {
-            return __(':amount M', ['amount' => $scaled(1_000_000)]);
+            return __(':amount M', ['amount' => $scaled(1_000_000 * $per)]);
         }
 
-        if ($size >= 10_000) {
-            return __(':amount k', ['amount' => $scaled(1_000)]);
+        if ($size >= 10_000 * $per) {
+            return __(':amount k', ['amount' => $scaled(1_000 * $per)]);
         }
 
-        return number_format($value);
+        // Below the suffixes, the figure is written the way every other figure
+        // on the page is — decimals and all.
+        return Money::format($value);
     }
 }
 

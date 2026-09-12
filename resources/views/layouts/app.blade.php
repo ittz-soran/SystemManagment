@@ -12,6 +12,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    {{--
+        Writing an amount the way the server writes it.
+
+        The cart screens cannot ask the server for a total that changes on every
+        keystroke, so they format it themselves — and there must be exactly one
+        answer to "how is money written", or the running total disagrees with
+        the invoice that gets saved. This mirrors App\Support\Money::format,
+        trailing-zero rule included: 250,000 reads 250 and 15,500 reads 15.5.
+
+        ⚠️ Inline and in the head, not in app.js. `@vite` emits a deferred
+        module, which runs after every inline script on the page — including the
+        cart's, which draws its first total while parsing. A formatter defined
+        in the bundle is undefined at the moment it is first needed.
+
+        The divisor is written in rather than hard-coded, for the same reason it
+        is a setting on the server: the day the dinar loses three zeros, nothing
+        here should need editing. See App\Support\Money.
+    --}}
+    <script>
+        window.appMoney = (function () {
+            const per = {{ App\Support\Money::minorPerMajor() }};
+            const places = Math.round(Math.log10(per));
+            const group = new Intl.NumberFormat('en-US');
+
+            return function (stored) {
+                const value = Math.round(Number(stored) || 0);
+
+                if (per === 1) {
+                    return group.format(value);
+                }
+
+                // Split before dividing: the fractional part of 15500 / 1000 is
+                // not exactly .5 in binary, and a running total is the wrong
+                // place to discover that.
+                const size = Math.abs(value);
+                const major = group.format(Math.floor(size / per));
+                const minor = String(size % per).padStart(places, '0').replace(/0+$/, '');
+
+                return (value < 0 ? '-' : '') + major + (minor === '' ? '' : '.' + minor);
+            };
+        })();
+    </script>
+
     @include('partials.escape-html')
 
     <title>@yield('title', __('Dashboard')) · {{ setting('shop_name', config('app.name')) }}</title>
