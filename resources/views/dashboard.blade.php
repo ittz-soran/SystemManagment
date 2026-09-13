@@ -2,7 +2,15 @@
 
 @section('title', __('Dashboard'))
 
+@section('actions')
+    <x-currency-lens :label="__('Read in')" />
+@endsection
+
 @section('content')
+    {{-- ⚠️ Before any figure below it: these are the books divided by today's
+         rate, not what was recorded. See components/lens-note. --}}
+    <x-lens-note :lens="$lens" />
+
     @isset($setup)
         @include('partials.setup-checklist', ['setup' => $setup])
     @endisset
@@ -35,7 +43,7 @@
                         </div>
 
                         <div class="fs-4 fw-semibold money">
-                            {{ $card['cost'] ? cost_money($card['value']) : money_if($card['value'] !== null, $card['value']) }}
+                            {{ $card['cost'] ? cost_money($card['value'], true, $lens) : money_if($card['value'] !== null, $card['value'], true, $lens) }}
                         </div>
 
                         {{-- The shape of the last four weeks behind the figure:
@@ -59,7 +67,7 @@
          which is the question somebody standing at the counter actually has. --}}
     @isset($trend)
         <div class="mb-4">
-            <x-chart.trend
+            <x-chart.trend :lens="$lens"
                 :title="($trendWindows[$trendWindow] ?? $trendWindows['weeks'])['title']"
                 :subtitle="__('Hover any day to read every line at once.')"
                 :labels="$trend['labels']"
@@ -103,7 +111,7 @@
                             <div>
                                 <div class="text-secondary small">{{ $balance['label'] }}</div>
                                 <div class="fs-5 fw-semibold money">
-                                    {{ money_if($owed !== null, $owed['total'] ?? null) }}
+                                    {{ money_if($owed !== null, $owed['total'] ?? null, true, $lens) }}
                                 </div>
 
                                 @isset($owed)
@@ -127,7 +135,7 @@
                                 @foreach($owed['top'] as $account)
                                     <li class="d-flex justify-content-between gap-2 py-1">
                                         <span class="text-truncate">{{ $account['name'] }}</span>
-                                        <span class="money text-nowrap">{{ money($account['balance'], false) }}</span>
+                                        <span class="money text-nowrap">{{ money($account['balance'], false, $lens) }}</span>
                                     </li>
                                 @endforeach
                             </ul>
@@ -209,7 +217,7 @@
                                                 @endif
                                             </td>
                                             <td class="text-truncate">{{ $sale->customer->displayName() }}</td>
-                                            <td class="money">{{ money($sale->total_amount, false) }}</td>
+                                            <td class="money">{{ money($sale->total_amount, false, $lens) }}</td>
                                         </tr>
                                     @endforeach
                                     </tbody>

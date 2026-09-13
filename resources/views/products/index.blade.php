@@ -3,6 +3,8 @@
 @section('title', __('Products'))
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('products.create')
         <a href="{{ route('products.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i>{{ __('New product') }}
@@ -21,6 +23,13 @@
 @endif
 
 @section('content')
+    {{-- ⚠️ Said before the figures below: today's rate applied to the books,
+         not what was recorded. And on this page it is worth reading twice —
+         the prices in the table are drawn through the lens, while the form
+         behind each Edit button still takes dinars until the entry half
+         lands. See components/lens-note and Section 2b. --}}
+    <x-lens-note :lens="$lens" />
+
     {{-- Three figures worth knowing before reading the table. The middle one is
          the one that needs acting on, so it is a filter as well: pressing it
          reloads the list showing only those rows. --}}
@@ -61,7 +70,7 @@
                  left the till for the units still on the shelf. --}}
             <div class="stat-tile">
                 <span class="stat-tile-label">{{ __('Stock value') }}</span>
-                <span class="stat-tile-value">{{ money_if($shelfCost !== null, $shelfCost) }}</span>
+                <span class="stat-tile-value">{{ money_if($shelfCost !== null, $shelfCost, true, $lens) }}</span>
                 <span class="stat-tile-note">{{ __('what the unsold batches cost') }}</span>
             </div>
         </div>
@@ -71,12 +80,12 @@
                  none were discounted, returned or written off. --}}
             <div class="stat-tile">
                 <span class="stat-tile-label">{{ __('At sale price') }}</span>
-                <span class="stat-tile-value">{{ money_if($shelfWorth !== null, $shelfWorth) }}</span>
+                <span class="stat-tile-value">{{ money_if($shelfWorth !== null, $shelfWorth, true, $lens) }}</span>
                 <span class="stat-tile-note">
                     {{ __(':amount profit if it all sells', [
                         'amount' => $shelfCost === null
                             ? hidden_money()
-                            : money($shelfWorth - $shelfCost, false),
+                            : money($shelfWorth - $shelfCost, false, $lens),
                     ]) }}
                 </span>
             </div>
@@ -207,8 +216,8 @@
                                     </span>
                                     <span class="text-secondary small">{{ $product->unit }}</span>
                                 </td>
-                                <td class="money text-secondary">{{ cost_money($product->purchase_price, false) }}</td>
-                                <td class="money">{{ money($product->sale_price, false) }}</td>
+                                <td class="money text-secondary">{{ cost_money($product->purchase_price, false, $lens) }}</td>
+                                <td class="money">{{ money($product->sale_price, false, $lens) }}</td>
                                 <td class="text-end">
                                     @if($showingDeleted)
                                         {{-- The usual thing to do with a deleted

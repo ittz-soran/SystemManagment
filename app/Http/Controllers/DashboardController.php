@@ -343,6 +343,10 @@ class DashboardController extends Controller
         ];
 
         return view('dashboard', [
+            // Section 2b — which currency this reader wants these figures in.
+            // Handed to the view rather than read inside `money()`: the lens is
+            // opt-in per screen so it can never reach the till by accident.
+            'lens' => $request->user()->lens(),
             'cards' => $cards,
 
             // The last four weeks, drawn the same way the reports page draws

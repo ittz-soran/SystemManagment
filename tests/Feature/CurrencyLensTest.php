@@ -261,4 +261,49 @@ class CurrencyLensTest extends TestCase
         $this->assertSame($before, Sale::firstOrFail()->total_amount);
         $this->assertSame('IQD', Money::base()->code);
     }
+
+    // -------------------------------------------------- the other two screens
+
+    public function test_the_dashboard_reads_in_the_chosen_currency(): void
+    {
+        // The shelf is 100 units at 6,600 = 660,000 dinars, which is $500.
+        $this->actingAs($this->reader())->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('1,320,000');
+
+        $this->actingAs($this->looking('USD'))->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('1,000')
+            ->assertSee('an estimate')
+            ->assertDontSee('1,320,000');
+    }
+
+    public function test_the_products_list_reads_in_the_chosen_currency(): void
+    {
+        // The product's own sale price, 10,000 dinars, is $7.58 at 1,320.
+        $this->actingAs($this->reader())->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('10,000');
+
+        $this->actingAs($this->looking('USD'))->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('7.58')
+            ->assertSee('an estimate');
+    }
+
+    /**
+     * ⚠️ A partially loaded reader must not take a screen down.
+     *
+     * Eloquent runs strictly here, so reading a column that was never selected
+     * throws. A User built without `display_currency` — a partial select, a row
+     * still in memory from `create()` — would 500 every screen that draws a
+     * figure. No preference recorded is no lens, which is the same answer.
+     */
+    public function test_a_reader_whose_row_was_never_fully_loaded_has_no_lens(): void
+    {
+        $partial = User::query()->select('id', 'name', 'email', 'role', 'is_active')
+            ->whereKey($this->admin->getKey())->firstOrFail();
+
+        $this->assertNull($partial->lens());
+    }
 }

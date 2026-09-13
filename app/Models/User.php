@@ -65,7 +65,17 @@ class User extends Authenticatable
      */
     public function lens(): ?Currency
     {
-        $code = (string) $this->display_currency;
+        /*
+         * ⚠️ The raw attribute, not `$this->display_currency`.
+         *
+         * This app runs Eloquent strictly, so reading a column that was never
+         * loaded THROWS rather than returning null — and a User built without
+         * this column (a partial select, a freshly created row still in
+         * memory) would take down every screen that draws a figure. A reader
+         * with no preference recorded is a reader with no lens, which is the
+         * same answer either way.
+         */
+        $code = (string) ($this->attributes['display_currency'] ?? '');
 
         if ($code === '' || $code === Money::base()->code) {
             return null;
