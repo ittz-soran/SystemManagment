@@ -131,14 +131,21 @@ final class Money
         $stored = is_int($stored) ? $stored : (int) round((float) ($stored ?? 0));
 
         if ($in === null || $in->code === self::base()->code) {
-            return self::write($stored, self::base()->decimals);
+            return self::writeAt($stored, self::base()->decimals);
         }
 
-        return self::write(self::fromBase($stored, $in), $in->decimals);
+        return self::writeAt(self::fromBase($stored, $in), $in->decimals);
     }
 
-    /** A count of minor units, written with its separators and its point. */
-    private static function write(int $minor, int $decimals): string
+    /**
+     * A count of minor units, written with its separators and its point.
+     *
+     * Public because a currency's RATE is stored the same way — a scaled
+     * integer with three decimal places — and it must be written and read back
+     * by the same string-safe code as an amount rather than a second copy of
+     * it. See Currency::rateAsTyped.
+     */
+    public static function writeAt(int $minor, int $decimals): string
     {
         if ($decimals === 0) {
             return number_format($minor);
@@ -187,7 +194,7 @@ final class Money
     public static function parse(int|float|string|null $typed, ?Currency $from = null): ?int
     {
         $from ??= self::base();
-        $minor = self::read($typed, $from->decimals);
+        $minor = self::readAt($typed, $from->decimals);
 
         if ($minor === null) {
             return null;
@@ -196,8 +203,12 @@ final class Money
         return $from->code === self::base()->code ? $minor : self::toBase($minor, $from);
     }
 
-    /** A typed string as a count of minor units at the given precision. */
-    private static function read(int|float|string|null $typed, int $decimals): ?int
+    /**
+     * A typed string as a count of minor units at the given precision.
+     *
+     * Public for the same reason as `writeAt` — see Currency::scaleRate.
+     */
+    public static function readAt(int|float|string|null $typed, int $decimals): ?int
     {
         $text = str_replace(',', '', trim((string) $typed));
 
@@ -239,7 +250,7 @@ final class Money
      *
      * Done in integers, though honestly: at every magnitude a shop will ever
      * see, a float would give the same answer, and searching for a case where
-     * it does not found none. Unlike `read()` above — where `(int) (2.03 ×
+     * it does not found none. Unlike `readAt()` above — where `(int) (2.03 ×
      * 1000)` really is 2029 and a test proves it — this is belt-and-braces
      * rather than a fix for a bug anybody has demonstrated. It is kept because
      * it costs nothing, needs no reasoning about doubles to trust, and carries

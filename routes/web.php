@@ -4,15 +4,16 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuthenticatorController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\DataCheckController;
-use App\Http\Controllers\DataTransferController;
-use App\Http\Controllers\LabelController;
+use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DataCheckController;
+use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
+use App\Http\Controllers\LabelController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\PrintController;
@@ -395,6 +396,19 @@ Route::middleware(['auth'])->group(function () {
          * who would think to run it is the person who keeps the books.
          */
         Route::get('settings/data-check', [DataCheckController::class, 'index'])->name('settings.data-check');
+
+        /*
+         * Section 2b — the currencies a shop can type and read in.
+         *
+         * Its own page rather than a card on the settings form: each currency
+         * is a row with five fields, and a list of records is not something a
+         * single form of scalars can hold. Behind settings.manage with the
+         * rest, because a wrong rate misprices every line typed after it.
+         */
+        Route::get('settings/currencies', [CurrencyController::class, 'index'])->name('currencies.index');
+        Route::post('settings/currencies', [CurrencyController::class, 'store'])->name('currencies.store');
+        Route::put('settings/currencies/{currency}', [CurrencyController::class, 'update'])
+            ->name('currencies.update');
     });
 
     /*
