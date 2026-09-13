@@ -161,6 +161,25 @@ class Currency extends Model
     }
 
     /**
+     * A figure in this currency's minor units, as the number a person types.
+     *
+     * ⚠️ Divided by THIS currency's minor units, not by a hard-coded hundred.
+     * Cents were right while dollars were the only currency a purchase line
+     * could be typed in; a currency with no decimals would have had its price
+     * divided by a hundred on the way back into the box.
+     */
+    public function asTyped(?int $minor): float|int
+    {
+        if ($minor === null) {
+            return 0;
+        }
+
+        $per = $this->minorPerMajor();
+
+        return $per === 1 ? $minor : round($minor / $per, $this->decimals);
+    }
+
+    /**
      * How many places the stored `rate` carries. See the migration.
      *
      * Three, so a rate of 1,320.125 survives being an integer column.

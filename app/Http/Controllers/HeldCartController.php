@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Currency;
 use App\Models\HeldCart;
 use App\Models\Product;
+use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 /**
  * Putting a cart down, and picking it up again.
@@ -31,10 +34,14 @@ class HeldCartController extends Controller
             'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.unit_price' => ['required', 'integer', 'min:0'],
-            // Section 6b: a purchase line may have been typed in dollars at a
-            // rate. Dropped here, the line would come back as if it had been
-            // typed in dinars, and the money would silently change.
-            'lines.*.entered_currency' => ['nullable', 'in:IQD,USD'],
+            // Section 6b: a purchase line may have been typed in another
+            // currency at a rate. Dropped here, the line would come back as if
+            // it had been typed in dinars, and the money would silently change.
+            //
+            // Section 2b: whichever currencies the shop keeps, not two codes.
+            'lines.*.entered_currency' => ['nullable', 'string', Rule::in(
+                collect(Currency::cached())->filter(fn (Currency $c) => $c->is_active)->keys()->all()
+            )],
             'lines.*.entered_amount' => ['nullable', 'integer', 'min:0'],
             // Whoever had been chosen, if anybody had. The whole point of this
             // feature is the cart where nobody has been.
@@ -127,10 +134,12 @@ class HeldCartController extends Controller
 
                 $cost = $nextBatchCost($product);
 
-                // Section 6b: kept as it was typed. A line entered in dollars
-                // comes back in dollars, at the amount that was typed, or the
-                // shopkeeper would find the price had changed under them.
-                $currency = $line['entered_currency'] ?? 'IQD';
+                // Section 6b: kept as it was typed. A line entered in another
+                // currency comes back in it, at the amount that was typed, or
+                // the shopkeeper would find the price had changed under them.
+                $base = Money::base();
+                $currency = (string) ($line['entered_currency'] ?? $base->code);
+                $typedIn = $currency === $base->code ? null : (Currency::cached()[$currency] ?? null);
 
                 return [
                     'id' => $product->id,
@@ -139,9 +148,8 @@ class HeldCartController extends Controller
                     'quantity' => $quantity,
                     'price' => $price,
                     'currency' => $currency,
-                    'enteredAmount' => $currency === 'USD'
-                        ? round(((int) ($line['entered_amount'] ?? 0)) / 100, 2)
-                        : 0,
+                    // Section 2b: in that currency's own units, not cents.
+                    'enteredAmount' => $typedIn?->asTyped((int) ($line['entered_amount'] ?? 0)) ?? 0,
                     'stock' => (int) $product->quantity,
                     'cost' => $cost,
                     'belowCost' => $cost !== null && $price < $cost,

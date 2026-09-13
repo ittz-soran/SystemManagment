@@ -170,13 +170,26 @@ Decided with Soran, 2026-09-13:
 
 **Screens with the lens:** reports. **Screens that must never have it:** the sale screen and anything printed.
 
+### The purchase cart — §6b's calculator, generalised
+
+The cart is the one screen that already had this, for dollars: a rate box on the invoice, a per-line IQD/USD toggle, and a converted figure under the typed one. That was hard-coded in four places at once — an `enum('IQD','USD')` on `purchase_items.entered_currency`, a `/100` that assumed cents, two `<option>` tags, and a `usdToIqd()` reading one rate. A shop could add euros in Settings and then not type in them anywhere.
+
+What was widened, and what was deliberately left alone:
+
+- **The invoice picks ONE foreign currency, not one per line.** A supplier invoices in one currency; `purchases.exchange_rate` is one column; and a printed document showing both figures needs a single rate to print. Each line still chooses between the base currency and that one, which is what the toggle always offered. Changing the invoice currency puts every line back on the base currency, keeping the price it had already converted to — an amount typed in the old currency cannot honestly be read as the new one, and emptying a finished cart would be worse.
+- **`exchange_rate` stays a WHOLE number of base units per one foreign unit.** The `currencies` table carries 1,320.125 for reading; this box cannot, because widening the column would change the meaning of every rate already recorded. The box opens at the shop's saved rate and warns at ±10%, as it always did.
+- **An invoice written in the base currency records no rate at all.** The box is not merely hidden — the input is disabled, so it posts nothing.
+- **The screen opens on whatever the shop invoiced in last**, so a shop that only ever buys in dollars still sees a dollar rate box on a new purchase, exactly as before. Lines still open in the base currency.
+- ⚠️ **`entered_amount` is scaled by that currency's own minor units, not by a hundred.** A yen has no decimals: ¥500 stored as 500 and divided by a hundred comes back into the box as ¥5, and a shopkeeper correcting it to 500 pays a hundred times over. `Currency::asTyped()` is the one place that division happens, and `PurchaseItem::typedIn()` / `typedAmount()` are what the document and the edit screen read.
+- **`entered_currency` is a `string(8)` with no foreign key.** A currency the shop later deletes must not take an old purchase's record of what it was invoiced in with it.
+
 ### What is not done yet
 
-**Expenses can be typed in another currency. Nothing else can yet** — payments, stock adjustments, product prices and the two return screens still take whole base units. Each is the same three changes: the component in the form, `App\Rules\Amount` in the validation, `MoneyInput::fromRequest` in the controller.
+**Expenses and the purchase cart can be typed in another currency. Nothing else can yet** — payments, stock adjustments, product prices and the two return screens still take whole base units. Each is the same three changes: the component in the form, `App\Rules\Amount` in the validation, `MoneyInput::fromRequest` in the controller.
 
 IQD's `decimals` is still not editable from Settings.
 
-⚠️ The purchase cart is the one that is **not** simply more of the same. It already carries §6b's own per-line IQD/USD toggle with its own rate box, so it gets generalised to the currency list rather than having a second mechanism built beside it.
+The purchase cart shows the typed figure back on the saved document (*"entered as 12.50 €"*), but the **printed** document does not yet carry both figures with the frozen rate — that is the decision above, still to build.
 
 ---
 
@@ -530,6 +543,8 @@ Discounts received = Σ purchase discounts − Σ purchase-return discount share
 ---
 
 ## 6b. USD Entry Helper (purchases)
+
+> ⚠️ **Widened, 2026-09-13 — see §2b, "The purchase cart".** The choice is no longer IQD or USD but whichever currencies the shop keeps in Settings, and the amount typed is scaled by that currency's own decimals rather than by a hundred. Everything below still holds: the rate is per invoice, only base-currency integers are stored, and the rounding rule is unchanged. Read `USD` here as *the invoice currency*.
 
 Some suppliers quote in dollars. Soran types `$` and the system converts — but **only IQD is ever stored**. There is no dual-currency system, no currency column on money fields, no historical rate lookup. It is a calculator on the entry form.
 
