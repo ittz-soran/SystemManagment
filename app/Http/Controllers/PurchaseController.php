@@ -278,10 +278,16 @@ class PurchaseController extends Controller
             'name' => $item->product->name,
             'sku' => $item->product->sku,
             'quantity' => $item->quantity,
-            'currency' => $item->entered_currency,
-
-            'enteredAmount' => $item->typedAmount(),
             'price' => $item->unit_price,
+
+            /*
+             * ⚠️ Null when nobody typed a foreign figure for this line. The
+             * screen then draws its box by converting `price`, and correcting
+             * the rate leaves that price alone — the untouched-field rule of
+             * Section 2b. A line that DOES carry a typed figure follows the
+             * rate instead, because that figure is what the supplier charged.
+             */
+            'typed' => $item->entered_amount === null ? null : $item->typedAmount(),
         ])->values()->all();
     }
 

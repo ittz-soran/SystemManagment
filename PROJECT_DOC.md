@@ -170,18 +170,26 @@ Decided with Soran, 2026-09-13:
 
 **Screens with the lens:** reports. **Screens that must never have it:** the sale screen and anything printed.
 
-### The purchase cart — §6b's calculator, generalised
+### The purchase cart — one currency for the whole document
 
-The cart is the one screen that already had this, for dollars: a rate box on the invoice, a per-line IQD/USD toggle, and a converted figure under the typed one. That was hard-coded in four places at once — an `enum('IQD','USD')` on `purchase_items.entered_currency`, a `/100` that assumed cents, two `<option>` tags, and a `usdToIqd()` reading one rate. A shop could add euros in Settings and then not type in them anywhere.
+> *"in same purchase have one type currency for all lines, not one usd and one dinar…. just have invoice currency combo to select and input rate change directly in purchase"* — Soran, 2026-09-13
 
-What was widened, and what was deliberately left alone:
+⚠️ **This was built wrong once, and the wrong version is instructive.** §6b's helper was generalised as it stood: a rate box, plus a *per-line* IQD/USD toggle widened to the currency list. Two things were wrong with it, and both were already answered above — *"should show all prices as selected currency"*.
 
-- **The invoice picks ONE foreign currency, not one per line.** A supplier invoices in one currency; `purchases.exchange_rate` is one column; and a printed document showing both figures needs a single rate to print. Each line still chooses between the base currency and that one, which is what the toggle always offered. Changing the invoice currency puts every line back on the base currency, keeping the price it had already converted to — an amount typed in the old currency cannot honestly be read as the new one, and emptying a finished cart would be worse.
-- **`exchange_rate` stays a WHOLE number of base units per one foreign unit.** The `currencies` table carries 1,320.125 for reading; this box cannot, because widening the column would change the meaning of every rate already recorded. The box opens at the shop's saved rate and warns at ±10%, as it always did.
-- **An invoice written in the base currency records no rate at all.** The box is not merely hidden — the input is disabled, so it posts nothing.
-- **The screen opens on whatever the shop invoiced in last**, so a shop that only ever buys in dollars still sees a dollar rate box on a new purchase, exactly as before. Lines still open in the base currency.
-- ⚠️ **`entered_amount` is scaled by that currency's own minor units, not by a hundred.** A yen has no decimals: ¥500 stored as 500 and divided by a hundred comes back into the box as ¥5, and a shopkeeper correcting it to 500 pays a hundred times over. `Currency::asTyped()` is the one place that division happens, and `PurchaseItem::typedIn()` / `typedAmount()` are what the document and the edit screen read.
-- **`entered_currency` is a `string(8)` with no foreign key.** A currency the shop later deletes must not take an old purchase's record of what it was invoiced in with it.
+1. **A line is not where a currency is chosen.** A supplier invoices in one currency. A row that could differ from the row above it is a way to get an invoice wrong, not a feature.
+2. **Choosing a currency did not change the screen.** Prices, totals and the discount stayed in dinars while one box took dollars, so picking USD told the shopkeeper nothing about what he was buying.
+
+**How it works now.** One `Invoice currency` combo and one rate box, both on the purchase itself. The currency governs the whole screen — every price box, the line totals, the subtotal, the invoice discount, what was paid, the grand total. Change it and every figure is redrawn in it; nothing about what the invoice is worth moves.
+
+- ⚠️ **Only base-currency integers are stored, exactly as before.** Every visible box is unnamed and has a **hidden field beside it holding the base figure the form actually posts** — `unit_price` per line, `discount_amount`, `amount_paid`. The visible box is the screen's business; the hidden one is the books'.
+- **Under each price sits what it will cost the books** (`= 15,500 IQD`), and under the grand total the same. A dollar figure with no dinars beside it is a figure nobody can reconcile against the paperwork.
+- ⚠️ **The untouched-field rule, on the cart.** A line carries `typed` — the figure somebody actually put in the box, or **null**. A line with `typed` follows the rate: correct 1,550 to 1,600 and $10 becomes 16,000. A line without it keeps its base price and is merely redrawn: 5,000 dinars shown as $3.23 at 1,550 stays **5,000**, not the 5,168 that reading $3.23 back would give. The discount and the paid box work the same way, through `moneyBox()`.
+- **Paying in full pays the exact base figure** the screen worked out, never a converted one — otherwise "Full" leaves six dinars outstanding.
+- **`exchange_rate` stays a WHOLE number of base units per one foreign unit.** The `currencies` table carries 1,320.125 for reading; this box cannot, because widening the column would change the meaning of every rate already recorded. It opens at the shop's saved rate and warns at ±10%, as it always did.
+- **An invoice in the base currency records no rate at all.** The box is not merely hidden — the input is disabled, so it posts nothing.
+- **The screen opens on whatever the shop invoiced in last**, so a shop that only ever buys in dollars sees the screen it always saw.
+- ⚠️ **`entered_amount` is scaled by that currency's own minor units, not by a hundred.** A yen has no decimals: ¥500 stored as 500 and divided by a hundred comes back into the box as ¥5, and a shopkeeper correcting it to 500 pays a hundred times over. `Currency::asTyped()` is the one place that division happens; `PurchaseItem::typedIn()` / `typedAmount()` are what the document and the edit screen read.
+- **`entered_currency` is a `string(8)` with no foreign key.** A currency the shop later deletes must not take an old purchase's record of what it was invoiced in with it. Switching one off in Settings stops *new* documents naming it and never makes an old one unsaveable.
 
 ### What is not done yet
 
@@ -544,7 +552,7 @@ Discounts received = Σ purchase discounts − Σ purchase-return discount share
 
 ## 6b. USD Entry Helper (purchases)
 
-> ⚠️ **Widened, 2026-09-13 — see §2b, "The purchase cart".** The choice is no longer IQD or USD but whichever currencies the shop keeps in Settings, and the amount typed is scaled by that currency's own decimals rather than by a hundred. Everything below still holds: the rate is per invoice, only base-currency integers are stored, and the rounding rule is unchanged. Read `USD` here as *the invoice currency*.
+> ⚠️ **Widened, 2026-09-13 — see §2b, "The purchase cart".** The choice is no longer IQD or USD but whichever currencies the shop keeps in Settings; it is made **once per invoice, never per line**; the whole screen is then drawn in it; and the amount typed is scaled by that currency's own decimals rather than by a hundred. Everything below still holds: the rate is per invoice, only base-currency integers are stored, and the rounding rule is unchanged. Read `USD` here as *the invoice currency*, and step 2 as one choice for the document rather than one per line.
 
 Some suppliers quote in dollars. Soran types `$` and the system converts — but **only IQD is ever stored**. There is no dual-currency system, no currency column on money fields, no historical rate lookup. It is a calculator on the entry form.
 

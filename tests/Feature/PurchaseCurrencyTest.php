@@ -83,8 +83,11 @@ class PurchaseCurrencyTest extends TestCase
         ]);
     }
 
-    /** @param array<int, array<string, mixed>> $lines */
-    private function buy(array $lines, ?int $rate = null): TestResponse
+    /**
+     * @param  array<int, array<string, mixed>>  $lines
+     * @param  array<string, mixed>  $extra
+     */
+    private function buy(array $lines, ?int $rate = null, array $extra = []): TestResponse
     {
         return $this->actingAs($this->admin)->post(route('purchases.store'), [
             'supplier_id' => $this->supplier->id,
@@ -93,6 +96,7 @@ class PurchaseCurrencyTest extends TestCase
             'amount_paid' => 0,
             'exchange_rate' => $rate,
             'lines' => $lines,
+            ...$extra,
         ]);
     }
 
@@ -198,6 +202,89 @@ class PurchaseCurrencyTest extends TestCase
         $this->assertSame(0, $item->typedAmount());
     }
 
+    // ---- One currency for the whole document ----------------------------
+
+    /**
+     * ⚠️ The screen has ONE currency, not one per line.
+     *
+     * Soran, 2026-09-13, seeing the per-line toggle: *"in same purchase have
+     * one type currency for all lines, not one usd and one dinar… just have
+     * invoice currency combo to select and input rate change directly in
+     * purchase"*. A supplier invoices in one currency; a row that could differ
+     * from the row above it was a way to get an invoice wrong, not a feature.
+     */
+    public function test_the_cart_has_no_per_line_currency_control(): void
+    {
+        $this->lira();
+
+        $html = $this->actingAs($this->admin)->get(route('purchases.create'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('data-role="currency"', $html);
+        $this->assertStringContainsString('id="document_currency"', $html);
+    }
+
+    /**
+     * ⚠️ Picking a currency shows the whole screen in it.
+     *
+     * Soran again: *"while change invoice currency not change prices"* — the
+     * first build left every figure in dinars and only took dollars in one
+     * box, which told him nothing about what he was buying. Every money box
+     * and every total is drawn through the invoice currency, and the hidden
+     * field beside each one carries the base integer the form posts.
+     */
+    public function test_every_money_box_on_the_screen_posts_base_units_through_a_hidden_field(): void
+    {
+        $html = $this->actingAs($this->admin)->get(route('purchases.create'))->assertOk()->getContent();
+
+        // The visible boxes are unnamed: they hold whatever the invoice
+        // currency is, and are nobody's business but the screen's.
+        $this->assertStringContainsString('id="discount_shown"', $html);
+        $this->assertStringContainsString('id="amount_paid_shown"', $html);
+        $this->assertStringNotContainsString('name="discount_amount" class', $html);
+
+        // What the form posts is the base-currency figure.
+        $this->assertStringContainsString('type="hidden" name="discount_amount"', $html);
+        $this->assertStringContainsString('type="hidden" name="amount_paid"', $html);
+    }
+
+    /**
+     * A whole invoice typed in dollars stores dinars, everywhere.
+     *
+     * Not only the line prices: the discount and what was paid are typed in
+     * the invoice currency too, and a screen where the price is dollars but
+     * the discount is dinars is a way to lose money quietly.
+     */
+    public function test_a_dollar_invoice_stores_dinars_in_every_column(): void
+    {
+        // $9.93 and $10.00 at 1,550, less a 50¢ discount, paid in full.
+        $this->buy([
+            [
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 15_392,
+                'entered_currency' => 'USD',
+                'entered_amount' => 993,
+            ],
+            [
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 15_500,
+                'entered_currency' => 'USD',
+                'entered_amount' => 1_000,
+            ],
+        ], rate: 1_550, extra: [
+            'discount_amount' => 775,
+            'amount_paid' => 30_117,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $purchase = Purchase::sole();
+
+        $this->assertSame(30_892, $purchase->total_amount);
+        $this->assertSame(775, $purchase->discount_amount);
+        $this->assertSame(1_550, $purchase->exchange_rate);
+        $this->assertSame(30_117, $purchase->amountPaid());
+    }
+
     // ---- The entry screen -----------------------------------------------
 
     /** The invoice-currency choice is the shop's list, not two hard-coded tags. */
@@ -268,8 +355,7 @@ class PurchaseCurrencyTest extends TestCase
             ->assertOk()
             ->assertViewHas('documentCurrency', 'TRY')
             ->assertViewHas('documentRate', 40)
-            ->assertViewHas('cartLines', fn (array $lines) => $lines[0]['currency'] === 'TRY'
-                && (float) $lines[0]['enteredAmount'] === 250.0
+            ->assertViewHas('cartLines', fn (array $lines) => (float) $lines[0]['typed'] === 250.0
                 && $lines[0]['price'] === 10_000);
     }
 
@@ -322,6 +408,35 @@ class PurchaseCurrencyTest extends TestCase
         $this->assertSame(3, Purchase::sole()->items()->sole()->quantity);
     }
 
+    /**
+     * ⚠️ A line nobody typed a foreign figure for comes back as null.
+     *
+     * This is the untouched-field rule of Section 2b, on the cart. The screen
+     * draws such a line's box by converting its stored price, and correcting
+     * the rate afterwards leaves that price exactly where it is. Hand it a
+     * figure instead and a rate correction would rewrite a price nobody
+     * touched: 5,000 dinars at 1,550 shows $3.23, and $3.23 at 1,600 is 5,168.
+     */
+    public function test_a_line_nobody_typed_a_figure_for_is_not_anchored_to_a_rounded_one(): void
+    {
+        $this->lira();
+
+        $this->buy([[
+            'product_id' => $this->product->id,
+            'quantity' => 1,
+            'unit_price' => 5_000,
+            'entered_currency' => 'TRY',
+            // No entered_amount: the shopkeeper accepted the converted price
+            // the screen showed rather than typing one.
+        ]], rate: 40)->assertRedirect();
+
+        $this->actingAs($this->admin)
+            ->get(route('purchases.edit', Purchase::sole()))
+            ->assertOk()
+            ->assertViewHas('cartLines', fn (array $lines) => $lines[0]['typed'] === null
+                && $lines[0]['price'] === 5_000);
+    }
+
     // ---- What the document shows ----------------------------------------
 
     /** The saved purchase says what was typed, beside the figure it stored. */
@@ -364,7 +479,6 @@ class PurchaseCurrencyTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('purchases.create', ['held' => HeldCart::sole()->id]))
             ->assertOk()
-            ->assertViewHas('cartLines', fn (array $lines) => $lines[0]['currency'] === 'JPY'
-                && (float) $lines[0]['enteredAmount'] === 500.0);
+            ->assertViewHas('cartLines', fn (array $lines) => (float) $lines[0]['typed'] === 500.0);
     }
 }
