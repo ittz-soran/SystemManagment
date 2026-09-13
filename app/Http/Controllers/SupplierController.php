@@ -24,7 +24,11 @@ class SupplierController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
-        return view('suppliers.index', ['suppliers' => $suppliers]);
+        return view('suppliers.index', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
+            'suppliers' => $suppliers,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -46,6 +50,8 @@ class SupplierController extends Controller
         // Section 9: a balance statement, read from the ledger rather than the
         // cached balance column.
         return view('suppliers.show', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'supplier' => $supplier,
             'transactions' => AccountTransaction::with('reference')
                 ->where('accountable_type', 'supplier')

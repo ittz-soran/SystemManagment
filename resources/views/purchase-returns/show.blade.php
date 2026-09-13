@@ -12,6 +12,8 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     <a href="{{ route('purchase-returns.print', $return) }}" class="btn btn-outline-secondary" target="_blank">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}
     </a>
@@ -46,6 +48,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <div class="row g-3">
         <div class="col-lg-8">
             <div class="card">
@@ -71,20 +75,20 @@
                                     <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
                                 </td>
                                 <td class="money">{{ number_format($item->quantity) }}</td>
-                                <td class="money">{{ money($item->unit_price, false) }}</td>
+                                <td class="money">{{ money($item->unit_price, false, $lens) }}</td>
                                 {{-- Section 7: 0 means the supplier credited the
                                      full listed price, which is the default. --}}
                                 <td class="money text-secondary">
-                                    {{ $item->discount_share > 0 ? '−'.money($item->discount_share, false) : '—' }}
+                                    {{ $item->discount_share > 0 ? '−'.money($item->discount_share, false, $lens) : '—' }}
                                 </td>
-                                <td class="money fw-semibold">{{ money($item->creditTotal(), false) }}</td>
+                                <td class="money fw-semibold">{{ money($item->creditTotal(), false, $lens) }}</td>
                             </tr>
                         @endforeach
                         </tbody>
                         <tfoot>
                         <tr class="fw-semibold">
                             <td colspan="4" class="text-end">{{ __('Total credit') }}</td>
-                            <td class="money">{{ money($return->total_amount, false) }}</td>
+                            <td class="money">{{ money($return->total_amount, false, $lens) }}</td>
                         </tr>
                         </tfoot>
                     </table>
@@ -115,7 +119,7 @@
                                     </span>
                                     <span class="small text-secondary">{{ Str::headline($payment->payment_method) }}</span>
                                 </span>
-                                <span class="money text-success">+{{ money($payment->amount, false) }}</span>
+                                <span class="money text-success">+{{ money($payment->amount, false, $lens) }}</span>
                             </li>
                         @endforeach
                     </ul>

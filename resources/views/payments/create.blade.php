@@ -9,7 +9,15 @@
     <x-back-link :to="$backUrl" :label="$payable->document_no" />
 @endsection
 
+@section('actions')
+    <x-currency-lens :label="__('Type in')" />
+@endsection
+
 @section('content')
+    {{-- ⚠️ Both halves of this screen: the box takes the chosen currency and
+         the figures on the right are read in it. What is stored is dinars. --}}
+    <x-lens-note :lens="$lens" />
+
     <div class="row g-3">
         <div class="col-lg-6">
             <div class="card">
@@ -21,14 +29,10 @@
 
                         <div class="mb-3">
                             <label for="amount" class="form-label">{{ __('Amount') }}</label>
-                            <div class="input-group">
-                                <input id="amount" type="number" step="1" min="1" name="amount" dir="ltr"
-                                       class="form-control text-end @error('amount') is-invalid @enderror"
-                                       value="{{ old('amount', $context['due'] > 0 ? $context['due'] : $context['total']) }}"
-                                       required autofocus>
-                                <span class="input-group-text">{{ __('IQD') }}</span>
-                                @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
+                            <x-money-input name="amount" :lens="$lens" :min="1"
+                                           :value="$context['due'] > 0 ? $context['due'] : $context['total']"
+                                           required autofocus
+                                           :data-numpad="__('Amount')" />
                             {{-- Section 4: the amount is ALWAYS positive; the
                                  direction says which way it moved. --}}
                             <div class="form-text">{{ __('Always a positive number. The direction below says which way it moved.') }}</div>
@@ -83,16 +87,16 @@
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between">
                         <span class="text-secondary">{{ __('Total') }}</span>
-                        <span class="money">{{ money($context['total'], false) }}</span>
+                        <span class="money">{{ money($context['total'], false, $lens) }}</span>
                     </li>
                     @if($context['due'] > 0 || $context['paid'] > 0)
                         <li class="list-group-item d-flex justify-content-between">
                             <span class="text-secondary">{{ __('Already paid') }}</span>
-                            <span class="money">{{ money($context['paid'], false) }}</span>
+                            <span class="money">{{ money($context['paid'], false, $lens) }}</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between fw-semibold">
                             <span>{{ __('Remaining') }}</span>
-                            <span class="money">{{ money($context['due'], false) }}</span>
+                            <span class="money">{{ money($context['due'], false, $lens) }}</span>
                         </li>
                     @endif
                 </ul>

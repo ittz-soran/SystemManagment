@@ -37,6 +37,8 @@ class SaleController extends Controller
         $archivedCount = (int) Sale::archivedOnly()->count();
 
         return view('sales.index', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'archivedCount' => $archivedCount,
             'sales' => $sales,
             'customers' => Customer::orderByDesc('is_system')->orderBy('name')->get(),
@@ -205,9 +207,11 @@ class SaleController extends Controller
             ->with('success', __('Sale deleted and its stock put back'));
     }
 
-    public function show(Sale $sale): View
+    public function show(Request $request, Sale $sale): View
     {
         return view('sales.show', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'sale' => $sale->load('customer', 'user', 'items.product', 'returns'),
             'payments' => $sale->payments()->orderBy('paid_at')->get(),
             'lockState' => $sale->canBeModified(auth()->user()),

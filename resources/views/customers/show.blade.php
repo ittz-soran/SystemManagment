@@ -8,6 +8,8 @@
 @endif
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('customers.edit')
         @if(! ($customer->is_system ?? false))
             <button type="button" class="btn btn-outline-secondary"
@@ -27,12 +29,14 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     {{-- Section 9: a balance statement, read from the ledger. Section 4:
          account_transactions is the truth; the balance column is a cache. --}}
     <div class="card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center">
             <div class="text-secondary">{{ __('Owes the shop') }}</div>
-            <div class="fs-4 fw-semibold money">{{ money($customer->balance) }}</div>
+            <div class="fs-4 fw-semibold money">{{ money($customer->balance, in: $lens) }}</div>
         </div>
     </div>
 
@@ -61,9 +65,9 @@
                                 <x-ledger-reference :transaction="$transaction" />
                             </td>
                             <td class="money {{ $transaction->amount > 0 ? 'text-danger' : 'text-success' }}">
-                                {{ $transaction->amount > 0 ? '+' : '' }}{{ money($transaction->amount, false) }}
+                                {{ $transaction->amount > 0 ? '+' : '' }}{{ money($transaction->amount, false, $lens) }}
                             </td>
-                            <td class="money fw-semibold">{{ money($transaction->balance_after, false) }}</td>
+                            <td class="money fw-semibold">{{ money($transaction->balance_after, false, $lens) }}</td>
                         </tr>
                     @endforeach
                     </tbody>

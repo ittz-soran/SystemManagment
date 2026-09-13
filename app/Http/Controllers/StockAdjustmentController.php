@@ -7,8 +7,10 @@ use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Rules\Amount;
 use App\Services\LedgerService;
 use App\Services\StockAdjustmentService;
+use App\Support\MoneyInput;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -51,6 +53,9 @@ class StockAdjustmentController extends Controller
         $archivedCount = (int) StockAdjustment::archivedOnly()->count();
 
         return view('stock-adjustments.index', [
+            // Section 2b — the cost boxes on this page take a currency, and the
+            // costs in the table are read in it.
+            'lens' => $request->user()->lens(),
             'archivedCount' => $archivedCount,
             'adjustments' => $adjustments,
             'reasons' => self::REASONS,
@@ -70,11 +75,14 @@ class StockAdjustmentController extends Controller
      * what it did to the batches is the whole point of reading one. The batch it
      * created, or the batches it drew down, are shown with it.
      */
-    public function show(StockAdjustment $stockAdjustment): View
+    public function show(Request $request, StockAdjustment $stockAdjustment): View
     {
         $stockAdjustment->load('product', 'user');
 
         return view('stock-adjustments.show', [
+            // Section 2b — the edit box on this page takes a cost, so it has to
+            // know which currency it is taking.
+            'lens' => $request->user()->lens(),
             'adjustment' => $stockAdjustment,
 
             // The edit box lives on this page as well as the list.
@@ -93,6 +101,8 @@ class StockAdjustmentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $lens = $request->user()->lens();
+
         $data = $request->validate([
             'product_id' => ['required', 'exists:products,id'],
             'direction' => ['required', Rule::in([StockAdjustment::DIRECTION_IN, StockAdjustment::DIRECTION_OUT])],
@@ -100,13 +110,19 @@ class StockAdjustmentController extends Controller
             // Section 4: required for `in`, ignored for `out` — FIFO needs a cost
             // for every unit coming in, and the cost of units going out comes
             // from the batches they are drawn from.
-            'unit_cost' => ['nullable', 'integer', 'min:0', 'required_if:direction,in'],
+            //
+            // Section 2b: `Amount` rather than `integer`, so the box can take
+            // the currency the person is typing in. The floor is base units.
+            'unit_cost' => ['nullable', new Amount($lens, min: 0), 'required_if:direction,in'],
             'reason' => ['required', Rule::in(self::REASONS)],
             'notes' => ['nullable', 'string', 'max:500'],
             'adjusted_at' => ['required', 'date'],
         ], [
             'unit_cost.required_if' => __('An incoming adjustment needs a unit cost — FIFO needs a cost for every unit.'),
         ]);
+
+        // What the box held, as the base-currency integer that gets stored.
+        $data['unit_cost'] = MoneyInput::fromRequest($request, 'unit_cost', $lens);
 
         try {
             $this->adjustments->create(
@@ -134,16 +150,28 @@ class StockAdjustmentController extends Controller
      */
     public function update(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
+        $lens = $request->user()->lens();
+
         $data = $request->validate([
             'direction' => ['required', Rule::in([StockAdjustment::DIRECTION_IN, StockAdjustment::DIRECTION_OUT])],
             'quantity' => ['required', 'integer', 'min:1'],
-            'unit_cost' => ['nullable', 'integer', 'min:0', 'required_if:direction,in'],
+            'unit_cost' => ['nullable', new Amount($lens, min: 0), 'required_if:direction,in'],
             'reason' => ['required', Rule::in(self::REASONS)],
             'notes' => ['nullable', 'string', 'max:500'],
             'adjusted_at' => ['required', 'date'],
         ], [
             'unit_cost.required_if' => __('An incoming adjustment needs a unit cost — FIFO needs a cost for every unit.'),
         ]);
+
+        /*
+         * ⚠️ With the adjustment's own cost as the original: an edit opened in
+         * dollars that only fixes the reason must leave the batch cost exactly
+         * where it is. A cost that moves by a rounding moves every COGS figure
+         * FIFO later draws from that layer. See App\Support\MoneyInput.
+         */
+        $data['unit_cost'] = MoneyInput::fromRequest(
+            $request, 'unit_cost', $lens, $stockAdjustment->unit_cost,
+        );
 
         try {
             $this->adjustments->update(

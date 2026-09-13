@@ -5,6 +5,8 @@
 
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('suppliers.view')
         <a href="{{ route('second-hand.sellers') }}" class="btn btn-outline-secondary">
             <i class="bi bi-people me-1"></i>{{ __('Sellers') }}
@@ -18,6 +20,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     {{-- Three about where things stand whatever period is being read, three
          about what happened between the dates chosen below. --}}
     @php
@@ -30,20 +34,20 @@
             ],
             [
                 'label' => __('Money tied up in them'),
-                'value' => money_if($figures['held_value'] !== null, $figures['held_value'], false),
+                'value' => money_if($figures['held_value'] !== null, $figures['held_value'], false, $lens),
                 'note' => __('right now'),
                 'tone' => '',
             ],
             [
                 'label' => __('Expected profit'),
-                'value' => money_if($figures['expected'] !== null, $figures['expected'], false),
+                'value' => money_if($figures['expected'] !== null, $figures['expected'], false, $lens),
                 'note' => __('if they sell at the asking price'),
                 'tone' => 'text-secondary',
             ],
             [
                 'label' => __('Bought'),
                 'value' => number_format($figures['bought']),
-                'note' => __('for :amount', ['amount' => money_if($figures['spent'] !== null, $figures['spent'], false)]),
+                'note' => __('for :amount', ['amount' => money_if($figures['spent'] !== null, $figures['spent'], false, $lens)]),
                 'tone' => '',
             ],
             [
@@ -54,7 +58,7 @@
             ],
             [
                 'label' => __('Made'),
-                'value' => money_if($figures['made'] !== null, $figures['made'], false),
+                'value' => money_if($figures['made'] !== null, $figures['made'], false, $lens),
                 'note' => __('what those sales actually made'),
                 'tone' => match (true) {
                     $figures['made'] === null => 'text-secondary',
@@ -88,7 +92,7 @@
                 {{ __('Still owed to the people you bought from') }}
             </span>
             <span class="d-flex align-items-center gap-3">
-                <span class="fw-semibold money">{{ money($figures['owed_to_sellers']) }}</span>
+                <span class="fw-semibold money">{{ money($figures['owed_to_sellers'], in: $lens) }}</span>
                 @can('suppliers.view')
                     <a href="{{ route('second-hand.sellers') }}" class="small">{{ __('Who') }}</a>
                 @endcan
@@ -229,8 +233,8 @@
                                     </div>
                                 @endif
                             </td>
-                            <td class="money">{{ money_if($cost !== null, $cost, false) }}</td>
-                            <td class="money">{{ money($item->sale_price, false) }}</td>
+                            <td class="money">{{ money_if($cost !== null, $cost, false, $lens) }}</td>
+                            <td class="money">{{ money($item->sale_price, false, $lens) }}</td>
                             {{-- The whole point of the row: this item's own
                                  money. Not an average, not a share of anything —
                                  what was paid for this one thing and what it
@@ -242,18 +246,18 @@
                                         <span class="text-secondary">{{ hidden_money() }}</span>
                                     @else
                                         <span class="{{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
-                                            {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
+                                            {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false, $lens) }}
                                         </span>
                                     @endif
                                     <div class="small text-secondary fw-normal">
-                                        {{ __('sold for :amount', ['amount' => money($sale->unit_price, false)]) }}
+                                        {{ __('sold for :amount', ['amount' => money($sale->unit_price, false, $lens)]) }}
                                     </div>
                                 @else
                                     <span class="text-secondary fw-normal">
                                         {{ __('if asked: :amount', [
                                             'amount' => $cost === null
                                                 ? hidden_money()
-                                                : money($item->sale_price - $cost, false),
+                                                : money($item->sale_price - $cost, false, $lens),
                                         ]) }}
                                     </span>
                                 @endif

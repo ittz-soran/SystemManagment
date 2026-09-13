@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Currency;
 use App\Models\Product;
+use App\Rules\Amount;
 use App\Services\ProductCodeService;
+use App\Support\MoneyInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ProductRequest extends FormRequest
@@ -33,22 +36,59 @@ class ProductRequest extends FormRequest
             'category_id' => ['required', 'exists:categories,id'],
             'unit' => ['required', 'string', 'max:32'],
 
-            // Section 2: IQD is whole numbers. No decimals anywhere.
-            //
-            // Not asked of somebody whose cost is masked — the form shows them
-            // the mask rather than a field, so there is nothing for them to
-            // post, and prepareForValidation puts back whatever is already
-            // stored.
-            'purchase_price' => [$this->user()->seesRealCost() ? 'required' : 'nullable', 'integer', 'min:0'],
-            'sale_price' => ['required', 'integer', 'min:0'],
+            /*
+             * Section 2: what is STORED is whole base-currency units, always.
+             * Section 2b: what is TYPED may be another currency, so the check
+             * is `Amount` rather than `integer` — under no lens the two are the
+             * same rule, under one `12.50` is a price and `integer` refuses it.
+             *
+             * Not asked of somebody whose cost is masked — the form shows them
+             * the mask rather than a field, so there is nothing for them to
+             * post, and prepareForValidation puts back whatever is already
+             * stored.
+             */
+            'purchase_price' => [$this->user()->seesRealCost() ? 'required' : 'nullable', new Amount($this->lens(), min: 0)],
+            'sale_price' => ['required', new Amount($this->lens(), min: 0)],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['boolean'],
 
             // Section 5: opening stock. A product already in the shop needs a
             // starting batch — quantity AND its cost — or FIFO has no first layer.
             'opening_quantity' => ['nullable', 'integer', 'min:0'],
-            'opening_unit_cost' => ['nullable', 'integer', 'min:0', 'required_with:opening_quantity'],
+            'opening_unit_cost' => ['nullable', new Amount($this->lens(), min: 0), 'required_with:opening_quantity'],
         ];
+    }
+
+    /** Section 2b — the currency this person is typing in, base if none. */
+    public function lens(): ?Currency
+    {
+        return $this->user()->lens();
+    }
+
+    /**
+     * The three money fields, as the base-currency integers to store.
+     *
+     * ⚠️ Read through `MoneyInput`, which means the untouched-field rule
+     * applies: a price the person did not type into comes back exactly as it
+     * was stored. Opening a product in dollars to fix its name must not move
+     * its cost by the rounding — see App\Support\MoneyInput.
+     *
+     * @return array<string, int|null>
+     */
+    public function prices(?Product $product = null): array
+    {
+        $lens = $this->lens();
+
+        return [
+            'purchase_price' => MoneyInput::fromRequest($this, 'purchase_price', $lens, $product?->purchase_price),
+            'sale_price' => MoneyInput::fromRequest($this, 'sale_price', $lens, $product?->sale_price),
+        ];
+    }
+
+    /** Opening stock's unit cost. Create only, so nothing can be untouched. */
+    public function openingUnitCost(): int
+    {
+        return (int) MoneyInput::fromRequest($this, 'opening_unit_cost', $this->lens());
     }
 
     /**
@@ -68,8 +108,16 @@ class ProductRequest extends FormRequest
         /** @var Product|null $product */
         $product = $this->route('product');
 
+        /*
+         * ⚠️ The companion field goes in too. `MoneyInput` decides a field was
+         * never edited by comparing what was posted against what the box was
+         * drawn with; without a match here, a masked reader saving a product
+         * under a dollar lens would have the stored dinar cost re-read as
+         * dollars and multiplied by the rate.
+         */
         $this->merge([
-            'purchase_price' => $product?->purchase_price ?? 0,
+            'purchase_price' => $keep = $product?->purchase_price ?? 0,
+            MoneyInput::shownField('purchase_price') => $keep,
             'opening_unit_cost' => null,
             'opening_quantity' => null,
         ]);

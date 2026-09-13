@@ -14,7 +14,16 @@
                  permission="payments.view" />
 @endsection
 
+@section('actions')
+    <x-currency-lens :label="__('Type in')" />
+@endsection
+
 @section('content')
+    {{-- ⚠️ An edit is where the untouched-field rule earns its keep: opened in
+         dollars, saved with only the date changed, the amount must come back
+         out of this box exactly as it went in. See App\Support\MoneyInput. --}}
+    <x-lens-note :lens="$lens" />
+
     {{-- Section 8: an edit reverses what the payment did to the ledger and
          posts it again with the new figures, so the balance ends where it would
          have if the figure had been right the first time. The document it is
@@ -40,14 +49,8 @@
 
                     <div class="mb-3">
                         <label for="amount" class="form-label">{{ __('Amount') }}</label>
-                        <div class="input-group">
-                            <input id="amount" type="number" step="1" min="1" name="amount" dir="ltr"
-                                   class="form-control text-end @error('amount') is-invalid @enderror"
-                                   data-numpad="{{ __('Amount') }}" data-numpad-min="1"
-                                   value="{{ old('amount', $payment->amount) }}" required>
-                            <span class="input-group-text">{{ __('IQD') }}</span>
-                            @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
+                        <x-money-input name="amount" :lens="$lens" :min="1" :value="$payment->amount"
+                                       required :data-numpad="__('Amount')" />
                         {{-- Section 4: the amount is ALWAYS positive; the
                              direction says which way it moved. --}}
                         <div class="form-text">{{ __('Always a positive number. The direction below says which way it moved.') }}</div>

@@ -3,6 +3,8 @@
 @section('title', __('Suppliers'))
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('suppliers.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#supplier-modal">
             <i class="bi bi-plus-lg me-1"></i>{{ __('New supplier') }}
@@ -11,6 +13,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
@@ -54,7 +58,7 @@
                             </td>
                             <td dir="ltr">{{ $supplier->phone ?: '—' }}</td>
                             <td class="money {{ $supplier->balance > 0 ? 'fw-semibold' : 'text-secondary' }}">
-                                {{ money($supplier->balance, false) }}
+                                {{ money($supplier->balance, false, $lens) }}
                             </td>
                             <td class="text-end">
                                 <x-row-actions

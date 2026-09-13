@@ -3,6 +3,8 @@
 @section('title', __('Sales history'))
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('sales.create')
         <a href="{{ route('sales.create') }}" class="btn btn-primary">
             <i class="bi bi-cart-plus me-1"></i>{{ __('New sale') }}
@@ -11,6 +13,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <x-archived-notice :count="$archivedCount" />
 
     <form method="GET" class="card card-body mb-3">
@@ -98,9 +102,9 @@
                             <td><span class="app-code">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td><x-document-link :document="$sale->customer" :kind="false" /></td>
                             <td><x-status-badge :status="$sale->status" /></td>
-                            <td class="money">{{ money($sale->total_amount, false) }}</td>
+                            <td class="money">{{ money($sale->total_amount, false, $lens) }}</td>
                             <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">
-                                {{ money($sale->amountDue(), false) }}
+                                {{ money($sale->amountDue(), false, $lens) }}
                             </td>
                             <td class="text-end">
                                 <x-row-actions :print="route('sales.print', $sale)" />

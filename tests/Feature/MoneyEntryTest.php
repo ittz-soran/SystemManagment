@@ -42,6 +42,44 @@ class MoneyEntryTest extends TestCase
         return User::findOrFail($this->admin->getKey());
     }
 
+    /**
+     * ⚠️ A money box must hold a value a number input will accept.
+     *
+     * `Money::format` writes `1,250,000`, and setting that on
+     * `<input type="number">` leaves the box **empty** — silently, with nothing
+     * in the console and nothing in the log. Every amount of a thousand or more
+     * opened blank, and the companion field the untouched-field rule compares
+     * against opened blank with it, so a save that touched nothing wrote null.
+     *
+     * Found by opening the expense edit modal in a browser, which is the only
+     * place it was ever visible.
+     */
+    public function test_a_money_box_never_holds_a_thousands_separator(): void
+    {
+        $this->anExpense(1_250_000);
+
+        foreach ([$this->reader(), $this->looking('USD')] as $user) {
+            $html = $this->actingAs($user)->get(route('expenses.index'))->assertOk()->getContent();
+
+            preg_match_all('/<input[^>]*type="number"[^>]*>/', $html, $inputs);
+
+            $this->assertNotEmpty($inputs[0], 'no number boxes on the page');
+
+            foreach ($inputs[0] as $input) {
+                if (preg_match('/value="([^"]*)"/', $input, $m) && $m[1] !== '') {
+                    $this->assertStringNotContainsString(',', $m[1], $input);
+                }
+            }
+
+            // And the figures the edit modal fills its boxes from.
+            preg_match_all('/data-amount="([^"]*)"/', $html, $filled);
+
+            foreach ($filled[1] as $value) {
+                $this->assertStringNotContainsString(',', $value, 'data-amount');
+            }
+        }
+    }
+
     private function reader(): User
     {
         return User::findOrFail($this->admin->getKey());

@@ -458,6 +458,83 @@ class PurchaseCurrencyTest extends TestCase
             ->assertSee('entered as 500 ¥');
     }
 
+    // ---- What is printed ------------------------------------------------
+
+    /**
+     * ⚠️ Decision 1c, and the reason it exists.
+     *
+     * A printed document shows both figures, at the rate frozen onto it. Not
+     * today's rate — the currencies table moves every week and a piece of paper
+     * does not. Reading the live rate would print one figure in March and a
+     * different one in April for the same invoice, and the second would be
+     * handed to a supplier as if it were the first.
+     */
+    public function test_a_printed_purchase_shows_both_figures_at_the_rate_frozen_on_it(): void
+    {
+        $this->lira(rate: 40);
+
+        // 250 lira a unit at 40 dinars, twice: 20,000 dinars, 500 lira.
+        $this->buy([[
+            'product_id' => $this->product->id,
+            'quantity' => 2,
+            'unit_price' => 10_000,
+            'entered_currency' => 'TRY',
+            'entered_amount' => 25_000,
+        ]], rate: 40)->assertRedirect();
+
+        $purchase = Purchase::sole();
+
+        // ⚠️ The market moves. The document must not.
+        Currency::where('code', 'TRY')->firstOrFail()->update(['rate' => 95 * Money::RATE_SCALE]);
+        Currency::flushCache();
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('purchases.print', $purchase))
+            ->assertOk()
+            ->getContent();
+
+        // Both figures, and the rate that produced the second one.
+        $this->assertStringContainsString('20,000', $html);
+        $this->assertStringContainsString('500.00', $html);
+        $this->assertStringContainsString('At the rate on this document, 1 TRY = 40', $html);
+
+        // And NOT what today's rate would have made of it.
+        $this->assertStringNotContainsString('210.53', $html);
+    }
+
+    /** A purchase written in dinars prints no second figure and no rate. */
+    public function test_a_base_currency_purchase_prints_one_figure(): void
+    {
+        $this->buy([[
+            'product_id' => $this->product->id,
+            'quantity' => 1,
+            'unit_price' => 10_000,
+        ]])->assertRedirect();
+
+        $this->actingAs($this->admin)
+            ->get(route('purchases.print', Purchase::sole()))
+            ->assertOk()
+            ->assertDontSee('At the rate on this document');
+    }
+
+    /** ⚠️ And print is never read through a lens, whatever the reader chose. */
+    public function test_the_printed_document_ignores_the_readers_lens(): void
+    {
+        $this->buy([[
+            'product_id' => $this->product->id,
+            'quantity' => 1,
+            'unit_price' => 10_000,
+        ]])->assertRedirect();
+
+        User::whereKey($this->admin->getKey())->update(['display_currency' => 'USD']);
+
+        $this->actingAs(User::findOrFail($this->admin->getKey()))
+            ->get(route('purchases.print', Purchase::sole()))
+            ->assertOk()
+            ->assertSee('10,000')
+            ->assertDontSee('7.58');
+    }
+
     // ---- A cart put down and picked up ----------------------------------
 
     /** A held line in a no-decimals currency comes back at the amount typed. */

@@ -3,6 +3,8 @@
 @section('title', __('Expenses'))
 
 @section('actions')
+    <x-currency-lens :label="__('Type in')" />
+
     @can('expenses.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#expense-modal">
             <i class="bi bi-plus-lg me-1"></i>{{ __('New expense') }}
@@ -16,12 +18,14 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <x-archived-notice :count="$archivedCount" />
 
     <div class="card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center">
             <span class="text-secondary">{{ __('Total for this selection') }}</span>
-            <span class="fs-4 fw-semibold money">{{ money($total) }}</span>
+            <span class="fs-4 fw-semibold money">{{ money($total, in: $lens) }}</span>
         </div>
     </div>
 
@@ -104,9 +108,10 @@
                                         'title' => $expense->title,
                                         'category' => $expense->expense_category_id,
                                         // ⚠️ Pre-filled in the currency the box is taking, and the modal
-                                        // posts this same string back as `amount_shown`.
+                                        // posts this same string back as `amount_shown`. Plain, never
+                                        // formatted: a separator empties a number box.
                                         // See App\Support\MoneyInput.
-                                        'amount' => \App\Support\Money::format($expense->amount, $lens),
+                                        'amount' => \App\Support\Money::plain($expense->amount, $lens),
                                         'date' => $expense->expense_date->toDateString(),
                                         'notes' => $expense->notes,
                                     ]"

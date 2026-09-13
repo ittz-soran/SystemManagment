@@ -6,6 +6,8 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     <a href="{{ route('sales.print', $sale) }}" class="btn btn-outline-secondary" target="_blank">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}
     </a>
@@ -41,6 +43,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     {{-- Section 9b: header, lines, totals, payments, timeline, actions. --}}
     <x-lock-banner :state="$lockState" />
 
@@ -75,15 +79,15 @@
                                 <td class="money {{ $item->quantity_returned > 0 ? 'text-warning' : 'text-secondary' }}">
                                     {{ number_format($item->quantity_returned) }}
                                 </td>
-                                <td class="money">{{ money($item->unit_price, false) }}</td>
-                                <td class="money fw-semibold">{{ money($item->lineTotal(), false) }}</td>
+                                <td class="money">{{ money($item->unit_price, false, $lens) }}</td>
+                                <td class="money fw-semibold">{{ money($item->lineTotal(), false, $lens) }}</td>
                             </tr>
                         @endforeach
                         </tbody>
                         <tfoot>
                         <tr class="fw-semibold">
                             <td colspan="4" class="text-end">{{ __('Total') }}</td>
-                            <td class="money">{{ money($sale->total_amount, false) }}</td>
+                            <td class="money">{{ money($sale->total_amount, false, $lens) }}</td>
                         </tr>
                         </tfoot>
                     </table>
@@ -110,7 +114,7 @@
                                     </span>
                                 </span>
                                 <span class="money {{ $payment->direction === 'in' ? 'text-success' : 'text-danger' }}">
-                                    {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, false) }}
+                                    {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, false, $lens) }}
                                 </span>
                             </li>
                         @endforeach
@@ -118,7 +122,7 @@
                 @endif
                 <div class="card-footer d-flex justify-content-between fw-semibold">
                     <span>{{ __('Due') }}</span>
-                    <span class="money">{{ money($sale->amountDue()) }}</span>
+                    <span class="money">{{ money($sale->amountDue(), in: $lens) }}</span>
                 </div>
             </div>
 
@@ -135,7 +139,7 @@
                                 @else
                                     <span dir="ltr">{{ $return->document_no }}</span>
                                 @endcan
-                                <span class="money">{{ money($return->total_amount, false) }}</span>
+                                <span class="money">{{ money($return->total_amount, false, $lens) }}</span>
                             </li>
                         @endforeach
                     </ul>

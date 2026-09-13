@@ -7,6 +7,8 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('expenses.edit')
         <button type="button" class="btn btn-outline-secondary"
                 data-bs-toggle="modal" data-bs-target="#expense-edit"
@@ -38,6 +40,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card">
@@ -45,7 +49,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-baseline justify-content-between mb-3">
                         <span class="text-secondary">{{ $expense->title }}</span>
-                        <span class="fs-3 fw-semibold money text-danger">−{{ money($expense->amount) }}</span>
+                        <span class="fs-3 fw-semibold money text-danger">−{{ money($expense->amount, in: $lens) }}</span>
                     </div>
 
                     <dl class="row mb-0 small">

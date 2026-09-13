@@ -74,6 +74,44 @@ class Purchase extends Model
     }
 
     /**
+     * The currency this invoice was written in — Section 2b, decision 1c.
+     *
+     * Read off the lines, because that is where it was recorded, and only when
+     * the document also carries the rate it was written at. Both or neither: a
+     * currency with no rate cannot be printed beside anything.
+     */
+    public function writtenIn(): ?Currency
+    {
+        if (! $this->exchange_rate) {
+            return null;
+        }
+
+        return $this->items
+            ->map(fn (PurchaseItem $item) => $item->typedIn())
+            ->first(fn (?Currency $currency) => $currency !== null);
+    }
+
+    /**
+     * A base-currency figure, written in the currency this document names.
+     *
+     * ⚠️ **Divided by the rate frozen onto the DOCUMENT, never today's.** The
+     * currencies table moves every week; a printed invoice must not. Reading
+     * the live rate would print $500 in March and $488.89 in April for the same
+     * purchase, and the second one would be handed to a supplier as if it were
+     * the first. That is the whole of decision 1c.
+     */
+    public function asWritten(int $base): ?string
+    {
+        $currency = $this->writtenIn();
+
+        if ($currency === null) {
+            return null;
+        }
+
+        return number_format($base / $this->exchange_rate, $currency->decimals);
+    }
+
+    /**
      * What has been paid to the supplier so far.
      *
      * Section 4 gives the amount-due formula as

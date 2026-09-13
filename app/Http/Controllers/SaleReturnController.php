@@ -39,13 +39,16 @@ class SaleReturnController extends Controller
         $archivedCount = (int) SaleReturn::archivedOnly()->count();
 
         return view('sale-returns.index', [
-            'archivedCount' => $archivedCount,'returns' => $returns]);
+            'lens' => $request->user()->lens(),
+            'archivedCount' => $archivedCount, 'returns' => $returns]);
     }
 
     /** The return screen for one sale. */
-    public function create(Sale $sale): View
+    public function create(Request $request, Sale $sale): View
     {
         return view('sale-returns.create', [
+            // Section 2b — the refund figures are read in this currency.
+            'lens' => $request->user()->lens(),
             'sale' => $sale->load('customer', 'items.product'),
         ]);
     }
@@ -79,9 +82,10 @@ class SaleReturnController extends Controller
             ->with('success', __('Return saved'));
     }
 
-    public function show(SaleReturn $saleReturn): View
+    public function show(Request $request, SaleReturn $saleReturn): View
     {
         return view('sale-returns.show', [
+            'lens' => $request->user()->lens(),
             'return' => $saleReturn->load('sale', 'customer', 'user', 'items.product'),
             'payments' => $saleReturn->payments()->orderBy('paid_at')->get(),
             // Section 8: computed live and re-checked inside the transaction.

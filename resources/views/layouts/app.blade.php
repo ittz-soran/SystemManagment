@@ -53,6 +53,32 @@
                 return (value < 0 ? '-' : '') + major + (minor === '' ? '' : '.' + minor);
             };
         })();
+
+        /*
+         * The same figure, read through a lens — Section 2b.
+         *
+         * ⚠️ The lens is an ARGUMENT, never a global. Section 2b keeps the lens
+         * off the till, and the way that is enforced is that nothing converts
+         * unless a screen hands it a currency. A `window.appLens` that every
+         * script could reach would put the lens back on the sale screen the
+         * first time somebody reused a helper.
+         *
+         * `lens` is `{rate, decimals, mark}` — rate being base minor units per
+         * one major unit of that currency, the shape `Money::RATE_SCALE`
+         * already divides out on the server.
+         */
+        window.appMoneyIn = function (stored, lens) {
+            if (! lens || ! lens.rate) {
+                return window.appMoney(stored);
+            }
+
+            const places = Number(lens.decimals) || 0;
+
+            return (Math.round(Number(stored) || 0) / lens.rate).toLocaleString('en-US', {
+                minimumFractionDigits: places,
+                maximumFractionDigits: places,
+            });
+        };
     </script>
 
     @include('partials.escape-html')

@@ -14,6 +14,8 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     {{-- Section 4: a generated barcode is never printed on the goods, so the
          shop prints its own label. --}}
     @if($product->barcode)
@@ -62,6 +64,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     @php
         $batchSum = (int) $product->stockBatches()->sum('quantity_remaining');
         $movementSum = (int) $product->stockMovements()->sum('quantity');
@@ -85,14 +89,14 @@
          service has no stock behind any of these but its price. --}}
     @php
         $cards = $product->isService()
-            ? [['label' => __('Sale price'), 'value' => money($product->sale_price)]]
+            ? [['label' => __('Sale price'), 'value' => money($product->sale_price, in: $lens)]]
             : [
                 ['label' => __('In stock'), 'value' => number_format($product->quantity).' '.$product->unit],
                 // A total beside a count is a unit cost one division away —
                 // 100,000 over 10 pcs is 10,000 each — so it follows the same
                 // rule as every other cost on the page.
-                ['label' => __('Stock value'), 'value' => cost_money($stockValue)],
-                ['label' => __('Sale price'), 'value' => money($product->sale_price)],
+                ['label' => __('Stock value'), 'value' => cost_money($stockValue, in: $lens)],
+                ['label' => __('Sale price'), 'value' => money($product->sale_price, in: $lens)],
             ];
 
         if ($product->kind === App\Models\Product::KIND_STOCK) {
@@ -141,7 +145,7 @@
                          the sale. --}}
                     <dt class="col-sm-3 text-secondary fw-normal">{{ __('Paid for it') }}</dt>
                     <dd class="col-sm-9 money">
-                        {{ cost_money((int) ($batches->first()->unit_cost ?? $product->purchase_price), false) }}
+                        {{ cost_money((int) ($batches->first()->unit_cost ?? $product->purchase_price), false, $lens) }}
                     </dd>
 
                     <dt class="col-sm-3 text-secondary fw-normal">{{ __('Status') }}</dt>
@@ -173,7 +177,7 @@
                             </span>
                             <x-document-link :document="$boughtOn->purchase" :kind="false" />
                         </span>
-                        <span class="money">{{ cost_money($boughtOn->unit_price, false) }}</span>
+                        <span class="money">{{ cost_money($boughtOn->unit_price, false, $lens) }}</span>
                     </li>
                 @endif
 
@@ -186,7 +190,7 @@
                             </span>
                             <x-document-link :document="$soldOn->sale" :kind="false" />
                         </span>
-                        <span class="money">{{ money($soldOn->unit_price, false) }}</span>
+                        <span class="money">{{ money($soldOn->unit_price, false, $lens) }}</span>
                     </li>
 
                     @php($cost = cost_seen((int) ($batches->first()->unit_cost ?? $product->purchase_price)))
@@ -197,7 +201,7 @@
                             <span class="money text-secondary">{{ hidden_money() }}</span>
                         @else
                             <span class="money {{ $profit >= 0 ? 'text-success' : 'text-danger' }}">
-                                {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false) }}
+                                {{ $profit >= 0 ? '+' : '−' }}{{ money(abs($profit), false, $lens) }}
                             </span>
                         @endif
                     </li>
@@ -265,10 +269,10 @@
                                                  :type="$batch->source_type"
                                                  :id="$batch->source_id" />
                             </td>
-                            <td class="money">{{ cost_money($batch->unit_cost, false) }}</td>
+                            <td class="money">{{ cost_money($batch->unit_cost, false, $lens) }}</td>
                             <td class="money text-secondary">{{ number_format($batch->quantity_in) }}</td>
                             <td class="money fw-semibold">{{ number_format($batch->quantity_remaining) }}</td>
-                            <td class="money">{{ cost_money($batch->quantity_remaining * $batch->unit_cost, false) }}</td>
+                            <td class="money">{{ cost_money($batch->quantity_remaining * $batch->unit_cost, false, $lens) }}</td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -276,7 +280,7 @@
                     <tr class="fw-semibold">
                         <td colspan="4"></td>
                         <td class="money">{{ number_format($batchSum) }}</td>
-                        <td class="money">{{ cost_money($stockValue, false) }}</td>
+                        <td class="money">{{ cost_money($stockValue, false, $lens) }}</td>
                     </tr>
                     </tfoot>
                 </table>
@@ -314,7 +318,7 @@
                             <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">
                                 {{ $movement->quantity > 0 ? '+' : '' }}{{ number_format($movement->quantity) }}
                             </td>
-                            <td class="money text-secondary">{{ cost_money($movement->unit_cost, false) }}</td>
+                            <td class="money text-secondary">{{ cost_money($movement->unit_cost, false, $lens) }}</td>
                         </tr>
                     @endforeach
                     </tbody>

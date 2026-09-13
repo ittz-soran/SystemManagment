@@ -8,9 +8,11 @@ use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Rules\Amount;
 use App\Services\LedgerService;
 use App\Services\PaymentService;
 use App\Support\DocumentLink;
+use App\Support\MoneyInput;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,6 +65,7 @@ class PaymentController extends Controller
         return view('payments.index', [
             'archivedCount' => $archivedCount,
             'payments' => $payments,
+            'lens' => $request->user()->lens(),
             'totalIn' => (int) $base()->where('direction', Payment::DIRECTION_IN)->sum('amount'),
             'totalOut' => (int) $base()->where('direction', Payment::DIRECTION_OUT)->sum('amount'),
         ]);
@@ -76,6 +79,8 @@ class PaymentController extends Controller
         );
 
         return view('payments.create', [
+            // Section 2b — which currency this person types and reads in.
+            'lens' => $request->user()->lens(),
             'payable' => $payable,
             'payableType' => $request->string('payable_type')->toString(),
             'context' => $this->describe($payable),
@@ -88,7 +93,7 @@ class PaymentController extends Controller
      * gets a page of its own — the document it settles, the party it moved
      * between, and what it left owing.
      */
-    public function show(Payment $payment): View
+    public function show(Request $request, Payment $payment): View
     {
         // The payable is polymorphic, so the party hanging off it has to be
         // named per type — preventLazyLoading turns a miss into an exception,
@@ -101,6 +106,7 @@ class PaymentController extends Controller
         ])]);
 
         return view('payments.show', [
+            'lens' => $request->user()->lens(),
             'payment' => $payment,
             'party' => $this->party($payment->payable),
         ]);
@@ -108,16 +114,24 @@ class PaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $lens = $request->user()->lens();
+
         $data = $request->validate([
             'payable_type' => ['required', Rule::in(['sale', 'purchase', 'sale_return', 'purchase_return'])],
             'payable_id' => ['required', 'integer'],
-            // Section 4: the amount is always positive; direction carries the sign.
-            'amount' => ['required', 'integer', 'min:1'],
+            // Section 4: the amount is always positive; direction carries the
+            // sign. Section 2b: checked in whichever currency it was typed in,
+            // with the floor still meaning one base unit.
+            'amount' => ['required', new Amount($lens, min: 1)],
             'direction' => ['required', Rule::in([Payment::DIRECTION_IN, Payment::DIRECTION_OUT])],
             'payment_method' => ['required', 'in:cash,bank,transfer'],
             'paid_at' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // Section 2b: what the box held, as the base-currency integer stored.
+        // A create has nothing that could be untouched, so no original.
+        $data['amount'] = MoneyInput::fromRequest($request, 'amount', $lens);
 
         $payable = $this->resolvePayable($data['payable_type'], (int) $data['payable_id']);
 
@@ -155,11 +169,12 @@ class PaymentController extends Controller
             ->with('success', __('Payment recorded'));
     }
 
-    public function edit(Payment $payment): View
+    public function edit(Request $request, Payment $payment): View
     {
         $payable = $payment->payable;
 
         return view('payments.edit', [
+            'lens' => $request->user()->lens(),
             'payment' => $payment,
             'payable' => $payable,
             'party' => $this->party($payable),
@@ -182,13 +197,24 @@ class PaymentController extends Controller
      */
     public function update(Request $request, Payment $payment): RedirectResponse
     {
+        $lens = $request->user()->lens();
+
         $data = $request->validate([
-            'amount' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', new Amount($lens, min: 1)],
             'direction' => ['required', Rule::in([Payment::DIRECTION_IN, Payment::DIRECTION_OUT])],
             'payment_method' => ['required', 'in:cash,bank,transfer'],
             'paid_at' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:255'],
         ]);
+
+        /*
+         * ⚠️ Section 2b's untouched-field rule. An edit opened in dollars shows
+         * 15,000 dinars as $11.36, and $11.36 back at 1,320 is 14,995. Somebody
+         * correcting only the date would move the money by five dinars and post
+         * a ledger reversal for it. The figure is only re-read when the box
+         * itself was typed into.
+         */
+        $data['amount'] = MoneyInput::fromRequest($request, 'amount', $lens, $payment->amount);
 
         $paidAt = Carbon::parse($data['paid_at']);
 

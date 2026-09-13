@@ -4,6 +4,8 @@
 @section('subheading', __('The only way to correct a document that is already locked'))
 
 @section('actions')
+    <x-currency-lens :label="__('Type in')" />
+
     @can('stock_adjustments.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#adjustment-modal">
             <i class="bi bi-plus-lg me-1"></i>{{ __('New adjustment') }}
@@ -17,6 +19,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <x-archived-notice :count="$archivedCount" />
 
     <form method="GET" class="card card-body mb-3">
@@ -99,7 +103,7 @@
                                  written off is the true FIFO cost of the batches
                                  it consumed. --}}
                             <td class="money text-secondary">
-                                {{ $adjustment->unit_cost !== null ? cost_money($adjustment->unit_cost, false) : __('FIFO') }}
+                                {{ $adjustment->unit_cost !== null ? cost_money($adjustment->unit_cost, false, $lens) : __('FIFO') }}
                             </td>
                             <td class="text-end">
                                 {{-- Offered plainly, like the delete beside it: the
@@ -112,7 +116,13 @@
                                         'product' => $adjustment->product?->name,
                                         'direction' => $adjustment->direction,
                                         'quantity' => $adjustment->quantity,
-                                        'cost' => $adjustment->unit_cost,
+                                        // ⚠️ Pre-filled in the currency the box is taking, and the
+                                        // modal posts this same string back as `unit_cost_shown`. Plain,
+                                        // never formatted: a separator empties a number box.
+                                        // See App\Support\MoneyInput.
+                                        'cost' => $adjustment->unit_cost === null
+                                            ? null
+                                            : \App\Support\Money::plain($adjustment->unit_cost, $lens),
                                         'reason' => $adjustment->reason,
                                         'date' => $adjustment->adjusted_at->toDateString(),
                                         'notes' => $adjustment->notes,
@@ -176,11 +186,7 @@
                              out, the cost comes from the batches consumed. --}}
                         <div class="mb-3 d-none" id="adj-cost-wrap">
                             <label for="adj-cost" class="form-label">{{ __('Cost each') }}</label>
-                            <div class="input-group">
-                                <input id="adj-cost" type="number" step="1" min="0" name="unit_cost"
-                                       class="form-control text-end" dir="ltr">
-                                <span class="input-group-text">{{ __('IQD') }}</span>
-                            </div>
+                            <x-money-input id="adj-cost" name="unit_cost" :lens="$lens" :min="0" />
                             <div class="form-text">{{ __('Required when adding stock — FIFO needs a cost for every unit.') }}</div>
                         </div>
 

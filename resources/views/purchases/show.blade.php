@@ -6,6 +6,8 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     <a href="{{ route('purchases.print', $purchase) }}" class="btn btn-outline-secondary" target="_blank">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}
     </a>
@@ -40,6 +42,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <x-lock-banner :state="$lockState" />
 
     @if($lockState['allowed'] && ! $deleteState['allowed'])
@@ -94,15 +98,15 @@
                                 <td class="money {{ $item->quantity_returned > 0 ? 'text-warning' : 'text-secondary' }}">
                                     {{ number_format($item->quantity_returned) }}
                                 </td>
-                                <td class="money">{{ money($item->unit_price, false) }}</td>
-                                <td class="money fw-semibold">{{ money($item->lineTotal(), false) }}</td>
+                                <td class="money">{{ money($item->unit_price, false, $lens) }}</td>
+                                <td class="money fw-semibold">{{ money($item->lineTotal(), false, $lens) }}</td>
                             </tr>
                         @endforeach
                         </tbody>
                         <tfoot>
                         <tr>
                             <td colspan="4" class="text-end text-secondary">{{ __('Subtotal') }}</td>
-                            <td class="money">{{ money($purchase->total_amount, false) }}</td>
+                            <td class="money">{{ money($purchase->total_amount, false, $lens) }}</td>
                         </tr>
                         @if($purchase->discount_amount !== 0)
                             <tr>
@@ -110,13 +114,30 @@
                                     {{ __('Discount') }}
                                     <span class="small">{{ __('(never applied to batch costs)') }}</span>
                                 </td>
-                                <td class="money">−{{ money($purchase->discount_amount, false) }}</td>
+                                <td class="money">−{{ money($purchase->discount_amount, false, $lens) }}</td>
                             </tr>
                         @endif
                         <tr class="fw-semibold">
                             <td colspan="4" class="text-end">{{ __('Grand total') }}</td>
-                            <td class="money">{{ money($purchase->grand_total, false) }}</td>
+                            <td class="money">{{ money($purchase->grand_total, false, $lens) }}</td>
                         </tr>
+                        {{-- ⚠️ Section 2b, decision 1c: at the rate FROZEN onto
+                             this document, never today's. What this purchase
+                             cost in the currency it was written in does not
+                             change because the market moved. --}}
+                        @if($writtenIn = $purchase->writtenIn())
+                            <tr class="small text-secondary">
+                                <td colspan="4" class="text-end">
+                                    {{ __('At the rate on this document, 1 :code = :rate', [
+                                        'code' => $writtenIn->code,
+                                        'rate' => money($purchase->exchange_rate, in: $lens),
+                                    ]) }}
+                                </td>
+                                <td class="money" dir="ltr">
+                                    {{ $purchase->asWritten($purchase->grand_total) }} {{ $writtenIn->mark() }}
+                                </td>
+                            </tr>
+                        @endif
                         </tfoot>
                     </table>
                 </div>
@@ -141,14 +162,14 @@
                                         · {{ Str::headline($payment->payment_method) }}
                                     </span>
                                 </span>
-                                <span class="money">{{ money($payment->amount, false) }}</span>
+                                <span class="money">{{ money($payment->amount, false, $lens) }}</span>
                             </li>
                         @endforeach
                     </ul>
                 @endif
                 <div class="card-footer d-flex justify-content-between fw-semibold">
                     <span>{{ __('Due') }}</span>
-                    <span class="money">{{ money($purchase->amountDue()) }}</span>
+                    <span class="money">{{ money($purchase->amountDue(), in: $lens) }}</span>
                 </div>
             </div>
 
@@ -165,7 +186,7 @@
                                 @else
                                     <span dir="ltr">{{ $return->document_no }}</span>
                                 @endcan
-                                <span class="money">{{ money($return->total_amount, false) }}</span>
+                                <span class="money">{{ money($return->total_amount, false, $lens) }}</span>
                             </li>
                         @endforeach
                     </ul>

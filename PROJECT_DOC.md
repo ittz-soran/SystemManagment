@@ -168,7 +168,11 @@ Decided with Soran, 2026-09-13:
 - `<x-currency-lens>` is the switcher — buttons, so it works with no JavaScript, and hidden entirely when the shop keeps only one currency.
 - `<x-lens-note>` says what a converted figure is: today's rate applied to the books, an **estimate**, and not what was recorded. A dollar total without that sentence is a figure somebody quotes to a supplier.
 
-**Screens with the lens:** reports. **Screens that must never have it:** the sale screen and anything printed.
+**Screens with the lens:** every screen that says an amount — the dashboard, reports, both carts' surroundings, every list and every document page, and every entry form. **Screens that must never have it:** the sale screen and anything printed.
+
+⚠️ **`CurrencyReachTest` checks both halves of that sentence, because neither can be remembered.** The lens is opt-in per screen, which is what keeps it off the till and is also what lets a screen be silently left out — a figure in the wrong currency looks exactly like a figure. The test walks every Blade template, parses out every `money()` call, and fails with the filename when one is drawn without a currency on a screen that converts, or with one on a screen that must not. A new screen that prints money cannot quietly skip it.
+
+Two screens print an amount and stay in the base currency on purpose, listed in that test: the held-carts list, shared with the till and holding carts put down before any currency was chosen; and the purchase cart, whose figures follow the **invoice** currency chosen on the document rather than the reader's own preference.
 
 ### The purchase cart — one currency for the whole document
 
@@ -191,13 +195,35 @@ Decided with Soran, 2026-09-13:
 - ⚠️ **`entered_amount` is scaled by that currency's own minor units, not by a hundred.** A yen has no decimals: ¥500 stored as 500 and divided by a hundred comes back into the box as ¥5, and a shopkeeper correcting it to 500 pays a hundred times over. `Currency::asTyped()` is the one place that division happens; `PurchaseItem::typedIn()` / `typedAmount()` are what the document and the edit screen read.
 - **`entered_currency` is a `string(8)` with no foreign key.** A currency the shop later deletes must not take an old purchase's record of what it was invoiced in with it. Switching one off in Settings stops *new* documents naming it and never makes an old one unsaveable.
 
-### What is not done yet
+### Every entry screen, and the one bug the sweep found
 
-**Expenses and the purchase cart can be typed in another currency. Nothing else can yet** — payments, stock adjustments, product prices and the two return screens still take whole base units. Each is the same three changes: the component in the form, `App\Rules\Amount` in the validation, `MoneyInput::fromRequest` in the controller.
+> *"any screen read or write need this currency system add to it"* — Soran, 2026-09-13
+
+Done: expenses, the purchase cart, **payments**, **product prices** (purchase, sale and opening cost), **stock adjustments**, **both return screens**, **second-hand**, **services**. Each is the same three changes — `<x-money-input>` in the form, `App\Rules\Amount` in the validation, `MoneyInput::fromRequest` in the controller — plus the untouched-field rule wired to the record being edited.
+
+⚠️ **`EntryLensTest` is mostly one test written five times, and that is deliberate.** Every screen wires `MoneyInput::fromRequest` itself and every one can forget to pass the record it is editing. Forgetting costs a few units per save, silently, on a figure nobody typed: a batch cost FIFO will draw from for months, a payment that reverses and re-posts a ledger row, a product price on every future sale. Each screen's version of that test is sabotage-verified against its own controller.
+
+⚠️ **A reader whose cost is masked needs the companion field too.** They are shown `*****` instead of a price box, so nothing is posted and `ProductRequest::prepareForValidation` puts the stored figure back. Under a dollar lens that is a dinar count arriving in a request the screen reads as dollars — without `purchase_price_shown` merged beside it, saving would multiply the cost by the rate.
+
+#### ⚠️ The separator bug — every money box was empty above 999
+
+`Money::format()` writes `1,250,000`, and setting a value with a thousands separator on `<input type="number">` leaves the box **empty**. No error, nothing in the console, nothing in the log. Every money box on every screen holding an amount of a thousand or more opened blank, and the companion field the untouched-field rule compares against was blank with it.
+
+So there are now two writings and they are not interchangeable: **`format()` reads, `plain()` is typed.** `MoneyInput::unchanged()` strips separators before comparing, so a box drawn by one and checked against the other still counts as untouched. `MoneyEntryTest` asserts no `<input type="number">` on a page ever carries a separator, and neither does any `data-` attribute a modal fills its boxes from.
+
+### Printing both figures — decision 1c
+
+A purchase written in a foreign currency prints the base figure, the foreign figure, and the rate that produced it: *"At the rate on this document, 1 TRY = 40"*. Per line it also prints what the supplier's own paperwork said, as it was typed.
+
+⚠️ **The rate comes off the DOCUMENT, never from the currencies table.** `Purchase::asWritten()` divides by `purchases.exchange_rate`. The table moves every week; a piece of paper does not. Reading the live rate would print one figure in March and a different one in April for the same invoice, and the second would be handed to a supplier as if it were the first. The test sets up a purchase, moves the currency's rate afterwards, and asserts the printout is unchanged.
+
+Printed documents take no lens, ever. The reader of a printed invoice never chose a preference and cannot see one.
+
+### What is not done yet
 
 IQD's `decimals` is still not editable from Settings.
 
-The purchase cart shows the typed figure back on the saved document (*"entered as 12.50 €"*), but the **printed** document does not yet carry both figures with the frozen rate — that is the decision above, still to build.
+Sales carry no `exchange_rate` column, so a sale cannot be written in a foreign currency and its printout has one figure. That follows from decision 3b — you sell across a counter in dinars — and is not an omission.
 
 ---
 

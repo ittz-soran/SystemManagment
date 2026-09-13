@@ -135,9 +135,11 @@ class ProductController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('products.create', [
+            // Section 2b — the currency these price boxes are taking.
+            'lens' => $request->user()->lens(),
             'product' => new Product(['unit' => Units::default(), 'is_active' => true,
                 'purchase_price' => 0, 'sale_price' => 0]),
             'categories' => Category::orderBy('name')->get(),
@@ -153,6 +155,9 @@ class ProductController extends Controller
 
             $product = Product::create([
                 ...$request->safe()->except(['sku', 'barcode', 'opening_quantity', 'opening_unit_cost']),
+                // Section 2b: the prices, as base-currency integers, whatever
+                // currency the boxes were taking.
+                ...$request->prices(),
                 'sku' => $codes['sku'],
                 'barcode' => $codes['barcode'],
                 'quantity' => 0,
@@ -166,7 +171,7 @@ class ProductController extends Controller
                 $this->adjustments->recordOpeningStock(
                     product: $product,
                     quantity: $request->integer('opening_quantity'),
-                    unitCost: $request->integer('opening_unit_cost'),
+                    unitCost: $request->openingUnitCost(),
                     user: $request->user(),
                 );
             }
@@ -214,6 +219,8 @@ class ProductController extends Controller
     public function show(Request $request, Product $product, DailyTotals $totals): View
     {
         return view('products.show', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'product' => $product->load('category'),
 
             /*
@@ -257,9 +264,10 @@ class ProductController extends Controller
         ]);
     }
 
-    public function edit(Product $product): View
+    public function edit(Request $request, Product $product): View
     {
         return view('products.edit', [
+            'lens' => $request->user()->lens(),
             'product' => $product,
             'categories' => Category::orderBy('name')->get(),
         ]);
@@ -272,6 +280,9 @@ class ProductController extends Controller
 
             $product->update([
                 ...$request->safe()->except(['sku', 'barcode', 'opening_quantity', 'opening_unit_cost']),
+                // ⚠️ With the product, so a price nobody typed into keeps the
+                // figure it already had rather than a converted round trip.
+                ...$request->prices($product),
                 'sku' => $codes['sku'],
                 'barcode' => $codes['barcode'],
                 'is_active' => $request->boolean('is_active'),

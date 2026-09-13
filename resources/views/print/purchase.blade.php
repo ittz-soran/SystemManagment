@@ -38,7 +38,17 @@
                     <div class="small" dir="ltr">{{ $item->product->sku }}</div>
                 </td>
                 <td class="money">{{ number_format($item->quantity) }}</td>
-                <td class="money">{{ money($item->unit_price, false) }}</td>
+                <td class="money">
+                    {{ money($item->unit_price, false) }}
+                    {{-- Section 2b: what the supplier's own paperwork said, as
+                         it was typed. Recorded, not converted. --}}
+                    @if($item->typedIn() && $item->entered_amount)
+                        <div class="small" dir="ltr">
+                            {{ number_format($item->typedAmount(), $item->typedIn()->decimals) }}
+                            {{ $item->typedIn()->mark() }}
+                        </div>
+                    @endif
+                </td>
                 <td class="money">{{ money($item->lineTotal(), false) }}</td>
             </tr>
         @endforeach
@@ -58,6 +68,24 @@
             <td colspan="4" class="text-end">{{ __('Grand total') }}</td>
             <td class="money">{{ money($purchase->grand_total) }}</td>
         </tr>
+        {{-- ⚠️ Section 2b, decision 1c: both figures, at the rate FROZEN onto
+             this document. Never a lens and never today's rate — a reprint in
+             April has to be the same piece of paper as the one taken in March,
+             and the reader of a printed invoice cannot be asked which currency
+             they would like it in. --}}
+        @if($writtenIn = $purchase->writtenIn())
+            <tr>
+                <td colspan="4" class="text-end small">
+                    {{ __('At the rate on this document, 1 :code = :rate', [
+                        'code' => $writtenIn->code,
+                        'rate' => money($purchase->exchange_rate),
+                    ]) }}
+                </td>
+                <td class="money" dir="ltr">
+                    {{ $purchase->asWritten($purchase->grand_total) }} {{ $writtenIn->mark() }}
+                </td>
+            </tr>
+        @endif
         @if($purchase->amountDue() > 0)
             <tr class="fw-bold">
                 <td colspan="4" class="text-end">{{ __('Remaining') }}</td>

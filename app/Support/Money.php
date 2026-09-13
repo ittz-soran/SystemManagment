@@ -165,6 +165,25 @@ final class Money
     }
 
     /**
+     * The same figure with no thousands separators — what a box can hold.
+     *
+     * ⚠️ `format()` is for READING. Its separators make `<input type="number">`
+     * reject the value outright: setting `1,250,000` on one leaves the box
+     * EMPTY, with no error anywhere. Every money box on every screen showing an
+     * amount of a thousand or more was blank, and the companion field the
+     * untouched-field rule compares against was blank with it.
+     *
+     * So entry uses this and reading uses `format()`. The two differ by
+     * separators only, and `MoneyInput::unchanged()` strips those before
+     * comparing, so a box drawn by one and compared against the other still
+     * counts as untouched.
+     */
+    public static function plain(int|float|null $stored, ?Currency $in = null): string
+    {
+        return str_replace(',', '', self::format($stored, $in));
+    }
+
+    /**
      * The two halves of an amount, for the one place that needs them apart.
      *
      * Only `AmountInWords` uses this. Everywhere else an amount is one number.
