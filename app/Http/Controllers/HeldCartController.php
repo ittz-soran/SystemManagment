@@ -148,8 +148,13 @@ class HeldCartController extends Controller
                     'quantity' => $quantity,
                     'price' => $price,
                     'currency' => $currency,
-                    // Section 2b: in that currency's own units, not cents.
-                    'enteredAmount' => $typedIn?->asTyped((int) ($line['entered_amount'] ?? 0)) ?? 0,
+
+                    // Section 2b: in that currency's own units, not cents — and
+                    // null when nobody typed one, so the purchase cart redraws
+                    // the box from the price instead of a rounded round trip.
+                    'typed' => ($line['entered_amount'] ?? null) === null
+                        ? null
+                        : $typedIn?->asTyped((int) $line['entered_amount']),
                     'stock' => (int) $product->quantity,
                     'cost' => $cost,
                     'belowCost' => $cost !== null && $price < $cost,

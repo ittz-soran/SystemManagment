@@ -54,8 +54,10 @@
                             <tr>
                                 <th>{{ __('Product') }}</th>
                                 <th class="money" style="width: 6.5rem">{{ __('Quantity') }}</th>
-                                <th style="width: 6rem">{{ __('Currency') }}</th>
-                                <th class="money" style="width: 10rem">{{ __('Unit price') }}</th>
+                                {{-- Section 2b: no per-line currency. A supplier
+                                     invoices in ONE currency, and the box below
+                                     takes whichever one the invoice is in. --}}
+                                <th class="money" style="width: 11rem">{{ __('Unit price') }}</th>
                                 <th class="money" style="width: 9rem">{{ __('Total') }}</th>
                                 <th style="width: 3rem"></th>
                             </tr>
@@ -171,10 +173,18 @@
                             <span class="money" id="subtotal">0</span>
                         </div>
 
+                        {{-- ⚠️ Section 2b: the box takes the invoice currency,
+                             the hidden field beside it posts base-currency
+                             units. Only base integers are ever stored, on this
+                             screen as on every other. --}}
                         <div class="mb-3">
-                            <label for="discount_amount" class="form-label small">{{ __('Invoice discount') }}</label>
-                            <input id="discount_amount" type="number" step="1" name="discount_amount"
-                                   class="form-control form-control-sm text-end" dir="ltr"
+                            <label for="discount_shown" class="form-label small">{{ __('Invoice discount') }}</label>
+                            <div class="input-group input-group-sm">
+                                <input id="discount_shown" type="number" step="1"
+                                       class="form-control text-end" dir="ltr" value="0">
+                                <span class="input-group-text app-code" data-role="mark">{{ $base->mark() }}</span>
+                            </div>
+                            <input type="hidden" name="discount_amount" id="discount_amount"
                                    value="{{ old('discount_amount', $editing ? $purchase->discount_amount : 0) }}">
                             {{-- Section 6: signed, because a supplier may round UP.
                                  It never touches item prices or batch costs. --}}
@@ -184,7 +194,10 @@
                         </div>
 
                         <div class="text-secondary small">{{ __('Grand total') }}</div>
-                        <div class="running-total mb-3" id="grand-total">0</div>
+                        <div class="running-total" id="grand-total">0</div>
+                        {{-- What the books will actually hold. The figure above
+                             is the same money said in the invoice's currency. --}}
+                        <div class="text-secondary small mb-3 d-none" dir="ltr" id="grand-total-base"></div>
 
                         @if($editing)
                             <div class="alert alert-secondary py-2 small mb-0">
@@ -192,12 +205,14 @@
                             </div>
                         @else
                             <div class="mb-3">
-                                <label for="amount_paid" class="form-label">{{ __('Paid now') }}</label>
+                                <label for="amount_paid_shown" class="form-label">{{ __('Paid now') }}</label>
                                 <div class="input-group">
-                                    <input id="amount_paid" type="number" step="1" min="0" name="amount_paid"
+                                    <input id="amount_paid_shown" type="number" step="1" min="0"
                                            class="form-control text-end" dir="ltr" value="0">
+                                    <span class="input-group-text app-code" data-role="mark">{{ $base->mark() }}</span>
                                     <button type="button" class="btn btn-outline-secondary" id="pay-full">{{ __('Full') }}</button>
                                 </div>
+                                <input type="hidden" name="amount_paid" id="amount_paid" value="0">
                                 <div class="form-text" id="due-note"></div>
                             </div>
 
@@ -262,60 +277,87 @@
             const cartEmpty = document.getElementById('cart-empty');
             const subtotalEl = document.getElementById('subtotal');
             const grandTotalEl = document.getElementById('grand-total');
-            const discountInput = document.getElementById('discount_amount');
-            const paidInput = document.getElementById('amount_paid');
+            const discountInput = document.getElementById('discount_shown');
+            const paidInput = document.getElementById('amount_paid_shown');
             const dueNote = document.getElementById('due-note');
             const rateInput = document.getElementById('exchange_rate');
             const rateWarning = document.getElementById('rate-warning');
             const rateOf = document.getElementById('rate-of');
             const rateBox = document.getElementById('rate-box');
             const currencySelect = document.getElementById('document_currency');
+            const grandTotalBase = document.getElementById('grand-total-base');
             const saveButton = document.getElementById('save-purchase');
 
-            // Section 2b: every currency the shop keeps — how it is written,
-            // how many places it takes, how many minor units make one of it,
-            // and its saved rate in whole base units.
+            /*
+             * Section 2b: the whole document is written in ONE currency.
+             *
+             * The invoice currency governs every money box on this screen —
+             * prices, the discount, what was paid — and every figure it draws.
+             * What is SAVED is unchanged: base-currency integers, the same ones
+             * that would have been saved had the whole thing been typed in
+             * dinars. Each visible box has a hidden field beside it holding
+             * exactly that, and the hidden field is what the form posts.
+             */
             const currencies = @json($currencyMeta);
             const baseCode = @json($base->code);
             const baseMark = @json($base->mark());
 
-            /** The currency this invoice is written in, base if none. */
-            const documentCurrency = () => currencySelect ? currencySelect.value : baseCode;
+            /** The currency this invoice is written in. */
+            const invoiceCode = () => currencySelect ? currencySelect.value : baseCode;
 
-            /** The rate the shop has saved for it — what the box starts at. */
+            /** True when the screen is already showing the books' own currency. */
+            const inBase = () => invoiceCode() === baseCode;
+
+            /** Base units per one unit of the invoice currency, as typed. */
+            const rate = () => Number(rateInput?.value || 0);
+
+            const markOf = (code) => currencies[code]?.mark ?? code;
+            const placesOf = (code) => Number(currencies[code]?.decimals || 0);
+            const minorPer = (code) => Number(currencies[code]?.minorPerMajor || 1);
+
+            /** The rate the shop has saved for a currency — what the box starts at. */
             const savedRate = (code) => Number(currencies[code]?.rate || 0);
 
-            /** A price box's step: whole units, or that currency's places. */
+            /** A box's step: whole units, or that currency's places. */
             const stepFor = (code) => {
-                const places = Number(currencies[code]?.decimals || 0);
+                const places = placesOf(code);
 
                 return places === 0 ? '1' : '0.' + '0'.repeat(places - 1) + '1';
             };
 
-            /** How many of a currency's smallest units make one of it. */
-            const minorPer = (code) => Number(currencies[code]?.minorPerMajor || 1);
-
             /**
-             * What one line may be typed in: the base currency, and the one
-             * this invoice is written in. Codes, not symbols — a row is narrow
-             * and two currencies can share a symbol.
+             * A typed figure, as the base-currency integer to store.
+             *
+             * Section 6b: round the UNIT price to a whole base unit here, then
+             * multiply by quantity. Never convert a line total and divide.
              */
-            function currencyOptions(line) {
-                const codes = [baseCode];
+            const toBase = (typed) => inBase()
+                ? Math.round(Number(typed || 0))
+                : Math.round(Number(typed || 0) * rate());
 
-                if (documentCurrency() !== baseCode) codes.push(documentCurrency());
+            /** A stored base integer, as the number to put in a box. */
+            function fromBase(stored) {
+                if (inBase()) return Number(stored || 0);
 
-                // ⚠️ And whatever this line already says. A purchase written in
-                // a currency the shop has since switched off must still open —
-                // without this its own code is not in the list, the select
-                // silently shows the first option instead, and saving posts a
-                // currency nobody chose.
-                if (! codes.includes(line.currency)) codes.push(line.currency);
+                const r = rate();
 
-                return codes.map((code) =>
-                    `<option value="${escapeHtml(code)}" ${line.currency === code ? 'selected' : ''}>${escapeHtml(code)}</option>`
-                ).join('');
+                return r > 0 ? Number((Number(stored || 0) / r).toFixed(placesOf(invoiceCode()))) : 0;
             }
+
+            /** A stored base integer, written the way this screen reads. */
+            function show(stored) {
+                if (inBase()) return format(stored);
+
+                const places = placesOf(invoiceCode());
+
+                return fromBase(stored).toLocaleString('en-US', {
+                    minimumFractionDigits: places,
+                    maximumFractionDigits: places,
+                });
+            }
+
+            /** The same figure said in the books' own currency. */
+            const showBase = (stored) => format(stored) + ' ' + baseMark;
 
             // Section 8: an edit starts from the purchase's current lines.
             const cart = @json($cartLines ?? []);
@@ -337,12 +379,14 @@
                             <div class="fw-medium">${escapeHtml(line.name)}</div>
                             <div class="small text-secondary app-code">${escapeHtml(line.sku)}</div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
-                            <input type="hidden" name="lines[${index}][entered_currency]" value="${line.currency}">
-                            {{-- ⚠️ Scaled by THAT currency's minor units, not by
-                                 a hard-coded hundred. Cents were right while
-                                 dollars were the only choice. --}}
+                            {{-- Section 6b: what the line was written in, and
+                                 what was typed — kept so the document can show
+                                 it back and an edit reopens the box as it was.
+                                 ⚠️ Scaled by THAT currency's minor units, not by
+                                 a hard-coded hundred: a yen has no decimals. --}}
+                            <input type="hidden" name="lines[${index}][entered_currency]" value="${escapeHtml(invoiceCode())}">
                             <input type="hidden" name="lines[${index}][entered_amount]"
-                                   value="${line.currency === baseCode ? '' : Math.round(line.enteredAmount * minorPer(line.currency))}">
+                                   value="${inBase() || line.typed === null ? '' : Math.round(line.typed * minorPer(invoiceCode()))}">
                         </td>
                         <td>
                             <input type="number" min="1" step="1" dir="ltr"
@@ -352,25 +396,21 @@
                                    data-numpad="@json(__('Quantity'))" data-numpad-min="1">
                         </td>
                         <td>
-                            <select class="form-select form-select-sm" data-role="currency" data-index="${index}">
-                                ${currencyOptions(line)}
-                            </select>
-                        </td>
-                        <td>
-                            ${line.currency !== baseCode
-                                ? `<input type="number" min="0" step="${stepFor(line.currency)}" dir="ltr"
-                                          class="form-control form-control-sm text-end"
-                                          value="${line.enteredAmount}" data-role="foreign" data-index="${index}"
-                                          data-numpad="${escapeHtml(line.name)} (${escapeHtml(line.currency)})"
-                                          data-numpad-decimals="${Number(currencies[line.currency]?.decimals || 0)}">
-                                   <div class="small text-secondary text-end" data-role="converted">= ${format(line.price)} ${escapeHtml(baseMark)}</div>`
-                                : `<input type="number" min="0" step="1" dir="ltr"
-                                          class="form-control form-control-sm text-end"
-                                          value="${line.price}" data-role="price" data-index="${index}"
-                                          data-numpad="${escapeHtml(line.name)}">`}
+                            <div class="input-group input-group-sm">
+                                <input type="number" min="0" step="${stepFor(invoiceCode())}" dir="ltr"
+                                       class="form-control text-end"
+                                       value="${line.typed ?? fromBase(line.price)}"
+                                       data-role="price" data-index="${index}"
+                                       data-numpad="${escapeHtml(line.name)}"
+                                       data-numpad-decimals="${placesOf(invoiceCode())}">
+                                <span class="input-group-text app-code">${escapeHtml(markOf(invoiceCode()))}</span>
+                            </div>
+                            {{-- What this line will actually cost the books —
+                                 the batch cost FIFO is about to open. --}}
+                            ${inBase() ? '' : `<div class="small text-secondary text-end" dir="ltr" data-role="converted">= ${escapeHtml(showBase(line.price))}</div>`}
                             <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}">
                         </td>
-                        <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
+                        <td class="money fw-semibold">${show(line.quantity * line.price)}</td>
                         <td>
                             <div class="btn-group btn-group-sm">
                                 {{-- One delivery can bring the same thing in at
@@ -414,39 +454,101 @@
                 const row = cartBody.querySelectorAll('tr')[index];
                 if (! line || ! row) return;
 
-                row.querySelector('.money').textContent = format(line.quantity * line.price);
+                row.querySelector('.money').textContent = show(line.quantity * line.price);
 
-                // The form posts this, not the visible box, which may be dollars.
+                // ⚠️ The form posts these, not the visible box — which may be
+                // dollars, and the books are never in dollars.
                 row.querySelector('input[name$="[unit_price]"]').value = line.price;
+                row.querySelector('input[name$="[entered_amount]"]').value =
+                    inBase() || line.typed === null ? '' : Math.round(line.typed * minorPer(invoiceCode()));
+
+                // The base figure under the box keeps up as the digits arrive.
+                const converted = row.querySelector('[data-role="converted"]');
+
+                if (converted) converted.textContent = '= ' + showBase(line.price);
 
                 recalculate();
             }
 
             function recalculate() {
+                // Every figure here is a base-currency integer; only the writing
+                // of it changes with the invoice currency.
                 const subtotal = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
-                const discount = Number(discountInput.value || 0);
-                const grandTotal = subtotal - discount;
+                const grandTotal = subtotal - discount.get();
 
-                subtotalEl.textContent = format(subtotal);
-                grandTotalEl.textContent = format(grandTotal);
+                subtotalEl.textContent = show(subtotal);
+                grandTotalEl.textContent = show(grandTotal);
+
+                // What the books will hold, said plainly, whenever the figure
+                // above them is not already in the books' own currency.
+                grandTotalBase.textContent = showBase(grandTotal);
+                grandTotalBase.classList.toggle('d-none', inBase());
 
                 // An edit has no payment fields — Section 8 leaves payments alone.
                 if (! paidInput) return;
 
-                const due = grandTotal - Number(paidInput.value || 0);
+                const due = grandTotal - paid.get();
                 dueNote.textContent = due > 0
-                    ? @json(__('Remaining on account:')) + ' ' + format(due)
+                    ? @json(__('Remaining on account:')) + ' ' + show(due) + ' ' + markOf(invoiceCode())
                     : @json(__('Paid in full'));
             }
 
-            // Section 6b: round the UNIT price to whole base units first, then
-            // multiply by quantity. Never convert the line total and divide.
-            //
-            // The rate is base units per ONE unit of the invoice currency, so
-            // this is the same arithmetic whatever that currency is.
-            function toBase(amount) {
-                return Math.round(Number(amount || 0) * Number(rateInput?.value || 0));
+            /**
+             * A money box on this screen: it shows the invoice currency, and
+             * posts the base-currency integer through the hidden field.
+             *
+             * ⚠️ `typed` is the untouched-field rule of Section 2b. A box
+             * nobody has typed into is redrawn from its stored figure, so
+             * switching currency or correcting the rate can never rewrite a
+             * figure by a rounding — 10,000 dinars shown at 1,320 is $7.58,
+             * which converts back to 10,006.
+             */
+            function moneyBox(input, hidden) {
+                let stored = Math.round(Number(hidden.value || 0));
+                let typed = null;
+
+                function redraw() {
+                    input.value = typed ?? fromBase(stored);
+                    input.step = stepFor(invoiceCode());
+                }
+
+                input.addEventListener('input', () => {
+                    typed = Number(input.value || 0);
+                    stored = toBase(typed);
+                    hidden.value = stored;
+                    recalculate();
+                });
+
+                return {
+                    get: () => stored,
+                    /** Put a base figure in, as the screen itself worked it out. */
+                    set(value) {
+                        stored = Math.round(value);
+                        typed = null;
+                        hidden.value = stored;
+                        redraw();
+                    },
+                    /** The rate moved: a figure somebody typed is re-converted. */
+                    reprice() {
+                        if (typed !== null) {
+                            stored = toBase(typed);
+                            hidden.value = stored;
+                        }
+
+                        redraw();
+                    },
+                    /** The currency changed: the number in the box no longer means anything. */
+                    recurrency() {
+                        typed = null;
+                        redraw();
+                    },
+                };
             }
+
+            const discount = moneyBox(discountInput, document.getElementById('discount_amount'));
+            const paid = paidInput
+                ? moneyBox(paidInput, document.getElementById('amount_paid'))
+                : { get: () => 0, set() {}, reprice() {}, recurrency() {} };
 
             function addProduct(product) {
                 // Section 9b: scanning the same product again increments its
@@ -455,7 +557,7 @@
                 // a deliberate second price, and folding a scan into it would
                 // silently change what that line says.
                 const existing = cart.find((l) => l.id === product.id
-                    && l.currency === baseCode
+                    && l.typed === null
                     && l.price === product.purchase_price);
 
                 if (existing) {
@@ -466,8 +568,10 @@
                         name: product.name,
                         sku: product.sku,
                         quantity: 1,
-                        currency: baseCode,
-                        enteredAmount: 0,
+                        // Section 2b: nobody has typed a figure for this line
+                        // yet, so its box is drawn from the price below. See
+                        // moneyBox for why that distinction matters.
+                        typed: null,
                         // Section 9: the purchase cart defaults to the last
                         // purchase price. A first-time purchase has none, so it
                         // starts at 0 and must be typed.
@@ -613,46 +717,11 @@
                 if (role === 'qty') {
                     line.quantity = Math.max(1, Number(event.target.value || 1));
                 } else if (role === 'price') {
-                    line.price = Math.max(0, Number(event.target.value || 0));
-                } else if (role === 'foreign') {
-                    line.enteredAmount = Number(event.target.value || 0);
-                    line.price = toBase(line.enteredAmount);
-
-                    // The converted figure sits beside the foreign box, so it
-                    // has to keep up as the digits arrive.
-                    const converted = cartBody.querySelectorAll('tr')[index]
-                        .querySelector('[data-role="converted"]');
-
-                    if (converted) {
-                        converted.textContent = '= ' + format(line.price) + ' ' + baseMark;
-                    }
-
-                    // And so does the amount the form will actually post.
-                    const posted = cartBody.querySelectorAll('tr')[index]
-                        .querySelector('input[name$="[entered_amount]"]');
-
-                    if (posted) {
-                        posted.value = Math.round(line.enteredAmount * minorPer(line.currency));
-                    }
+                    line.typed = Math.max(0, Number(event.target.value || 0));
+                    line.price = Math.max(0, toBase(line.typed));
                 }
 
                 refreshRow(index);
-            });
-
-            cartBody.addEventListener('change', (event) => {
-                if (event.target.dataset.role !== 'currency') return;
-
-                const line = cart[Number(event.target.dataset.index)];
-                if (! line) return;
-
-                line.currency = event.target.value;
-
-                if (line.currency !== baseCode) {
-                    line.enteredAmount = 0;
-                    line.price = 0;
-                }
-
-                render();
             });
 
             cartBody.addEventListener('click', (event) => {
@@ -665,11 +734,8 @@
                     render();
 
                     // Straight into the new line's price, since that is what
-                    // the second line is for. In a foreign currency it is the
-                    // typed amount that matters, not the converted one.
-                    const row = `[data-index="${at + 1}"]`;
-                    (cartBody.querySelector(`[data-role="foreign"]${row}`)
-                        ?? cartBody.querySelector(`[data-role="price"]${row}`))?.focus();
+                    // the second line is for.
+                    cartBody.querySelector(`[data-role="price"][data-index="${at + 1}"]`)?.focus();
 
                     return;
                 }
@@ -689,75 +755,82 @@
              * exchange rate — which is the truth about it.
              */
             function showRateBox() {
+                // Every box on the screen says which currency it is taking.
+                document.querySelectorAll('[data-role="mark"]')
+                    .forEach((el) => { el.textContent = markOf(invoiceCode()); });
+
                 if (! rateInput) return;
 
-                const code = documentCurrency();
-                const foreign = code !== baseCode;
+                rateInput.disabled = inBase();
+                rateBox.classList.toggle('d-none', inBase());
+                rateWarning.classList.toggle('d-none', inBase());
 
-                rateInput.disabled = ! foreign;
-                rateBox.classList.toggle('d-none', ! foreign);
-                rateWarning.classList.toggle('d-none', ! foreign);
-
-                if (foreign) rateOf.textContent = '1 ' + code + ' =';
+                if (! inBase()) rateOf.textContent = '1 ' + invoiceCode() + ' =';
             }
 
             if (rateInput) {
                 rateInput.addEventListener('input', () => {
                     // Section 6b: warn if the entered rate differs from the
                     // saved one by more than ~10%, usually a typo.
-                    const saved = savedRate(documentCurrency());
-                    const rate = Number(rateInput.value || 0);
+                    const saved = savedRate(invoiceCode());
+                    const typed = rate();
 
-                    rateWarning.textContent = saved > 0 && rate > 0
-                        && Math.abs(rate - saved) / saved > 0.1
+                    rateWarning.textContent = saved > 0 && typed > 0
+                        && Math.abs(typed - saved) / saved > 0.1
                         ? @json(__('That is more than 10% away from the saved rate. Check for a typo.'))
                         : '';
                     rateWarning.className = rateWarning.textContent ? 'form-text text-warning' : 'form-text';
 
+                    /*
+                     * ⚠️ A line somebody TYPED a figure into follows the rate:
+                     * $10 at a corrected 1,550 is 15,500 dinars, not 15,000. A
+                     * line nobody typed into keeps its base price and is simply
+                     * redrawn — that price is what the supplier charged, and a
+                     * rate correction is not a reason to move it.
+                     */
                     cart.forEach((line) => {
-                        if (line.currency !== baseCode) line.price = toBase(line.enteredAmount);
+                        if (line.typed !== null) line.price = toBase(line.typed);
                     });
 
+                    discount.reprice();
+                    paid.reprice();
                     render();
                 });
             }
 
             if (currencySelect) {
                 currencySelect.addEventListener('change', () => {
-                    const code = documentCurrency();
-
                     // The box starts at whatever Settings has for the new
                     // currency; a rate typed for the old one means nothing here.
-                    if (code !== baseCode) rateInput.value = savedRate(code) || '';
+                    if (! inBase()) rateInput.value = savedRate(invoiceCode()) || '';
 
                     rateWarning.textContent = '';
 
                     /*
-                     * Every line goes back to the base currency, keeping the
-                     * price it already converted to. The amount somebody typed
-                     * was so many of the OLD currency, and there is no honest
-                     * way to read it as the new one — but the base figure on
-                     * the line is a real price, and throwing it away would
-                     * empty a cart somebody had finished typing.
+                     * ⚠️ Nothing the invoice is worth changes — only the
+                     * currency it is read and typed in. Every price keeps its
+                     * base figure and is redrawn converted, which is the whole
+                     * point of the choice: pick dollars and the screen is in
+                     * dollars. The number somebody typed was so many of the OLD
+                     * currency and cannot be read as the new one, so it is
+                     * forgotten and the box is drawn from the price itself.
                      */
-                    cart.forEach((line) => {
-                        line.currency = baseCode;
-                        line.enteredAmount = 0;
-                    });
+                    cart.forEach((line) => { line.typed = null; });
 
                     showRateBox();
+                    discount.recurrency();
+                    paid.recurrency();
                     render();
                 });
             }
 
-            discountInput.addEventListener('input', recalculate);
-
             if (paidInput) {
-                paidInput.addEventListener('input', recalculate);
-
                 document.getElementById('pay-full').addEventListener('click', () => {
                     const subtotal = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
-                    paidInput.value = Math.max(0, subtotal - Number(discountInput.value || 0));
+
+                    // Set in base units, so paying in full pays the exact figure
+                    // the books are about to record — never a converted one.
+                    paid.set(Math.max(0, subtotal - discount.get()));
                     recalculate();
                 });
             }
@@ -774,6 +847,8 @@
             });
 
             showRateBox();
+            discount.recurrency();
+            paid.recurrency();
             render();
         })();
     </script>

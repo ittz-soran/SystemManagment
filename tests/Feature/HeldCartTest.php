@@ -250,7 +250,10 @@ class HeldCartTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('purchases.create', ['held' => HeldCart::sole()->id]))
             ->assertOk()
-            ->assertViewHas('cartLines', fn (array $lines) => $lines[0]['currency'] === 'IQD');
+            ->assertViewHas('cartLines', fn (array $lines) => $lines[0]['currency'] === 'IQD'
+                // Nobody typed a foreign figure, so the box is drawn from the
+                // price rather than from a converted round trip — Section 2b.
+                && $lines[0]['typed'] === null);
     }
 
     /**
@@ -279,7 +282,7 @@ class HeldCartTest extends TestCase
             ->assertOk()
             ->assertViewHas('cartLines', function (array $lines) {
                 return $lines[0]['currency'] === 'USD'
-                    && (float) $lines[0]['enteredAmount'] === 10.0
+                    && (float) $lines[0]['typed'] === 10.0
                     && $lines[0]['price'] === 13_200;
             });
     }

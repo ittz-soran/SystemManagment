@@ -89,17 +89,17 @@ class NumberPadTest extends TestCase
         $this->assertSame(2, substr_count($html, 'data-numpad='), 'price and quantity');
     }
 
-    public function test_the_purchase_cart_opens_it_for_quantity_and_both_price_boxes(): void
+    public function test_the_purchase_cart_opens_it_for_quantity_and_the_price_box(): void
     {
         $html = $this->actingAs($this->admin)->get(route('purchases.create'))->assertOk()->getContent();
 
-        // Quantity, the base-currency price, and the foreign box — which is
-        // the one that needs decimals. Section 2b: how many places it takes is
-        // the chosen currency's own answer, so the attribute is written from it
-        // rather than hard-coded to a dollar's two.
-        $this->assertSame(3, substr_count($html, 'data-numpad='));
-        $this->assertStringContainsString('data-numpad-decimals=', $html);
-        $this->assertStringContainsString('currencies[line.currency]?.decimals', $html);
+        // Quantity and the price — two boxes, because Section 2b gave the
+        // invoice ONE currency and the row lost its per-line second box.
+        $this->assertSame(2, substr_count($html, 'data-numpad='));
+
+        // How many places the keypad takes is the invoice currency's own
+        // answer, never a hard-coded two: a yen has none, a dinar has none.
+        $this->assertStringContainsString('data-numpad-decimals="${placesOf(invoiceCode())}"', $html);
     }
 
     /**
