@@ -83,7 +83,7 @@
                             <td class="fw-medium">
                                 <x-document-link :document="$adjustment" :kind="false" />
                             </td>
-                            <td dir="ltr" class="small">{{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}</td>
+                            <td class="small"><span class="app-code">{{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td>
                                 <a href="{{ route('products.show', $adjustment->product) }}" class="text-decoration-none">
                                     {{ $adjustment->product->name }}
@@ -103,7 +103,7 @@
                                  written off is the true FIFO cost of the batches
                                  it consumed. --}}
                             <td class="money text-secondary">
-                                {{ $adjustment->unit_cost !== null ? cost_money($adjustment->unit_cost, false, $lens) : __('FIFO') }}
+                                {{ $adjustment->unit_cost !== null ? cost_money($adjustment->unit_cost, in: $lens) : __('FIFO') }}
                             </td>
                             <td class="text-end">
                                 {{-- Offered plainly, like the delete beside it: the

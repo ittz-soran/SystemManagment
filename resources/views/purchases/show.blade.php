@@ -133,7 +133,7 @@
                                         'rate' => money($purchase->exchange_rate, in: $lens),
                                     ]) }}
                                 </td>
-                                <td class="money" dir="ltr">
+                                <td class="money">
                                     {{ $purchase->asWritten($purchase->grand_total) }} {{ $writtenIn->mark() }}
                                 </td>
                             </tr>

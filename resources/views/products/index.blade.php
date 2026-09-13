@@ -85,7 +85,7 @@
                     {{ __(':amount profit if it all sells', [
                         'amount' => $shelfCost === null
                             ? hidden_money()
-                            : money($shelfWorth - $shelfCost, false, $lens),
+                            : money($shelfWorth - $shelfCost, in: $lens),
                     ]) }}
                 </span>
             </div>
@@ -216,8 +216,8 @@
                                     </span>
                                     <span class="text-secondary small">{{ $product->unit }}</span>
                                 </td>
-                                <td class="money text-secondary">{{ cost_money($product->purchase_price, false, $lens) }}</td>
-                                <td class="money">{{ money($product->sale_price, false, $lens) }}</td>
+                                <td class="money text-secondary">{{ cost_money($product->purchase_price, in: $lens) }}</td>
+                                <td class="money">{{ money($product->sale_price, in: $lens) }}</td>
                                 <td class="text-end">
                                     @if($showingDeleted)
                                         {{-- The usual thing to do with a deleted

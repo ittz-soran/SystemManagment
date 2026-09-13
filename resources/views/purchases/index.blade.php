@@ -107,9 +107,9 @@
                             <td><span class="app-code">{{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td><x-document-link :document="$purchase->supplier" :kind="false" /></td>
                             <td><x-status-badge :status="$purchase->status" /></td>
-                            <td class="money">{{ money($purchase->grand_total, false, $lens) }}</td>
+                            <td class="money">{{ money($purchase->grand_total, in: $lens) }}</td>
                             <td class="money {{ $purchase->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">
-                                {{ money($purchase->amountDue(), false, $lens) }}
+                                {{ money($purchase->amountDue(), in: $lens) }}
                             </td>
                             <td class="text-end">
                                 <x-row-actions :print="route('purchases.print', $purchase)" />

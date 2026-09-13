@@ -34,20 +34,20 @@
             ],
             [
                 'label' => __('Money tied up in them'),
-                'value' => money_if($figures['held_value'] !== null, $figures['held_value'], false, $lens),
+                'value' => money_if($figures['held_value'] !== null, $figures['held_value'], in: $lens),
                 'note' => __('right now'),
                 'tone' => '',
             ],
             [
                 'label' => __('Expected profit'),
-                'value' => money_if($figures['expected'] !== null, $figures['expected'], false, $lens),
+                'value' => money_if($figures['expected'] !== null, $figures['expected'], in: $lens),
                 'note' => __('if they sell at the asking price'),
                 'tone' => 'text-secondary',
             ],
             [
                 'label' => __('Bought'),
                 'value' => number_format($figures['bought']),
-                'note' => __('for :amount', ['amount' => money_if($figures['spent'] !== null, $figures['spent'], false, $lens)]),
+                'note' => __('for :amount', ['amount' => money_if($figures['spent'] !== null, $figures['spent'], in: $lens)]),
                 'tone' => '',
             ],
             [
@@ -58,7 +58,7 @@
             ],
             [
                 'label' => __('Made'),
-                'value' => money_if($figures['made'] !== null, $figures['made'], false, $lens),
+                'value' => money_if($figures['made'] !== null, $figures['made'], in: $lens),
                 'note' => __('what those sales actually made'),
                 'tone' => match (true) {
                     $figures['made'] === null => 'text-secondary',
@@ -250,7 +250,7 @@
                                         </span>
                                     @endif
                                     <div class="small text-secondary fw-normal">
-                                        {{ __('sold for :amount', ['amount' => money($sale->unit_price, false, $lens)]) }}
+                                        {{ __('sold for :amount', ['amount' => money($sale->unit_price, in: $lens)]) }}
                                     </div>
                                 @else
                                     <span class="text-secondary fw-normal">

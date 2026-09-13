@@ -58,12 +58,12 @@
                                 @endunless
                             </td>
                             <td class="small text-secondary">{{ $service->category->name }}</td>
-                            <td class="money">{{ money($service->sale_price, false, $lens) }}</td>
+                            <td class="money">{{ money($service->sale_price, in: $lens) }}</td>
                             <td class="money text-secondary">{{ number_format((int) ($row->units ?? 0)) }}</td>
                             {{-- Earned, not revenue: a service has no cost, so
                                  the two are the same number. --}}
                             <td class="money fw-semibold text-success">
-                                {{ money((int) ($row->revenue ?? 0), false, $lens) }}
+                                {{ money((int) ($row->revenue ?? 0), in: $lens) }}
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">

@@ -263,7 +263,7 @@
                              a return can refill it." So an empty batch is dimmed,
                              never hidden. --}}
                         <tr class="{{ $batch->quantity_remaining === 0 ? 'opacity-50' : '' }}">
-                            <td class="small" dir="ltr">{{ $batch->received_at->format('Y-m-d H:i') }}</td>
+                            <td class="small"><span class="app-code">{{ $batch->received_at->format('Y-m-d H:i') }}</span></td>
                             <td class="small">
                                 <x-document-link :document="$batch->source"
                                                  :type="$batch->source_type"
@@ -308,7 +308,7 @@
                     <tbody>
                     @foreach($movements as $movement)
                         <tr>
-                            <td class="small" dir="ltr">{{ $movement->occurred_at->format('Y-m-d H:i') }}</td>
+                            <td class="small"><span class="app-code">{{ $movement->occurred_at->format('Y-m-d H:i') }}</span></td>
                             <td class="small">
                                 <x-document-link :document="$movement->reference"
                                                  :type="$movement->reference_type"

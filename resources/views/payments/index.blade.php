@@ -107,7 +107,7 @@
                             <td class="fw-medium">
                                 <x-document-link :document="$payment" :kind="false" />
                             </td>
-                            <td dir="ltr">{{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}</td>
+                            <td><span class="app-code">{{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td class="small">
                                 <x-document-link :document="$payment->payable"
                                                  :type="$payment->payable_type"
@@ -116,7 +116,7 @@
                             <td>{{ Str::headline($payment->payment_method) }}</td>
                             <td class="small text-secondary">{{ $payment->user->name }}</td>
                             <td class="money fw-semibold {{ $payment->direction === 'in' ? 'text-success' : 'text-danger' }}">
-                                {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, false, $lens) }}
+                                {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, in: $lens) }}
                             </td>
                             <td class="text-end">
                                 <x-row-actions

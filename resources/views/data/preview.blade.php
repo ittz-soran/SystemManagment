@@ -46,7 +46,7 @@
                     <tbody>
                     @foreach($result['rows'] as $row)
                         <tr>
-                            <td class="text-secondary" dir="ltr">{{ $row['line'] }}</td>
+                            <td class="text-secondary"><span class="app-code">{{ $row['line'] }}</span></td>
                             <td class="fw-medium">{{ $row['name'] }}</td>
                             <td>
                                 @php

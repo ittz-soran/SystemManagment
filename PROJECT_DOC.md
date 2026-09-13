@@ -149,6 +149,20 @@ Decided with Soran, 2026-09-13:
 
 > ⚠️ **The untouched-field rule.** Rounding does not survive a round trip: 10,000 dinars shown at 1,320 is $7.5757…, written `$7.58`, which converts back to **10,006**. A screen that converts a field nobody edited rewrites it — and editing one line of a ten-line purchase would silently move the other nine, each still looking plausible. So every money field carries its original stored value, and **only a field somebody actually typed into is converted back**. The first test written for the lens is: open a record in USD mode, change nothing, save, assert every stored figure is identical.
 
+### Reading a list — Soran, 2026-09-14
+
+Three things he pointed at on the Expenses list, each of which was on every screen like it:
+
+- ⚠️ **A bare figure in a list that can be read in three currencies says nothing.** `946.97` is a dollar figure or a dinar one depending on a switch at the top of the page, and the reader scanning rows is not looking at the switch. Single-amount lists now carry the mark on the figure — `946.97 $`. The wide analytical tables in Reports do not: five money columns each repeating the same suffix is noise, and that page's banner already names the currency.
+- ⚠️ **`dir="ltr"` on a `<td>` sets its ALIGNMENT as well as its direction**, so in Kurdish, Arabic or Persian a date column hugged the left edge while its own heading sat on the right. The answer is `<span class="app-code">` inside the cell — LTR within, one ordinary inline box without. Soran has pointed at this twice now, on two different screens, so `RtlAlignmentTest` checks all of `resources/views` rather than the screen in front of us. Printed sheets are exempt: they are laid out left-to-right as a whole.
+- **The lens switcher stands in the actions bar** beside "New expense", so it is full height. A 31px switch next to a 38px button reads as a mistake.
+
+### The row's buttons, second pass
+
+**2026-09-12** they were 32 wide by 38 tall and being missed by a thumb; they became square and touch-sized. **2026-09-14** Soran asked for them to look better, and the size was not the problem — the weight was. Two boxed outlines per row, one of them red, on twenty rows is forty boxes and twenty red warnings on a list nobody opened to delete anything from.
+
+So they go quiet until they are reached for: no border, no fill, the icon in secondary ink. Hover, focus and touch bring the box back, and the delete brings its red back with it — on the one row being pointed at rather than on all of them. ⚠️ The hit area does not change, and `:focus-visible` is styled explicitly, because a keyboard reader who cannot see a border has no idea where they are.
+
 ### Where it lives
 
 `App\Support\Money` is the only place that knows the answer, on the server; `window.appMoney` in the layout head mirrors it for the four cart screens that add up a total between keystrokes.
@@ -219,9 +233,19 @@ A purchase written in a foreign currency prints the base figure, the foreign fig
 
 Printed documents take no lens, ever. The reader of a printed invoice never chose a preference and cannot see one.
 
-### What is not done yet
+### The three controls that can change what a stored figure MEANS
 
-IQD's `decimals` is still not editable from Settings.
+The Currencies screen offers them; each is guarded differently, and the guards are the design.
+
+**`decimals` — what the integer counts.** Editable, including on the base, where changing 0 to 3 *is* the redenomination above. No row moves and nothing is written: the stored integer stops counting dinars and starts counting fils, and only the reading of it changes. Which is exactly why it is safe to offer — set it back and every screen reads as it did. The base's `rate` follows the decimals it was just given, never the ones the row is still holding.
+
+⚠️ **Which currency is the base.** Every stored integer counts base-currency minor units, so pointing `currency_base` at the dollar does not convert 250,000 recorded dinars — it **reinterprets** them as $250,000, on every document at once. There is no wording that makes clicking that reasonable, so the guard is a fact rather than a confirmation: **the base moves only while nothing has been recorded.** That is a shop choosing its currency during setup, which is the case that actually needs it. After the first purchase, sale, payment, expense or adjustment the button is disabled and says what is holding it. The old base is switched off with a reciprocal rate worked out for it, and the message says to check that rate rather than trust it.
+
+> **Converting an existing shop's books is not built.** It would mean rewriting 23 money columns across 15 tables, rounding every row, and it is not undoable. If a shop ever genuinely needs it, it is a command with a backup step, not a button.
+
+**Deleting one.** Only when nothing points at it: not the base, no purchase line naming it, nobody reading in it. A purchase records the code it was invoiced in, and a code with no row behind it prints as a blank on the invoice that needs it most. Anything still in use is switched off instead, which is what `is_active` has always been for. The button is disabled with the reason on the row — *"2 purchase lines were typed in USD, and their documents still name it"* — rather than hidden.
+
+### What is not done yet
 
 Sales carry no `exchange_rate` column, so a sale cannot be written in a foreign currency and its printout has one figure. That follows from decision 3b — you sell across a counter in dinars — and is not an omission.
 

@@ -79,10 +79,51 @@
                         </td>
 
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-secondary"
-                                    data-bs-toggle="modal" data-bs-target="#edit-{{ $currency->id }}">
-                                {{ __('Edit') }}
-                            </button>
+                            @php($blocker = $blockers[$currency->code] ?? null)
+
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary"
+                                        data-bs-toggle="modal" data-bs-target="#edit-{{ $currency->id }}">
+                                    <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+                                </button>
+
+                                @unless($isBase)
+                                    {{-- ⚠️ Moving the books REINTERPRETS every stored
+                                         figure, so the button exists only while nothing
+                                         has been recorded. Shown disabled with the reason
+                                         rather than hidden: a missing button is a
+                                         shopkeeper searching other screens for it. --}}
+                                    <form method="POST" action="{{ route('currencies.base', $currency) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm(@js(__('Keep the books in :code from now on? Nothing already recorded is converted — this only works because nothing has been.', ['code' => $currency->code])))">
+                                        @csrf
+                                        <button class="btn btn-outline-secondary rounded-0"
+                                                @disabled($recorded !== null)
+                                                title="{{ $recorded !== null
+                                                    ? __('The books already have :what recorded.', ['what' => $recorded])
+                                                    : __('Keep the books in :code', ['code' => $currency->code]) }}">
+                                            <i class="bi bi-journal-check me-1"></i>{{ __('Make base') }}
+                                        </button>
+                                    </form>
+
+                                    <form method="POST" action="{{ route('currencies.destroy', $currency) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm(@js(__('Remove :code?', ['code' => $currency->code])))">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="btn btn-outline-danger"
+                                                @disabled($blocker !== null)
+                                                title="{{ $blocker ?? __('Remove :code', ['code' => $currency->code]) }}"
+                                                aria-label="{{ __('Remove :code', ['code' => $currency->code]) }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                @endunless
+                            </div>
+
+                            @if($blocker && ! $isBase)
+                                <div class="small text-secondary mt-1">{{ $blocker }}</div>
+                            @endif
                         </td>
                     </tr>
                 @endforeach
@@ -125,6 +166,35 @@
                             <div class="form-text">{{ __('Shown after a figure. The code is used when this is blank.') }}</div>
                         </div>
 
+                        <div>
+                            <label for="decimals-{{ $currency->id }}" class="form-label">
+                                {{ __('Decimal places') }}
+                            </label>
+                            <select id="decimals-{{ $currency->id }}" name="decimals" class="form-select">
+                                @foreach([0, 2, 3] as $option)
+                                    <option value="{{ $option }}" @selected(old('decimals', $currency->decimals) == $option)>
+                                        {{ trans_choice('{0}None — whole units only|{1}:count place|[2,*]:count places', $option, ['count' => $option]) }}
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            @if($isBase)
+                                {{-- ⚠️ Section 2b: on the base this IS the
+                                     redenomination. Nothing is written and no row
+                                     moves — the stored integer stops counting
+                                     dinars and starts counting fils. Which is also
+                                     why it is safe to offer: set it back and every
+                                     screen reads exactly as it did. --}}
+                                <div class="form-text text-warning">
+                                    {{ __('This is what every stored amount counts. With three places a figure reading 250,000 today reads 250 instead, on every screen at once. Nothing is written and no record moves — setting it back puts every figure exactly where it was.') }}
+                                </div>
+                            @else
+                                <div class="form-text">
+                                    {{ __('How this currency is written. Two for a dollar, none for a whole-unit currency.') }}
+                                </div>
+                            @endif
+                        </div>
+
                         @unless($isBase)
                             <div>
                                 <label for="rate-{{ $currency->id }}" class="form-label">
@@ -153,7 +223,7 @@
                                  it reprices every screen at once, and the entry half is
                                  not built — a shop could read 15.5 and not type it. --}}
                             <div class="alert alert-light border small mb-0">
-                                {{ __('This is the currency the books are kept in, so it has no rate of its own and cannot be switched off. Its :decimals decimal places are what every stored amount counts in, and changing that is a separate job.', ['decimals' => $currency->decimals]) }}
+                                {{ __('This is the currency the books are kept in, so it has no rate of its own and cannot be switched off.') }}
                             </div>
                         @endunless
                     </div>

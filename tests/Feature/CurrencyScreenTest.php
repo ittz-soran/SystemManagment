@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\Currency;
 use App\Models\Permission;
+use App\Models\Product;
+use App\Models\Supplier;
 use App\Models\User;
+use App\Services\PurchaseService;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -12,9 +16,9 @@ use Tests\TestCase;
 /**
  * Managing the currencies a shop can type and read in — Section 2b.
  *
- * The interesting tests here are the two REFUSALS. Everything else is an
- * ordinary managed list; those two are the reason the page needed thinking
- * about at all, because both of them silently reprice the whole shop.
+ * The interesting tests here are the REFUSALS. Everything else is an ordinary
+ * managed list; those are the reason the page needed thinking about at all,
+ * because each of them can silently reprice the whole shop.
  */
 class CurrencyScreenTest extends TestCase
 {
@@ -37,6 +41,191 @@ class CurrencyScreenTest extends TestCase
     private function iqd(): Currency
     {
         return Currency::where('code', 'IQD')->firstOrFail();
+    }
+
+    // ---- Which currency the books are kept in ---------------------------
+
+    /**
+     * ⚠️ THE MOST DANGEROUS BUTTON ON THIS SCREEN, and why it is guarded by a
+     * fact rather than a confirmation.
+     *
+     * Every stored integer counts base-currency minor units. Point
+     * `currency_base` at the dollar and 250,000 recorded dinars do not convert
+     * — they are REINTERPRETED as $250,000, on every document at once. There is
+     * no wording that makes clicking that a reasonable thing to do, so the move
+     * is allowed only while nothing has been recorded.
+     */
+    public function test_the_books_cannot_move_once_anything_has_been_recorded(): void
+    {
+        $this->aPurchase();
+
+        $this->actingAs($this->admin)
+            ->post(route('currencies.base', $this->usd()))
+            ->assertRedirect();
+
+        $this->assertSame('IQD', Money::base()->code, 'the books moved with documents in them');
+    }
+
+    /** And the screen says so, rather than hiding the button. */
+    public function test_the_screen_says_why_the_books_cannot_move(): void
+    {
+        $this->aPurchase();
+
+        $this->actingAs($this->admin)->get(route('currencies.index'))
+            ->assertOk()
+            ->assertSee(__('Make base'))
+            ->assertSee('disabled', false);
+    }
+
+    /** A shop choosing its currency during setup is the case that needs it. */
+    public function test_a_shop_with_nothing_recorded_can_choose_its_currency(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('currencies.base', $this->usd()))
+            ->assertSessionHasNoErrors()->assertRedirect();
+
+        Currency::flushCache();
+
+        $this->assertSame('USD', Money::base()->code);
+
+        // ⚠️ The new base takes the definitional rate: a dollar is one dollar.
+        $this->assertSame(100 * Money::RATE_SCALE, $this->usd()->fresh()->rate);
+
+        /*
+         * And the old base is switched off with a worked-out rate. 1 IQD is
+         * 1/1320 of a dollar — 0.076 of a cent-counting rate — which is a
+         * starting point, not an answer, so nothing is priced with it until
+         * somebody has looked.
+         */
+        $iqd = $this->iqd()->fresh();
+
+        $this->assertFalse($iqd->is_active);
+        $this->assertSame(76, $iqd->rate);
+    }
+
+    // ---- Decimals -------------------------------------------------------
+
+    /**
+     * ⚠️ Section 2b's redenomination, from the screen.
+     *
+     * Changing the base's decimals is what turns 250,000 dinars into 250. No
+     * row moves and nothing is written — the stored integer stops counting
+     * dinars and starts counting fils — which is exactly why it is safe to
+     * offer: setting it back puts every figure where it was.
+     */
+    public function test_the_base_decimals_change_the_reading_and_nothing_else(): void
+    {
+        $before = Product::create([
+            'name' => 'Cable', 'sku' => 'C9', 'unit' => 'pcs',
+            'category_id' => Category::firstOrFail()->id,
+            'purchase_price' => 250_000, 'sale_price' => 250_000,
+        ]);
+
+        $this->actingAs($this->admin)->put(route('currencies.update', $this->iqd()), [
+            'name' => 'Iraqi Dinar',
+            'symbol' => 'د.ع',
+            'decimals' => 3,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        Currency::flushCache();
+
+        // The stored figure has not moved one unit.
+        $this->assertSame(250_000, $before->fresh()->purchase_price);
+
+        // Only the reading of it has.
+        $this->assertSame('250', Money::format(250_000));
+
+        // And the base's rate follows the decimals it was just given.
+        $this->assertSame(1_000 * Money::RATE_SCALE, $this->iqd()->fresh()->rate);
+    }
+
+    /** Setting it back puts every figure exactly where it was. */
+    public function test_the_redenomination_is_reversible(): void
+    {
+        foreach ([3, 0] as $places) {
+            $this->actingAs($this->admin)->put(route('currencies.update', $this->iqd()), [
+                'name' => 'Iraqi Dinar', 'symbol' => 'د.ع', 'decimals' => $places,
+            ])->assertSessionHasNoErrors();
+
+            Currency::flushCache();
+        }
+
+        $this->assertSame('250,000', Money::format(250_000));
+    }
+
+    // ---- Removing one ---------------------------------------------------
+
+    /** A currency nothing points at can simply go. */
+    public function test_a_currency_nothing_uses_can_be_removed(): void
+    {
+        $this->actingAs($this->admin)
+            ->delete(route('currencies.destroy', $this->usd()))
+            ->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->assertDatabaseMissing('currencies', ['code' => 'USD']);
+    }
+
+    /**
+     * ⚠️ But not one a document names.
+     *
+     * A purchase records the code it was invoiced in, and a code with no row
+     * behind it prints as a blank on the invoice that needs it most.
+     */
+    public function test_a_currency_a_document_names_is_kept(): void
+    {
+        $this->aPurchase(currency: 'USD');
+
+        $this->actingAs($this->admin)
+            ->delete(route('currencies.destroy', $this->usd()))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('currencies', ['code' => 'USD']);
+    }
+
+    /** Nor one somebody is reading in. */
+    public function test_a_currency_somebody_reads_in_is_kept(): void
+    {
+        User::whereKey($this->admin->getKey())->update(['display_currency' => 'USD']);
+
+        $this->actingAs($this->admin)
+            ->delete(route('currencies.destroy', $this->usd()))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('currencies', ['code' => 'USD']);
+    }
+
+    /** And never the one the books are kept in. */
+    public function test_the_base_cannot_be_removed(): void
+    {
+        $this->actingAs($this->admin)
+            ->delete(route('currencies.destroy', $this->iqd()))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('currencies', ['code' => 'IQD']);
+    }
+
+    /** One recorded purchase, so the books are no longer empty. */
+    private function aPurchase(?string $currency = null): void
+    {
+        $product = Product::create([
+            'name' => 'Cable', 'sku' => 'C'.random_int(100, 999), 'unit' => 'pcs',
+            'category_id' => Category::firstOrFail()->id,
+            'purchase_price' => 1_000, 'sale_price' => 1_500,
+        ]);
+
+        app(PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'S']),
+            lines: [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 10_000,
+                'entered_currency' => $currency ?? 'IQD',
+                'entered_amount' => $currency ? 1_000 : null,
+            ]],
+            user: $this->admin,
+            purchaseDate: today(),
+            exchangeRate: $currency ? 1_320 : null,
+        );
     }
 
     public function test_it_lists_what_the_shop_can_type_in(): void

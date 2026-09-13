@@ -771,6 +771,65 @@ a.stat-tile {
 }
 
 /*
+ * **Soran circled these again, 2026-09-14: "options icon can make better and
+ * more beautiful ui".**
+ *
+ * The size was right; the weight was not. Two boxed outlines per row, one of
+ * them red, on twenty rows is forty boxes and twenty red warnings for a list
+ * nobody came to delete anything from. The red is the loudest thing on the
+ * screen and it is attached to the action least often wanted.
+ *
+ * So the buttons go quiet until they are reached for: no border, no fill, the
+ * icon in secondary ink. Hover, focus and touch bring the box back — and the
+ * delete brings its red back with it, on the one row being pointed at rather
+ * than on all of them.
+ *
+ * ⚠️ Nothing about the hit area changes. The square above still stands, and
+ * `:focus-visible` is styled explicitly because a keyboard reader who cannot
+ * see a border has no idea where they are.
+ */
+.app-row-actions .btn {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--bs-secondary-color);
+  transition: color .12s ease, background-color .12s ease, border-color .12s ease;
+}
+
+.app-row-actions .btn:hover,
+.app-row-actions .btn:focus-visible,
+.app-row-actions .btn.show {
+  border-color: var(--bs-border-color);
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+}
+
+// The one irreversible action keeps its colour — at the moment it is reached
+// for, which is when saying it twice is worth the noise.
+.app-row-actions .btn-outline-danger:hover,
+.app-row-actions .btn-outline-danger:focus-visible {
+  border-color: var(--bs-danger);
+  background-color: var(--bs-danger);
+  color: #fff;
+}
+
+// A locked action has to read as locked whether or not anybody hovers it.
+.app-row-actions .btn:disabled,
+.app-row-actions .btn.disabled {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--bs-secondary-color);
+  opacity: .4;
+}
+
+// Bootstrap draws the group's shared borders with negative margins, which with
+// transparent borders leaves the icons a pixel too close together.
+.app-row-actions.btn-group > .btn + .btn,
+.app-row-actions.btn-group > .d-inline-block + .d-inline-block > .btn,
+.app-row-actions.btn-group > form + form > .btn {
+  margin-inline-start: .125rem;
+}
+
+/*
  * A dropdown of checkboxes, standing in for a multiple select.
  *
  * See components/checkbox-select.blade.php. The height is matched to

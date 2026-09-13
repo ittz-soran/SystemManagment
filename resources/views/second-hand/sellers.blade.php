@@ -41,7 +41,7 @@
                     <thead>
                     <tr>
                         <th>{{ __('Name') }}</th>
-                        <th dir="ltr">{{ __('Phone') }}</th>
+                        <th>{{ __('Phone') }}</th>
                         <th class="money">{{ __('Still owed') }}</th>
                         <th class="text-end">{{ __('Actions') }}</th>
                     </tr>
@@ -54,7 +54,7 @@
                                     {{ $seller->name }}
                                 </a>
                             </td>
-                            <td dir="ltr" class="small text-secondary">{{ $seller->phone ?: '—' }}</td>
+                            <td class="small text-secondary"><span class="app-code">{{ $seller->phone ?: '—' }}</span></td>
                             <td class="money fw-semibold {{ $seller->balance > 0 ? 'text-danger' : 'text-secondary' }}">
                                 {{ money($seller->balance, false, $lens) }}
                             </td>

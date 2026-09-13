@@ -40,7 +40,10 @@
             <span class="small text-secondary">{{ $label }}</span>
         @endif
 
-        <div class="btn-group btn-group-sm" role="group"
+        {{-- ⚠️ Full height, not `btn-group-sm`. This sits in the actions bar
+             beside "New …" and the rest, and a 31px switch next to a 38px
+             button reads as a mistake — Soran pointed at exactly that. --}}
+        <div class="btn-group" role="group"
              aria-label="{{ __('Read these figures in') }}">
             @foreach($offered as $currency)
                 <button type="submit" name="display_currency" value="{{ $currency->code }}"
