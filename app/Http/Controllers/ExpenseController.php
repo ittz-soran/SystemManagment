@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Rules\Amount;
 use App\Services\DocumentNumberService;
+use App\Support\MoneyInput;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +45,8 @@ class ExpenseController extends Controller
         $archivedCount = (int) Expense::archivedOnly()->count();
 
         return view('expenses.index', [
+            // Section 2b — which currency this reader types and reads in.
+            'lens' => $request->user()->lens(),
             'archivedCount' => $archivedCount,
             'expenses' => $expenses,
             'total' => (int) $filtered->sum('amount'),
@@ -53,9 +57,14 @@ class ExpenseController extends Controller
         ]);
     }
 
-    public function show(Expense $expense): View
+    public function show(Request $request, Expense $expense): View
     {
         return view('expenses.show', [
+            // Section 2b — the edit box on this page takes an amount, so it
+            // needs to know which currency it is taking. Passed explicitly, the
+            // same as on the list: a partial that looked the preference up
+            // itself would give a lens to any screen that included it.
+            'lens' => $request->user()->lens(),
             'expense' => $expense->load('category', 'user'),
 
             // The edit box is on this page as well as the list, and it needs
@@ -89,7 +98,7 @@ class ExpenseController extends Controller
             return back()->with('error', __('Locked: this date is in a closed period.'));
         }
 
-        $expense->update($this->rules($request));
+        $expense->update($this->rules($request, $expense));
 
         return back()->with('success', __('Expense saved'));
     }
@@ -109,15 +118,30 @@ class ExpenseController extends Controller
             ->with('success', __('Expense deleted'));
     }
 
-    /** @return array<string, mixed> */
-    private function rules(Request $request): array
+    /**
+     * Section 2b: the amount may have been typed in another currency.
+     *
+     * ⚠️ Validation reads the string as it was TYPED — `integer` would refuse
+     * `12.50` out of a dollar box — and the figure to store is resolved
+     * afterwards, because an untouched field keeps what the record already
+     * holds rather than the rounding of a conversion. See App\Support\MoneyInput.
+     *
+     * @return array<string, mixed>
+     */
+    private function rules(Request $request, ?Expense $expense = null): array
     {
-        return $request->validate([
+        $lens = $request->user()->lens();
+
+        $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'expense_category_id' => ['required', 'exists:expense_categories,id'],
-            'amount' => ['required', 'integer', 'min:1'],
+            'amount' => ['required', new Amount($lens, min: 1)],
             'expense_date' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $data['amount'] = MoneyInput::fromRequest($request, 'amount', $lens, $expense?->amount);
+
+        return $data;
     }
 }

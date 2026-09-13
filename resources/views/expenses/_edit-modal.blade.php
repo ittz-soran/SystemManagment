@@ -29,12 +29,8 @@
                 </div>
                 <div class="mb-3">
                     <label for="expense-edit-amount" class="form-label">{{ __('Amount') }}</label>
-                    <div class="input-group">
-                        <input id="expense-edit-amount" type="number" step="1" min="1" name="amount"
-                               class="form-control text-end" dir="ltr"
-                               data-numpad="{{ __('Amount') }}" data-numpad-min="1" required>
-                        <span class="input-group-text">{{ __('IQD') }}</span>
-                    </div>
+                    <x-money-input id="expense-edit-amount" name="amount" :lens="$lens" :min="1"
+                                   data-numpad="{{ __('Amount') }}" data-numpad-min="1" required />
                 </div>
                 <div class="mb-3">
                     <label for="expense-edit-date" class="form-label">{{ __('Date') }}</label>
@@ -75,7 +71,21 @@
             form.action = opener.dataset.action ?? '';
 
             ['title', 'amount', 'notes'].forEach((field) => {
-                form.querySelector(`[name="${field}"]`).value = opener.dataset[field] ?? '';
+                const value = opener.dataset[field] ?? '';
+                form.querySelector(`[name="${field}"]`).value = value;
+
+                /*
+                 * ⚠️ And the companion field, when the box is taking another
+                 * currency. It records what the box was FILLED with, so a save
+                 * that never touched it keeps the stored figure exactly —
+                 * otherwise the rounding of the conversion is written back.
+                 * See App\Support\MoneyInput.
+                 */
+                const shown = form.querySelector(`[name="${field}_shown"]`);
+
+                if (shown) {
+                    shown.value = value;
+                }
             });
 
             form.querySelector('[name="expense_category_id"]').value = opener.dataset.category ?? '';

@@ -172,9 +172,11 @@ Decided with Soran, 2026-09-13:
 
 ### What is not done yet
 
-**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`, so nothing can yet be *entered* in another currency, and IQD's `decimals` is not editable from Settings.
+**Expenses can be typed in another currency. Nothing else can yet** — payments, stock adjustments, product prices and the two return screens still take whole base units. Each is the same three changes: the component in the form, `App\Rules\Amount` in the validation, `MoneyInput::fromRequest` in the controller.
 
-⚠️ Before entry lands, the **untouched-field rule** has to come with it — see the round-trip warning above. And note the purchase cart already has §6b's own per-line IQD/USD toggle: that gets generalised to the currency list rather than having a second mechanism built beside it.
+IQD's `decimals` is still not editable from Settings.
+
+⚠️ The purchase cart is the one that is **not** simply more of the same. It already carries §6b's own per-line IQD/USD toggle with its own rate box, so it gets generalised to the currency list rather than having a second mechanism built beside it.
 
 ---
 
