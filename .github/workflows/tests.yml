@@ -6,6 +6,11 @@ on:
       - main
       - master
       - '*.x'
+      # Working branches too, so a change can be tested against MariaDB before
+      # there is a pull request to test it. The suite here runs on SQLite
+      # locally, and the MariaDB job below is the only place an engine
+      # difference shows up — waiting for a PR to find one is waiting too long.
+      - 'claude/**'
   pull_request:
   schedule:
     - cron: '0 0 * * *'
