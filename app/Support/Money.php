@@ -119,7 +119,16 @@ final class Money
      */
     public static function format(int|float|null $stored, ?Currency $in = null): string
     {
-        $stored = (int) round((float) $stored);
+        /*
+         * ⚠️ An integer is NOT sent through a float on the way in.
+         *
+         * `(int) round((float) $x)` looks harmless and is not: a large integer
+         * loses precision as a double, and from PHP 8.5 a cast back from a
+         * float outside integer range raises rather than saturating quietly.
+         * CI on 8.5 found it; 8.3 and 8.4 accepted it in silence, which is the
+         * worse outcome of the two. Only a float needs rounding.
+         */
+        $stored = is_int($stored) ? $stored : (int) round((float) ($stored ?? 0));
 
         if ($in === null || $in->code === self::base()->code) {
             return self::write($stored, self::base()->decimals);

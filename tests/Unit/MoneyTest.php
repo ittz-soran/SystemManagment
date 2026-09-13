@@ -353,14 +353,25 @@ class MoneyTest extends TestCase
         $this->assertSame('0.001', Money::step());
     }
 
-    /** A figure too large to convert says so rather than wrapping into nonsense. */
+    /**
+     * A figure too large to convert says so rather than wrapping into nonsense.
+     *
+     * ⚠️ A plain integer, chosen so it reaches the guard being tested. The
+     * first version of this passed `PHP_INT_MAX - 1`, which cannot survive a
+     * float round trip — PHP 8.5 raised on the cast long before the guard, and
+     * 8.3 and 8.4 hid it. CI caught that; a local run on one PHP never could.
+     *
+     * 1e14 overflows because converting to a two-decimal currency multiplies by
+     * 10^2 × RATE_SCALE first, and it is well past AmountInWords::MAX — no
+     * shop will ever hold it.
+     */
     public function test_an_impossible_figure_is_refused_not_wrapped(): void
     {
         $usd = $this->dollars();
 
         $this->expectExceptionMessage('too large');
 
-        Money::format(PHP_INT_MAX - 1, $usd);
+        Money::format(100_000_000_000_000, $usd);
     }
 
     /** A currency with no rate cannot be a lens, and says so. */
