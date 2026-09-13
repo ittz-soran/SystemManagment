@@ -78,8 +78,15 @@
                                     </a>
                                     <div class="small text-secondary app-code">
                                         {{ $item->product->sku }}
-                                        @if($item->entered_currency === 'USD' && $item->entered_amount)
-                                            · {{ __('entered as $:amount', ['amount' => number_format($item->entered_amount / 100, 2)]) }}
+                                        {{-- Section 2b: what was typed, if it was
+                                             not the base currency. The stored
+                                             figure beside it is the only one the
+                                             books know. --}}
+                                        @if($item->typedIn() && $item->entered_amount)
+                                            · {{ __('entered as :amount :currency', [
+                                                'amount' => number_format($item->typedAmount(), $item->typedIn()->decimals),
+                                                'currency' => $item->typedIn()->mark(),
+                                            ]) }}
                                         @endif
                                     </div>
                                 </td>

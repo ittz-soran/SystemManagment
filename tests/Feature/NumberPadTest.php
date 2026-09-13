@@ -93,10 +93,13 @@ class NumberPadTest extends TestCase
     {
         $html = $this->actingAs($this->admin)->get(route('purchases.create'))->assertOk()->getContent();
 
-        // Quantity, the dinar price, and the dollars box — which is the one
-        // that needs decimals.
+        // Quantity, the base-currency price, and the foreign box — which is
+        // the one that needs decimals. Section 2b: how many places it takes is
+        // the chosen currency's own answer, so the attribute is written from it
+        // rather than hard-coded to a dollar's two.
         $this->assertSame(3, substr_count($html, 'data-numpad='));
-        $this->assertStringContainsString('data-numpad-decimals="2"', $html);
+        $this->assertStringContainsString('data-numpad-decimals=', $html);
+        $this->assertStringContainsString('currencies[line.currency]?.decimals', $html);
     }
 
     /**
