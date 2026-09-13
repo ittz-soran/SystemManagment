@@ -69,6 +69,10 @@ class ProductController extends Controller
         $threshold = (int) setting('low_stock_threshold', 0);
 
         return view('products.index', [
+            // Section 2b — which currency this reader wants these figures in.
+            // Handed to the view rather than read inside `money()`: the lens is
+            // opt-in per screen so it can never reach the till by accident.
+            'lens' => $request->user()->lens(),
             'products' => $products,
             'showingDeleted' => $deleted,
 
