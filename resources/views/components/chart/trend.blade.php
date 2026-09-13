@@ -47,6 +47,14 @@
      * a product's own page reads one window and the dashboard reads several.
      */
     'periods' => null,
+
+    /*
+     * Read the money in another currency — Section 2b. Null is the shop's own,
+     * which is every caller that does not opt in. Passed rather than looked up,
+     * for the same reason `money()` takes it: a chart that consulted the
+     * reader's preference by itself would put the lens on the till.
+     */
+    'lens' => null,
 ])
 
 @php
@@ -59,11 +67,11 @@
     // the figure in full.
     $figure = fn ($value, $unit) => $unit === 'count'
         ? number_format((int) $value)
-        : money($value, false);
+        : money($value, false, $lens);
 
     $brief = fn ($value, $unit) => $unit === 'count'
         ? number_format((int) $value)
-        : money_short($value);
+        : money_short($value, $lens);
 
     // One maximum across every flow, because that is what makes them
     // comparable. Each with its own would be several charts drawn on top of one

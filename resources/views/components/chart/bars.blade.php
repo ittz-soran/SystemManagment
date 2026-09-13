@@ -14,6 +14,10 @@
     'title',
     'rows',          // list of ['label' => string, 'value' => int, 'note' => ?string]
     'empty' => null,
+
+    // Read the money in another currency — Section 2b. Null is the shop's
+    // own, which is every caller that does not opt in.
+    'lens' => null,
 ])
 
 @php
@@ -45,7 +49,7 @@
                         {{-- The native title is the tooltip: no script to load,
                              and it survives printing and screen readers alike. --}}
                         <div class="app-chart-bar-track"
-                             title="{{ $row['label'] }} — {{ money($row['value']) }}">
+                             title="{{ $row['label'] }} — {{ money($row['value'], true, $lens) }}">
                             {{-- A hair of width on the smallest rows, so a real
                                  sale never draws as an empty track. --}}
                             <div class="app-chart-bar-fill"
@@ -53,7 +57,7 @@
                         </div>
 
                         <div class="app-chart-bar-value small text-secondary" dir="ltr">
-                            {{ $row['note'] ?? money($row['value'], false) }}
+                            {{ $row['note'] ?? money($row['value'], false, $lens) }}
                         </div>
                     </div>
                 @endforeach

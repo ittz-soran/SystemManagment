@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Currency;
 use App\Models\Setting;
 use App\Support\Money;
 use Carbon\CarbonInterface;
@@ -29,14 +30,13 @@ if (! function_exists('money')) {
      * and this is `number_format` with extra steps; the day it counts fils,
      * every figure on every screen follows from that one class.
      */
-    function money(int|float|null $amount, bool $withCurrency = true): string
+    function money(int|float|null $amount, bool $withCurrency = true, ?Currency $in = null): string
     {
-        $formatted = Money::format($amount);
+        $formatted = Money::format($amount, $in);
 
-        return $withCurrency ? $formatted.' '.__('IQD') : $formatted;
+        return $withCurrency ? $formatted.' '.($in?->mark() ?? __('IQD')) : $formatted;
     }
 }
-
 
 if (! function_exists('human_bytes')) {
     /**
@@ -80,13 +80,13 @@ if (! function_exists('money_if')) {
      *
      * @param  bool  $visible  whatever the screen's own rule is — usually a permission
      */
-    function money_if(bool $visible, int|float|null $amount, bool $withCurrency = true): string
+    function money_if(bool $visible, int|float|null $amount, bool $withCurrency = true, ?Currency $in = null): string
     {
         if (! $visible) {
-            return $withCurrency ? hidden_money().' '.__('IQD') : hidden_money();
+            return $withCurrency ? hidden_money().' '.($in?->mark() ?? __('IQD')) : hidden_money();
         }
 
-        return money($amount, $withCurrency);
+        return money($amount, $withCurrency, $in);
     }
 }
 
@@ -102,8 +102,14 @@ if (! function_exists('money_short')) {
      * is an English abbreviation: a Kurdish shop should get the Kurdish one,
      * and `translations:check` only counts what it can see.
      */
-    function money_short(int|float|null $amount): string
+    function money_short(int|float|null $amount, ?Currency $in = null): string
     {
+        // Under a lens, the axis counts what the figures beside it count — so
+        // convert first and then decide on k or M, exactly as the base does.
+        if ($in !== null) {
+            $amount = Money::fromBase((int) round($amount ?? 0), $in);
+        }
+
         $value = (int) round($amount ?? 0);
         $size = abs($value);
 
@@ -130,7 +136,7 @@ if (! function_exists('money_short')) {
          * 250,000 dinars and the axis says "250 k" — reading the stored count
          * would put "250 M" beside a tile saying 250,000.
          */
-        $per = Money::minorPerMajor();
+        $per = $in?->minorPerMajor() ?? Money::minorPerMajor();
 
         // 999,999 rounds to 1,000 thousand, which is a million and should say so
         // rather than sit on the axis as "1,000 k".
@@ -149,8 +155,9 @@ if (! function_exists('money_short')) {
         }
 
         // Below the suffixes, the figure is written the way every other figure
-        // on the page is — decimals and all.
-        return Money::format($value);
+        // on the page is — decimals and all. Already converted above, so this
+        // writes the count it was handed rather than converting a second time.
+        return Money::writeAt($value, $in?->decimals ?? Money::decimals());
     }
 }
 
@@ -175,11 +182,11 @@ if (! function_exists('cost_seen')) {
 
 if (! function_exists('cost_money')) {
     /** A cost, formatted as this reader may see it — or the mask. */
-    function cost_money(?int $amount, bool $withCurrency = true): string
+    function cost_money(?int $amount, bool $withCurrency = true, ?Currency $in = null): string
     {
         $seen = cost_seen($amount);
 
-        return money_if($seen !== null, $seen, $withCurrency);
+        return money_if($seen !== null, $seen, $withCurrency, $in);
     }
 }
 

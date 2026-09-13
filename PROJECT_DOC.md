@@ -159,9 +159,22 @@ Decided with Soran, 2026-09-13:
 
 > ⚠️ Currencies are cached like settings are, but as **rows, never models**. A cache store that serialises hands an Eloquent object back as `__PHP_Incomplete_Class`, and every page that draws a figure dies with a TypeError — `LicenceTest` caught exactly that. The cached value's shape is also checked on read, because on the day this ships every shop's file cache still holds whatever the previous release wrote under that key.
 
+### How a screen gets a lens
+
+⚠️ **It asks. Nothing is global, and that is what enforces the till rule.** `money()`, `money_if()`, `cost_money()` and `money_short()` convert only when a screen hands them a currency, and the charts take it as a prop. A switcher in the topbar, or a `money()` that consulted the reader's preference by itself, would put the lens on the sale screen by accident — so the lens reaching a screen is always visible in that screen's own code, and greppable.
+
+- `users.display_currency` — per person, like language and theme. Null means the shop's own.
+- `User::lens()` returns null in three cases that must all read the same: nobody chose one, they chose the base, or **they chose a currency the shop has since switched off**. A rate nobody maintains any more is a rate that quietly goes wrong.
+- `<x-currency-lens>` is the switcher — buttons, so it works with no JavaScript, and hidden entirely when the shop keeps only one currency.
+- `<x-lens-note>` says what a converted figure is: today's rate applied to the books, an **estimate**, and not what was recorded. A dollar total without that sentence is a figure somebody quotes to a supplier.
+
+**Screens with the lens:** reports. **Screens that must never have it:** the sale screen and anything printed.
+
 ### What is not done yet
 
-**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`. So the currency list exists and converts correctly, but no screen offers the lens yet, and IQD's `decimals` is not editable from Settings — a shop that changed it today could read 15.5 and not enter it. Both land together when the entry half does.
+**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`, so nothing can yet be *entered* in another currency, and IQD's `decimals` is not editable from Settings.
+
+⚠️ Before entry lands, the **untouched-field rule** has to come with it — see the round-trip warning above. And note the purchase cart already has §6b's own per-line IQD/USD toggle: that gets generalised to the currency list rather than having a second mechanism built beside it.
 
 ---
 

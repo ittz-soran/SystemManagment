@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Casts\Unreadable;
+use App\Support\Money;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -12,7 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 
-#[Fillable(['name', 'email', 'password', 'role', 'cost_visibility', 'cost_markup_percent', 'is_active', 'language', 'date_language', 'clock_24_hour', 'theme', 'items_per_page'])]
+#[Fillable(['name', 'email', 'password', 'role', 'cost_visibility', 'cost_markup_percent', 'is_active', 'language', 'date_language', 'clock_24_hour', 'theme', 'items_per_page', 'display_currency'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable
 {
@@ -47,6 +49,33 @@ class User extends Authenticatable
         'suppliers.view',
     ];
 
+    /**
+     * The currency this person reads figures in, or null for the shop's own.
+     *
+     * ⚠️ Null is the answer in three different cases, and all three must read
+     * as "no lens": nobody chose one, they chose the base, or they chose a
+     * currency the shop has since switched off. The last one matters — a rate
+     * nobody maintains any more is a rate that quietly goes wrong, and falling
+     * back to the base is the only safe answer.
+     *
+     * Nothing reads this by itself. A screen has to ask for it and pass it to
+     * `money()`, which is deliberate: Section 2b keeps the lens off the till,
+     * and a global that every figure consulted would put it back there by
+     * accident. See CurrencyLensTest.
+     */
+    public function lens(): ?Currency
+    {
+        $code = (string) $this->display_currency;
+
+        if ($code === '' || $code === Money::base()->code) {
+            return null;
+        }
+
+        $currency = Currency::cached()[$code] ?? null;
+
+        return ($currency !== null && $currency->is_active) ? $currency : null;
+    }
+
     protected function casts(): array
     {
         return [
@@ -67,8 +96,8 @@ class User extends Authenticatable
             // authenticator secret. A changed key took out logging out,
             // changing language, changing theme and saving a preference, all at
             // once, on a shop where nothing else was wrong.
-            'two_factor_secret' => \App\Casts\Unreadable::class,
-            'two_factor_recovery_codes' => \App\Casts\Unreadable::class.':array',
+            'two_factor_secret' => Unreadable::class,
+            'two_factor_recovery_codes' => Unreadable::class.':array',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }

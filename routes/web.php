@@ -66,6 +66,7 @@ Route::middleware(['auth'])->group(function () {
     // Section 8c layer 3: every user manages their own preferences.
     Route::post('preferences/language', [PreferenceController::class, 'language'])->name('preferences.language');
     Route::post('preferences/theme', [PreferenceController::class, 'theme'])->name('preferences.theme');
+    Route::post('preferences/currency', [PreferenceController::class, 'currency'])->name('preferences.currency');
     Route::patch('preferences', [PreferenceController::class, 'update'])->name('preferences.update');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
