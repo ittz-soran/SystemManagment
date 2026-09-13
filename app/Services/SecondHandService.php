@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Units;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -76,7 +77,7 @@ class SecondHandService
                 'sku' => $codes['sku'],
                 'barcode' => $codes['barcode'],
                 'category_id' => $input['category_id'] ?? $this->defaultCategory()->id,
-                'unit' => $input['unit'] ?? 'pcs',
+                'unit' => $input['unit'] ?? Units::default(),
                 'condition_note' => $input['condition_note'] ?? null,
                 'acquired_from_id' => $seller->id,
                 'purchase_price' => (int) $input['cost'],

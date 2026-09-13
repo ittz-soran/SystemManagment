@@ -13,6 +13,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             PermissionSeeder::class,
             SettingSeeder::class,
+            // After the settings: it carries usd_rate and the old
+            // currency_minor_per_major across into the currency rows.
+            CurrencySeeder::class,
             ExpenseCategorySeeder::class,
             CategorySeeder::class,
             CustomerSeeder::class,

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Setting;
+use App\Support\Units;
 use Illuminate\Database\Seeder;
 
 /**
@@ -48,6 +49,33 @@ class SettingSeeder extends Seeder
         'low_stock_threshold' => '5',
         'sku_prefix' => 'SS',
         'date_format' => 'Y-m-d',
+
+        // Section 8c — what a product can be measured in, one per line, and
+        // which one a new product starts on. A label rather than a record; see
+        // App\Support\Units for why there is no units table.
+        'units' => Units::SEEDED,
+        'default_unit' => 'pcs',
+
+        /*
+         * Which currency the books are kept in — Section 2b. Its row in
+         * `currencies` carries the decimals that say what every stored integer
+         * counts, and the day the dinar loses three zeros that row goes from 0
+         * to 3.
+         */
+        'currency_base' => 'IQD',
+
+        /*
+         * ⚠️ Superseded, and kept on purpose.
+         *
+         * This is where "what does the integer count" lived before there was a
+         * currencies table to put it on. CurrencySeeder reads it to give IQD
+         * its decimals, so a shop that had already changed it keeps what it was
+         * reading; App\Support\Money reads it only when there is no table at
+         * all, which is the shared codebase the panel provisions from. Nothing
+         * else should look at it, and it can go once no install predates the
+         * table.
+         */
+        'currency_minor_per_major' => '1',
 
         // Section 8b — backups. These override the .env defaults so an admin can
         // change them from the Settings page without touching a file on the

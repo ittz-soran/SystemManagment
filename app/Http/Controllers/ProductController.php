@@ -18,6 +18,7 @@ use App\Services\LabelService;
 use App\Services\MasterDataTransfer;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
+use App\Support\Units;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -133,7 +134,8 @@ class ProductController extends Controller
     public function create(): View
     {
         return view('products.create', [
-            'product' => new Product(['unit' => 'pcs', 'is_active' => true, 'purchase_price' => 0, 'sale_price' => 0]),
+            'product' => new Product(['unit' => Units::default(), 'is_active' => true,
+                'purchase_price' => 0, 'sale_price' => 0]),
             'categories' => Category::orderBy('name')->get(),
         ]);
     }

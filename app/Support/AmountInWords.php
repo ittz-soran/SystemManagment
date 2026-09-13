@@ -10,9 +10,18 @@ namespace App\Support;
  * screen — شەست هەزار دینار beside 60,000 — and it belongs on the printed
  * invoice for the same reason it has always belonged there.
  *
- * Whole dinars only, which is the whole of it: Section 3 says IQD is stored as
- * an integer and never has a fractional part, so there is no "and fifty fils"
- * case to get wrong.
+ * ⚠️ **This is the one place in the system that writes an amount as two
+ * numbers.** Everywhere else 15,500 reads `15.5` and never "15 dinars 500
+ * fils" — Soran's instruction, and `Money::format` enforces it. The written
+ * line is the exception because it is not a figure, it is a sentence: it
+ * exists so a digit cannot be altered with a pen, and "fifteen point five
+ * dinars" is not how a written amount is ever set down. So it spells both
+ * halves — *fifteen dinars and five hundred fils* — beside a figure reading
+ * 15.5.
+ *
+ * While the stored integer counts whole dinars there is no second half, and
+ * every sentence this writes is exactly what it wrote before `Money` existed.
+ * See `Money` for what changes and when.
  *
  * The word lists are `__()` strings so that `translations:check` counts them,
  * and so the same lists can be handed to the sale screen, which has to write
@@ -40,9 +49,39 @@ final class AmountInWords
             return '';
         }
 
+        ['major' => $major, 'minor' => $minor] = Money::split($amount);
+
+        // Nothing after the point: the sentence this system has always written.
+        if ($minor === 0) {
+            return self::major($major);
+        }
+
+        // Under one whole unit, the halves would read "zero dinars and fifty
+        // fils", which nobody says. The small half stands on its own.
+        if ($major === 0) {
+            return self::minor($minor);
+        }
+
+        return __(':first and :second', [
+            'first' => self::major($major),
+            'second' => self::minor($minor),
+        ]);
+    }
+
+    /** The whole units, as a sentence. */
+    private static function major(int $amount): string
+    {
         return $amount === 1
             ? __('one dinar')
             : trim(__(':words dinars', ['words' => self::words($amount)]));
+    }
+
+    /** The part after the point, as a sentence. Unreachable while there is no such part. */
+    private static function minor(int $amount): string
+    {
+        return $amount === 1
+            ? __('one fils')
+            : trim(__(':words fils', ['words' => self::words($amount)]));
     }
 
     /** The number alone, without the currency. */
@@ -150,6 +189,13 @@ final class AmountInWords
             'tensUnits' => __(':tens-:units', ['tens' => '{t}', 'units' => '{u}']),
             'oneDinar' => __('one dinar'),
             'currency' => __(':words dinars', ['words' => '__']),
+
+            // The second half, for the day the stored integer counts fils. The
+            // browser writes the same sentence as the server and must not fall
+            // back to English on the one line that exists to be unambiguous.
+            'oneMinor' => __('one fils'),
+            'minor' => __(':words fils', ['words' => '__']),
+            'minorPer' => Money::minorPerMajor(),
             'max' => self::MAX,
         ];
     }

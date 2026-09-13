@@ -90,11 +90,78 @@
 - **Admin** — full access, always. Cannot be restricted.
 - **User** — gets a default permission set on creation (login, sale, purchase, view products). The admin then adds or removes individual permissions per user.
 
-**Currency:** Iraqi Dinar (IQD). All prices are whole numbers — 1,500 · 25,000 · 210,000. Stored as **integer BIGINT**, never decimal. Displayed with `number_format()` as `250,000 IQD`.
+**Currency:** Iraqi Dinar (IQD). Every money column is an **integer BIGINT**, never decimal — see Section 2b for what that integer counts and what happens the day the dinar loses three zeros. Displayed through `money()` as `250,000 IQD`.
 
 **Languages:** English (default), Kurdish Sorani, Arabic, Persian. The last three are **RTL** — use Laravel localization (`lang/` files) plus Bootstrap 5's RTL build, switching text and direction together.
 
 **Scope:** single shop, no branches. No expiry-date tracking.
+
+---
+
+## 2b. What the stored integer counts
+
+Every money value in this system is one integer, and that is not negotiable: Section 5's FIFO engine needs a batch cost that is an exact whole number multiplying cleanly by a quantity, because Section 7 promises a return reverses COGS **to the dinar**. Decimal columns, a currency column, per-document rates and revaluation are all out of scope, and Section 6b says so again for the USD helper.
+
+What *is* configurable is one question the system used to answer by assumption: **what does the integer count?** The answer is the base currency's `decimals`, on its row in `currencies`.
+
+| IQD `decimals` | the integer counts | `250000` reads | `15500` reads |
+|---|---|---|---|
+| `0` *(today)* | whole dinars | `250,000` | `15,500` |
+| `3` | fils | `250` | `15.5` |
+
+### The redenomination — and why there is no migration
+
+Iraq's central bank has discussed cutting three zeros off the dinar. Soran described what that means for a shop (2026-09-12), in his own numbers:
+
+```
+250,000 IQD  →  250 IQD
+    250 IQD  →  250 fils
+ 15,500 IQD  →  15.5 IQD
+```
+
+Read those together and they say something useful: the new dinar is worth 1,000 old ones **and** is divided into 1,000 fils — so **one fils is worth exactly one old dinar**. An amount stored today as `250,000` is already the correct count of new fils. Not one row is migrated. The integer stops counting dinars and starts counting fils; only the reading of it changes.
+
+> ⚠️ **This holds only while the two ratios match.** A redenomination of 1,000:1 into a dinar of 100 fils needs every stored amount divided by ten, and that is lossy for any figure not a multiple of ten — which Section 6b's fractional supplier prices can produce. That migration is not written until there is a published ratio to write it against.
+
+### How a figure is written
+
+- **Trailing zeros are trimmed.** `250,000` reads `250`, not `250.000`. `15,500` reads `15.5`. A price list where every figure carries three decimals it does not need is one nobody can scan down.
+- **One number, never two.** `15.5`, never "15 dinars 500 fils".
+- ⚠️ **The written line under an invoice total is the sole exception.** It exists so a digit cannot be altered with a pen, and *"fifteen point five dinars"* is not how a payable amount is ever set down — so `AmountInWords` spells both halves: *fifteen dinars and five hundred fils*, beside a figure reading 15.5.
+- **Quantities are not money.** `373 pcs` stays `373 pcs`. Only amounts divide.
+- **A chart axis counts what the tile beside it counts.** 90,920,109 fils is 90,920 dinars, so the axis reads `90.9 k` — reading the stored count would put `90.9 M` beside a tile saying 90,920.
+
+### The currency list — Soran, 2026-09-13
+
+> *"can type usd or another currency and system automatically convert to base system currency… should show all prices as selected currency"*
+
+A `currencies` table — `code`, `name`, `symbol`, `decimals`, `rate`, `is_active` — and a `currency_base` setting naming which row the books are kept in. **A currency is a lens, not a second set of books.** A screen set to USD draws its figures in dollars and expects dollars in its boxes; what it saves is base-currency integers, the same ones it would have saved had they been typed in dinars.
+
+Nothing foreign is ever stored, which is exactly why there is **no exchange gain or loss to account for**: you never owe dollars, you owe what the dinars came to. Section 6b's rule survives intact — no currency column on money fields, no dual-currency balances, no historical rate lookup. This widens its calculator; it does not break its rule.
+
+`rate` is how many base **minor** units one **major** unit of that currency is worth, × `Money::RATE_SCALE` (1,000). `1 USD = 1,320 IQD` is `1_320_000`. An integer, because Section 6 allows no decimal columns; scaled by a thousand so 1,320.125 survives and small enough that the largest amount this system can hold still converts inside a 64-bit integer. The base currency's own rate is `10^decimals × 1000`, which is what lets one formula serve every currency including the base.
+
+Decided with Soran, 2026-09-13:
+
+- **A printed document shows both** — the amount owed in the base currency, and beneath it the foreign figure with the rate that produced it. The rate is frozen onto the document so a reprint is identical forever; without that, the same sale prints $500 in March and $488.89 in April.
+- **The lens is picked per screen and remembered per person** — the same shape as language and theme, which are already per user.
+- **Every money screen except the till.** You buy in dollars; you sell across a counter for cash in dinars, and that counter is the one place a wrong number costs money in the same minute.
+
+> ⚠️ **The untouched-field rule.** Rounding does not survive a round trip: 10,000 dinars shown at 1,320 is $7.5757…, written `$7.58`, which converts back to **10,006**. A screen that converts a field nobody edited rewrites it — and editing one line of a ten-line purchase would silently move the other nine, each still looking plausible. So every money field carries its original stored value, and **only a field somebody actually typed into is converted back**. The first test written for the lens is: open a record in USD mode, change nothing, save, assert every stored figure is identical.
+
+### Where it lives
+
+`App\Support\Money` is the only place that knows the answer, on the server; `window.appMoney` in the layout head mirrors it for the four cart screens that add up a total between keystrokes.
+
+> ⚠️ `window.appMoney` is inline in the head, **not** in `app.js`. `@vite` emits a deferred module, which runs after every inline script on the page — including a cart's, which draws its first total while parsing. A formatter in the bundle is undefined at the moment it is first needed.
+
+> ⚠️ Both directions are integer arithmetic on strings. `(int) (15.5 * 1000)` is **15499** in PHP. A system that loses one unit per line loses it silently — every total still adds up, each is just a little wrong.
+
+> ⚠️ Currencies are cached like settings are, but as **rows, never models**. A cache store that serialises hands an Eloquent object back as `__PHP_Incomplete_Class`, and every page that draws a figure dies with a TypeError — `LicenceTest` caught exactly that. The cached value's shape is also checked on read, because on the day this ships every shop's file cache still holds whatever the previous release wrote under that key.
+
+### What is not done yet
+
+**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`. So the currency list exists and converts correctly, but no screen offers the lens yet, and IQD's `decimals` is not editable from Settings — a shop that changed it today could read 15.5 and not enter it. Both land together when the entry half does.
 
 ---
 
@@ -1017,7 +1084,25 @@ Cache::rememberForever('settings', fn () => Setting::pluck('value', 'key'));
 | `low_stock_threshold` | global default when a product has no `reorder_level` |
 | `sku_prefix` | currently `SS` — configurable in case the shop is renamed |
 | `date_format` | printed and displayed dates |
+| `units` | what a product can be measured in — one per line |
+| `default_unit` | what a new product starts on |
 | Backup status | last backup time and a manual "Back up now" button (Section 8b) |
+
+### Units — a list, not a table
+
+`products.unit` (Section 4) stays the plain string it is. Settings holds the list the dropdown offers and which one a new product starts on; nothing is normalised into a `units` table, and that is a decision rather than an omission:
+
+- **Nothing hangs off a unit.** A category groups products and is reported on. "kg" has no properties, no children and no history worth keeping.
+- **Import and export name the unit as text.** A supplier's spreadsheet is not going to know anybody's row id.
+- **A foreign key would make tidying the list impossible.** A shop that stops selling cable by the metre either cannot remove "m", or removes it and orphans every product measured in it.
+
+Rules:
+
+- The product form shows a **select**, filled from `units`, exactly as Category does.
+- ⚠️ **A product's own unit is always in its dropdown**, even after the shop takes it off the list. Otherwise opening a product measured in a retired unit and saving an unrelated field silently re-measures it — a data change made by looking at a page.
+- `default_unit` must be one of `units`. A default the dropdown refuses to show is not a default.
+- Validation on the product stays `string, max:32` and is **not** restricted to the list, so an import carrying a unit nobody has typed yet still lands.
+- Taking a unit off the list changes no existing product.
 
 **Guard the whole page** behind a `settings.manage` permission — these values change invoices, costing, and the edit window across the entire system.
 
