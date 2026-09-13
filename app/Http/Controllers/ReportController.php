@@ -60,6 +60,15 @@ class ReportController extends Controller
         [$from, $to] = $this->range($request);
 
         return view('reports.index', [
+            /*
+             * Section 2b — which currency this reader wants these figures in.
+             *
+             * Handed to the view rather than looked up inside `money()`,
+             * because the lens is opt-in per screen: the till must never get
+             * one, and a global that every figure consulted would give it one
+             * by accident.
+             */
+            'lens' => $request->user()->lens(),
             'from' => $from,
             'to' => $to,
             'profit' => $this->profit($from, $to),
@@ -200,7 +209,7 @@ class ReportController extends Controller
      * The movements belong to the return, not to the sale, so the returns are
      * asked which sale they undo.
      *
-     * @param  \Illuminate\Support\Collection<int, int>  $saleIds
+     * @param  Collection<int, int>  $saleIds
      * @return array<int, int>
      */
     private function costReturnedPerSale($saleIds): array
@@ -238,7 +247,7 @@ class ReportController extends Controller
      * owes is what they owe today — it carries in from before the period and
      * would be a lie if it were cut to fit.
      *
-     * @return \Illuminate\Support\Collection<int, object>
+     * @return Collection<int, object>
      */
     private function people($query, Carbon $from, Carbon $to, string $kind)
     {
@@ -400,9 +409,9 @@ class ReportController extends Controller
 
         $series = [
             ['name' => __('Sales'), 'short' => __('Sales'), 'tone' => 1,
-             'values' => array_values($flows['sales'])],
+                'values' => array_values($flows['sales'])],
             ['name' => __('Purchases'), 'short' => __('Bought'), 'tone' => 2,
-             'values' => array_values($flows['purchases'])],
+                'values' => array_values($flows['purchases'])],
         ];
 
         // cost_seen() answers null when this reader may not see cost at all,
@@ -456,9 +465,9 @@ class ReportController extends Controller
             'notes' => $axis['notes'],
             'series' => [
                 ['name' => __('In'), 'short' => __('In'), 'tone' => 3,
-                 'values' => array_values($cash['in'])],
+                    'values' => array_values($cash['in'])],
                 ['name' => __('Out'), 'short' => __('Out'), 'tone' => 2,
-                 'values' => array_values($cash['out'])],
+                    'values' => array_values($cash['out'])],
             ],
         ];
     }

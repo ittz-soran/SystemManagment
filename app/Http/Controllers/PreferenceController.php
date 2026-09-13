@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\SetUserPreferences;
+use App\Models\Currency;
+use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -33,6 +35,35 @@ class PreferenceController extends Controller
         ]);
 
         $request->user()->forceFill($data)->save();
+
+        return back();
+    }
+
+    /**
+     * Which currency this person reads figures in — Section 2b.
+     *
+     * Its own action beside language and theme rather than a field on the
+     * preferences form, because it is switched mid-task: a reader looks at the
+     * report in dollars, then back in dinars, without leaving the page.
+     *
+     * ⚠️ Blank means the shop's own currency, and so does a code that is not
+     * an ACTIVE currency. A rate nobody maintains any more is a rate that
+     * quietly goes wrong, so switching one off takes every reader off it.
+     */
+    public function currency(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'display_currency' => [
+                'nullable', 'string', 'max:8',
+                Rule::in(Currency::query()->active()->pluck('code')->all()),
+            ],
+        ]);
+
+        $chosen = (string) $request->input('display_currency');
+
+        $request->user()->forceFill([
+            'display_currency' => $chosen === '' || $chosen === Money::base()->code ? null : $chosen,
+        ])->save();
 
         return back();
     }

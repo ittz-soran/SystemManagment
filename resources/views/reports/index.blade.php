@@ -6,12 +6,18 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     <button class="btn btn-outline-secondary" onclick="window.print()">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}
     </button>
 @endsection
 
 @section('content')
+    {{-- ⚠️ Said before any figure below it: these are the books divided by
+         today's rate, not what was recorded. See components/lens-note. --}}
+    <x-lens-note :lens="$lens" />
+
     {{-- A printed page leaves the screen behind: no sidebar, no heading, no
          idea which shop or which dates. This says all three, on paper only. --}}
     <div class="d-none d-print-block mb-3 border-bottom pb-2">
@@ -100,7 +106,7 @@
                     <div class="card-body">
                         <div class="text-secondary small">{{ $card['label'] }}</div>
                         <div class="fs-4 fw-semibold money {{ $card['value'] < 0 ? 'text-danger' : '' }}">
-                            {{ money($card['value']) }}
+                            {{ money($card['value'], true, $lens) }}
                         </div>
                         <div class="small text-secondary">{{ $card['note'] }}</div>
                     </div>
@@ -130,7 +136,7 @@
 
     <div class="row g-3 mb-4">
         <div class="col-12">
-            <x-chart.trend
+            <x-chart.trend :lens="$lens"
                 :title="__('The period, day by day')"
                 :subtitle="__('Sales and purchases are net of returns. Hover any day to read every line at once.')"
                 :labels="$trend['labels']"
@@ -142,14 +148,14 @@
         </div>
 
         <div class="col-lg-6">
-            <x-chart.bars
+            <x-chart.bars :lens="$lens"
                 :title="__('Best sellers')"
                 :rows="$bestSellers"
                 :empty="__('Nothing sold in this period.')" />
         </div>
 
         <div class="col-lg-6">
-            <x-chart.bars
+            <x-chart.bars :lens="$lens"
                 :title="__('Where the money went')"
                 :rows="$spending"
                 :empty="__('No expenses in this period.')" />
@@ -185,7 +191,7 @@
                                 <td class="text-secondary" style="width: 1.5rem">{{ $sign }}</td>
                                 <td>{{ $label }}</td>
                                 <td class="money {{ $strong && $value < 0 ? 'text-danger' : '' }}">
-                                    {{ money($value, false) }}
+                                    {{ money($value, false, $lens) }}
                                 </td>
                             </tr>
                         @endforeach
@@ -197,7 +203,7 @@
 
         <div class="col-lg-6">
             <div class="mb-3">
-                <x-chart.trend
+                <x-chart.trend :lens="$lens"
                     :title="__('Cash movement')"
                     :subtitle="__('The till, not the ledger: a sale on credit is revenue today and cash next month.')"
                     :labels="$cashTrend['labels']"
@@ -205,9 +211,9 @@
                     :series="$cashTrend['series']"
                     :height="150">
                     <span class="d-inline-flex flex-wrap gap-3">
-                        <span>{{ __('In') }}: <span class="text-body fw-semibold">{{ money($cash['in']) }}</span></span>
-                        <span>{{ __('Out') }}: <span class="text-body fw-semibold">{{ money($cash['out']) }}</span></span>
-                        <span>{{ __('Net') }}: <span class="text-body fw-semibold">{{ money($cash['net']) }}</span></span>
+                        <span>{{ __('In') }}: <span class="text-body fw-semibold">{{ money($cash['in'], true, $lens) }}</span></span>
+                        <span>{{ __('Out') }}: <span class="text-body fw-semibold">{{ money($cash['out'], true, $lens) }}</span></span>
+                        <span>{{ __('Net') }}: <span class="text-body fw-semibold">{{ money($cash['net'], true, $lens) }}</span></span>
                     </span>
                 </x-chart.trend>
             </div>
@@ -218,19 +224,19 @@
                     <tbody>
                     <tr>
                         <td>{{ __('Purchases in this period') }}</td>
-                        <td class="money">{{ money($profit['purchases'], false) }}</td>
+                        <td class="money">{{ money($profit['purchases'], false, $lens) }}</td>
                     </tr>
                     <tr>
                         <td>{{ __('Returned to suppliers') }}</td>
-                        <td class="money">{{ money($profit['purchase_returns'], false) }}</td>
+                        <td class="money">{{ money($profit['purchase_returns'], false, $lens) }}</td>
                     </tr>
                     <tr>
                         <td>{{ __('Customers owe the shop') }}</td>
-                        <td class="money">{{ money($position['customers_owe'], false) }}</td>
+                        <td class="money">{{ money($position['customers_owe'], false, $lens) }}</td>
                     </tr>
                     <tr>
                         <td>{{ __('The shop owes suppliers') }}</td>
-                        <td class="money">{{ money($position['owed_to_suppliers'], false) }}</td>
+                        <td class="money">{{ money($position['owed_to_suppliers'], false, $lens) }}</td>
                     </tr>
                     </tbody>
                 </table>
@@ -262,10 +268,10 @@
                                 <tr>
                                     <td class="fw-medium">{{ $row['label'] }}</td>
                                     <td class="money text-secondary">{{ number_format($row['units']) }}</td>
-                                    <td class="money">{{ money($row['revenue'], false) }}</td>
-                                    <td class="money text-secondary">{{ money($row['cost'], false) }}</td>
+                                    <td class="money">{{ money($row['revenue'], false, $lens) }}</td>
+                                    <td class="money text-secondary">{{ money($row['cost'], false, $lens) }}</td>
                                     <td class="money fw-semibold {{ $row['profit'] >= 0 ? 'text-success' : 'text-danger' }}">
-                                        {{ money($row['profit'], false) }}
+                                        {{ money($row['profit'], false, $lens) }}
                                     </td>
                                     {{-- What is left of every 100 taken, so the
                                          three can be compared without dividing. --}}
@@ -277,9 +283,9 @@
                             <tr class="fw-semibold border-top">
                                 <td>{{ __('Together') }}</td>
                                 <td class="money">{{ number_format(collect($byKind)->sum('units')) }}</td>
-                                <td class="money">{{ money(collect($byKind)->sum('revenue'), false) }}</td>
-                                <td class="money">{{ money(collect($byKind)->sum('cost'), false) }}</td>
-                                <td class="money">{{ money(collect($byKind)->sum('profit'), false) }}</td>
+                                <td class="money">{{ money(collect($byKind)->sum('revenue'), false, $lens) }}</td>
+                                <td class="money">{{ money(collect($byKind)->sum('cost'), false, $lens) }}</td>
+                                <td class="money">{{ money(collect($byKind)->sum('profit'), false, $lens) }}</td>
                                 <td></td>
                             </tr>
                             </tfoot>
@@ -315,7 +321,7 @@
                                         </a>
                                     </td>
                                     <td class="money">{{ number_format($row['units']) }}</td>
-                                    <td class="money">{{ money($row['revenue'], false) }}</td>
+                                    <td class="money">{{ money($row['revenue'], false, $lens) }}</td>
                                 </tr>
                             @endforeach
                             </tbody>
