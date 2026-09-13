@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Money;
 use Database\Factories\CurrencyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -157,5 +158,30 @@ class Currency extends Model
     public function minorPerMajor(): int
     {
         return 10 ** $this->decimals;
+    }
+
+    /**
+     * How many places the stored `rate` carries. See the migration.
+     *
+     * Three, so a rate of 1,320.125 survives being an integer column.
+     */
+    public const RATE_PLACES = 3;
+
+    /** The rate as a person writes it: `1320`, or `1320.125`. */
+    public function rateAsTyped(): string
+    {
+        return str_replace(',', '', Money::writeAt((int) $this->rate, self::RATE_PLACES));
+    }
+
+    /**
+     * A typed rate as the scaled integer to store.
+     *
+     * Through the same string-safe reader an amount goes through, because the
+     * float trap is identical: `(int) (1320.125 * 1000)` is not reliably
+     * 1320125, and a rate that is one thousandth out prices every line.
+     */
+    public static function scaleRate(int|float|string|null $typed): ?int
+    {
+        return Money::readAt($typed, self::RATE_PLACES);
     }
 }

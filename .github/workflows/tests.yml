@@ -23,7 +23,10 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: true
+      # One PHP version failing must not hide the others. 8.5 caught a bad
+      # float cast and cancelled 8.3 and 8.4 mid-run, so the version the shops
+      # actually run went unreported on the one push that needed it most.
+      fail-fast: false
       matrix:
         php: [8.3, 8.4, 8.5]
 

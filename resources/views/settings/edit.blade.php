@@ -342,6 +342,24 @@
         <div id="storage"></div>
         <x-storage-meter />
 
+        {{-- Section 2b — the currencies a shop can type and read in.
+             Its own page rather than a card here: each currency is a row with
+             five fields, and this form holds scalars. --}}
+        <div class="card mt-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-currency-exchange"></i>{{ __('Currencies') }}
+            </div>
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div class="text-secondary small mb-0" style="max-width: 44rem">
+                    {{ __('What you can type and read prices in, and today’s rate for each. Every amount is stored in :code whatever it was typed in — a currency changes what a screen shows, never what is written down.', ['code' => \App\Support\Money::base()->code]) }}
+                </div>
+
+                <a href="{{ route('currencies.index') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-currency-exchange me-1"></i>{{ __('Manage currencies') }}
+                </a>
+            </div>
+        </div>
+
         {{-- Section 10b ends with six assertions "to run globally, after every
              test". They live in the acceptance test, guarding the engine. This
              is the link to the same questions asked of the real shop — which is
