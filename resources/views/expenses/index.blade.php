@@ -95,7 +95,7 @@
                             </td>
                             <td>{{ $expense->category->name }}</td>
                             <td class="small text-secondary">{{ $expense->user->name }}</td>
-                            <td class="money">{{ money($expense->amount, false) }}</td>
+                            <td class="money">{{ money($expense->amount, false, $lens) }}</td>
                             <td class="text-end">
                                 <x-row-actions
                                     :edit-modal="Gate::allows('expenses.edit') ? '#expense-edit' : null"
@@ -103,7 +103,10 @@
                                         'action' => route('expenses.update', $expense),
                                         'title' => $expense->title,
                                         'category' => $expense->expense_category_id,
-                                        'amount' => $expense->amount,
+                                        // ⚠️ Pre-filled in the currency the box is taking, and the modal
+                                        // posts this same string back as `amount_shown`.
+                                        // See App\Support\MoneyInput.
+                                        'amount' => \App\Support\Money::format($expense->amount, $lens),
                                         'date' => $expense->expense_date->toDateString(),
                                         'notes' => $expense->notes,
                                     ]"
@@ -149,11 +152,7 @@
                         </div>
                         <div class="mb-3">
                             <label for="expense-amount" class="form-label">{{ __('Amount') }}</label>
-                            <div class="input-group">
-                                <input id="expense-amount" type="number" step="1" min="1" name="amount"
-                                       class="form-control text-end" dir="ltr" required>
-                                <span class="input-group-text">{{ __('IQD') }}</span>
-                            </div>
+                            <x-money-input id="expense-amount" name="amount" :lens="$lens" :min="1" required />
                         </div>
                         <div class="mb-3">
                             <label for="expense-date" class="form-label">{{ __('Date') }}</label>
