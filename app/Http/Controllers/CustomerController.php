@@ -21,7 +21,11 @@ class CustomerController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
-        return view('customers.index', ['customers' => $customers]);
+        return view('customers.index', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
+            'customers' => $customers,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -41,6 +45,8 @@ class CustomerController extends Controller
     public function show(Customer $customer, Request $request): View
     {
         return view('customers.show', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'customer' => $customer,
             'transactions' => AccountTransaction::with('reference')
                 ->where('accountable_type', 'customer')

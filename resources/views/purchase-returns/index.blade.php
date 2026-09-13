@@ -2,7 +2,13 @@
 
 @section('title', __('Purchase returns'))
 
+@section('actions')
+    <x-currency-lens :label="__('Read in')" />
+@endsection
+
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <x-archived-notice :count="$archivedCount" />
 
     <form method="GET" class="card card-body mb-3">
@@ -61,7 +67,7 @@
                             </td>
                             <td>{{ $return->supplier->name }}</td>
                             <td class="text-secondary small">{{ $return->reason ?: '—' }}</td>
-                            <td class="money">{{ money($return->total_amount, false) }}</td>
+                            <td class="money">{{ money($return->total_amount, false, $lens) }}</td>
                             <td class="text-end">
                                 <x-row-actions :print="route('purchase-returns.print', $return)" />
                             </td>

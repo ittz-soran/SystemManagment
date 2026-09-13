@@ -161,6 +161,27 @@ class Currency extends Model
     }
 
     /**
+     * The shape `window.appMoneyIn` takes — Section 2b.
+     *
+     * `rate` is base minor units per one major unit of this currency, with
+     * `Money::RATE_SCALE` divided out. A float on purpose: it is only ever used
+     * to divide a figure for DISPLAY, never to work out anything that is
+     * stored. Everything a cart posts is an integer worked out on the server or
+     * through the untouched-field rule.
+     *
+     * @return array<string, mixed>
+     */
+    public function forScript(): array
+    {
+        return [
+            'code' => $this->code,
+            'mark' => $this->mark(),
+            'decimals' => $this->decimals,
+            'rate' => $this->rate / Money::RATE_SCALE,
+        ];
+    }
+
+    /**
      * A figure in this currency's minor units, as the number a person types.
      *
      * ⚠️ Divided by THIS currency's minor units, not by a hard-coded hundred.

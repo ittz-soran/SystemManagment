@@ -41,6 +41,8 @@ class PurchaseController extends Controller
         $archivedCount = (int) Purchase::archivedOnly()->count();
 
         return view('purchases.index', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'archivedCount' => $archivedCount,
             'purchases' => $purchases,
             'suppliers' => Supplier::companies()->orderBy('name')->get(),
@@ -340,9 +342,11 @@ class PurchaseController extends Controller
             ->with('success', __('Purchase deleted and its stock removed'));
     }
 
-    public function show(Purchase $purchase): View
+    public function show(Request $request, Purchase $purchase): View
     {
         return view('purchases.show', [
+            // Section 2b — the currency this reader wants these figures in.
+            'lens' => $request->user()->lens(),
             'purchase' => $purchase->load('supplier', 'user', 'items.product', 'returns'),
             'payments' => $purchase->payments()->orderBy('paid_at')->get(),
             'lockState' => $purchase->canBeModified(auth()->user()),

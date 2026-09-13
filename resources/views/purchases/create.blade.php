@@ -200,6 +200,9 @@
                         <div class="text-secondary small mb-3 d-none" dir="ltr" id="grand-total-base"></div>
 
                         @if($editing)
+                            {{-- Section 2b: base currency, deliberately. This is money
+                                 that has already moved, and the books recorded it in
+                                 dinars at whatever rate applied on the day. --}}
                             <div class="alert alert-secondary py-2 small mb-0">
                                 {{ __('Payments are not changed by an edit. The new total must still cover the :paid already paid.', ['paid' => money($purchase->amountPaid())]) }}
                             </div>

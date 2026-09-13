@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SaleItem;
+use App\Rules\Amount;
 use App\Services\ProductCodeService;
+use App\Support\MoneyInput;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +50,9 @@ class ServiceController extends Controller
             ->keyBy('product_id');
 
         return view('services.index', [
+            // Section 2b — the price box takes this currency, and the prices in
+            // the table are read in it.
+            'lens' => $request->user()->lens(),
             'services' => $services,
             'earned' => $earned,
             'categories' => Category::orderBy('name')->get(),
@@ -86,7 +91,7 @@ class ServiceController extends Controller
     {
         abort_unless($service->isService(), 404);
 
-        $service->update($this->rules($request));
+        $service->update($this->rules($request, $service));
 
         return back()->with('success', __('Service saved'));
     }
@@ -109,15 +114,26 @@ class ServiceController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function rules(Request $request): array
+    private function rules(Request $request, ?Product $service = null): array
     {
-        return $request->validate([
+        $lens = $request->user()->lens();
+
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'category_id' => ['nullable', 'exists:categories,id'],
-            // Section 2: IQD is whole numbers, never decimal.
-            'sale_price' => ['required', 'integer', 'min:0'],
+            // Section 2: what is stored is whole base-currency units, never
+            // decimal. Section 2b: what is TYPED may be another currency.
+            'sale_price' => ['required', new Amount($lens, min: 0)],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        // ⚠️ With the service's own price as the original, so renaming one
+        // through a dollar lens does not move its price by a rounding.
+        $data['sale_price'] = MoneyInput::fromRequest(
+            $request, 'sale_price', $lens, $service?->sale_price,
+        );
+
+        return $data;
     }
 
     private function defaultCategory(): Category

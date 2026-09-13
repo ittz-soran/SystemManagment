@@ -33,14 +33,18 @@ class PurchaseReturnController extends Controller
         $archivedCount = (int) PurchaseReturn::archivedOnly()->count();
 
         return view('purchase-returns.index', [
-            'archivedCount' => $archivedCount,'returns' => $returns]);
+            'lens' => $request->user()->lens(),
+            'archivedCount' => $archivedCount, 'returns' => $returns]);
     }
 
-    public function create(Purchase $purchase): View
+    public function create(Request $request, Purchase $purchase): View
     {
         $purchase->load('supplier', 'items.product', 'items.batch');
 
         return view('purchase-returns.create', [
+            // Section 2b — the credit boxes take this currency, and the
+            // figures beside them are read in it.
+            'lens' => $request->user()->lens(),
             'purchase' => $purchase,
 
             // Section 7: the calculated discount share is shown beside the credit
@@ -92,9 +96,10 @@ class PurchaseReturnController extends Controller
             ->with('success', __('Return saved'));
     }
 
-    public function show(PurchaseReturn $purchaseReturn): View
+    public function show(Request $request, PurchaseReturn $purchaseReturn): View
     {
         return view('purchase-returns.show', [
+            'lens' => $request->user()->lens(),
             'return' => $purchaseReturn->load('purchase', 'supplier', 'user', 'items.product'),
             'payments' => $purchaseReturn->payments()->orderBy('paid_at')->get(),
             // Section 9b: the button is always shown — disabled with the reason

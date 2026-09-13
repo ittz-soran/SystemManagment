@@ -9,7 +9,13 @@
     <x-back-link :to="route('purchases.show', $purchase)" :label="$purchase->document_no" permission="purchases.view" />
 @endsection
 
+@section('actions')
+    <x-currency-lens :label="__('Read in')" />
+@endsection
+
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     @php
         // Section 7: purchase returns are limited by the batch — you can't send
         // back goods you no longer hold. So the cap is the smaller of what is
@@ -85,15 +91,29 @@
                                         <td>
                                             {{-- Section 7: pre-filled at the FULL typed
                                                  unit price. Editable, because a
-                                                 negotiated credit is normal. --}}
-                                            <input type="number" min="0" step="1" dir="ltr"
-                                                   class="form-control form-control-sm text-end"
+                                                 negotiated credit is normal.
+
+                                                 ⚠️ Section 2b: the visible box takes
+                                                 the currency this person reads in and
+                                                 is UNNAMED; the hidden field beside it
+                                                 carries the base-currency integer the
+                                                 form posts. A credit is what the books
+                                                 record, so the books' own units are
+                                                 what get sent. --}}
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" min="0" dir="ltr"
+                                                       step="{{ \App\Support\Money::step($lens) }}"
+                                                       class="form-control text-end"
+                                                       value="{{ \App\Support\Money::plain($item->unit_price, $lens) }}"
+                                                       data-role="price"
+                                                       data-full="{{ $item->unit_price }}"
+                                                       data-share="{{ $share }}"
+                                                       @disabled($cap === 0)>
+                                                <span class="input-group-text app-code">{{ $lens?->mark() ?? __('IQD') }}</span>
+                                            </div>
+                                            <input type="hidden" data-role="price-base"
                                                    name="lines[{{ $index }}][unit_price]"
-                                                   value="{{ $item->unit_price }}"
-                                                   data-role="price"
-                                                   data-full="{{ $item->unit_price }}"
-                                                   data-share="{{ $share }}"
-                                                   @disabled($cap === 0)>
+                                                   value="{{ $item->unit_price }}">
 
                                             @if($share > 0)
                                                 {{-- The calculated share, shown beside
@@ -102,7 +122,7 @@
                                                 <div class="small text-secondary text-end mt-1">
                                                     <button type="button" class="btn btn-link btn-sm p-0 small"
                                                             data-role="apply-share">
-                                                        {{ __('Apply share: :amount', ['amount' => money($item->unit_price - $share, false)]) }}
+                                                        {{ __('Apply share: :amount', ['amount' => money($item->unit_price - $share, false, $lens)]) }}
                                                     </button>
                                                 </div>
                                             @endif
@@ -123,7 +143,7 @@
                         @if($purchase->discount_amount > 0)
                             <div class="card-footer small text-secondary">
                                 {{ __('This purchase had a :amount discount. By default the supplier is credited the full typed price; applying the share credits proportionally instead.', [
-                                    'amount' => money($purchase->discount_amount),
+                                    'amount' => money($purchase->discount_amount, in: $lens),
                                 ]) }}
                             </div>
                         @endif
@@ -167,7 +187,7 @@
                             <div class="small">
                                 <div class="d-flex justify-content-between">
                                     <span class="text-secondary">{{ __('You currently owe') }}</span>
-                                    <span class="money">{{ money($purchase->supplier->balance, false) }}</span>
+                                    <span class="money">{{ money($purchase->supplier->balance, false, $lens) }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between">
                                     <span class="text-secondary">{{ __('Applied to what you owe') }}</span>
@@ -209,9 +229,20 @@
             const saveButton = document.getElementById('save-return');
 
             const owed = {{ (int) $purchase->supplier->balance }};
-            // One implementation, in app.js — the running total and the
-            // saved invoice must be written the same way. See window.appMoney.
-            const format = (n) => window.appMoney(n);
+
+            /*
+             * One implementation, in the layout head — the running total and
+             * the saved document must be written the same way.
+             *
+             * Section 2b: the lens is handed in, never reached for. Every
+             * figure the arithmetic below touches is a base-currency integer;
+             * the lens changes how one is written and what a box takes.
+             */
+            const lens = @json($lens?->forScript());
+            const format = (n) => window.appMoneyIn(n, lens);
+
+            /** A typed figure, as the base-currency integer the form posts. */
+            const toBase = (typed) => Math.round(Number(typed || 0) * (lens ? lens.rate : 1));
 
             function recalculate() {
                 let total = 0;
@@ -227,7 +258,10 @@
                     if (qty < 0) qty = 0;
                     if (qty > max) { qty = max; qtyInput.value = max; }
 
-                    const price = Math.max(0, Number(priceInput.value || 0));
+                    // ⚠️ The hidden field, not the visible box: the box may be
+                    // holding dollars and a credit is recorded in dinars.
+                    const baseInput = row.querySelector('[data-role="price-base"]');
+                    const price = Math.max(0, Number(baseInput.value || 0));
                     const credit = qty * price;
 
                     row.querySelector('[data-role="credit"]').textContent = format(credit);
@@ -255,7 +289,15 @@
             }
 
             table.addEventListener('input', (event) => {
-                if (['qty', 'price'].includes(event.target.dataset.role)) recalculate();
+                const role = event.target.dataset.role;
+
+                // A typed price becomes the base figure the form will post.
+                if (role === 'price') {
+                    event.target.closest('tr').querySelector('[data-role="price-base"]').value =
+                        Math.max(0, toBase(event.target.value));
+                }
+
+                if (['qty', 'price'].includes(role)) recalculate();
             });
 
             table.addEventListener('click', (event) => {

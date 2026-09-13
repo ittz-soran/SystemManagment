@@ -87,18 +87,14 @@
                 <div class="mb-3">
                     <label for="purchase_price" class="form-label">{{ __('Purchase price') }}</label>
                     @if(auth()->user()->seesRealCost())
-                        <div class="input-group">
-                            <input id="purchase_price" type="number" step="1" min="0" name="purchase_price" data-numpad="{{ __('Purchase price') }}"
-                                   value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" dir="ltr"
-                                   class="form-control text-end @error('purchase_price') is-invalid @enderror" required>
-                            <span class="input-group-text">{{ __('IQD') }}</span>
-                            @error('purchase_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
+                        <x-money-input name="purchase_price" :lens="$lens" :min="0"
+                                       :value="$product->purchase_price ?? 0" required
+                                       :data-numpad="__('Purchase price')" />
                     @else
                         <div class="input-group">
                             <input id="purchase_price" type="text" class="form-control text-end" dir="ltr"
                                    value="{{ hidden_money() }}" disabled>
-                            <span class="input-group-text">{{ __('IQD') }}</span>
+                            <span class="input-group-text app-code">{{ $lens?->mark() ?? __('IQD') }}</span>
                         </div>
                         <div class="form-text">{{ __('Set by somebody who can see what things cost.') }}</div>
                     @endif
@@ -106,13 +102,9 @@
 
                 <div class="mb-3">
                     <label for="sale_price" class="form-label">{{ __('Sale price') }}</label>
-                    <div class="input-group">
-                        <input id="sale_price" type="number" step="1" min="0" name="sale_price" data-numpad="{{ __('Sale price') }}"
-                               value="{{ old('sale_price', $product->sale_price ?? 0) }}" dir="ltr"
-                               class="form-control text-end @error('sale_price') is-invalid @enderror" required>
-                        <span class="input-group-text">{{ __('IQD') }}</span>
-                        @error('sale_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
+                    <x-money-input name="sale_price" :lens="$lens" :min="0"
+                                   :value="$product->sale_price ?? 0" required
+                                   :data-numpad="__('Sale price')" />
                 </div>
 
                 <div class="mb-3">
@@ -159,10 +151,11 @@
                         <div class="col-6">
                             <label for="opening_unit_cost" class="form-label">{{ __('Cost each') }}</label>
                             @if(auth()->user()->seesRealCost())
-                                <input id="opening_unit_cost" type="number" step="1" min="0" name="opening_unit_cost" data-numpad="{{ __('Cost each') }}"
-                                       value="{{ old('opening_unit_cost') }}" dir="ltr"
-                                       class="form-control text-end @error('opening_unit_cost') is-invalid @enderror">
-                                @error('opening_unit_cost')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                {{-- No value: opening stock is only set when a
+                                     product is created, so there is never a
+                                     stored figure for the box to start from. --}}
+                                <x-money-input name="opening_unit_cost" :lens="$lens" :min="0"
+                                               :data-numpad="__('Cost each')" />
                             @else
                                 {{-- FIFO needs a cost for every unit, and this
                                      reader has none to give. --}}

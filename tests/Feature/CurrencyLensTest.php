@@ -159,9 +159,27 @@ class CurrencyLensTest extends TestCase
             ->assertOk()
             ->assertJsonPath('products.0.sale_price', 10_000);
 
-        $this->actingAs($user)->get(route('sales.index'))
+    }
+
+    /**
+     * ⚠️ The history is not the till.
+     *
+     * Soran, 2026-09-13: *"any screen read or write need this currency system
+     * add to it"*. The rule that keeps the lens off the till is about the
+     * counter — the one place a wrong figure costs money in the same minute,
+     * with a customer waiting. Yesterday's sales are read, not charged, so the
+     * list honours the preference like every other reading screen.
+     *
+     * This assertion used to say the opposite, from when reports were the only
+     * lensed screen. The till itself is still covered, above.
+     */
+    public function test_the_sales_history_is_read_in_the_chosen_currency(): void
+    {
+        $this->actingAs($this->looking('USD'))->get(route('sales.index'))
             ->assertOk()
-            ->assertSee('1,320,000');
+            // Trailing zeros are trimmed — Section 2b. $1,000.00 reads 1,000.
+            ->assertSee('1,000')
+            ->assertDontSee('1,320,000');
     }
 
     /** A printed invoice is not the reader's preference either. */

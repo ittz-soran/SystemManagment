@@ -2,8 +2,14 @@
 
 @section('title', __('Payments'))
 
+@section('actions')
+    <x-currency-lens :label="__('Read in')" />
+@endsection
+
 @section('content')
     <x-archived-notice :count="$archivedCount" />
+
+    <x-lens-note :lens="$lens" />
 
     {{-- Section 4: reports read the direction, so cash in and cash out stay
          separate and legible. --}}
@@ -12,7 +18,7 @@
             <div class="card h-100">
                 <div class="card-body">
                     <div class="text-secondary small">{{ __('Money in') }}</div>
-                    <div class="fs-4 fw-semibold money text-success">{{ money($totalIn) }}</div>
+                    <div class="fs-4 fw-semibold money text-success">{{ money($totalIn, in: $lens) }}</div>
                 </div>
             </div>
         </div>
@@ -20,7 +26,7 @@
             <div class="card h-100">
                 <div class="card-body">
                     <div class="text-secondary small">{{ __('Money out') }}</div>
-                    <div class="fs-4 fw-semibold money text-danger">{{ money($totalOut) }}</div>
+                    <div class="fs-4 fw-semibold money text-danger">{{ money($totalOut, in: $lens) }}</div>
                 </div>
             </div>
         </div>
@@ -28,7 +34,7 @@
             <div class="card h-100">
                 <div class="card-body">
                     <div class="text-secondary small">{{ __('Net') }}</div>
-                    <div class="fs-4 fw-semibold money">{{ money($totalIn - $totalOut) }}</div>
+                    <div class="fs-4 fw-semibold money">{{ money($totalIn - $totalOut, in: $lens) }}</div>
                 </div>
             </div>
         </div>
@@ -110,7 +116,7 @@
                             <td>{{ Str::headline($payment->payment_method) }}</td>
                             <td class="small text-secondary">{{ $payment->user->name }}</td>
                             <td class="money fw-semibold {{ $payment->direction === 'in' ? 'text-success' : 'text-danger' }}">
-                                {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, false) }}
+                                {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, false, $lens) }}
                             </td>
                             <td class="text-end">
                                 <x-row-actions
@@ -118,7 +124,7 @@
                                     :delete="Gate::allows('payments.delete') ? route('payments.destroy', $payment) : null"
                                     :delete-label="__('Delete :document? :amount goes back onto what is owed.', [
                                         'document' => $payment->document_no,
-                                        'amount' => money($payment->amount),
+                                        'amount' => money($payment->amount, in: $lens),
                                     ])" />
                             </td>
                         </tr>

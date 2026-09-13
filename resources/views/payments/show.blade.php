@@ -7,6 +7,8 @@
 @endsection
 
 @section('actions')
+    <x-currency-lens :label="__('Read in')" />
+
     @can('payments.edit')
         <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-secondary">
             <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
@@ -18,7 +20,7 @@
         <form action="{{ route('payments.destroy', $payment) }}" method="POST"
               onsubmit="return confirm(@js(__('Delete :document? :amount goes back onto what is owed.', [
                   'document' => $payment->document_no,
-                  'amount' => money($payment->amount),
+                  'amount' => money($payment->amount, in: $lens),
               ])))">
             @csrf
             @method('DELETE')
@@ -35,6 +37,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card">
@@ -49,7 +53,7 @@
                                 : __('Money out of the till') }}
                         </span>
                         <span class="fs-3 fw-semibold money {{ $payment->direction === App\Models\Payment::DIRECTION_IN ? 'text-success' : 'text-danger' }}">
-                            {{ $payment->direction === App\Models\Payment::DIRECTION_IN ? '+' : '−' }}{{ money($payment->amount) }}
+                            {{ $payment->direction === App\Models\Payment::DIRECTION_IN ? '+' : '−' }}{{ money($payment->amount, in: $lens) }}
                         </span>
                     </div>
 
@@ -101,12 +105,12 @@
                     <ul class="list-group list-group-flush">
                         <li class="list-group-item d-flex justify-content-between">
                             <span class="text-secondary">{{ __('Total') }}</span>
-                            <span class="money">{{ money($payment->payable->total_amount, false) }}</span>
+                            <span class="money">{{ money($payment->payable->total_amount, false, $lens) }}</span>
                         </li>
                         @if(method_exists($payment->payable, 'amountDue'))
                             <li class="list-group-item d-flex justify-content-between fw-semibold">
                                 <span>{{ __('Due') }}</span>
-                                <span class="money">{{ money($payment->payable->amountDue()) }}</span>
+                                <span class="money">{{ money($payment->payable->amountDue(), in: $lens) }}</span>
                             </li>
                         @endif
                     </ul>

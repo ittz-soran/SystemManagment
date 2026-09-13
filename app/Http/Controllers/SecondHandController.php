@@ -9,7 +9,9 @@ use App\Models\SaleItem;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Rules\Amount;
 use App\Services\SecondHandService;
+use App\Support\MoneyInput;
 use App\Support\TradeProfit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -67,6 +69,7 @@ class SecondHandController extends Controller
             ->withQueryString();
 
         return view('second-hand.index', [
+            'lens' => $request->user()->lens(),
             'items' => $items,
             'status' => $status,
             // The two lines of an item's life: what it was bought on, and what
@@ -158,7 +161,7 @@ class SecondHandController extends Controller
         ];
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         // Resolved rather than looked up: on a shop that upgraded into this
         // feature the category does not exist yet, and the first item would
@@ -166,6 +169,8 @@ class SecondHandController extends Controller
         $default = Category::firstOrCreate(['name' => SecondHandService::DEFAULT_CATEGORY]);
 
         return view('second-hand.create', [
+            // Section 2b — the price boxes take this currency.
+            'lens' => $request->user()->lens(),
             'categories' => Category::orderBy('name')->get(),
             'defaultCategory' => $default,
         ]);
@@ -173,6 +178,8 @@ class SecondHandController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $lens = $request->user()->lens();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'condition_note' => ['nullable', 'string', 'max:255'],
@@ -180,9 +187,14 @@ class SecondHandController extends Controller
             'unit' => ['nullable', 'string', 'max:32'],
 
             // Section 2: IQD is whole numbers, never decimal.
-            'cost' => ['required', 'integer', 'min:0'],
-            'sale_price' => ['required', 'integer', 'min:0'],
-            'amount_paid' => ['nullable', 'integer', 'min:0', 'lte:cost'],
+            // Section 2b: `Amount` rather than `integer`, so the boxes can
+            // take whichever currency this person is typing in. The floors are
+            // base-currency units either way.
+            'cost' => ['required', new Amount($lens, min: 0)],
+            'sale_price' => ['required', new Amount($lens, min: 0)],
+            // `lte` still holds: both boxes take the same currency, so
+            // comparing what was typed in them compares like with like.
+            'amount_paid' => ['nullable', new Amount($lens, min: 0), 'lte:cost'],
             'payment_method' => ['nullable', 'in:cash,bank,transfer'],
 
             'seller_name' => ['required', 'string', 'max:255'],
@@ -195,6 +207,12 @@ class SecondHandController extends Controller
         ], [
             'amount_paid.lte' => __('Paid amount cannot exceed the price agreed.'),
         ]);
+
+        // Section 2b: the three figures, as the base-currency integers stored.
+        // Nothing is an edit here, so nothing can be untouched.
+        foreach (['cost', 'sale_price', 'amount_paid'] as $field) {
+            $data[$field] = MoneyInput::fromRequest($request, $field, $lens);
+        }
 
         try {
             $result = $this->secondHand->buy(
@@ -287,6 +305,7 @@ class SecondHandController extends Controller
     public function sellers(Request $request): View
     {
         return view('second-hand.sellers', [
+            'lens' => $request->user()->lens(),
             'sellers' => Supplier::walkIns()
                 ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
                     ->where('name', 'like', '%'.$request->input('search').'%')

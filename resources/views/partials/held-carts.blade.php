@@ -28,6 +28,10 @@
                             <i class="bi bi-arrow-counterclockwise me-1"></i>
                             {{ $cart->note ?: trans_choice('{1}:count line|[2,*]:count lines', $cart->lineCount(),
                                 ['count' => $cart->lineCount()]) }}
+                            {{-- Section 2b: base currency, deliberately. This list is
+                                 shared with the till, which never converts, and a cart
+                                 put down before a currency was chosen has no currency
+                                 to be read in. --}}
                             <span class="text-secondary ms-1 money">{{ money($cart->total(), false) }}</span>
                             <span class="text-secondary ms-1 small">
                                 · {{ $cart->user->name }} · {{ $cart->created_at->diffForHumans(short: true) }}

@@ -45,11 +45,8 @@
                      comes from the batches consumed. --}}
                 <div class="mb-3 d-none" id="adj-edit-cost-wrap">
                     <label for="adj-edit-cost" class="form-label">{{ __('Cost each') }}</label>
-                    <div class="input-group">
-                        <input id="adj-edit-cost" type="number" step="1" min="0" name="unit_cost"
-                               class="form-control text-end" dir="ltr" data-numpad="{{ __('Cost each') }}">
-                        <span class="input-group-text">{{ __('IQD') }}</span>
-                    </div>
+                    <x-money-input id="adj-edit-cost" name="unit_cost" :lens="$lens" :min="0"
+                                   :data-numpad="__('Cost each')" />
                     <div class="form-text">{{ __('Required when adding stock — FIFO needs a cost for every unit.') }}</div>
                 </div>
 
@@ -111,7 +108,20 @@
 
             direction.value = opener.dataset.direction ?? 'out';
             form.querySelector('[name="quantity"]').value = opener.dataset.quantity ?? '';
-            form.querySelector('[name="unit_cost"]').value = opener.dataset.cost ?? '';
+            const cost = opener.dataset.cost ?? '';
+            form.querySelector('[name="unit_cost"]').value = cost;
+
+            /*
+             * ⚠️ And the companion field, when the box is taking another
+             * currency. It records what the box was FILLED with, so a save
+             * that never touched it keeps the stored figure exactly —
+             * otherwise the rounding of the conversion is written back.
+             * See App\Support\MoneyInput.
+             */
+            const shownCost = form.querySelector('[name="unit_cost_shown"]');
+
+            if (shownCost) shownCost.value = cost;
+
             form.querySelector('[name="reason"]').value = opener.dataset.reason ?? '';
             form.querySelector('[name="adjusted_at"]').value = opener.dataset.date ?? '';
             form.querySelector('[name="notes"]').value = opener.dataset.notes ?? '';

@@ -7,10 +7,16 @@
     <x-back-link :to="route('second-hand.index')" :label="__('Second-hand')" remember="second-hand" permission="products.view" />
 @endsection
 
+@section('actions')
+    <x-currency-lens :label="__('Read in')" />
+@endsection
+
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <div class="card card-body mb-3 d-flex flex-row justify-content-between align-items-center">
         <span class="text-secondary">{{ __('Still owed to them') }}</span>
-        <span class="fs-4 fw-semibold money">{{ money($owed) }}</span>
+        <span class="fs-4 fw-semibold money">{{ money($owed, in: $lens) }}</span>
     </div>
 
     <form method="GET" class="card card-body mb-3">
@@ -50,7 +56,7 @@
                             </td>
                             <td dir="ltr" class="small text-secondary">{{ $seller->phone ?: '—' }}</td>
                             <td class="money fw-semibold {{ $seller->balance > 0 ? 'text-danger' : 'text-secondary' }}">
-                                {{ money($seller->balance, false) }}
+                                {{ money($seller->balance, false, $lens) }}
                             </td>
                             <td class="text-end">
                                 </td>

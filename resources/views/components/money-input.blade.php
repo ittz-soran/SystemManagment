@@ -26,16 +26,22 @@
     $id ??= $name;
     $shownField = MoneyInput::shownField($name);
 
-    // What the field is rendered holding. `old()` is already in the typed
-    // currency — nothing normalises the request, precisely so this is true
-    // after a refused save.
-    $shown = $value === null ? '' : Money::format((int) $value, $lens);
+    /*
+     * What the field is rendered holding. `old()` is already in the typed
+     * currency — nothing normalises the request, precisely so this is true
+     * after a refused save.
+     *
+     * ⚠️ `plain()`, never `format()`. A thousands separator makes
+     * `<input type="number">` reject the value and render EMPTY, with no error
+     * anywhere: every box holding a thousand or more was blank.
+     */
+    $shown = $value === null ? '' : Money::plain((int) $value, $lens);
     $display = old($name, $shown);
 
     // The floor, said in the currency the box is taking.
     $least = $min === null
         ? null
-        : ($lens === null ? (string) $min : Money::format((int) $min, $lens));
+        : ($lens === null ? (string) $min : Money::plain((int) $min, $lens));
 @endphp
 
 <div class="input-group @error($name) has-validation @enderror">

@@ -7,7 +7,13 @@
     <x-back-link :to="route('second-hand.index')" :label="__('Second-hand')" remember="second-hand" permission="products.view" />
 @endsection
 
+@section('actions')
+    <x-currency-lens :label="__('Type in')" />
+@endsection
+
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <form action="{{ route('second-hand.store') }}" method="POST" data-guard-submit>
         @csrf
 
@@ -119,12 +125,8 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <label for="cost" class="form-label">{{ __('Price agreed') }}</label>
-                            <div class="input-group">
-                                <input id="cost" type="number" step="1" min="0" name="cost" dir="ltr" required
-                                       value="{{ old('cost') }}" data-numpad
-                                       class="form-control text-end @error('cost') is-invalid @enderror">
-                                <span class="input-group-text">{{ setting('currency', 'IQD') }}</span>
-                            </div>
+                            <x-money-input name="cost" :lens="$lens" :min="0" required
+                                           data-numpad="{{ __('Price agreed') }}" />
                             <div class="form-text">
                                 {{ __('This is the cost of this one item, and the cost its profit is measured against.') }}
                             </div>
@@ -133,12 +135,8 @@
 
                         <div class="mb-3">
                             <label for="amount_paid" class="form-label">{{ __('Paid now') }}</label>
-                            <div class="input-group">
-                                <input id="amount_paid" type="number" step="1" min="0" name="amount_paid" dir="ltr"
-                                       value="{{ old('amount_paid', 0) }}" data-numpad
-                                       class="form-control text-end @error('amount_paid') is-invalid @enderror">
-                                <span class="input-group-text">{{ setting('currency', 'IQD') }}</span>
-                            </div>
+                            <x-money-input name="amount_paid" :lens="$lens" :min="0"
+                                           :value="0" data-numpad="{{ __('Paid now') }}" />
                             <div class="form-text">
                                 {{ __('Anything left over stays as what you owe them, and can be paid later.') }}
                             </div>
@@ -158,12 +156,8 @@
 
                         <div class="mb-3">
                             <label for="sale_price" class="form-label">{{ __('Asking price') }}</label>
-                            <div class="input-group">
-                                <input id="sale_price" type="number" step="1" min="0" name="sale_price" dir="ltr" required
-                                       value="{{ old('sale_price') }}" data-numpad
-                                       class="form-control text-end @error('sale_price') is-invalid @enderror">
-                                <span class="input-group-text">{{ setting('currency', 'IQD') }}</span>
-                            </div>
+                            <x-money-input name="sale_price" :lens="$lens" :min="0" required
+                                           data-numpad="{{ __('Asking price') }}" />
                             <div class="form-text">
                                 {{ __('What the cart will suggest. You can still change it when it sells.') }}
                             </div>

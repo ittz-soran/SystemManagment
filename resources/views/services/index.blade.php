@@ -4,6 +4,8 @@
 @section('subheading', __('Sold, never stocked — the whole price is profit'))
 
 @section('actions')
+    <x-currency-lens :label="__('Type in')" />
+
     @can('products.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#service-modal">
             <i class="bi bi-plus-lg me-1"></i>{{ __('New service') }}
@@ -12,6 +14,8 @@
 @endsection
 
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-5">
@@ -54,12 +58,12 @@
                                 @endunless
                             </td>
                             <td class="small text-secondary">{{ $service->category->name }}</td>
-                            <td class="money">{{ money($service->sale_price, false) }}</td>
+                            <td class="money">{{ money($service->sale_price, false, $lens) }}</td>
                             <td class="money text-secondary">{{ number_format((int) ($row->units ?? 0)) }}</td>
                             {{-- Earned, not revenue: a service has no cost, so
                                  the two are the same number. --}}
                             <td class="money fw-semibold text-success">
-                                {{ money((int) ($row->revenue ?? 0), false) }}
+                                {{ money((int) ($row->revenue ?? 0), false, $lens) }}
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
@@ -68,7 +72,11 @@
                                                 data-bs-target="#service-modal"
                                                 data-service="{{ $service->id }}"
                                                 data-name="{{ $service->name }}"
-                                                data-price="{{ $service->sale_price }}"
+                                                {{-- ⚠️ Plain, in the currency the box takes: a
+                                                     separator empties a number input, and the modal
+                                                     posts this same string back as
+                                                     `sale_price_shown`. See App\Support\MoneyInput. --}}
+                                                data-price="{{ \App\Support\Money::plain($service->sale_price, $lens) }}"
                                                 data-category="{{ $service->category_id }}"
                                                 data-active="{{ $service->is_active ? 1 : 0 }}"
                                                 title="{{ __('Edit') }}">
@@ -121,11 +129,8 @@
 
                         <div class="mb-3">
                             <label for="service-price" class="form-label">{{ __('Price') }}</label>
-                            <div class="input-group">
-                                <input id="service-price" type="number" step="1" min="0" name="sale_price"
-                                       dir="ltr" required data-numpad class="form-control text-end">
-                                <span class="input-group-text">{{ setting('currency', 'IQD') }}</span>
-                            </div>
+                            <x-money-input id="service-price" name="sale_price" :lens="$lens" :min="0"
+                                           required :data-numpad="__('Price')" />
                             <div class="form-text">
                                 {{ __('There is no cost to set against it, so this is what it earns.') }}
                             </div>
@@ -175,7 +180,14 @@
                         editing ? @js(__('Edit service')) : @js(__('New service'));
 
                     document.getElementById('service-name').value = button?.dataset.name ?? '';
-                    document.getElementById('service-price').value = button?.dataset.price ?? '';
+                    const price = button?.dataset.price ?? '';
+                    document.getElementById('service-price').value = price;
+
+                    // ⚠️ And the companion field, so a save that never touched
+                    // the box keeps the stored figure exactly. See MoneyInput.
+                    const shownPrice = document.querySelector('[name="sale_price_shown"]');
+
+                    if (shownPrice) shownPrice.value = price;
                     document.getElementById('service-active-row').hidden = ! editing;
                     document.getElementById('service-active').checked = button?.dataset.active !== '0';
 

@@ -9,7 +9,13 @@
     <x-back-link :to="route('sales.show', $sale)" :label="$sale->document_no" permission="sales.view" />
 @endsection
 
+@section('actions')
+    <x-currency-lens :label="__('Read in')" />
+@endsection
+
 @section('content')
+    <x-lens-note :lens="$lens" />
+
     @php
         $returnable = $sale->items->sum(fn ($item) => $item->returnableQuantity());
     @endphp
@@ -127,7 +133,7 @@
                             <div class="small">
                                 <div class="d-flex justify-content-between">
                                     <span class="text-secondary">{{ __('They currently owe') }}</span>
-                                    <span class="money">{{ money($sale->customer->balance, false) }}</span>
+                                    <span class="money">{{ money($sale->customer->balance, false, $lens) }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between">
                                     <span class="text-secondary">{{ __('Applied to their balance') }}</span>
@@ -167,9 +173,17 @@
             const saveButton = document.getElementById('save-return');
 
             const owed = {{ (int) $sale->customer->balance }};
-            // One implementation, in app.js — the running total and the
-            // saved invoice must be written the same way. See window.appMoney.
-            const format = (n) => window.appMoney(n);
+
+            /*
+             * One implementation, in the layout head — the running total and
+             * the saved document must be written the same way.
+             *
+             * Section 2b: the lens is handed in, never reached for. Every
+             * figure below is a base-currency integer; the lens only changes
+             * how it is written. See window.appMoney / window.appMoneyIn.
+             */
+            const lens = @json($lens?->forScript());
+            const format = (n) => window.appMoneyIn(n, lens);
 
             function recalculate() {
                 let total = 0;
