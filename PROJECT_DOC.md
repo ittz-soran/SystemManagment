@@ -102,12 +102,12 @@
 
 Every money value in this system is one integer, and that is not negotiable: Section 5's FIFO engine needs a batch cost that is an exact whole number multiplying cleanly by a quantity, because Section 7 promises a return reverses COGS **to the dinar**. Decimal columns, a currency column, per-document rates and revaluation are all out of scope, and Section 6b says so again for the USD helper.
 
-What *is* configurable is one question the system used to answer by assumption: **what does the integer count?**
+What *is* configurable is one question the system used to answer by assumption: **what does the integer count?** The answer is the base currency's `decimals`, on its row in `currencies`.
 
-| `currency_minor_per_major` | the integer counts | `250000` reads | `15500` reads |
+| IQD `decimals` | the integer counts | `250000` reads | `15500` reads |
 |---|---|---|---|
-| `1` *(today)* | whole dinars | `250,000` | `15,500` |
-| `1000` | fils | `250` | `15.5` |
+| `0` *(today)* | whole dinars | `250,000` | `15,500` |
+| `3` | fils | `250` | `15.5` |
 
 ### The redenomination — and why there is no migration
 
@@ -131,6 +131,24 @@ Read those together and they say something useful: the new dinar is worth 1,000 
 - **Quantities are not money.** `373 pcs` stays `373 pcs`. Only amounts divide.
 - **A chart axis counts what the tile beside it counts.** 90,920,109 fils is 90,920 dinars, so the axis reads `90.9 k` — reading the stored count would put `90.9 M` beside a tile saying 90,920.
 
+### The currency list — Soran, 2026-09-13
+
+> *"can type usd or another currency and system automatically convert to base system currency… should show all prices as selected currency"*
+
+A `currencies` table — `code`, `name`, `symbol`, `decimals`, `rate`, `is_active` — and a `currency_base` setting naming which row the books are kept in. **A currency is a lens, not a second set of books.** A screen set to USD draws its figures in dollars and expects dollars in its boxes; what it saves is base-currency integers, the same ones it would have saved had they been typed in dinars.
+
+Nothing foreign is ever stored, which is exactly why there is **no exchange gain or loss to account for**: you never owe dollars, you owe what the dinars came to. Section 6b's rule survives intact — no currency column on money fields, no dual-currency balances, no historical rate lookup. This widens its calculator; it does not break its rule.
+
+`rate` is how many base **minor** units one **major** unit of that currency is worth, × `Money::RATE_SCALE` (1,000). `1 USD = 1,320 IQD` is `1_320_000`. An integer, because Section 6 allows no decimal columns; scaled by a thousand so 1,320.125 survives and small enough that the largest amount this system can hold still converts inside a 64-bit integer. The base currency's own rate is `10^decimals × 1000`, which is what lets one formula serve every currency including the base.
+
+Decided with Soran, 2026-09-13:
+
+- **A printed document shows both** — the amount owed in the base currency, and beneath it the foreign figure with the rate that produced it. The rate is frozen onto the document so a reprint is identical forever; without that, the same sale prints $500 in March and $488.89 in April.
+- **The lens is picked per screen and remembered per person** — the same shape as language and theme, which are already per user.
+- **Every money screen except the till.** You buy in dollars; you sell across a counter for cash in dinars, and that counter is the one place a wrong number costs money in the same minute.
+
+> ⚠️ **The untouched-field rule.** Rounding does not survive a round trip: 10,000 dinars shown at 1,320 is $7.5757…, written `$7.58`, which converts back to **10,006**. A screen that converts a field nobody edited rewrites it — and editing one line of a ten-line purchase would silently move the other nine, each still looking plausible. So every money field carries its original stored value, and **only a field somebody actually typed into is converted back**. The first test written for the lens is: open a record in USD mode, change nothing, save, assert every stored figure is identical.
+
 ### Where it lives
 
 `App\Support\Money` is the only place that knows the answer, on the server; `window.appMoney` in the layout head mirrors it for the four cart screens that add up a total between keystrokes.
@@ -139,9 +157,11 @@ Read those together and they say something useful: the new dinar is worth 1,000 
 
 > ⚠️ Both directions are integer arithmetic on strings. `(int) (15.5 * 1000)` is **15499** in PHP. A system that loses one unit per line loses it silently — every total still adds up, each is just a little wrong.
 
+> ⚠️ Currencies are cached like settings are, but as **rows, never models**. A cache store that serialises hands an Eloquent object back as `__PHP_Incomplete_Class`, and every page that draws a figure dies with a TypeError — `LicenceTest` caught exactly that. The cached value's shape is also checked on read, because on the day this ships every shop's file cache still holds whatever the previous release wrote under that key.
+
 ### What is not done yet
 
-**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`, so `currency_minor_per_major` is deliberately **not on the Settings page** — a shop that flipped it today could read 15.5 and not enter it. It becomes an editable setting when the entry half lands.
+**Reading is finished. Typing is not.** Number fields still take whole units (`step="1"`) and validation still says `integer`. So the currency list exists and converts correctly, but no screen offers the lens yet, and IQD's `decimals` is not editable from Settings — a shop that changed it today could read 15.5 and not enter it. Both land together when the entry half does.
 
 ---
 

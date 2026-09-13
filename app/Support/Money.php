@@ -2,104 +2,150 @@
 
 namespace App\Support;
 
+use App\Models\Currency;
+use RuntimeException;
+
 /**
- * What the stored integer means, and how it is written down.
+ * What the stored integer means, and how a figure is written and read.
  *
- * ⚠️ **Every money column in this system is one integer and always will be.**
- * Section 2 and Section 5 rest on it: a batch cost has to be an exact whole
- * number that multiplies cleanly by a quantity, because Section 7 promises a
- * return reverses COGS *to the dinar*. Nothing here changes that, and nothing
- * here is a step towards decimal columns or a currency column.
+ * ⚠️ **Every money column in this system is one integer in ONE currency, and
+ * always will be.** Section 5's FIFO engine needs a batch cost that is an exact
+ * whole number multiplying cleanly by a quantity, because Section 7 promises a
+ * return reverses COGS to the last unit. Section 6b's rule is unchanged: no
+ * currency column on money fields, no dual-currency balances, no historical
+ * rate lookup.
  *
- * What this class adds is one question the system never used to ask: **what
- * does the integer count?**
+ * This class does two jobs and nothing else.
  *
- * Today it counts dinars, and `minorPerMajor()` is 1, so every method below is
- * arithmetic that changes nothing — which is deliberate, and is what
- * MoneyTest locks down. The class exists for the day the answer changes.
+ * ## 1. What the stored integer counts
  *
- * ## The redenomination
+ * The base currency's `decimals`. Today IQD has 0, so the integer counts whole
+ * dinars and every method here is arithmetic that changes nothing. The day the
+ * central bank cuts three zeros, IQD gets 3 decimals and the same stored
+ * integers read as dinars-and-fils — Soran's own figures:
  *
- * Iraq's central bank has discussed cutting three zeros off the dinar. Soran
- * described what that means for a shop on 2026-09-12, in his own numbers:
+ *     250,000  →  250          250  →  0.25          15,500  →  15.5
  *
- *     250,000 IQD  →  250 IQD
- *         250 IQD  →  250 fils
- *      15,500 IQD  →  15.5 IQD   (15 dinars and 500 fils, always written 15.5)
+ * Not one row is migrated: the new dinar is worth 1,000 old ones AND holds
+ * 1,000 fils, so an amount stored as 250,000 is already the right count of
+ * fils. See PROJECT_DOC Section 2b, including the one ratio that would need a
+ * real migration.
  *
- * Read those carefully and they say something useful: the new dinar is worth
- * 1,000 old ones AND is divided into 1,000 fils, so **one fils is worth exactly
- * one old dinar**. An amount stored today as 250,000 is already the correct
- * count of new fils. Not one row needs migrating; the integer stops counting
- * dinars and starts counting fils, and only the reading of it changes.
+ * ## 2. Typing and reading in another currency — the lens
  *
- * That is the whole design. Set `currency_minor_per_major` to 1000 and every
- * screen, chart, invoice and input follows.
+ * Asked for by Soran, 2026-09-13: *"can type usd or another currency and
+ * system automatically convert to base system currency… should show all prices
+ * as selected currency"*. A screen set to USD draws its figures in dollars and
+ * expects dollars in its boxes; what it saves is base-currency integers, the
+ * same ones it would have saved had they been typed in dinars.
  *
- * ⚠️ It holds only while the two ratios match. A redenomination of 1,000:1
- * into a dinar of 100 fils would need every stored amount divided by ten, and
- * that division is lossy for any figure that is not a multiple of ten — which
- * Section 6b's fractional supplier prices can produce. That case needs a real
- * migration with a stated rounding rule, and it is not written until there is a
- * published ratio to write it against.
+ * So a currency is a lens, not a second set of books. Nothing foreign is ever
+ * stored, which is exactly why there is no exchange gain or loss to account
+ * for: you never owe dollars, you owe what the dinars came to.
+ *
+ * ⚠️ **Rounding does not survive a round trip, and that is this design's one
+ * dangerous edge.** 10,000 dinars shown at 1,320 is $7.5757…, written $7.58,
+ * which converts back to 10,006. A screen that converts a field nobody edited
+ * rewrites it. Only fields a person actually typed into may be converted — see
+ * the untouched-field rule in Section 2b.
  */
 final class Money
 {
     /**
-     * How many stored units make one unit people say out loud.
+     * The rate column's scale: thousandths of a base minor unit.
      *
-     * A power of ten, because a currency's subunit always is one and because
-     * `decimals()` is its logarithm. Anything else is ignored rather than
-     * throwing: a settings table is editable by hand, and a shop must not be
-     * unable to open its own till because somebody typed 3 in a box.
+     * Three decimal places is past what any money-changer quotes, and small
+     * enough that converting the largest amount this system can hold
+     * (AmountInWords::MAX, near 1e12) back into a two-decimal currency stays
+     * inside a 64-bit integer.
      */
+    public const RATE_SCALE = 1000;
+
+    /**
+     * The currency the books are kept in.
+     *
+     * Falls back to a currency that is not in the table at all when there is no
+     * table to read — the shared codebase the panel provisions from has no
+     * database, and `money()` is reachable from console commands that run
+     * there. A figure printed by a command is better than a fatal error.
+     */
+    public static function base(): Currency
+    {
+        $code = (string) setting('currency_base', 'IQD');
+        $all = Currency::cached();
+
+        return $all[$code] ?? reset($all) ?: self::assumed($code);
+    }
+
+    /** The one this system had before there was a table to put it in. */
+    private static function assumed(string $code): Currency
+    {
+        $per = max(1, (int) setting('currency_minor_per_major', 1));
+        $decimals = in_array($per, [1, 10, 100, 1000], true) ? (int) log10($per) : 0;
+
+        return new Currency([
+            'code' => $code,
+            'name' => $code,
+            'decimals' => $decimals,
+            'rate' => (10 ** $decimals) * self::RATE_SCALE,
+            'is_active' => true,
+        ]);
+    }
+
+    /** How many stored units make one unit people say out loud. */
     public static function minorPerMajor(): int
     {
-        $set = (int) setting('currency_minor_per_major', 1);
-
-        return in_array($set, [1, 10, 100, 1000], true) ? $set : 1;
+        return self::base()->minorPerMajor();
     }
 
     /** How many places a figure can carry. Zero while the integer counts whole units. */
     public static function decimals(): int
     {
-        return (int) log10(self::minorPerMajor());
+        return self::base()->decimals;
     }
 
     /**
      * The stored integer, written the way the shop reads it.
      *
      * ⚠️ **Trailing zeros are trimmed, on Soran's instruction.** 250,000 reads
-     * `250` and not `250.000`; 15,500 reads `15.5` and not `15.500`. A price
-     * list where every figure carries three decimals it does not need is a
-     * price list nobody can scan down.
+     * `250` and not `250.000`; 15,500 reads `15.5`. A price list where every
+     * figure carries three decimals it does not need is one nobody can scan.
      *
      * ⚠️ **And it is one number, never two.** 15.5, never "15 dinars 500 fils".
-     * The compound form belongs in `AmountInWords` and nowhere else — see the
-     * note there for why the invoice's written line is the one exception.
+     * The compound form belongs in `AmountInWords` and nowhere else.
      *
-     * Digits stay English in every language (Section 9b), which is what
-     * `number_format` gives.
+     * Given a currency, the figure is converted into it first — that is the
+     * lens. Digits stay English in every language (Section 9b).
      */
-    public static function format(int|float|null $stored): string
+    public static function format(int|float|null $stored, ?Currency $in = null): string
     {
-        $per = self::minorPerMajor();
         $stored = (int) round((float) $stored);
 
-        if ($per === 1) {
-            return number_format($stored);
+        if ($in === null || $in->code === self::base()->code) {
+            return self::write($stored, self::base()->decimals);
+        }
+
+        return self::write(self::fromBase($stored, $in), $in->decimals);
+    }
+
+    /** A count of minor units, written with its separators and its point. */
+    private static function write(int $minor, int $decimals): string
+    {
+        if ($decimals === 0) {
+            return number_format($minor);
         }
 
         // Split before formatting rather than dividing into a float: the
         // fractional part of 15,500 / 1000 is not exactly .5 in binary, and a
         // price list is the wrong place to discover that.
-        $negative = $stored < 0;
-        $size = abs($stored);
+        $per = 10 ** $decimals;
+        $negative = $minor < 0;
+        $size = abs($minor);
 
         $major = number_format(intdiv($size, $per));
-        $minor = rtrim(str_pad((string) ($size % $per), self::decimals(), '0', STR_PAD_LEFT), '0');
+        $small = rtrim(str_pad((string) ($size % $per), $decimals, '0', STR_PAD_LEFT), '0');
 
-        return ($negative ? '-' : '').$major.($minor === '' ? '' : '.'.$minor);
+        return ($negative ? '-' : '').$major.($small === '' ? '' : '.'.$small);
     }
 
     /**
@@ -121,26 +167,32 @@ final class Money
      * A typed figure, as the integer to store.
      *
      * ⚠️ **Parsed as a string, never through a float.** In PHP
-     * `(int) (0.1 * 1000)` is 99, and a system that loses one unit per line
-     * loses it silently — the totals still add up, they are just each a little
-     * wrong. So the two halves are read as digits and combined as integers.
+     * `(int) (2.03 * 1000)` is 2029, and a system that loses one unit per line
+     * loses it silently — every total still adds up, each is just a little
+     * wrong. Both directions are integer arithmetic for that reason.
      *
-     * Accepts what a person actually types: `15.5`, `15,500`, `١٥.٥` is not
-     * accepted and does not need to be (Section 9b keeps every number field in
-     * English digits).
+     * Given a currency, the number is read in that currency and converted; the
+     * answer is always base-currency minor units, because that is the only
+     * thing this system stores.
      */
-    public static function parse(int|float|string|null $typed): ?int
+    public static function parse(int|float|string|null $typed, ?Currency $from = null): ?int
     {
-        $text = trim((string) $typed);
+        $from ??= self::base();
+        $minor = self::read($typed, $from->decimals);
 
-        if ($text === '') {
+        if ($minor === null) {
             return null;
         }
 
-        // A thousands separator is what a person pastes out of a spreadsheet.
-        $text = str_replace(',', '', $text);
+        return $from->code === self::base()->code ? $minor : self::toBase($minor, $from);
+    }
 
-        if (! preg_match('/^(-)?(\d*)(?:\.(\d*))?$/', $text, $found)) {
+    /** A typed string as a count of minor units at the given precision. */
+    private static function read(int|float|string|null $typed, int $decimals): ?int
+    {
+        $text = str_replace(',', '', trim((string) $typed));
+
+        if ($text === '' || ! preg_match('/^(-)?(\d*)(?:\.(\d*))?$/', $text, $found)) {
             return null;
         }
 
@@ -150,33 +202,105 @@ final class Money
             return null;
         }
 
-        $per = self::minorPerMajor();
-        $places = self::decimals();
-
-        // More places than the currency has are rounded, not truncated: half a
-        // fils typed into a price is a person meaning the next one up.
         $fraction = (string) $fraction;
         $carry = 0;
 
-        if (strlen($fraction) > $places) {
-            $carry = (int) ($fraction[$places] >= '5');
-            $fraction = substr($fraction, 0, $places);
+        // More places than the currency has round up rather than being cut off:
+        // half a fils typed into a price is a person meaning the next one up.
+        if (strlen($fraction) > $decimals) {
+            $carry = (int) ($fraction[$decimals] >= '5');
+            $fraction = substr($fraction, 0, $decimals);
         }
 
-        $minor = $places === 0 ? 0 : (int) str_pad($fraction, $places, '0');
-        $value = (int) ($whole === '' ? '0' : $whole) * $per + $minor + $carry;
+        $small = $decimals === 0 ? 0 : (int) str_pad($fraction, $decimals, '0');
+        $value = (int) ($whole === '' ? '0' : $whole) * (10 ** $decimals) + $small + $carry;
 
         return $sign === '-' ? -$value : $value;
     }
 
     /**
+     * Minor units of `$from`, as base-currency minor units.
+     *
+     *     base = round(minor × rate ÷ (10^decimals × RATE_SCALE))
+     *
+     * Rounded half away from zero on the amount itself, once. Section 6b's rule
+     * still governs what happens to the remainder on a purchase line: round the
+     * UNIT price, never the line total, and let the difference fall into the
+     * signed `discount_amount`.
+     *
+     * Done in integers, though honestly: at every magnitude a shop will ever
+     * see, a float would give the same answer, and searching for a case where
+     * it does not found none. Unlike `read()` above — where `(int) (2.03 ×
+     * 1000)` really is 2029 and a test proves it — this is belt-and-braces
+     * rather than a fix for a bug anybody has demonstrated. It is kept because
+     * it costs nothing, needs no reasoning about doubles to trust, and carries
+     * the overflow guard a float would not trip.
+     */
+    public static function toBase(int $minor, Currency $from): int
+    {
+        $divisor = (10 ** $from->decimals) * self::RATE_SCALE;
+
+        return self::divideRounding(self::times($minor, $from->rate), $divisor);
+    }
+
+    /**
+     * Base-currency minor units, as minor units of `$to` — the reading direction.
+     *
+     * ⚠️ Not exact, and cannot be: see the round-trip warning above.
+     */
+    public static function fromBase(int $base, Currency $to): int
+    {
+        if ($to->rate <= 0) {
+            throw new RuntimeException("[{$to->code}] has no exchange rate, so nothing can be shown in it.");
+        }
+
+        $scaled = self::times($base, (10 ** $to->decimals) * self::RATE_SCALE);
+
+        return self::divideRounding($scaled, $to->rate);
+    }
+
+    /**
+     * A multiplication that refuses to wrap.
+     *
+     * A silently overflowed integer is a wrong price that looks like a price.
+     * The guard costs one division and turns an impossible figure into an
+     * error somebody can read.
+     */
+    private static function times(int $a, int $b): int
+    {
+        if ($a !== 0 && $b !== 0 && abs($a) > intdiv(PHP_INT_MAX, abs($b))) {
+            throw new RuntimeException('That amount is too large to convert between currencies.');
+        }
+
+        return $a * $b;
+    }
+
+    /** Integer division, rounded half away from zero — never through a float. */
+    private static function divideRounding(int $value, int $divisor): int
+    {
+        if ($divisor === 0) {
+            throw new RuntimeException('A currency rate of zero cannot be used.');
+        }
+
+        $negative = ($value < 0) !== ($divisor < 0);
+        $value = abs($value);
+        $divisor = abs($divisor);
+
+        $result = intdiv($value, $divisor) + (int) (($value % $divisor) * 2 >= $divisor);
+
+        return $negative ? -$result : $result;
+    }
+
+    /**
      * The smallest step a number field may take, as an HTML `step`.
      *
-     * `1` today. `0.001` once the integer counts fils, so a browser stops
-     * refusing 15.5 as an invalid number.
+     * `1` for a whole-unit currency, `0.01` for dollars, `0.001` for a dinar
+     * that has fils — so a browser stops refusing 15.5 as an invalid number.
      */
-    public static function step(): string
+    public static function step(?Currency $in = null): string
     {
-        return self::decimals() === 0 ? '1' : rtrim(rtrim(number_format(1 / self::minorPerMajor(), 3, '.', ''), '0'), '.');
+        $decimals = ($in ?? self::base())->decimals;
+
+        return $decimals === 0 ? '1' : '0.'.str_repeat('0', $decimals - 1).'1';
     }
 }

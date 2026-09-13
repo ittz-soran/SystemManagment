@@ -2,10 +2,13 @@
 
 namespace Tests\Unit;
 
+use App\Models\Currency;
 use App\Models\Setting;
 use App\Support\AmountInWords;
 use App\Support\Money;
+use Database\Seeders\CurrencySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 /**
@@ -24,9 +27,33 @@ class MoneyTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The two rows every shop is seeded with — see CurrencySeeder.
+        $this->seed(CurrencySeeder::class);
+    }
+
+    /**
+     * The dinar loses three zeros: the stored integer starts counting fils.
+     *
+     * Which is now one field on the currency it describes rather than a loose
+     * setting beside it — see Section 2b.
+     */
     private function afterTheZerosCameOff(): void
     {
-        Setting::put('currency_minor_per_major', '1000');
+        Currency::where('code', 'IQD')->firstOrFail()->update([
+            'decimals' => 3,
+            'rate' => 1_000 * Money::RATE_SCALE,
+        ]);
+
+        Currency::flushCache();
+    }
+
+    private function dollars(): Currency
+    {
+        return Currency::where('code', 'USD')->firstOrFail();
     }
 
     // ------------------------------------------------------------ as it is now
@@ -143,15 +170,17 @@ class MoneyTest extends TestCase
     }
 
     /**
-     * A settings table is editable by hand, and a shop must not be unable to
-     * open its till because somebody typed 3 in a box.
+     * With no currencies at all — the shared codebase, a console command run
+     * before seeding — a figure still prints rather than throwing.
      */
-    public function test_a_divisor_that_is_not_a_power_of_ten_is_ignored(): void
+    public function test_it_falls_back_when_there_is_no_currency_table_to_read(): void
     {
-        Setting::put('currency_minor_per_major', '3');
+        Currency::query()->delete();
+        Currency::flushCache();
 
-        $this->assertSame(1, Money::minorPerMajor());
+        $this->assertSame('IQD', Money::base()->code);
         $this->assertSame('250,000', Money::format(250_000));
+        $this->assertSame(250_000, Money::parse('250000'));
     }
 
     // ------------------------------------------------------- the written line
@@ -231,5 +260,140 @@ class MoneyTest extends TestCase
         $this->assertSame('250', money_short(250_000));
         $this->assertSame('15.5', money_short(15_500));
         $this->assertSame('1 M', money_short(999_999_999));
+    }
+
+    // ------------------------------------------------------------- the lens
+
+    /**
+     * Typing dollars on a page whose shop keeps dinars.
+     *
+     * §6b's own worked example, which is why these exact numbers: $8.33 at
+     * 1,320 is 10,995.6, and the unit price is rounded to a whole dinar so it
+     * multiplies cleanly by a quantity.
+     */
+    public function test_a_price_typed_in_dollars_is_stored_in_dinars(): void
+    {
+        $usd = $this->dollars();
+
+        $this->assertSame(10_996, Money::parse('8.33', $usd));
+        $this->assertSame(660_000, Money::parse('500', $usd));
+        $this->assertSame(660_000, Money::parse('500.00', $usd));
+        // 29.17 × 1,320 = 38,504.4. A dollar has two decimals, so a price that
+        // was a round 38,500 dinars cannot be typed back exactly in dollars —
+        // which is the round-trip warning, arriving early.
+        $this->assertSame(38_504, Money::parse('29.17', $usd));
+    }
+
+    /** And read back through the same lens. */
+    public function test_a_stored_figure_is_shown_in_the_chosen_currency(): void
+    {
+        $usd = $this->dollars();
+
+        $this->assertSame('500', Money::format(660_000, $usd));
+        $this->assertSame('8.33', Money::format(10_996, $usd));
+
+        // The base currency through its own lens is just the base currency.
+        $this->assertSame('660,000', Money::format(660_000));
+        $this->assertSame('660,000', Money::format(660_000, Money::base()));
+    }
+
+    /**
+     * ⚠️ The dangerous edge, written down as a test rather than a comment.
+     *
+     * 10,000 dinars is $7.5757…, which is written $7.58, which converts back to
+     * 10,006. The round trip does NOT return what it started with, and any
+     * screen that converts a field nobody edited will quietly rewrite it. The
+     * untouched-field rule exists because of exactly this arithmetic.
+     */
+    public function test_the_round_trip_does_not_return_what_it_started_with(): void
+    {
+        $usd = $this->dollars();
+
+        $this->assertSame('7.58', Money::format(10_000, $usd));
+        $this->assertSame(10_006, Money::parse('7.58', $usd));
+
+        $this->assertNotSame(
+            10_000,
+            Money::parse(Money::format(10_000, $usd), $usd),
+            'If this ever passes, the untouched-field rule can be dropped — check very carefully first.',
+        );
+    }
+
+    /** A rate is not a whole number of dinars in every country. */
+    public function test_a_fractional_rate_is_carried(): void
+    {
+        $usd = $this->dollars();
+        $usd->update(['rate' => (int) (1_320.125 * Money::RATE_SCALE)]);
+
+        // 500 × 1320.125 = 660,062.5 → rounded half away from zero.
+        $this->assertSame(660_063, Money::parse('500', $usd));
+    }
+
+    public function test_the_lens_survives_the_redenomination(): void
+    {
+        $this->afterTheZerosCameOff();
+        $usd = $this->dollars();
+
+        // A dollar is still 1,320 of whatever the integer counts — old dinars
+        // before, fils after — so the stored figure is unchanged and only the
+        // way the base reads it moves.
+        $this->assertSame(660_000, Money::parse('500', $usd));
+        $this->assertSame('660', Money::format(660_000));
+        $this->assertSame('500', Money::format(660_000, $usd));
+    }
+
+    /** Each currency's own precision, in the field and in the figure. */
+    public function test_the_step_follows_the_currency_in_the_lens(): void
+    {
+        $this->assertSame('1', Money::step());
+        $this->assertSame('0.01', Money::step($this->dollars()));
+
+        $this->afterTheZerosCameOff();
+
+        $this->assertSame('0.001', Money::step());
+    }
+
+    /** A figure too large to convert says so rather than wrapping into nonsense. */
+    public function test_an_impossible_figure_is_refused_not_wrapped(): void
+    {
+        $usd = $this->dollars();
+
+        $this->expectExceptionMessage('too large');
+
+        Money::format(PHP_INT_MAX - 1, $usd);
+    }
+
+    /** A currency with no rate cannot be a lens, and says so. */
+    public function test_a_currency_with_no_rate_is_refused(): void
+    {
+        $usd = $this->dollars();
+        $usd->forceFill(['rate' => 0]);
+
+        $this->expectExceptionMessage('no exchange rate');
+
+        Money::format(660_000, $usd);
+    }
+
+    /**
+     * ⚠️ The day this ships, every shop's cache still holds what the PREVIOUS
+     * release put under this key.
+     *
+     * Without a shape check, the first page load after the deploy is a 500 on
+     * every screen that draws a figure — and the way out is a command nobody
+     * can reach, because the panel is one of the screens that is down. So a
+     * cached value that is not rows is thrown away and the table is asked.
+     */
+    public function test_a_cache_left_by_an_older_release_does_not_take_the_shop_down(): void
+    {
+        // What the first version of Currency::cached() wrote: model objects.
+        Cache::forever(Currency::CACHE_KEY, ['IQD' => Currency::where('code', 'IQD')->firstOrFail()]);
+
+        $this->assertSame('IQD', Money::base()->code);
+        $this->assertSame('250,000', Money::format(250_000));
+
+        // Anything at all, in fact.
+        Cache::forever(Currency::CACHE_KEY, 'nonsense from a release nobody remembers');
+
+        $this->assertSame('250,000', Money::format(250_000));
     }
 }

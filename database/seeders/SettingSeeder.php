@@ -57,18 +57,23 @@ class SettingSeeder extends Seeder
         'default_unit' => 'pcs',
 
         /*
-         * What the stored integer counts — App\Support\Money.
+         * Which currency the books are kept in — Section 2b. Its row in
+         * `currencies` carries the decimals that say what every stored integer
+         * counts, and the day the dinar loses three zeros that row goes from 0
+         * to 3.
+         */
+        'currency_base' => 'IQD',
+
+        /*
+         * ⚠️ Superseded, and kept on purpose.
          *
-         * 1 while it counts whole dinars, and every figure in the system reads
-         * exactly as it always has. 1000 the day the dinar loses three zeros
-         * and the stored count becomes fils.
-         *
-         * ⚠️ Deliberately NOT on the Settings page. Reading is finished;
-         * TYPING is not — the number fields still take whole units and the
-         * validation still says `integer`, so a shop that flipped this today
-         * could read 15.5 and not enter it. It becomes a setting somebody can
-         * change when the entry half lands. Until then it is here so the
-         * default exists and the reset button knows about it.
+         * This is where "what does the integer count" lived before there was a
+         * currencies table to put it on. CurrencySeeder reads it to give IQD
+         * its decimals, so a shop that had already changed it keeps what it was
+         * reading; App\Support\Money reads it only when there is no table at
+         * all, which is the shared codebase the panel provisions from. Nothing
+         * else should look at it, and it can go once no install predates the
+         * table.
          */
         'currency_minor_per_major' => '1',
 
