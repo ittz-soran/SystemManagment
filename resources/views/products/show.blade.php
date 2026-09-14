@@ -91,7 +91,7 @@
         $cards = $product->isService()
             ? [['label' => __('Sale price'), 'value' => money($product->sale_price, in: $lens)]]
             : [
-                ['label' => __('In stock'), 'value' => number_format($product->quantity).' '.$product->unit],
+                ['label' => __('In stock'), 'value' => qty($product->quantity, $product->unit)],
                 // A total beside a count is a unit cost one division away —
                 // 100,000 over 10 pcs is 10,000 each — so it follows the same
                 // rule as every other cost on the page.
@@ -270,8 +270,8 @@
                                                  :id="$batch->source_id" />
                             </td>
                             <td class="money">{{ cost_money($batch->unit_cost, false, $lens) }}</td>
-                            <td class="money text-secondary">{{ number_format($batch->quantity_in) }}</td>
-                            <td class="money fw-semibold">{{ number_format($batch->quantity_remaining) }}</td>
+                            <td class="money text-secondary">{{ qty($batch->quantity_in, $product->unit) }}</td>
+                            <td class="money fw-semibold">{{ qty($batch->quantity_remaining, $product->unit) }}</td>
                             <td class="money">{{ cost_money($batch->quantity_remaining * $batch->unit_cost, false, $lens) }}</td>
                         </tr>
                     @endforeach
@@ -316,7 +316,7 @@
                             </td>
                             <td class="small text-secondary">#{{ $movement->stock_batch_id }}</td>
                             <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">
-                                {{ $movement->quantity > 0 ? '+' : '' }}{{ number_format($movement->quantity) }}
+                                {{ $movement->quantity > 0 ? '+' : '' }}{{ qty($movement->quantity, $product->unit) }}
                             </td>
                             <td class="money text-secondary">{{ cost_money($movement->unit_cost, false, $lens) }}</td>
                         </tr>

@@ -58,7 +58,7 @@
                                 {{ $item->product->name }}
                                 <span dir="ltr" class="ms-1">{{ $item->product->sku }}</span>
                                 <span class="ms-2" dir="ltr">
-                                    {{ number_format($item->quantity) }} × {{ money($item->unit_price, false) }}
+                                    {{ qty($item->quantity, $item->product->unit) }} × {{ money($item->unit_price, false) }}
                                 </span>
                             </td>
                             <td class="money">{{ money($item->quantity * $item->unit_price, false) }}</td>

@@ -41,6 +41,33 @@ if (! function_exists('money')) {
     }
 }
 
+if (! function_exists('qty')) {
+    /**
+     * A quantity, with the unit it is counted in — Section 4.
+     *
+     * **Soran, 2026-09-14:** *"products or second hands every time have an
+     * quantity and with deference units type, always is pcs … but sometimes have
+     * an product are unit kgm or karton or miter"*.
+     *
+     * ⚠️ Unlike a currency, the unit changes ROW BY ROW. A page can say once at
+     * the top which currency it is read in, because that is one answer for the
+     * whole page; it cannot do that for units, because line 1 is three kartons
+     * and line 2 is three kilos and the column says `3` to both. So the unit
+     * travels with the number, everywhere, including on printed sheets.
+     *
+     * Numbers stay left-to-right inside RTL text. The caller wraps this in
+     * `.money` or `<span class="app-code">` where that matters, the same as
+     * every other figure in the system.
+     */
+    function qty(int|float|null $quantity, ?string $unit = null, bool $withUnit = true): string
+    {
+        $written = number_format((float) ($quantity ?? 0));
+        $unit = trim((string) $unit);
+
+        return ($withUnit && $unit !== '') ? $written.' '.$unit : $written;
+    }
+}
+
 if (! function_exists('human_bytes')) {
     /**
      * A size a shopkeeper reads rather than counts.

@@ -60,7 +60,7 @@
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
-                                <th class="money" style="width: 7rem">{{ __('Quantity') }}</th>
+                                <th class="money" style="width: 7.5rem">{{ __('Quantity') }}</th>
                                 <th class="money" style="width: 10rem">{{ __('Unit price') }}</th>
                                 <th class="money" style="width: 9rem">{{ __('Total') }}</th>
                                 <th style="width: 3rem"></th>
@@ -344,7 +344,7 @@
                                 <span dir="ltr">${escapeHtml(line.sku)}</span>
                                 ${line.kind === 'service' ? '' : `
                                     <span class="opacity-50" aria-hidden="true">&bull;</span>
-                                    <span class="${line.stock > 0 ? '' : 'text-danger fw-semibold'}">${format(line.stock)} ${@json(__('in stock'))}</span>`}
+                                    <span class="${line.stock > 0 ? '' : 'text-danger fw-semibold'}">${format(line.stock)} ${escapeHtml(line.unit ?? '')} ${@json(__('in stock'))}</span>`}
                             </div>
                             ${line.condition ? `<div class="small text-secondary">${escapeHtml(line.condition)}</div>` : ''}
                             <div class="small text-warning ${line.belowCost ? '' : 'd-none'}" data-role="below-cost">
@@ -354,11 +354,19 @@
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                         </td>
                         <td>
-                            <input type="number" min="1" step="1" dir="ltr"
-                                   class="form-control form-control-sm text-end"
-                                   name="lines[${index}][quantity]" value="${line.quantity}"
-                                   data-role="qty" data-index="${index}"
-                                   data-numpad="@json(__('Quantity'))" data-numpad-min="1">
+                            {{-- Section 4: a product is counted in its own unit,
+                                 and the same unit buys and sells it. Writing it
+                                 beside the box is the whole of it — there is no
+                                 conversion to a second unit, by design. --}}
+                            <div class="input-group input-group-sm flex-nowrap">
+                                <input type="number" min="1" step="1" dir="ltr"
+                                       class="form-control text-end" style="min-width: 3.25rem"
+                                       name="lines[${index}][quantity]" value="${line.quantity}"
+                                       data-role="qty" data-index="${index}"
+                                       data-numpad="@json(__('Quantity'))" data-numpad-min="1">
+                                ${line.unit ? `<span class="input-group-text px-1 small text-truncate" data-role="unit"
+                                                     style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
+                            </div>
                         </td>
                         <td>
                             <input type="number" min="0" step="1" dir="ltr"
@@ -428,6 +436,7 @@
                         id: product.id,
                         name: product.name,
                         sku: product.sku,
+                        unit: product.unit,
                         quantity: 1,
                         price: product.sale_price,
                         stock: product.quantity,
@@ -513,7 +522,7 @@
                         <span class="small">
                             ${product.kind === 'service'
                                 ? `<span class="text-secondary me-2">${@json(__('service'))}</span>`
-                                : `<span class="text-secondary me-2">${format(product.quantity)} ${@json(__('in stock'))}</span>`}
+                                : `<span class="text-secondary me-2">${format(product.quantity)} ${escapeHtml(product.unit ?? '')} ${@json(__('in stock'))}</span>`}
                             <span class="fw-semibold">${format(product.sale_price)}</span>
                         </span>`;
                     item.addEventListener('click', () => addProduct(product));

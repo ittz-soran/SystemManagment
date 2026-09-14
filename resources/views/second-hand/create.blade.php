@@ -42,7 +42,7 @@
                         </div>
 
                         <div class="row g-3">
-                            <div class="col-sm-6">
+                            <div class="col-sm-4">
                                 <label for="category_id" class="form-label">{{ __('Category') }}</label>
                                 <select id="category_id" name="category_id" class="form-select">
                                     @foreach($categories as $category)
@@ -53,7 +53,26 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-sm-6">
+
+                            {{-- ⚠️ Soran, 2026-09-14: a second-hand item is measured
+                                 like any other. The controller has always taken this
+                                 field; the form never offered it, so every item ever
+                                 bought here took a default nobody chose. --}}
+                            <div class="col-sm-4">
+                                <label for="unit" class="form-label">{{ __('Unit') }}</label>
+                                <select id="unit" name="unit"
+                                        class="form-select @error('unit') is-invalid @enderror">
+                                    @foreach(App\Support\Units::all() as $unit)
+                                        <option value="{{ $unit }}"
+                                                @selected(old('unit', App\Support\Units::default()) === $unit)>
+                                            {{ $unit }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('unit')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-sm-4">
                                 <label for="bought_at" class="form-label">{{ __('Date') }}</label>
                                 <input id="bought_at" type="date" name="bought_at" dir="ltr" required
                                        value="{{ old('bought_at', now()->toDateString()) }}"

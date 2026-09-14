@@ -79,14 +79,19 @@
                                             <input type="hidden" name="lines[{{ $index }}][discount_share]"
                                                    value="0" data-role="share-value">
                                         </td>
-                                        <td class="money">{{ number_format($item->quantity) }}</td>
+                                        <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
                                         <td class="money fw-semibold">{{ number_format($cap) }}</td>
                                         <td>
-                                            <input type="number" min="0" max="{{ $cap }}" step="1" dir="ltr"
-                                                   class="form-control form-control-sm text-end"
-                                                   name="lines[{{ $index }}][quantity]" value="0"
-                                                   data-role="qty" data-max="{{ $cap }}"
-                                                   @disabled($cap === 0)>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" min="0" max="{{ $cap }}" step="1" dir="ltr"
+                                                       class="form-control text-end"
+                                                       name="lines[{{ $index }}][quantity]" value="0"
+                                                       data-role="qty" data-max="{{ $cap }}"
+                                                       @disabled($cap === 0)>
+                                                @if($item->product->unit !== '')
+                                                    <span class="input-group-text">{{ $item->product->unit }}</span>
+                                                @endif
+                                            </div>
                                         </td>
                                         <td>
                                             {{-- Section 7: pre-filled at the FULL typed

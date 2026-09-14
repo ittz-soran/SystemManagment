@@ -65,17 +65,22 @@
                                             <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
                                             <input type="hidden" name="lines[{{ $index }}][sale_item_id]" value="{{ $item->id }}">
                                         </td>
-                                        <td class="money">{{ number_format($item->quantity) }}</td>
+                                        <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
                                         <td class="money text-secondary">{{ number_format($item->quantity_returned) }}</td>
                                         <td class="money fw-semibold">{{ number_format($canReturn) }}</td>
                                         <td>
-                                            <input type="number" min="0" max="{{ $canReturn }}" step="1" dir="ltr"
-                                                   class="form-control form-control-sm text-end"
-                                                   name="lines[{{ $index }}][quantity]" value="0"
-                                                   data-role="qty"
-                                                   data-price="{{ $item->unit_price }}"
-                                                   data-max="{{ $canReturn }}"
-                                                   @disabled($canReturn === 0)>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" min="0" max="{{ $canReturn }}" step="1" dir="ltr"
+                                                       class="form-control text-end"
+                                                       name="lines[{{ $index }}][quantity]" value="0"
+                                                       data-role="qty"
+                                                       data-price="{{ $item->unit_price }}"
+                                                       data-max="{{ $canReturn }}"
+                                                       @disabled($canReturn === 0)>
+                                                @if($item->product->unit !== '')
+                                                    <span class="input-group-text">{{ $item->product->unit }}</span>
+                                                @endif
+                                            </div>
                                         </td>
                                         {{-- Section 7: the refund uses THIS line's
                                              unit price — the same product on two
