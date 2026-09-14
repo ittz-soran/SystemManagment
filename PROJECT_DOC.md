@@ -239,9 +239,30 @@ The Currencies screen offers them; each is guarded differently, and the guards a
 
 **`decimals` — what the integer counts.** Editable, including on the base, where changing 0 to 3 *is* the redenomination above. No row moves and nothing is written: the stored integer stops counting dinars and starts counting fils, and only the reading of it changes. Which is exactly why it is safe to offer — set it back and every screen reads as it did. The base's `rate` follows the decimals it was just given, never the ones the row is still holding.
 
-⚠️ **Which currency is the base.** Every stored integer counts base-currency minor units, so pointing `currency_base` at the dollar does not convert 250,000 recorded dinars — it **reinterprets** them as $250,000, on every document at once. There is no wording that makes clicking that reasonable, so the guard is a fact rather than a confirmation: **the base moves only while nothing has been recorded.** That is a shop choosing its currency during setup, which is the case that actually needs it. After the first purchase, sale, payment, expense or adjustment the button is disabled and says what is holding it. The old base is switched off with a reciprocal rate worked out for it, and the message says to check that rate rather than trust it.
+⚠️ **Which currency is the base.** Every stored integer counts base-currency minor units, so pointing `currency_base` at the dollar does not convert 250,000 recorded dinars — it **reinterprets** them as $250,000, on every document at once. Nothing is written, so it is reversible; but a shopkeeper acts on the reading, so once documents exist **the code has to be typed**.
 
-> **Converting an existing shop's books is not built.** It would mean rewriting 23 money columns across 15 tables, rounding every row, and it is not undoable. If a shop ever genuinely needs it, it is a command with a backup step, not a button.
+> **This was a flat refusal until 2026-09-14, and that was the wrong guard.** See "How the books moved by themselves" below. The block did not stop the base moving; it only stopped Soran putting it back. A guard that blocks the cure but not the disease is worse than none.
+
+**Moving to a genuinely different currency switches every other currency off.** Each rate was quoted against the *old* base — 1,550 of a dinar per dollar is not 1,550 of a pound per dollar — so they mean nothing the moment the books move. Switched off rather than converted, because a rate worked out from another rate carries its rounding and nobody would know to check it.
+
+⚠️ **Unless it is the same money under another name.** A currency whose rate says *one of me is one base unit* **is** the base, spelled differently — which is exactly the shop whose setting names a row nobody ever created. Nothing about what a base unit is worth has moved, so every other rate stays true and stays on.
+
+> **Converting an existing shop's books is still not built.** It would mean rewriting 23 money columns across 15 tables, rounding every row, and it is not undoable. If a shop ever genuinely needs it, it is a command with a backup step, not a button.
+
+### ⚠️ How the books moved by themselves — 2026-09-14
+
+Soran's shop woke up keeping its books in **pounds**. Nobody chose that.
+
+`Money::base()` read `settings.currency_base` and, when that code had no row behind it, fell back to **`reset($all)` — whichever currency sorted first**. He had deleted the seeded `IQD` row and made his own `IRQ`, so the setting pointed at nothing. First-by-code was `IRQ`: right, by luck, for as long as it lasted. Then he added **GBP**, which sorts before IRQ, and every figure in the shop began reading at two decimal places as pounds.
+
+The dashboard read **`139,528.64 IQD`** — a pound figure wearing a dinar label, because `money()` also wrote the literal `IQD` after every unlensed figure instead of asking the base what it is called.
+
+Two one-line causes, both fixed:
+
+- **`currency_base` is now the only thing that decides the base.** A code with no row is a broken setting, answered with what the books were actually written at (`currency_minor_per_major`), never with a currency the shop merely happens to keep. Adding a currency can no longer take the books.
+- **A figure is labelled with the base's own `mark()`**, so a shop keeping pounds reads `£` and one keeping dinars reads what it set.
+
+And the screen now **says** when the setting names a currency that is not on the list, with the decimal places it is falling back to — because a shop cannot fix a problem nothing tells it about.
 
 **Deleting one.** Only when nothing points at it: not the base, no purchase line naming it, nobody reading in it. A purchase records the code it was invoiced in, and a code with no row behind it prints as a blank on the invoice that needs it most. Anything still in use is switched off instead, which is what `is_active` has always been for. The button is disabled with the reason on the row — *"2 purchase lines were typed in USD, and their documents still name it"* — rather than hidden.
 
