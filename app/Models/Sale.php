@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\CreditedByReturns;
 use App\Models\Concerns\HidesArchivedPeriod;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable(['document_no', 'customer_id', 'user_id', 'total_amount', 'status', 'sale_date'])]
 class Sale extends Model
 {
-    use HidesArchivedPeriod, SoftDeletes;
+    use CreditedByReturns, HidesArchivedPeriod, SoftDeletes;
 
     public const STATUS_ACTIVE = 'active';
 
@@ -70,9 +71,21 @@ class Sale extends Model
             - (int) $this->payments()->where('direction', Payment::DIRECTION_OUT)->sum('amount');
     }
 
+    /**
+     * What is still owed on this sale.
+     *
+     * ⚠️ Returns come off it as well as payments. See the trait for why it is
+     * the APPLIED credit rather than the return's total — Soran found this
+     * reading 180,000 on an invoice with 45,000 already back on the shelf.
+     */
     public function amountDue(): int
     {
-        return $this->total_amount - $this->amountPaid();
+        return $this->total_amount - $this->amountPaid() - $this->creditedByReturns();
+    }
+
+    protected function returnReferenceType(): string
+    {
+        return 'sale_return';
     }
 
     /**

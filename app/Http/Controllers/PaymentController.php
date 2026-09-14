@@ -362,7 +362,11 @@ class PaymentController extends Controller
      * What this payment is for, in the interface's own words rather than the
      * schema's — the totals and the sensible default direction.
      *
-     * @return array{party: string, total: int, paid: int, due: int, direction: string, hint: string}
+     * ⚠️ `returned` is here so the three figures ADD UP on the screen. Without
+     * it a shopkeeper sees a 180,000 total, nothing paid, and 135,000 still due
+     * — three true numbers that look like a mistake.
+     *
+     * @return array{party: string, total: int, paid: int, returned: int, due: int, direction: string, hint: string}
      */
     private function describe(Model $payable): array
     {
@@ -371,6 +375,7 @@ class PaymentController extends Controller
                 'party' => $payable->customer->displayName(),
                 'total' => $payable->total_amount,
                 'paid' => $payable->amountPaid(),
+                'returned' => $payable->creditedByReturns(),
                 'due' => $payable->amountDue(),
                 'direction' => Payment::DIRECTION_IN,
                 'hint' => __('The customer is paying you, so the money comes in.'),
@@ -379,6 +384,7 @@ class PaymentController extends Controller
                 'party' => $payable->supplier->name,
                 'total' => $payable->grand_total,
                 'paid' => $payable->amountPaid(),
+                'returned' => $payable->creditedByReturns(),
                 'due' => $payable->amountDue(),
                 // Money leaving the till.
                 'direction' => Payment::DIRECTION_OUT,
@@ -388,6 +394,8 @@ class PaymentController extends Controller
                 'party' => $payable->customer->displayName(),
                 'total' => $payable->total_amount,
                 'paid' => 0,
+                // Nothing is ever returned against a return.
+                'returned' => 0,
                 'due' => 0,
                 'direction' => Payment::DIRECTION_OUT,
                 'hint' => __('A cash refund is money leaving the till.'),
@@ -396,6 +404,7 @@ class PaymentController extends Controller
                 'party' => $payable->supplier->name,
                 'total' => $payable->total_amount,
                 'paid' => 0,
+                'returned' => 0,
                 'due' => 0,
                 'direction' => Payment::DIRECTION_IN,
                 'hint' => __('Cash back from the supplier comes into the till.'),

@@ -89,6 +89,18 @@
                         <span class="text-secondary">{{ __('Total') }}</span>
                         <span class="money">{{ money($context['total'], false, $lens) }}</span>
                     </li>
+                    {{-- ⚠️ Shown so the three figures ADD UP. A return settles
+                         against the customer's balance rather than against this
+                         document, so without this line a reader sees a 180,000
+                         total, nothing paid and 135,000 due — three true numbers
+                         that look like a mistake. --}}
+                    @if($context['returned'] > 0)
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span class="text-secondary">{{ __('Returned') }}</span>
+                            <span class="money">−{{ money($context['returned'], false, $lens) }}</span>
+                        </li>
+                    @endif
+
                     @if($context['due'] > 0 || $context['paid'] > 0)
                         <li class="list-group-item d-flex justify-content-between">
                             <span class="text-secondary">{{ __('Already paid') }}</span>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\CreditedByReturns;
 use App\Models\Concerns\HidesArchivedPeriod;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class Purchase extends Model
 {
-    use HidesArchivedPeriod, SoftDeletes;
+    use CreditedByReturns, HidesArchivedPeriod, SoftDeletes;
 
     public const STATUS_ACTIVE = 'active';
 
@@ -131,9 +132,20 @@ class Purchase extends Model
             - (int) $this->payments()->where('direction', Payment::DIRECTION_IN)->sum('amount');
     }
 
+    /**
+     * What the shop still owes on this purchase.
+     *
+     * ⚠️ Returns come off it as well as payments — the mirror of the sale side,
+     * and it had the same hole. See the trait.
+     */
     public function amountDue(): int
     {
-        return $this->grand_total - $this->amountPaid();
+        return $this->grand_total - $this->amountPaid() - $this->creditedByReturns();
+    }
+
+    protected function returnReferenceType(): string
+    {
+        return 'purchase_return';
     }
 
     /**
