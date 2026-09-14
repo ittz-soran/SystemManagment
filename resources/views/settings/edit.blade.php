@@ -207,22 +207,65 @@
                         </div>
 
                         {{-- Section 8c: what a product can be measured in.
-                             A textarea rather than a row of add/remove buttons,
-                             because this is a list somebody writes once and
-                             barely touches — and a plain list can be pasted,
-                             reordered and read at a glance, which no widget
-                             built out of buttons manages. --}}
+
+                             ⚠️ A row each with an Add and a Remove, and NOT the
+                             textarea this started as. The textarea was defended
+                             on the grounds that a plain list can be pasted and
+                             read at a glance — true, and beside the point. It
+                             does not look like something you add to, and Soran
+                             asked for this twice before it was rebuilt: *"user
+                             can add or remove"*, then *"i want add units in
+                             setings"*. A control a shopkeeper does not
+                             recognise as editable is not an editable list.
+
+                             Without JavaScript the rows are still ordinary text
+                             boxes and still save; only the Add and Remove
+                             buttons go. --}}
                         <hr class="my-4">
 
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label for="units" class="form-label">{{ __('Units') }}</label>
-                                <textarea id="units" name="units" rows="6"
-                                          class="form-control @error('units') is-invalid @enderror"
-                                          dir="ltr" required>{{ old('units', implode(PHP_EOL, $units)) }}</textarea>
-                                @error('units')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <label class="form-label">{{ __('Units') }}</label>
+
+                                <div id="unit-rows" class="vstack gap-2">
+                                    @foreach(old('units', $units) as $unit)
+                                        @php $pinned = $unit === App\Support\Units::ALWAYS; @endphp
+                                        <div class="input-group input-group-sm" data-role="unit-row">
+                                            <input type="text" name="units[]" value="{{ $unit }}" dir="ltr"
+                                                   class="form-control" maxlength="32" required
+                                                   aria-label="{{ __('Unit') }}"
+                                                   @readonly($pinned)>
+                                            @if($pinned)
+                                                {{-- Every shop keeps this one. It still posts, so
+                                                     the saved list is the list on the screen.
+                                                     A lock rather than a pin: bi-lock is already
+                                                     in the icon subset, and the shop is being told
+                                                     it cannot take this row away, which is what a
+                                                     lock says and a pin does not. --}}
+                                                <span class="input-group-text" title="{{ __('Every shop keeps this one.') }}">
+                                                    <i class="bi bi-lock"></i>
+                                                </span>
+                                            @else
+                                                <button type="button" class="btn btn-outline-danger"
+                                                        data-role="unit-remove"
+                                                        title="{{ __('Remove this unit') }}"
+                                                        aria-label="{{ __('Remove this unit') }}">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                <button type="button" id="unit-add" class="btn btn-sm btn-outline-secondary mt-2 d-none">
+                                    <i class="bi bi-plus-lg me-1"></i>{{ __('Add unit') }}
+                                </button>
+
+                                @error('units')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                @error('units.*')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+
                                 <div class="form-text">
-                                    {{ __('One per line. These are what the Unit dropdown offers when you add a product.') }}
+                                    {{ __('These are what the Unit dropdown offers when you add a product.') }}
                                 </div>
                             </div>
 
@@ -625,6 +668,94 @@
                     + button.dataset.submittingText;
                 document.getElementById('backup-now').requestSubmit();
             });
+        })();
+
+        // Section 8c: the units list, added to and removed from a row at a
+        // time. Everything here is an enhancement of a form that already works
+        // without it — the rows save on their own; this only adds the buttons.
+        (() => {
+            const rows = document.getElementById('unit-rows');
+            const add = document.getElementById('unit-add');
+            const options = document.getElementById('unit-options');
+
+            if (! rows || ! add) {
+                return;
+            }
+
+            // Hidden in the markup so a reader without JavaScript is never
+            // shown a button that would do nothing.
+            add.classList.remove('d-none');
+
+            /** The datalist under "Default unit" says what the rows now say. */
+            function syncOptions() {
+                if (! options) {
+                    return;
+                }
+
+                options.innerHTML = '';
+
+                rows.querySelectorAll('input[name="units[]"]').forEach((box) => {
+                    const value = box.value.trim();
+
+                    if (value === '') {
+                        return;
+                    }
+
+                    const option = document.createElement('option');
+                    option.value = value;
+                    options.appendChild(option);
+                });
+            }
+
+            add.addEventListener('click', () => {
+                const row = document.createElement('div');
+                row.className = 'input-group input-group-sm';
+                row.dataset.role = 'unit-row';
+
+                const box = document.createElement('input');
+                box.type = 'text';
+                box.name = 'units[]';
+                box.dir = 'ltr';
+                box.className = 'form-control';
+                box.maxLength = 32;
+                box.required = true;
+                box.setAttribute('aria-label', @json(__('Unit')));
+
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn btn-outline-danger';
+                remove.dataset.role = 'unit-remove';
+                remove.title = @json(__('Remove this unit'));
+                remove.setAttribute('aria-label', @json(__('Remove this unit')));
+                remove.innerHTML = '<i class="bi bi-x-lg"></i>';
+
+                row.append(box, remove);
+                rows.appendChild(row);
+                box.focus();
+            });
+
+            rows.addEventListener('click', (event) => {
+                const remove = event.target.closest('[data-role="unit-remove"]');
+
+                if (remove) {
+                    remove.closest('[data-role="unit-row"]').remove();
+                    syncOptions();
+                }
+            });
+
+            // ⚠️ Enter in a one-line box submits the form. Every save in the
+            // shop is hold-to-save (see app.js), so a stray Enter here would
+            // not save anything — but it would still leave the row half typed
+            // and the focus somewhere else. Adding the next row is what the
+            // person pressing it meant.
+            rows.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && event.target.name === 'units[]') {
+                    event.preventDefault();
+                    add.click();
+                }
+            });
+
+            rows.addEventListener('input', syncOptions);
         })();
     </script>
 @endpush

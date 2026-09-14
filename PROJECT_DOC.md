@@ -1231,6 +1231,8 @@ Cache::rememberForever('settings', fn () => Setting::pluck('value', 'key'));
 Rules:
 
 - The product form shows a **select**, filled from `units`, exactly as Category does.
+- **Settings edits the list a row at a time**, with an Add and a Remove on each row — not a textarea. The textarea it started as was defended on the grounds that a plain list can be pasted and read at a glance; true, and beside the point, because it does not look like something you add to. Soran asked for add/remove twice before it was rebuilt. The rows post as `units[]` and are still **stored as one string with a line each**, so nothing about the settings table changed; `Units::parse()` takes either shape.
+- ⚠️ **`pcs` is in every shop's list, whether the shop typed it or not** (`Units::ALWAYS`). Seeding it only covers the first morning; the list is one careless save away from empty, and an empty list leaves the product form with a dropdown offering nothing — on the one screen a shop cannot work without. It is pinned on the Settings page (read-only, no Remove) and re-added by `Units::all()` and on save, so a row edited straight in the database is covered too. Where the shop has ordered it themselves it stays where they put it rather than jumping to the top.
 - ⚠️ **A product's own unit is always in its dropdown**, even after the shop takes it off the list. Otherwise opening a product measured in a retired unit and saving an unrelated field silently re-measures it — a data change made by looking at a page.
 - `default_unit` must be one of `units`. A default the dropdown refuses to show is not a default.
 - Validation on the product stays `string, max:32` and is **not** restricted to the list, so an import carrying a unit nobody has typed yet still lands.

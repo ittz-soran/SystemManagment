@@ -132,8 +132,8 @@ class SettingController extends Controller
          * message, and the default has to be checked against the list as it
          * will actually be stored.
          */
-        $units = Units::parse((string) $request->input('units', ''));
-        $request->merge(['units' => implode(PHP_EOL, $units)]);
+        $units = Units::withAlways(Units::parse($request->input('units', [])));
+        $request->merge(['units' => $units]);
 
         $data = $request->validate([
             'shop_name' => ['required', 'string', 'max:255'],
@@ -160,9 +160,17 @@ class SettingController extends Controller
             'sku_prefix' => ['required', 'string', 'max:8'],
             'date_format' => ['required', 'string', 'max:32'],
 
-            // Section 8c — the units a product can be measured in. A label
-            // rather than a record; App\Support\Units says why.
-            'units' => ['required', 'string', 'max:2000'],
+            /*
+             * Section 8c — the units a product can be measured in. A label
+             * rather than a record; App\Support\Units says why.
+             *
+             * One row each, so the page can offer an Add and a Remove. It is
+             * still stored as one string with a line each — see below — because
+             * the settings table holds strings and a unit list is not worth a
+             * schema change.
+             */
+            'units' => ['required', 'array', 'min:1'],
+            'units.*' => ['required', 'string', 'max:32'],
 
             /*
              * ⚠️ The default must be one of them. A default that is not on the
@@ -188,6 +196,10 @@ class SettingController extends Controller
             // never base64 in the database.
             'shop_logo' => ['nullable', 'image', 'max:2048'],
         ]);
+
+        // Back to the one string the settings table holds. The rows were only
+        // ever the screen's shape.
+        $data['units'] = implode(PHP_EOL, $units);
 
         $previous = Setting::cached();
 
