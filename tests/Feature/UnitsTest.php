@@ -113,14 +113,85 @@ class UnitsTest extends TestCase
         $this->assertSame('pcs', Units::default(), 'A rejected save changed the default anyway.');
     }
 
+    /**
+     * Blank rows and repeats are dropped — and `pcs` survives, see below.
+     */
     public function test_the_list_is_saved_tidied(): void
     {
         $this->actingAs($this->admin)
-            ->put(route('settings.update'), [...$this->settings(), 'units' => " kg \n\nkg\nlitre\n", 'default_unit' => 'kg'])
+            ->put(route('settings.update'), [...$this->settings(),
+                'units' => [' kg ', '', 'kg', 'litre'], 'default_unit' => 'kg'])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame(['kg', 'litre'], Units::all());
+        $this->assertSame(['pcs', 'kg', 'litre'], Units::all());
         $this->assertSame('kg', Units::default());
+    }
+
+    // ---- pcs, in every shop ---------------------------------------------
+
+    /**
+     * ⚠️ **Soran, 2026-09-14:** *"have pcs by default added for all systems"*.
+     *
+     * Seeding it is not enough — seeding only covers the first morning. A shop
+     * that removes every row and saves gets it back, because a product form
+     * whose dropdown offers nothing is a shop that cannot add a product.
+     */
+    public function test_pcs_comes_back_when_a_shop_saves_a_list_without_it(): void
+    {
+        $this->actingAs($this->admin)
+            ->put(route('settings.update'), [...$this->settings(),
+                'units' => ['kgm', 'karton'], 'default_unit' => 'kgm'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['pcs', 'kgm', 'karton'], Units::all(),
+            'a shop removed pcs and the system let it go');
+
+        // And it is what was STORED, not only what is read back — the page has
+        // to show the shop the list it actually has.
+        $this->assertStringContainsString('pcs', (string) setting('units'));
+    }
+
+    /** Even from a settings row somebody edited in the database by hand. */
+    public function test_pcs_is_there_however_the_setting_was_written(): void
+    {
+        Setting::put('units', "kgm\nkarton");
+
+        $this->assertSame(['pcs', 'kgm', 'karton'], Units::all());
+        $this->assertContains('pcs', Units::forSelect('mitir'));
+    }
+
+    /** ⚠️ And it stays where the shop put it, rather than jumping to the top. */
+    public function test_pcs_is_not_moved_when_the_shop_ordered_it_themselves(): void
+    {
+        Setting::put('units', "kgm\npcs\nkarton");
+
+        $this->assertSame(['kgm', 'pcs', 'karton'], Units::all());
+    }
+
+    /** The screen offers a Remove on every unit except that one. */
+    public function test_the_settings_page_pins_pcs_and_offers_the_rest(): void
+    {
+        Setting::put('units', "pcs\nkgm");
+
+        $page = $this->actingAs($this->admin)->get(route('settings.edit'))
+            ->assertOk();
+
+        $page->assertSee('name="units[]"', escape: false)
+            ->assertSee(__('Add unit'))
+            ->assertSee(__('Remove this unit'));
+
+        // Counted inside the rows themselves. The script below the page names
+        // the same attributes in its selectors, and counting the whole document
+        // would be counting those too.
+        $html = $page->getContent();
+        $at = strpos($html, 'id="unit-rows"');
+        $written = substr($html, $at, strpos($html, 'id="unit-add"') - $at);
+
+        // One row each, and only the one that is not pinned can be removed.
+        $this->assertSame(2, substr_count($written, 'name="units[]"'));
+        $this->assertSame(1, substr_count($written, 'data-role="unit-remove"'));
+        $this->assertSame(1, substr_count($written, 'readonly'),
+            'the pinned row is the only one nobody can retype');
     }
 
     /** An import row with no unit column takes the shop's default, not a guess. */

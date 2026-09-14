@@ -23,11 +23,27 @@ namespace App\Support;
  * So a unit removed from the list changes nothing about the products already
  * measured in it — and `forSelect()` keeps offering it to those products, so
  * opening one to edit its price cannot silently re-measure it in pieces.
+ *
+ * ⚠️ **One unit is not the shop's to remove.** Soran, 2026-09-14: *"have pcs by
+ * default added for all systems"*. `ALWAYS` is in every shop's list whether the
+ * shop typed it or not — see `withAlways()` for what that is protecting against.
  */
 final class Units
 {
     /** What a shop is given on its first morning, before anybody edits it. */
     public const SEEDED = "pcs\nbox\nset\npair\npack\nm\ncm\nkg\ng\nlitre\nml\nroll";
+
+    /**
+     * The one unit every shop has, whatever else it measures things in.
+     *
+     * Asked for on 2026-09-14 and enforced rather than merely seeded, because
+     * seeding only covers the first morning. A list is one careless save away
+     * from empty — clear the boxes, press Save — and an empty list leaves the
+     * product form with a dropdown that offers nothing, on the one screen a
+     * shop cannot work without. Pinning a single unit means that form always
+     * has something true to say.
+     */
+    public const ALWAYS = 'pcs';
 
     /**
      * The list, in the order the shop wrote it.
@@ -36,7 +52,24 @@ final class Units
      */
     public static function all(): array
     {
-        return self::parse((string) setting('units', self::SEEDED));
+        return self::withAlways(self::parse((string) setting('units', self::SEEDED)));
+    }
+
+    /**
+     * The list with `ALWAYS` in it, wherever the shop put it.
+     *
+     * Prepended when it is missing, and left exactly where it is when it is
+     * not: a shop that wants pieces third has said something, and moving it
+     * back to the top on every save would be arguing with them.
+     *
+     * @param  list<string>  $units
+     * @return list<string>
+     */
+    public static function withAlways(array $units): array
+    {
+        return in_array(self::ALWAYS, $units, true)
+            ? $units
+            : [self::ALWAYS, ...$units];
     }
 
     /**
@@ -73,20 +106,28 @@ final class Units
             array_unshift($all, $current);
         }
 
-        return $all === [] ? [$current === '' ? 'pcs' : $current] : $all;
+        // No empty-list case to guard: `all()` always carries ALWAYS.
+        return $all;
     }
 
     /**
-     * One per line, tidied — the shape the Settings textarea saves.
+     * Tidied — the shape the Settings page saves.
+     *
+     * Takes either the rows the form posts or one string with a line each, so
+     * the stored setting (still one string, so nothing about the settings table
+     * had to change) and the boxes on the screen go through the same tidying.
      *
      * Blank lines and repeats are dropped rather than refused: an admin who
-     * leaves a trailing newline has not made a mistake worth an error message.
+     * leaves an empty row or types "kg" twice has not made a mistake worth an
+     * error message.
      *
+     * @param  string|array<int, mixed>  $written
      * @return list<string>
      */
-    public static function parse(string $written): array
+    public static function parse(string|array $written): array
     {
-        $lines = array_map(trim(...), preg_split('/\R/', $written) ?: []);
+        $lines = is_array($written) ? $written : (preg_split('/\R/', $written) ?: []);
+        $lines = array_map(fn ($line) => trim((string) $line), $lines);
 
         return array_values(array_unique(array_filter($lines, fn ($line) => $line !== '')));
     }
