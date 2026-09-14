@@ -410,6 +410,17 @@ Route::middleware(['auth'])->group(function () {
         Route::post('settings/currencies', [CurrencyController::class, 'store'])->name('currencies.store');
         Route::put('settings/currencies/{currency}', [CurrencyController::class, 'update'])
             ->name('currencies.update');
+
+        /*
+         * ⚠️ Moving the books to another currency REINTERPRETS every stored
+         * figure — see CurrencyController. Allowed only while nothing has been
+         * recorded, which the controller checks rather than the route.
+         */
+        Route::post('settings/currencies/{currency}/base', [CurrencyController::class, 'base'])
+            ->name('currencies.base');
+
+        Route::delete('settings/currencies/{currency}', [CurrencyController::class, 'destroy'])
+            ->name('currencies.destroy');
     });
 
     /*

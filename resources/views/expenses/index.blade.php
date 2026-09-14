@@ -90,7 +90,7 @@
                             <td class="fw-medium">
                                 <x-document-link :document="$expense" :kind="false" />
                             </td>
-                            <td dir="ltr">{{ $expense->expense_date->format(setting('date_format', 'Y-m-d')) }}</td>
+                            <td><span class="app-code">{{ $expense->expense_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
                             <td>
                                 {{ $expense->title }}
                                 @if($expense->notes)
@@ -99,7 +99,7 @@
                             </td>
                             <td>{{ $expense->category->name }}</td>
                             <td class="small text-secondary">{{ $expense->user->name }}</td>
-                            <td class="money">{{ money($expense->amount, false, $lens) }}</td>
+                            <td class="money">{{ money($expense->amount, in: $lens) }}</td>
                             <td class="text-end">
                                 <x-row-actions
                                     :edit-modal="Gate::allows('expenses.edit') ? '#expense-edit' : null"

@@ -59,7 +59,7 @@
                     <tbody>
                     @foreach($transactions as $transaction)
                         <tr>
-                            <td class="small" dir="ltr">{{ $transaction->created_at->format('Y-m-d H:i') }}</td>
+                            <td class="small"><span class="app-code">{{ $transaction->created_at->format('Y-m-d H:i') }}</span></td>
                             <td><span class="badge text-bg-light">{{ Str::headline($transaction->type) }}</span></td>
                             <td class="small">
                                 <x-ledger-reference :transaction="$transaction" />

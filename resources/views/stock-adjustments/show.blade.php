@@ -148,7 +148,7 @@
                             <tbody>
                             @foreach($movements as $movement)
                                 <tr>
-                                    <td class="small" dir="ltr">{{ $movement->occurred_at->format('Y-m-d H:i') }}</td>
+                                    <td class="small"><span class="app-code">{{ $movement->occurred_at->format('Y-m-d H:i') }}</span></td>
                                     <td class="small text-secondary">#{{ $movement->stock_batch_id }}</td>
                                     <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">
                                         {{ $movement->quantity > 0 ? '+' : '' }}{{ number_format($movement->quantity) }}

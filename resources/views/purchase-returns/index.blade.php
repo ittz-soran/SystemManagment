@@ -59,15 +59,15 @@
                     @foreach($returns as $return)
                         <tr>
                             <td><x-document-link :document="$return" :kind="false" /></td>
-                            <td dir="ltr">{{ $return->return_date->format(setting('date_format', 'Y-m-d')) }}</td>
-                            <td dir="ltr">
+                            <td><span class="app-code">{{ $return->return_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td>
                                 <a href="{{ route('purchases.show', $return->purchase) }}" class="text-decoration-none">
                                     <x-document-link :document="$return->purchase" :kind="false" />
                                 </a>
                             </td>
                             <td>{{ $return->supplier->name }}</td>
                             <td class="text-secondary small">{{ $return->reason ?: '—' }}</td>
-                            <td class="money">{{ money($return->total_amount, false, $lens) }}</td>
+                            <td class="money">{{ money($return->total_amount, in: $lens) }}</td>
                             <td class="text-end">
                                 <x-row-actions :print="route('purchase-returns.print', $return)" />
                             </td>

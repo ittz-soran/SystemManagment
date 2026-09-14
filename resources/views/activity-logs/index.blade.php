@@ -78,7 +78,7 @@
                                 : Str::headline($log->action);
                         @endphp
                         <tr>
-                            <td class="small" dir="ltr">{{ $log->created_at->format('Y-m-d H:i') }}</td>
+                            <td class="small"><span class="app-code">{{ $log->created_at->format('Y-m-d H:i') }}</span></td>
                             <td>{{ $log->user->name }}</td>
                             <td><span class="badge text-bg-{{ $variant }}">{{ $verb }}</span></td>
                             <td class="small text-secondary">{{ Str::headline($log->module) }}</td>
@@ -93,7 +93,7 @@
                                     </details>
                                 @endif
                             </td>
-                            <td class="small text-secondary" dir="ltr">{{ $log->ip_address }}</td>
+                            <td class="small text-secondary"><span class="app-code">{{ $log->ip_address }}</span></td>
                         </tr>
                     @endforeach
                     </tbody>

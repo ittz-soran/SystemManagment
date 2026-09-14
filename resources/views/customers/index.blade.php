@@ -56,9 +56,9 @@
                                     <span class="badge text-bg-light">{{ __('System') }}</span>
                                 @endif
                             </td>
-                            <td dir="ltr">{{ $customer->phone ?: '—' }}</td>
+                            <td><span class="app-code">{{ $customer->phone ?: '—' }}</span></td>
                             <td class="money {{ $customer->balance > 0 ? 'fw-semibold' : 'text-secondary' }}">
-                                {{ money($customer->balance, false, $lens) }}
+                                {{ money($customer->balance, in: $lens) }}
                             </td>
                             <td class="text-end">
                                 {{-- Section 4: the Cash Customer cannot be renamed,

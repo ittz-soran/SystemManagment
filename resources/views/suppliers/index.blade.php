@@ -56,9 +56,9 @@
                                     <span class="badge text-bg-light">{{ __('System') }}</span>
                                 @endif
                             </td>
-                            <td dir="ltr">{{ $supplier->phone ?: '—' }}</td>
+                            <td><span class="app-code">{{ $supplier->phone ?: '—' }}</span></td>
                             <td class="money {{ $supplier->balance > 0 ? 'fw-semibold' : 'text-secondary' }}">
-                                {{ money($supplier->balance, false, $lens) }}
+                                {{ money($supplier->balance, in: $lens) }}
                             </td>
                             <td class="text-end">
                                 <x-row-actions
