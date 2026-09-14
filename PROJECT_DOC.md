@@ -678,6 +678,29 @@ Tracked **per line**, cumulatively. Multiple returns over time work naturally.
 - **Refund uses that line's unit price** — the same product on two lines refunds differently.
 - **Returns are never blocked by the edit lock.** A return creates a new forward document; it doesn't rewrite history. Allowed any time the stock is there.
 
+### ⚠️ What the document still owes, after part of it comes back
+
+**Soran found this on INV-00027, 2026-09-14.** A 180,000 sale with 45,000 returned on one line. The customer's balance was right — the ledger had done its job — but the sale's own **Due still read 180,000**, and nothing on the page said otherwise. He was being shown a debt that no longer existed, on the screen a shopkeeper opens to find out what somebody owes.
+
+The cause is that **a return is not a payment.** `amountDue()` was `total − amountPaid()`, and a refund settles against the party's *balance*, so the document it came off never heard about it. Both sale and purchase had the hole; both are fixed in `App\Models\Concerns\CreditedByReturns`.
+
+```
+still owed on this document = total − paid − credited by returns
+```
+
+⚠️ **`credited` is what was APPLIED, never the return's total**, and that distinction is the whole of it. A refund clears the debt first and hands the rest back in cash — and cash handed back never reduced a debt, because there was none left to reduce. Subtract the whole return and a fully-paid invoice reads as owing 45,000 back after the shop has already passed the notes across the counter.
+
+`LedgerService::post` already records what it actually applied, precisely so "the ledger and the cached balance can never disagree", so this reads that rather than re-deriving it. Reading the ledger also makes a **deleted** return right for nothing: its reversal is another row there, and the two net to zero.
+
+| this sale | paid | return | applied | cash back | Due |
+|---|---|---|---|---|---|
+| 180,000 | 0 | 45,000 | 45,000 | 0 | **135,000** |
+| 180,000 | 100,000 | 45,000 | 45,000 | 0 | **35,000** |
+| 180,000 | 160,000 | 45,000 | 20,000 | 25,000 | **0** |
+| 180,000 | 180,000 | 45,000 | 0 | 45,000 | **0** |
+
+And both screens now **say where the money went** — *"Taken off by returns −45,000"* on the document, *"Returned"* on the payment form. Without that line a reader sees a 180,000 total, nothing paid and 135,000 due: three true numbers that look like a mistake, which is exactly how this was found.
+
 ### Status after a return
 
 A fully returned sale is **marked `returned`**, not voided or deleted. Both documents stay in the history, the money nets to zero, and the stock is fully restored. Sales and purchase history lists show a badge so a fully-returned document is obvious without opening it.

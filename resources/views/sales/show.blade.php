@@ -120,6 +120,18 @@
                         @endforeach
                     </ul>
                 @endif
+                {{-- ⚠️ A return settles against the party's BALANCE, not against
+                     this document, so Due drops without any payment appearing
+                     above it. Said here, or the card reads as an error. --}}
+                @php($returned = $sale->creditedByReturns())
+
+                @if($returned > 0)
+                    <div class="card-footer d-flex justify-content-between text-secondary small border-bottom-0">
+                        <span>{{ __('Taken off by returns') }}</span>
+                        <span class="money">−{{ money($returned, false, $lens) }}</span>
+                    </div>
+                @endif
+
                 <div class="card-footer d-flex justify-content-between fw-semibold">
                     <span>{{ __('Due') }}</span>
                     <span class="money">{{ money($sale->amountDue(), in: $lens) }}</span>
