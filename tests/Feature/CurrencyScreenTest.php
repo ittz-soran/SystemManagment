@@ -46,38 +46,125 @@ class CurrencyScreenTest extends TestCase
     // ---- Which currency the books are kept in ---------------------------
 
     /**
-     * ⚠️ THE MOST DANGEROUS BUTTON ON THIS SCREEN, and why it is guarded by a
-     * fact rather than a confirmation.
+     * ⚠️ THE MOST DANGEROUS BUTTON ON THIS SCREEN.
      *
      * Every stored integer counts base-currency minor units. Point
      * `currency_base` at the dollar and 250,000 recorded dinars do not convert
-     * — they are REINTERPRETED as $250,000, on every document at once. There is
-     * no wording that makes clicking that a reasonable thing to do, so the move
-     * is allowed only while nothing has been recorded.
+     * — they are REINTERPRETED as $250,000, on every document at once. Nothing
+     * is written, so it is reversible; but a shopkeeper acts on the reading, so
+     * once there are documents to misread the code has to be typed.
+     *
+     * **This was a flat refusal until 2026-09-14 and that was the wrong guard.**
+     * Soran's base moved to the pound by itself that morning — `Money::base()`
+     * fell back to whichever currency sorted first and he had just added GBP —
+     * and the refusal then stopped him putting it back. A guard that blocks the
+     * cure but not the disease is worse than none.
      */
-    public function test_the_books_cannot_move_once_anything_has_been_recorded(): void
+    public function test_the_books_do_not_move_without_the_code_typed(): void
     {
         $this->aPurchase();
 
         $this->actingAs($this->admin)
             ->post(route('currencies.base', $this->usd()))
-            ->assertRedirect();
+            ->assertSessionHasErrors('confirmation');
 
-        $this->assertSame('IQD', Money::base()->code, 'the books moved with documents in them');
+        $this->assertSame('IQD', Money::base()->code, 'the books moved on an empty confirmation');
     }
 
-    /** And the screen says so, rather than hiding the button. */
-    public function test_the_screen_says_why_the_books_cannot_move(): void
+    /** Nor on a confirmation that is not the code. */
+    public function test_a_wrong_confirmation_does_not_move_the_books(): void
     {
         $this->aPurchase();
 
-        $this->actingAs($this->admin)->get(route('currencies.index'))
-            ->assertOk()
-            ->assertSee(__('Make base'))
-            ->assertSee('disabled', false);
+        $this->actingAs($this->admin)
+            ->post(route('currencies.base', $this->usd()), ['confirmation' => 'yes'])
+            ->assertSessionHasErrors('confirmation');
+
+        $this->assertSame('IQD', Money::base()->code);
     }
 
-    /** A shop choosing its currency during setup is the case that needs it. */
+    /** ⚠️ And with the code typed it moves, because a shop must be able to. */
+    public function test_the_books_move_when_the_code_is_typed(): void
+    {
+        $this->aPurchase();
+
+        $this->actingAs($this->admin)
+            ->post(route('currencies.base', $this->usd()), ['confirmation' => 'USD'])
+            ->assertSessionHasNoErrors()->assertRedirect();
+
+        Currency::flushCache();
+
+        $this->assertSame('USD', Money::base()->code);
+    }
+
+    /**
+     * ⚠️ Moving to a genuinely different currency switches the others off.
+     *
+     * Every rate in the table was quoted against the OLD base: 1,320 of a dinar
+     * per dollar is not 1,320 of a dollar per dollar. Switched off rather than
+     * converted, because a rate worked out from another rate carries its
+     * rounding and nobody would know to check it.
+     */
+    public function test_moving_to_a_different_currency_switches_the_others_off(): void
+    {
+        $lira = Currency::create([
+            'code' => 'TRY', 'name' => 'Turkish Lira', 'symbol' => null,
+            'decimals' => 2, 'rate' => 40 * Money::RATE_SCALE, 'is_active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('currencies.base', $this->usd()))
+            ->assertSessionHasNoErrors();
+
+        Currency::flushCache();
+
+        $this->assertFalse($lira->fresh()->is_active);
+        $this->assertFalse($this->iqd()->fresh()->is_active);
+        $this->assertTrue($this->usd()->fresh()->is_active);
+    }
+
+    /**
+     * But the same money under another name leaves every rate alone.
+     *
+     * A currency whose rate says "one of me is one base unit" IS the base,
+     * spelled differently — which is the shop whose setting names a row nobody
+     * ever created. Nothing about what a base unit is worth has moved, so the
+     * dollar rate is still true.
+     */
+    public function test_renaming_the_base_leaves_the_other_rates_alone(): void
+    {
+        $iraq = Currency::create([
+            'code' => 'IRQ', 'name' => 'Iraq dinar', 'symbol' => 'د.ع',
+            'decimals' => 0, 'rate' => 1 * Money::RATE_SCALE, 'is_active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('currencies.base', $iraq))
+            ->assertSessionHasNoErrors();
+
+        Currency::flushCache();
+
+        $this->assertSame('IRQ', Money::base()->code);
+        $this->assertTrue($this->usd()->fresh()->is_active, 'the dollar was switched off for nothing');
+        $this->assertSame(1_320 * Money::RATE_SCALE, (int) $this->usd()->fresh()->rate);
+    }
+
+    /** ⚠️ And the screen shouts when the setting names a currency that is gone. */
+    public function test_the_screen_says_when_the_books_name_a_currency_that_is_not_there(): void
+    {
+        $this->actingAs($this->admin)->get(route('currencies.index'))
+            ->assertOk()
+            ->assertDontSee(__('The books are set to :code, and there is no such currency here.', ['code' => 'IQD']));
+
+        Currency::where('code', 'IQD')->delete();
+        Currency::flushCache();
+
+        $this->actingAs($this->admin)->get(route('currencies.index'))
+            ->assertOk()
+            ->assertSee(__('The books are set to :code, and there is no such currency here.', ['code' => 'IQD']));
+    }
+
+    /** A shop choosing its currency during setup needs no typing at all. */
     public function test_a_shop_with_nothing_recorded_can_choose_its_currency(): void
     {
         $this->actingAs($this->admin)

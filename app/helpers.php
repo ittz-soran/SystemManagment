@@ -34,7 +34,10 @@ if (! function_exists('money')) {
     {
         $formatted = Money::format($amount, $in);
 
-        return $withCurrency ? $formatted.' '.($in?->mark() ?? __('IQD')) : $formatted;
+        // ⚠️ The BASE's mark, never a hard-coded `IQD`. A shop whose books are
+        // in pounds read `139,528.64 IQD` — a pound figure wearing a dinar
+        // label — because this used to write the literal.
+        return $withCurrency ? $formatted.' '.($in?->mark() ?? Money::base()->mark()) : $formatted;
     }
 }
 
@@ -83,7 +86,7 @@ if (! function_exists('money_if')) {
     function money_if(bool $visible, int|float|null $amount, bool $withCurrency = true, ?Currency $in = null): string
     {
         if (! $visible) {
-            return $withCurrency ? hidden_money().' '.($in?->mark() ?? __('IQD')) : hidden_money();
+            return $withCurrency ? hidden_money().' '.($in?->mark() ?? Money::base()->mark()) : hidden_money();
         }
 
         return money($amount, $withCurrency, $in);

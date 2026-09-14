@@ -36,10 +36,17 @@ use Illuminate\View\View;
  *
  * **The base currency itself.** Every stored integer counts base-currency minor
  * units. Point `currency_base` at the dollar and 250,000 recorded dinars become
- * $250,000 — not converted, REINTERPRETED, on every document in the shop. So it
- * moves only while nothing has been recorded: a shop choosing its currency
- * during setup, which is the case that actually needs it. After the first
- * document it is refused, and the screen says why rather than hiding the button.
+ * $250,000 — not converted, REINTERPRETED, on every document in the shop.
+ * Nothing is written, so it is reversible; but a shopkeeper acts on what the
+ * screen says, so once documents exist the code has to be typed.
+ *
+ * ⚠️ **This was refused outright until 2026-09-14, and that was the wrong
+ * guard.** Soran's base moved to the pound by itself that morning —
+ * `Money::base()` was falling back to whichever currency sorted first and he
+ * had just added GBP. The block did not stop that, and then it stopped him
+ * putting it back. A guard that blocks the cure but not the disease is worse
+ * than none. The disease is fixed in `Money::base()`, and a shop must always be
+ * able to say which currency its own books are in.
  *
  * **Deleting one.** Only when nothing points at it. A purchase records the code
  * it was invoiced in, and a code with no row behind it prints as a blank on the
@@ -72,6 +79,17 @@ class CurrencyController extends Controller
                 fn (Currency $c) => [$c->code => $this->whyKept($c)]
             )->all(),
             'recorded' => $this->whatIsRecorded(),
+
+            /*
+             * ⚠️ True when `currency_base` names a code with no row behind it.
+             *
+             * Soran's shop was in exactly this state for a day without knowing:
+             * the setting said IQD, he had replaced that row with his own IRQ,
+             * and every figure was being read against whatever `Money::base()`
+             * could find. Said out loud here, because a shop cannot fix a
+             * problem nothing tells it about.
+             */
+            'baseIsMissing' => ! isset(Currency::cached()[Money::base()->code]),
         ]);
     }
 
@@ -92,24 +110,45 @@ class CurrencyController extends Controller
             return back();
         }
 
+        // Once there are documents to misread, the code has to be typed.
         if ($this->whatIsRecorded() !== null) {
-            return back()->with('error', __('The books already have :what recorded in :code. The currency they are kept in cannot change now.', [
-                'what' => $this->whatIsRecorded(),
-                'code' => $was->code,
-            ]));
+            $request->validate(
+                ['confirmation' => ['required', 'string', 'in:'.$currency->code]],
+                ['confirmation.in' => __('Type :code exactly to confirm.', ['code' => $currency->code])],
+            );
         }
 
-        DB::transaction(function () use ($currency, $was) {
-            /*
-             * The old base needs a rate again, and it has never had a real one
-             * — a base's rate is 10^decimals by definition. Worked out as the
-             * reciprocal so the shop starts from something sensible, switched
-             * off so nothing is priced with it until somebody has checked it.
-             */
-            $was->update([
-                'rate' => $this->reciprocal($was, $currency),
-                'is_active' => false,
-            ]);
+        /*
+         * ⚠️ Is this the same money under another name?
+         *
+         * A currency whose rate says "one of me is one base unit" IS the base,
+         * spelled differently — which is the case a shop is in when the setting
+         * names a row nobody ever created. Every other rate in the table stays
+         * true, because nothing about what a base unit is worth has moved.
+         *
+         * Anything else really is a different currency, and then every rate in
+         * the table was quoted against the OLD base and now means nothing: 1,550
+         * of the old base per dollar is not 1,550 of the new one. Those are
+         * switched OFF rather than converted — a rate worked out from another
+         * rate carries its rounding, and nobody would know to check it.
+         */
+        $sameMoneyRenamed = (int) $currency->rate === $currency->minorPerMajor() * Money::RATE_SCALE;
+
+        DB::transaction(function () use ($currency, $was, $sameMoneyRenamed) {
+            if (! $sameMoneyRenamed) {
+                Currency::query()->whereKeyNot($currency->getKey())->update(['is_active' => false]);
+
+                /*
+                 * The old base needs a rate again, and it has never had a real
+                 * one — a base's rate is 10^decimals by definition. Worked out
+                 * as the reciprocal so the shop starts from something sensible.
+                 * Skipped when the old base was never a row at all, which is the
+                 * broken setting this screen exists to let somebody repair.
+                 */
+                if ($was->exists) {
+                    $was->update(['rate' => $this->reciprocal($was, $currency)]);
+                }
+            }
 
             // And the new one takes the definitional rate, always.
             $currency->update([
@@ -127,10 +166,12 @@ class CurrencyController extends Controller
             user: $request->user(),
         );
 
-        return back()->with('success', __('The books are now kept in :code. Check :old’s rate before offering it again — it was worked out, not typed.', [
-            'code' => $currency->code,
-            'old' => $was->code,
-        ]));
+        return back()->with('success', $sameMoneyRenamed
+            ? __('The books are now kept in :code.', ['code' => $currency->code])
+            : __('The books are now kept in :code. Every other currency was switched off — each rate was quoted against :old and means nothing now. Set the ones you use again.', [
+                'code' => $currency->code,
+                'old' => $was->code,
+            ]));
     }
 
     /** A currency nothing points at can go; anything else is switched off. */

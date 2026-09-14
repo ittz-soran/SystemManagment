@@ -56,7 +56,7 @@
 
     {{-- Always named, lens or not: a box that says IQD today must go on saying
          it, and a box taking dollars must say so loudest of all. --}}
-    <span class="input-group-text app-code">{{ $lens?->mark() ?? __('IQD') }}</span>
+    <span class="input-group-text app-code">{{ $lens?->mark() ?? Money::base()->mark() }}</span>
 
     @if($lens)
         {{-- ⚠️ What this box was drawn with. If it comes back the same, the

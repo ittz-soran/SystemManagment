@@ -26,6 +26,25 @@
         </div>
     </div>
 
+    {{-- ⚠️ The state Soran was in for a day without being told: the setting
+         names a currency that is not on this list, so every figure in the shop
+         is being read against a currency nobody chose. --}}
+    @if($baseIsMissing)
+        <div class="alert alert-warning d-flex gap-2 align-items-start">
+            <i class="bi bi-exclamation-triangle mt-1"></i>
+            <div>
+                <div class="fw-semibold">
+                    {{ __('The books are set to :code, and there is no such currency here.', ['code' => $base->code]) }}
+                </div>
+                <div class="small">
+                    {{ __('Figures are being read at :places decimal places, which is what the books were written at. Choose which currency below they are actually kept in.', [
+                        'places' => $base->decimals,
+                    ]) }}
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="card">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -93,18 +112,11 @@
                                          has been recorded. Shown disabled with the reason
                                          rather than hidden: a missing button is a
                                          shopkeeper searching other screens for it. --}}
-                                    <form method="POST" action="{{ route('currencies.base', $currency) }}"
-                                          class="d-inline"
-                                          onsubmit="return confirm(@js(__('Keep the books in :code from now on? Nothing already recorded is converted — this only works because nothing has been.', ['code' => $currency->code])))">
-                                        @csrf
-                                        <button class="btn btn-outline-secondary rounded-0"
-                                                @disabled($recorded !== null)
-                                                title="{{ $recorded !== null
-                                                    ? __('The books already have :what recorded.', ['what' => $recorded])
-                                                    : __('Keep the books in :code', ['code' => $currency->code]) }}">
-                                            <i class="bi bi-journal-check me-1"></i>{{ __('Make base') }}
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-outline-secondary rounded-0"
+                                            data-bs-toggle="modal" data-bs-target="#base-{{ $currency->id }}"
+                                            title="{{ __('Keep the books in :code', ['code' => $currency->code]) }}">
+                                        <i class="bi bi-journal-check me-1"></i>{{ __('Make base') }}
+                                    </button>
 
                                     <form method="POST" action="{{ route('currencies.destroy', $currency) }}"
                                           class="d-inline"
@@ -233,6 +245,75 @@
                             {{ __('Cancel') }}
                         </button>
                         <button class="btn btn-primary">{{ __('Save') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endforeach
+
+    {{-- Moving the books. One dialog per row, because each names its own code
+         and the typed confirmation has to match that code exactly. --}}
+    @foreach($currencies as $currency)
+        @continue($currency->code === $base->code)
+
+        @php($sameMoneyRenamed = (int) $currency->rate === $currency->minorPerMajor() * \App\Support\Money::RATE_SCALE)
+
+        <div class="modal fade" id="base-{{ $currency->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <form class="modal-content" method="POST"
+                      action="{{ route('currencies.base', $currency) }}" data-guard-submit>
+                    @csrf
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            {{ __('Keep the books in :code', ['code' => $currency->code]) }}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                aria-label="{{ __('Close') }}"></button>
+                    </div>
+
+                    <div class="modal-body d-flex flex-column gap-3">
+                        {{-- ⚠️ Said plainly, because this is the one control on
+                             the screen that changes what every figure in the shop
+                             MEANS. Nothing is written and nothing migrates, so it
+                             is reversible — but a shopkeeper acts on the reading,
+                             not on the stored integer. --}}
+                        <div class="alert alert-warning small mb-0">
+                            {{ __('Every amount already recorded stays exactly as it is. What changes is how all of them are read: as :code, at :places decimal places.', [
+                                'code' => $currency->code,
+                                'places' => $currency->decimals,
+                            ]) }}
+
+                            @unless($sameMoneyRenamed)
+                                <div class="mt-2">
+                                    {{ __('Every other currency will be switched off. Each rate was quoted against :old and means nothing once the books move.', ['old' => $base->code]) }}
+                                </div>
+                            @endunless
+                        </div>
+
+                        @if($recorded !== null)
+                            <div>
+                                <label for="confirm-{{ $currency->id }}" class="form-label">
+                                    {{ __('The books already have :what recorded. Type :code to confirm.', [
+                                        'what' => $recorded,
+                                        'code' => $currency->code,
+                                    ]) }}
+                                </label>
+                                <input id="confirm-{{ $currency->id }}" name="confirmation" required
+                                       autocomplete="off" dir="ltr"
+                                       class="form-control app-code @error('confirmation') is-invalid @enderror">
+                                @error('confirmation')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            {{ __('Cancel') }}
+                        </button>
+                        <button class="btn btn-warning">
+                            {{ __('Keep the books in :code', ['code' => $currency->code]) }}
+                        </button>
                     </div>
                 </form>
             </div>

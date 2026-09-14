@@ -64,17 +64,31 @@ final class Money
     /**
      * The currency the books are kept in.
      *
-     * Falls back to a currency that is not in the table at all when there is no
-     * table to read — the shared codebase the panel provisions from has no
-     * database, and `money()` is reachable from console commands that run
-     * there. A figure printed by a command is better than a fatal error.
+     * ⚠️ **`settings.currency_base` is the only thing that decides this.** It
+     * used to fall back to `reset($all)` — whichever currency sorted first —
+     * when the named code had no row, and that cost Soran his books on
+     * 2026-09-14. He had replaced the seeded `IQD` with his own `IRQ`, so the
+     * setting named a code with nothing behind it; first-by-code was IRQ, which
+     * was right by luck. Then he added GBP, which sorts before IRQ, and **every
+     * figure in the shop silently began reading as pounds at two decimal
+     * places**, with nothing asking him and nothing saying so.
+     *
+     * A currency the shop merely happens to keep is never the answer to "what
+     * are the books in". A code with no row is a broken setting, and a broken
+     * setting is answered with what the books were actually written at — which
+     * is what `assumed()` reads out of Section 2b's own setting. `DataCheck`
+     * reports the mismatch and the Currencies screen says it out loud.
+     *
+     * `assumed()` also covers having no table at all: the shared codebase the
+     * panel provisions from has no database, and `money()` is reachable from
+     * console commands that run there. A figure printed by a command is better
+     * than a fatal error.
      */
     public static function base(): Currency
     {
         $code = (string) setting('currency_base', 'IQD');
-        $all = Currency::cached();
 
-        return $all[$code] ?? reset($all) ?: self::assumed($code);
+        return Currency::cached()[$code] ?? self::assumed($code);
     }
 
     /** The one this system had before there was a table to put it in. */
