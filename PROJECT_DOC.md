@@ -1235,6 +1235,10 @@ Rules:
 - `default_unit` must be one of `units`. A default the dropdown refuses to show is not a default.
 - Validation on the product stays `string, max:32` and is **not** restricted to the list, so an import carrying a unit nobody has typed yet still lands.
 - Taking a unit off the list changes no existing product.
+- **One unit per product, and it buys and sells.** Asked for in exactly those words on 2026-09-14: *"Just buy and sale on same unit"*. There is **no conversion** — no pack ratio, no "1 karton = 12 pcs", no second unit on a line, no convert document. A shop that buys pens by the carton and sells them singly records two products, not one product with a ratio, and the books stay one number per line.
+  ⚠️ This was designed the other way first and thrown out. Every ratio scheme has the same failure: FIFO layers, `quantity_remaining`, returns and the stock-cache recheck all count in one unit, and a second unit with a ratio means every one of them either converts (and rounds, per line, forever) or disagrees with the screen. The ratio is the feature; the rounding is the bug.
+- **A quantity is never written bare.** `qty()` (`app/helpers.php`) writes the number and the unit together, and every screen that shows a count goes through it. Where a count is **typed**, the unit is the input group's suffix, the same shape the currency mark uses on a money box — the two carts, both return screens, the adjustment create and edit forms, and a new product's opening stock (which follows the select on its own form).
+  The two deliberate exceptions are rows that would otherwise repeat one product's unit three times in a sentence: the stock-cache-mismatch alert on the product page, and a return row's "already returned" and "can return" columns, which sit beside a "sold" column that already says it.
 
 **Guard the whole page** behind a `settings.manage` permission — these values change invoices, costing, and the edit window across the entire system.
 

@@ -97,7 +97,7 @@
                             </td>
                             <td class="small text-secondary">{{ $adjustment->user->name }}</td>
                             <td class="money fw-semibold {{ $adjustment->direction === 'in' ? 'text-success' : 'text-danger' }}">
-                                {{ $adjustment->direction === 'in' ? '+' : '−' }}{{ number_format($adjustment->quantity) }}
+                                {{ $adjustment->direction === 'in' ? '+' : '−' }}{{ qty($adjustment->quantity, $adjustment->product->unit) }}
                             </td>
                             {{-- Section 4: `out` has no typed cost — the value
                                  written off is the true FIFO cost of the batches
@@ -116,6 +116,7 @@
                                         'product' => $adjustment->product?->name,
                                         'direction' => $adjustment->direction,
                                         'quantity' => $adjustment->quantity,
+                                        'unit' => $adjustment->product?->unit,
                                         // ⚠️ Pre-filled in the currency the box is taking, and the
                                         // modal posts this same string back as `unit_cost_shown`. Plain,
                                         // never formatted: a separator empties a number box.
@@ -176,8 +177,14 @@
                             </div>
                             <div class="col-6">
                                 <label for="adj-quantity" class="form-label">{{ __('Quantity') }}</label>
-                                <input id="adj-quantity" type="number" step="1" min="1" name="quantity"
-                                       class="form-control text-end" dir="ltr" required>
+                                {{-- The chosen product's own unit, written beside
+                                     the box so the count is never ambiguous. It
+                                     appears when a product is picked. --}}
+                                <div class="input-group">
+                                    <input id="adj-quantity" type="number" step="1" min="1" name="quantity"
+                                           class="form-control text-end" dir="ltr" required>
+                                    <span id="adj-unit" class="input-group-text d-none"></span>
+                                </div>
                             </div>
                         </div>
 
@@ -236,6 +243,13 @@
 
             let timer = null;
 
+            /** The chosen product's unit, beside the box the count is typed in. */
+            function showUnit(unit) {
+                const box = document.getElementById('adj-unit');
+                box.textContent = unit ?? '';
+                box.classList.toggle('d-none', ! unit);
+            }
+
             function syncDirection() {
                 const incoming = direction.value === 'in';
                 costWrap.classList.toggle('d-none', ! incoming);
@@ -252,6 +266,7 @@
                 hidden.value = @json($startWith->id);
                 chosen.textContent = @json($startWith->name);
                 search.value = @json($startWith->name);
+                showUnit(@json($startWith->unit));
 
                 // app.js is a module, so it is deferred and window.bootstrap
                 // does not exist yet while this inline script runs.
@@ -291,14 +306,18 @@
                         item.className = 'list-group-item list-group-item-action d-flex justify-content-between';
                         item.innerHTML =
                             `<span>${escapeHtml(product.name)} <span class="small text-secondary ms-2" dir="ltr">${escapeHtml(product.sku)}</span></span>` +
-                            `<span class="small text-secondary">${new Intl.NumberFormat('en-US').format(product.quantity)}</span>`;
+                            `<span class="small text-secondary">${new Intl.NumberFormat('en-US').format(product.quantity)} ${escapeHtml(product.unit ?? '')}</span>`;
 
                         item.addEventListener('click', () => {
                             hidden.value = product.id;
                             chosen.textContent =
                                 @json(__('Chosen:')) + ' ' + product.name + ' — ' +
                                 new Intl.NumberFormat('en-US').format(product.quantity) + ' ' +
+                                (product.unit ? product.unit + ' ' : '') +
                                 @json(__('in stock'));
+
+                            showUnit(product.unit);
+
                             search.value = '';
                             results.classList.add('d-none');
                         });

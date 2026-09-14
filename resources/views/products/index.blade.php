@@ -212,7 +212,7 @@
                                 <td>{{ $product->category->name }}</td>
                                 <td class="money">
                                     <span class="{{ $product->isLowStock() ? 'text-warning fw-semibold' : '' }}">
-                                        {{ number_format($product->quantity) }}
+                                        {{ qty($product->quantity, $product->unit) }}
                                     </span>
                                     <span class="text-secondary small">{{ $product->unit }}</span>
                                 </td>

@@ -159,6 +159,7 @@ class SaleController extends Controller
                 'id' => $item->product_id,
                 'name' => $item->product->name,
                 'sku' => $item->product->sku,
+                'unit' => $item->product->unit,
                 'quantity' => $item->quantity,
                 'price' => $item->unit_price,
                 'stock' => $item->product->quantity + $onSale[$item->product_id],

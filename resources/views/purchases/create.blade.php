@@ -53,7 +53,7 @@
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
-                                <th class="money" style="width: 6.5rem">{{ __('Quantity') }}</th>
+                                <th class="money" style="width: 7rem">{{ __('Quantity') }}</th>
                                 {{-- Section 2b: no per-line currency. A supplier
                                      invoices in ONE currency, and the box below
                                      takes whichever one the invoice is in. --}}
@@ -392,11 +392,19 @@
                                    value="${inBase() || line.typed === null ? '' : Math.round(line.typed * minorPer(invoiceCode()))}">
                         </td>
                         <td>
-                            <input type="number" min="1" step="1" dir="ltr"
-                                   class="form-control form-control-sm text-end"
-                                   name="lines[${index}][quantity]" value="${line.quantity}"
-                                   data-role="qty" data-index="${index}"
-                                   data-numpad="@json(__('Quantity'))" data-numpad-min="1">
+                            {{-- Section 4: a product is counted in its own unit,
+                                 and the same unit buys and sells it. Writing it
+                                 beside the box is the whole of it — there is no
+                                 conversion to a second unit, by design. --}}
+                            <div class="input-group input-group-sm flex-nowrap">
+                                <input type="number" min="1" step="1" dir="ltr"
+                                       class="form-control text-end" style="min-width: 3.25rem"
+                                       name="lines[${index}][quantity]" value="${line.quantity}"
+                                       data-role="qty" data-index="${index}"
+                                       data-numpad="@json(__('Quantity'))" data-numpad-min="1">
+                                ${line.unit ? `<span class="input-group-text px-1 small text-truncate" data-role="unit"
+                                                     style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
+                            </div>
                         </td>
                         <td>
                             <div class="input-group input-group-sm">
@@ -570,6 +578,7 @@
                         id: product.id,
                         name: product.name,
                         sku: product.sku,
+                        unit: product.unit,
                         quantity: 1,
                         // Section 2b: nobody has typed a figure for this line
                         // yet, so its box is drawn from the price below. See

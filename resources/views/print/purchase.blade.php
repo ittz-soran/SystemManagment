@@ -37,7 +37,7 @@
                     {{ $item->product->name }}
                     <div class="small" dir="ltr">{{ $item->product->sku }}</div>
                 </td>
-                <td class="money">{{ number_format($item->quantity) }}</td>
+                <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
                 <td class="money">
                     {{ money($item->unit_price, false) }}
                     {{-- Section 2b: what the supplier's own paperwork said, as

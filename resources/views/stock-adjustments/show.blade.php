@@ -62,7 +62,7 @@
                             {{ $in ? __('Units into stock') : __('Units out of stock') }}
                         </span>
                         <span class="fs-3 fw-semibold money {{ $in ? 'text-success' : 'text-danger' }}">
-                            {{ $in ? '+' : '−' }}{{ number_format($adjustment->quantity) }}
+                            {{ $in ? '+' : '−' }}{{ qty($adjustment->quantity, $adjustment->product->unit) }}
                         </span>
                     </div>
 
@@ -118,11 +118,11 @@
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
                             <span class="text-secondary">{{ __('In') }}</span>
-                            <span class="money">{{ number_format($batch->quantity_in) }}</span>
+                            <span class="money">{{ qty($batch->quantity_in, $adjustment->product->unit) }}</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between fw-semibold">
                             <span>{{ __('Remaining') }}</span>
-                            <span class="money">{{ number_format($batch->quantity_remaining) }}</span>
+                            <span class="money">{{ qty($batch->quantity_remaining, $adjustment->product->unit) }}</span>
                         </li>
                     </ul>
                 </div>
@@ -151,7 +151,7 @@
                                     <td class="small"><span class="app-code">{{ $movement->occurred_at->format('Y-m-d H:i') }}</span></td>
                                     <td class="small text-secondary">#{{ $movement->stock_batch_id }}</td>
                                     <td class="money fw-semibold {{ $movement->quantity > 0 ? 'text-success' : 'text-danger' }}">
-                                        {{ $movement->quantity > 0 ? '+' : '' }}{{ number_format($movement->quantity) }}
+                                        {{ $movement->quantity > 0 ? '+' : '' }}{{ qty($movement->quantity, $adjustment->product->unit) }}
                                     </td>
                                     <td class="money text-secondary">{{ cost_money($movement->unit_cost, false, $lens) }}</td>
                                     <td class="money">{{ cost_money(abs($movement->quantity) * $movement->unit_cost, false, $lens) }}</td>

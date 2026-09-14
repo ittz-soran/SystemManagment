@@ -145,6 +145,10 @@ class HeldCartController extends Controller
                     'id' => $product->id,
                     'name' => $product->name,
                     'sku' => $product->sku,
+
+                    // What this product is counted in. The cart writes it beside
+                    // the quantity box so a line reads "12 kg", not a bare 12.
+                    'unit' => $product->unit,
                     'quantity' => $quantity,
                     'price' => $price,
                     'currency' => $currency,

@@ -34,9 +34,14 @@
                     </div>
                     <div class="col-6">
                         <label for="adj-edit-quantity" class="form-label">{{ __('Quantity') }}</label>
-                        <input id="adj-edit-quantity" type="number" step="1" min="1" name="quantity"
-                               class="form-control text-end" dir="ltr"
-                               data-numpad="{{ __('Quantity') }}" data-numpad-min="1" required>
+                        {{-- The product's own unit. Carried on the row's button
+                             with the rest, since one form serves every row. --}}
+                        <div class="input-group">
+                            <input id="adj-edit-quantity" type="number" step="1" min="1" name="quantity"
+                                   class="form-control text-end" dir="ltr"
+                                   data-numpad="{{ __('Quantity') }}" data-numpad-min="1" required>
+                            <span id="adj-edit-unit" class="input-group-text d-none"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -108,6 +113,11 @@
 
             direction.value = opener.dataset.direction ?? 'out';
             form.querySelector('[name="quantity"]').value = opener.dataset.quantity ?? '';
+
+            const unitBox = document.getElementById('adj-edit-unit');
+            unitBox.textContent = opener.dataset.unit ?? '';
+            unitBox.classList.toggle('d-none', ! opener.dataset.unit);
+
             const cost = opener.dataset.cost ?? '';
             form.querySelector('[name="unit_cost"]').value = cost;
 

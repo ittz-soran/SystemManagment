@@ -175,7 +175,7 @@
                                                    class="text-decoration-none">{{ $product->name }}</a>
                                                 <div class="small text-secondary">{{ $product->sku }}</div>
                                             </td>
-                                            <td class="money fw-semibold">{{ number_format($product->quantity) }}</td>
+                                            <td class="money fw-semibold">{{ qty($product->quantity, $product->unit) }}</td>
                                             <td class="money text-secondary">{{ number_format($product->effectiveReorderLevel()) }}</td>
                                         </tr>
                                     @endforeach

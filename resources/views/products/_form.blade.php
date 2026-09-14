@@ -143,9 +143,15 @@
                     <div class="row g-3">
                         <div class="col-6">
                             <label for="opening_quantity" class="form-label">{{ __('Quantity') }}</label>
-                            <input id="opening_quantity" type="number" step="1" min="0" name="opening_quantity" data-numpad="{{ __('Quantity') }}"
-                                   value="{{ old('opening_quantity') }}" dir="ltr"
-                                   class="form-control text-end @error('opening_quantity') is-invalid @enderror">
+                            {{-- The unit chosen above, echoed here so the opening
+                                 count is never a bare number. It follows the
+                                 select, since both live on this one form. --}}
+                            <div class="input-group">
+                                <input id="opening_quantity" type="number" step="1" min="0" name="opening_quantity" data-numpad="{{ __('Quantity') }}"
+                                       value="{{ old('opening_quantity') }}" dir="ltr"
+                                       class="form-control text-end @error('opening_quantity') is-invalid @enderror">
+                                <span id="opening_unit" class="input-group-text"></span>
+                            </div>
                             @error('opening_quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-6">
@@ -183,3 +189,23 @@
     </button>
     <a href="{{ route('products.index') }}" class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
 </div>
+
+@push('scripts')
+    <script>
+        // The opening-stock box is counted in whatever unit the product is set
+        // to, and that select sits on this same form — so the suffix follows it.
+        (() => {
+            const unit = document.getElementById('unit');
+            const echo = document.getElementById('opening_unit');
+
+            if (! unit || ! echo) {
+                return;
+            }
+
+            const sync = () => { echo.textContent = unit.value; };
+
+            unit.addEventListener('change', sync);
+            sync();
+        })();
+    </script>
+@endpush
