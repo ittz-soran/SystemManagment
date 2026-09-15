@@ -111,7 +111,19 @@
 <div class="d-flex">
     @include('layouts.sidebar')
 
-    <div class="flex-grow-1 min-vw-0 d-flex flex-column">
+    {{-- ⚠️ `min-w-0`, and it matters more than it looks.
+
+         This column is a flex item, and a flex item's default `min-width: auto`
+         refuses to shrink below its own content. A wide table therefore does not
+         scroll inside its `.table-responsive` — it pushes this column, the
+         topbar and the whole shell wider than the screen, and the reader drags
+         the entire page sideways to reach the second half of a row.
+
+         It carried `min-vw-0` for a year, which is not a Bootstrap class and is
+         defined nowhere: the rule said nothing at all. On a 390px phone the
+         products list measured 784px, sales 763, payments 738. See
+         LayoutClassTest, which now fails on a class that resolves to nothing. --}}
+    <div class="flex-grow-1 min-w-0 d-flex flex-column">
         @include('layouts.topbar')
 
         @include('partials.screen-help')
@@ -160,7 +172,15 @@
                         <div class="text-secondary small">@yield('subheading')</div>
                     @endif
                 </div>
-                <div class="d-flex gap-2 no-print">@yield('actions')</div>
+                {{-- ⚠️ `flex-wrap`, and a phone is why.
+
+                     Most screens put three things in here — the currency lens,
+                     one or two buttons, sometimes a Delete — and on a laptop
+                     they sit in a row with room to spare. On a 390px phone that
+                     row measured 546px on a product page and dragged the whole
+                     screen sideways, because a `d-flex` with no wrap would
+                     rather overflow than go to a second line. --}}
+                <div class="d-flex flex-wrap gap-2 no-print">@yield('actions')</div>
             </div>
 
             @include('partials.flash')

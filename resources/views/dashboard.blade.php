@@ -33,9 +33,17 @@
                              belong on the same line — and `justify-content-
                              between` puts the note on the correct side in all
                              four languages without a rule per direction. --}}
-                        <div class="d-flex align-items-center justify-content-between gap-2 text-secondary small mb-1">
-                            <span class="d-inline-flex align-items-center gap-2 text-truncate">
-                                <i class="bi bi-{{ $card['icon'] }}"></i>{{ $card['label'] }}
+                        {{-- ⚠️ `flex-wrap`, and the label wraps rather than
+                             truncating. Two tiles to a row on a 390px phone
+                             gives each about 172px, and a label that clips at
+                             that width reads "Today's purch" and "Today's
+                             exper" — which is what Soran was looking at on his
+                             phone. The note drops to its own line when there is
+                             no room beside the label, and the label then has
+                             the whole width to say what it is. --}}
+                        <div class="d-flex align-items-center justify-content-between gap-1 gap-sm-2 flex-wrap text-secondary small mb-1">
+                            <span class="d-inline-flex align-items-start gap-2 min-w-0">
+                                <i class="bi bi-{{ $card['icon'] }} mt-1 flex-shrink-0"></i>{{ $card['label'] }}
                             </span>
                             @if($card['note'])
                                 <span class="text-nowrap">{{ $card['note'] }}</span>
