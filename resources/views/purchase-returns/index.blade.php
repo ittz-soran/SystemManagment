@@ -43,7 +43,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Document') }}</th>
@@ -58,17 +58,17 @@
                     <tbody>
                     @foreach($returns as $return)
                         <tr>
-                            <td><x-document-link :document="$return" :kind="false" /></td>
-                            <td><span class="app-code">{{ $return->return_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td>
+                            <td class="list-card-title"><x-document-link :document="$return" :kind="false" /></td>
+                            <td data-label="{{ __('Date') }}"><span class="app-code">{{ $return->return_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td data-label="{{ __('Against') }}">
                                 <a href="{{ route('purchases.show', $return->purchase) }}" class="text-decoration-none">
                                     <x-document-link :document="$return->purchase" :kind="false" />
                                 </a>
                             </td>
-                            <td>{{ $return->supplier->name }}</td>
-                            <td class="text-secondary small">{{ $return->reason ?: '—' }}</td>
-                            <td class="money">{{ money($return->total_amount, in: $lens) }}</td>
-                            <td class="text-end">
+                            <td data-label="{{ __('Supplier') }}">{{ $return->supplier->name }}</td>
+                            <td class="text-secondary small" data-label="{{ __('Reason') }}">{{ $return->reason ?: '—' }}</td>
+                            <td class="money" data-label="{{ __('Total') }}">{{ money($return->total_amount, in: $lens) }}</td>
+                            <td class="list-card-actions text-end">
                                 <x-row-actions :print="route('purchase-returns.print', $return)" />
                             </td>
                         </tr>

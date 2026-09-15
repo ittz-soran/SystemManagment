@@ -178,7 +178,7 @@
     @else
         <div class="card">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0 table-cards">
                         <thead>
                         <tr>
                             <th style="width: 2rem">
@@ -196,12 +196,12 @@
                         <tbody>
                         @foreach($products as $product)
                             <tr class="{{ $product->is_active ? '' : 'opacity-50' }}">
-                                <td>
+                                <td class="list-card-check">
                                     <input type="checkbox" class="form-check-input"
                                            data-bulk-id="{{ $product->id }}"
                                            aria-label="{{ $product->name }}">
                                 </td>
-                                <td>
+                                <td class="list-card-title">
                                     <a href="{{ route('products.show', $product) }}" class="text-decoration-none fw-medium">
                                         {{ $product->name }}
                                     </a>
@@ -209,16 +209,18 @@
                                         {{ $product->sku }}@if($product->barcode) · {{ $product->barcode }}@endif
                                     </div>
                                 </td>
-                                <td>{{ $product->category->name }}</td>
-                                <td class="money">
+                                <td data-label="{{ __('Category') }}">{{ $product->category->name }}</td>
+                                <td class="money" data-label="{{ __('In stock') }}">
+                                    {{-- qty() writes the unit; this used to carry a
+                                         second copy of it beside the figure, left
+                                         over from before the helper existed. --}}
                                     <span class="{{ $product->isLowStock() ? 'text-warning fw-semibold' : '' }}">
                                         {{ qty($product->quantity, $product->unit) }}
                                     </span>
-                                    <span class="text-secondary small">{{ $product->unit }}</span>
                                 </td>
-                                <td class="money text-secondary">{{ cost_money($product->purchase_price, in: $lens) }}</td>
-                                <td class="money">{{ money($product->sale_price, in: $lens) }}</td>
-                                <td class="text-end">
+                                <td class="money text-secondary" data-label="{{ __('Purchase price') }}">{{ cost_money($product->purchase_price, in: $lens) }}</td>
+                                <td class="money" data-label="{{ __('Sale price') }}">{{ money($product->sale_price, in: $lens) }}</td>
+                                <td class="list-card-actions text-end">
                                     @if($showingDeleted)
                                         {{-- The usual thing to do with a deleted
                                              row, and the answer to a barcode the

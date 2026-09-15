@@ -36,7 +36,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Name') }}</th>
@@ -48,7 +48,7 @@
                     <tbody>
                     @foreach($suppliers as $supplier)
                         <tr class="{{ $supplier->is_active ? '' : 'opacity-50' }}">
-                            <td>
+                            <td class="list-card-title">
                                 <a href="{{ route('suppliers.show', $supplier) }}" class="text-decoration-none fw-medium">
                                     {{ $supplier->name }}
                                 </a>
@@ -56,11 +56,11 @@
                                     <span class="badge text-bg-light">{{ __('System') }}</span>
                                 @endif
                             </td>
-                            <td><span class="app-code">{{ $supplier->phone ?: '—' }}</span></td>
-                            <td class="money {{ $supplier->balance > 0 ? 'fw-semibold' : 'text-secondary' }}">
+                            <td data-label="{{ __('Phone') }}"><span class="app-code">{{ $supplier->phone ?: '—' }}</span></td>
+                            <td class="money {{ $supplier->balance > 0 ? 'fw-semibold' : 'text-secondary' }}" data-label="{{ __('The shop owes') }}">
                                 {{ money($supplier->balance, in: $lens) }}
                             </td>
-                            <td class="text-end">
+                            <td class="list-card-actions text-end">
                                 <x-row-actions
                                     :edit-modal="Gate::allows('suppliers.edit') && ! ($supplier->is_system ?? false) ? '#supplier-edit' : null"
                                     :edit-data="[

@@ -199,6 +199,143 @@ body {
 }
 
 // ---------------------------------------------------------------------------
+// Lists on a phone — a card per row
+// ---------------------------------------------------------------------------
+
+// A table is a grid because the eye compares down a column. A phone has no
+// column to compare down: at 390px a seven-column list is twice the width of
+// the screen, and reading one sale means dragging the page sideways and losing
+// which row you were on. Under `.table-responsive` that became a sideways
+// scroll rather than a broken page — correct, and still not something anybody
+// wants to do at a counter.
+//
+// So below `sm` each row becomes a card and each cell a labelled line. The
+// markup does not change: the same table serves both, `thead` simply stops
+// being drawn and the label each cell would have read off it is carried on the
+// cell as `data-label`. One table, one set of figures, two shapes.
+//
+// ⚠️ The label is on the CELL and not read from the header, because CSS cannot
+// reach across the table to find it and doing it in JavaScript would leave the
+// first paint unlabelled. `ListCardTest` checks every cell of the lists that
+// use this has one, so a column added later cannot quietly lose its name.
+@include media-breakpoint-down(sm) {
+  .table-cards {
+    // Bootstrap's table borders are drawn per cell; the card draws its own.
+    border-collapse: separate;
+
+    thead {
+      // Its words live on the cells now. `clip` rather than `none` so the
+      // header is still announced to a screen reader walking the table.
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    tbody,
+    tr,
+    td {
+      display: block;
+      width: auto;
+    }
+
+    tr {
+      border: var(--bs-border-width) solid var(--bs-border-color);
+      border-radius: var(--bs-border-radius);
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 0.5rem;
+      background-color: var(--bs-body-bg);
+      // For the row's actions, which sit in the corner rather than on a line
+      // of their own — see below.
+      position: relative;
+    }
+
+    td {
+      // The row's own frame is the separator now.
+      border: 0;
+      padding: 0.15rem 0;
+      // Bootstrap's striping and hover paint cells; on a card they would paint
+      // a stripe across one line of it.
+      background-color: transparent;
+      box-shadow: none;
+    }
+
+    // A labelled line: what it is on the reading side, what it says on the far
+    // side, which puts each on the correct side in all four languages without a
+    // rule per direction.
+    td[data-label]:not([data-label=''])::before {
+      content: attr(data-label);
+      color: var(--bs-secondary-color);
+      font-size: 0.8rem;
+      padding-inline-end: 1rem;
+      // Its own weight, not the cell's. A bold quantity was giving itself a
+      // bold label, which made the label look like the answer.
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    td[data-label]:not([data-label='']) {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    // The two cells that are not a labelled line. The tick and the document
+    // number are the row's name, so they share the first line; the actions sit
+    // at the foot of the card where a thumb expects them.
+    .list-card-check,
+    .list-card-title {
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+
+    .list-card-title {
+      // ⚠️ A column, not a row. The cell is `inline-flex` so it can sit beside
+      // the tick, and that made flex items of its children: a product's name
+      // and the SKU under it came out as "Anker 20W adapterea062c31".
+      flex-direction: column;
+      align-items: flex-start;
+      font-weight: 600;
+      // A long customer name must not push the figures out of the card.
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      // Room for the actions in the corner.
+      padding-inline-end: 2.5rem;
+    }
+
+    .list-card-check {
+      padding-inline-end: 0.5rem;
+      // Level with the first line of the name, not with the middle of a title
+      // that has a code under it.
+      vertical-align: top;
+      padding-block-start: 0.2rem;
+    }
+
+    // In the card's corner rather than on a line of its own. As its own line it
+    // cost forty pixels a card and left a gap under every set of figures; up
+    // here it is beside the name it acts on, which is also where a thumb
+    // reaches first.
+    .list-card-actions {
+      position: absolute;
+      inset-block-start: 0.4rem;
+      inset-inline-end: 0.5rem;
+      padding: 0;
+    }
+
+    // A figure keeps its own alignment rules (tabular, LTR, nowrap) but stops
+    // being pushed to the end of a column that no longer exists — the flex line
+    // above is what puts it opposite its label.
+    td.money {
+      text-align: end;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Money and numbers
 // ---------------------------------------------------------------------------
 
