@@ -199,6 +199,112 @@ body {
 }
 
 // ---------------------------------------------------------------------------
+// The cart row on a phone
+// ---------------------------------------------------------------------------
+
+// The lists became cards by stacking each cell as a labelled line. A cart
+// cannot: it is an entry table, and quantity and price are boxes somebody types
+// in one after the other. Stacked, the two numbers a shopkeeper is comparing
+// end up on different lines, and every line of the cart is six rows tall.
+//
+// So this one is a small grid instead. The name and the row's buttons on the
+// first line, the code and what is on the shelf under it, then the three
+// figures that belong together — how many, at what each, what that comes to —
+// side by side on one line:
+//
+//     Samsung A55 charger cable                    [+] [x]
+//     56d80abf · 381 karton in stock
+//     [  1  karton ]  [    9000 ]            9,000
+//
+// What it replaces: the columns are sized for a laptop — 7.5rem of quantity,
+// 10rem of price, 9rem of total — which is already wider than a 390px screen
+// before the product has said anything. The name column collapsed to nothing,
+// names broke one word to a line, and the line total was off the edge.
+@include media-breakpoint-down(sm) {
+  .table-cart {
+    thead {
+      // The columns are not columns here. Clipped rather than removed, so the
+      // header is still there for a screen reader walking the table.
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    tbody,
+    tr {
+      display: block;
+      width: auto;
+    }
+
+    tr {
+      display: grid;
+      // ⚠️ Both flexible tracks are `minmax(0, …)`. A grid track sized `auto`
+      // takes its content's max-content width, and a number input asks for
+      // about twenty characters — so the quantity took the row and the price
+      // box was squeezed to two digits of a five-digit price.
+      grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) auto;
+      grid-template-areas:
+        'product product actions'
+        'qty     price   total';
+      align-items: center;
+      gap: 0.4rem 0.5rem;
+
+      padding: 0.6rem 0.75rem;
+      border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+    }
+
+    td {
+      display: block;
+      padding: 0;
+      border: 0;
+      background-color: transparent;
+    }
+
+    .cart-cell-product { grid-area: product; min-width: 0; }
+    .cart-cell-qty     { grid-area: qty; min-width: 0; }
+    .cart-cell-price   { grid-area: price; min-width: 0; }
+    .cart-cell-total   { grid-area: total; }
+
+    .cart-cell-actions {
+      grid-area: actions;
+      // Level with the first line of the name rather than the middle of a cell
+      // that may be three lines tall.
+      align-self: start;
+    }
+
+    // The price box takes whatever the row has left after the quantity, rather
+    // than the twenty-odd characters a number input asks for by default.
+    .cart-cell-price .form-control {
+      min-width: 0;
+    }
+
+    // ⚠️ Things a finger has to hit, at the size a finger needs.
+    //
+    // The cart wears `-sm` controls, which is right on a laptop and gives a
+    // 32px square on a phone — a third under the 44px a fingertip actually
+    // covers. This is the till: the two boxes and the two buttons here are
+    // tapped more than anything else in the shop.
+    //
+    // 2.75rem is the same square `pointer: coarse` already gives the row
+    // actions on the lists; this says it by width instead, because the screen
+    // being narrow is the thing that is known here.
+    .cart-cell-actions .btn {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+
+    .cart-cell-qty .form-control,
+    .cart-cell-price .form-control,
+    .cart-cell-qty .input-group-text {
+      min-height: 2.5rem;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The till bar — the total and Save, on a phone
 // ---------------------------------------------------------------------------
 

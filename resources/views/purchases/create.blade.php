@@ -49,7 +49,7 @@
 
                 <div class="card">
                     <div class="table-responsive">
-                        <table class="table align-middle mb-0">
+                        <table class="table align-middle mb-0 table-cart">
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
@@ -395,7 +395,7 @@
                     const row = document.createElement('tr');
 
                     row.innerHTML = `
-                        <td>
+                        <td class="cart-cell-product">
                             <div class="fw-medium">${escapeHtml(line.name)}</div>
                             <div class="small text-secondary app-code">${escapeHtml(line.sku)}</div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
@@ -408,7 +408,7 @@
                             <input type="hidden" name="lines[${index}][entered_amount]"
                                    value="${inBase() || line.typed === null ? '' : Math.round(line.typed * minorPer(invoiceCode()))}">
                         </td>
-                        <td>
+                        <td class="cart-cell-qty">
                             {{-- Section 4: a product is counted in its own unit,
                                  and the same unit buys and sells it. Writing it
                                  beside the box is the whole of it — there is no
@@ -423,7 +423,7 @@
                                                      style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
                             </div>
                         </td>
-                        <td>
+                        <td class="cart-cell-price">
                             <div class="input-group input-group-sm">
                                 <input type="number" min="0" step="${stepFor(invoiceCode())}" dir="ltr"
                                        class="form-control text-end"
@@ -438,8 +438,8 @@
                             ${inBase() ? '' : `<div class="small text-secondary text-end" dir="ltr" data-role="converted">= ${escapeHtml(showBase(line.price))}</div>`}
                             <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}">
                         </td>
-                        <td class="money fw-semibold">${show(line.quantity * line.price)}</td>
-                        <td>
+                        <td class="money fw-semibold cart-cell-total">${show(line.quantity * line.price)}</td>
+                        <td class="cart-cell-actions">
                             <div class="btn-group btn-group-sm">
                                 {{-- One delivery can bring the same thing in at
                                      two prices — the last few of an old carton

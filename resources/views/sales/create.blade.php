@@ -56,7 +56,7 @@
 
                 <div class="card">
                     <div class="table-responsive">
-                        <table class="table align-middle mb-0" id="cart-table">
+                        <table class="table align-middle mb-0 table-cart" id="cart-table">
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
@@ -356,7 +356,7 @@
                     // either opens the keypad, which a finger can use on a
                     // touchscreen and a keyboard can drive just as fast.
                     row.innerHTML = `
-                        <td>
+                        <td class="cart-cell-product">
                             <div class="fw-medium">
                                 ${escapeHtml(line.name)}
                                 ${line.kind === 'service'
@@ -384,7 +384,7 @@
                             </div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                         </td>
-                        <td>
+                        <td class="cart-cell-qty">
                             {{-- Section 4: a product is counted in its own unit,
                                  and the same unit buys and sells it. Writing it
                                  beside the box is the whole of it — there is no
@@ -399,15 +399,15 @@
                                                      style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
                             </div>
                         </td>
-                        <td>
+                        <td class="cart-cell-price">
                             <input type="number" min="0" step="1" dir="ltr"
                                    class="form-control form-control-sm text-end"
                                    name="lines[${index}][unit_price]" value="${line.price}"
                                    data-role="price" data-index="${index}"
                                    data-numpad="${escapeHtml(line.name)}">
                         </td>
-                        <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
-                        <td>
+                        <td class="money fw-semibold cart-cell-total">${format(line.quantity * line.price)}</td>
+                        <td class="cart-cell-actions">
                             <div class="btn-group btn-group-sm">
                                 {{-- Section 4: "one sale can list the same
                                      product on two lines at two prices", which
