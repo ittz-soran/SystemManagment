@@ -47,18 +47,37 @@ class TillBarTest extends TestCase
         $this->user = User::where('email', 'admin@example.com')->firstOrFail();
     }
 
-    /** @return list<array{0: string, 1: string}> */
+    /**
+     * ⚠️ The route only, and the form id is looked up below.
+     *
+     * A provider hands every one of its values to every method that uses it,
+     * and PHPUnit **warns** when a method takes fewer than it is given. Three of
+     * the four here want only the route, so a two-value provider meant three
+     * warnings — and `php artisan test` exits non-zero on a warning while still
+     * printing "971 passed". Green tests, red CI, and nothing in the summary
+     * saying why.
+     *
+     * @return list<array{0: string}>
+     */
     public static function tills(): array
     {
         return [
-            'the sale screen' => ['sales.create', 'sale-form'],
-            'the purchase screen' => ['purchases.create', 'purchase-form'],
+            'the sale screen' => ['sales.create'],
+            'the purchase screen' => ['purchases.create'],
         ];
     }
 
+    /** The form each till's bar has to be inside. */
+    private const FORMS = [
+        'sales.create' => 'sale-form',
+        'purchases.create' => 'purchase-form',
+    ];
+
     #[DataProvider('tills')]
-    public function test_the_bar_is_inside_the_form_that_holds_to_save(string $route, string $form): void
+    public function test_the_bar_is_inside_the_form_that_holds_to_save(string $route): void
     {
+        $form = self::FORMS[$route];
+
         $html = $this->actingAs($this->user)->get(route($route))->assertOk()->getContent();
 
         /*
