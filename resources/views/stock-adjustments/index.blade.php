@@ -64,7 +64,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Document') }}</th>
@@ -80,32 +80,32 @@
                     <tbody>
                     @foreach($adjustments as $adjustment)
                         <tr>
-                            <td class="fw-medium">
+                            <td class="list-card-title fw-medium">
                                 <x-document-link :document="$adjustment" :kind="false" />
                             </td>
-                            <td class="small"><span class="app-code">{{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td>
+                            <td class="small" data-label="{{ __('When') }}"><span class="app-code">{{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td data-label="{{ __('Product') }}">
                                 <a href="{{ route('products.show', $adjustment->product) }}" class="text-decoration-none">
                                     {{ $adjustment->product->name }}
                                 </a>
                             </td>
-                            <td>
+                            <td data-label="{{ __('Reason') }}">
                                 <span class="badge text-bg-light">{{ Str::headline($adjustment->reason) }}</span>
                                 @if($adjustment->notes)
                                     <div class="small text-secondary">{{ $adjustment->notes }}</div>
                                 @endif
                             </td>
-                            <td class="small text-secondary">{{ $adjustment->user->name }}</td>
-                            <td class="money fw-semibold {{ $adjustment->direction === 'in' ? 'text-success' : 'text-danger' }}">
+                            <td class="small text-secondary" data-label="{{ __('By') }}">{{ $adjustment->user->name }}</td>
+                            <td class="money fw-semibold {{ $adjustment->direction === 'in' ? 'text-success' : 'text-danger' }}" data-label="{{ __('Quantity') }}">
                                 {{ $adjustment->direction === 'in' ? '+' : '−' }}{{ qty($adjustment->quantity, $adjustment->product->unit) }}
                             </td>
                             {{-- Section 4: `out` has no typed cost — the value
                                  written off is the true FIFO cost of the batches
                                  it consumed. --}}
-                            <td class="money text-secondary">
+                            <td class="money text-secondary" data-label="{{ __('Cost each') }}">
                                 {{ $adjustment->unit_cost !== null ? cost_money($adjustment->unit_cost, in: $lens) : __('FIFO') }}
                             </td>
-                            <td class="text-end">
+                            <td class="list-card-actions text-end">
                                 {{-- Offered plainly, like the delete beside it: the
                                      engine refuses an edit whose units have since
                                      been sold, and the refusal explains itself. --}}

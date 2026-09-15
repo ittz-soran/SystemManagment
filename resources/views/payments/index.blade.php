@@ -89,7 +89,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Document') }}</th>
@@ -104,21 +104,21 @@
                     <tbody>
                     @foreach($payments as $payment)
                         <tr>
-                            <td class="fw-medium">
+                            <td class="list-card-title fw-medium">
                                 <x-document-link :document="$payment" :kind="false" />
                             </td>
-                            <td><span class="app-code">{{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td class="small">
+                            <td data-label="{{ __('Date') }}"><span class="app-code">{{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td class="small" data-label="{{ __('Against') }}">
                                 <x-document-link :document="$payment->payable"
                                                  :type="$payment->payable_type"
                                                  :id="$payment->payable_id" />
                             </td>
-                            <td>{{ Str::headline($payment->payment_method) }}</td>
-                            <td class="small text-secondary">{{ $payment->user->name }}</td>
-                            <td class="money fw-semibold {{ $payment->direction === 'in' ? 'text-success' : 'text-danger' }}">
+                            <td data-label="{{ __('Method') }}">{{ Str::headline($payment->payment_method) }}</td>
+                            <td class="small text-secondary" data-label="{{ __('By') }}">{{ $payment->user->name }}</td>
+                            <td class="money fw-semibold {{ $payment->direction === 'in' ? 'text-success' : 'text-danger' }}" data-label="{{ __('Amount') }}">
                                 {{ $payment->direction === 'in' ? '+' : '−' }}{{ money($payment->amount, in: $lens) }}
                             </td>
-                            <td class="text-end">
+                            <td class="list-card-actions text-end">
                                 <x-row-actions
                                     :edit="Gate::allows('payments.edit') ? route('payments.edit', $payment) : null"
                                     :delete="Gate::allows('payments.delete') ? route('payments.destroy', $payment) : null"
