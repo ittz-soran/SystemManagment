@@ -199,6 +199,72 @@ body {
 }
 
 // ---------------------------------------------------------------------------
+// The till bar — the total and Save, on a phone
+// ---------------------------------------------------------------------------
+
+@include media-breakpoint-down(md) {
+  .app-till-bar {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 1030;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+
+    padding: 0.5rem 0.9rem;
+    // Clear of the home indicator on a phone that has one, and of nothing at
+    // all on one that does not.
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+
+    background-color: var(--bs-body-bg);
+    border-top: var(--bs-border-width) solid var(--bs-border-color);
+    box-shadow: 0 -0.25rem 0.75rem rgba(0, 0, 0, 0.06);
+
+    .btn {
+      flex-shrink: 0;
+    }
+  }
+
+  .app-till-bar-label {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--bs-secondary-color);
+  }
+
+  .app-till-bar-total {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  // Room under the last card for the bar, so nothing is parked beneath it.
+  // Only on the screens that have one — a page with no till bar should not be
+  // scrollable past its own end.
+  //
+  // ⚠️ `!important` because `main` wears `p-3`, and Bootstrap's spacing
+  // utilities are `!important`. Without it this rule loses and the last field
+  // on the page sits under the bar, which is exactly the thing being fixed.
+  main:has(.app-till-bar) {
+    padding-bottom: 5rem !important;
+  }
+
+  // ⚠️ And the panel's own sticky block stops sticking.
+  //
+  // `position-sticky; bottom: 1rem` is right on a laptop, where that column
+  // stands beside the cart. On a phone the column is the whole width and the
+  // block pinned itself to the bottom of the viewport while the fields above it
+  // scrolled underneath — Save and Hold this cart painted straight over the
+  // Date field. The bar above does that job here; these go back to sitting at
+  // the end of the page where they belong.
+  .app-till-actions {
+    position: static !important;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Lists on a phone — a card per row
 // ---------------------------------------------------------------------------
 

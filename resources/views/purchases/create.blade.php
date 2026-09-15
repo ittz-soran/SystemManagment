@@ -194,7 +194,7 @@
                         </div>
 
                         <div class="text-secondary small">{{ __('Grand total') }}</div>
-                        <div class="running-total" id="grand-total">0</div>
+                        <div class="running-total" id="grand-total" data-role="running-total">0</div>
                         {{-- What the books will actually hold. The figure above
                              is the same money said in the invoice's currency. --}}
                         <div class="text-secondary small mb-3 d-none" dir="ltr" id="grand-total-base"></div>
@@ -231,9 +231,9 @@
                     </div>
                 </div>
 
-                <div class="d-grid gap-2 position-sticky" style="bottom: 1rem">
+                <div class="d-grid gap-2 position-sticky app-till-actions" style="bottom: 1rem">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-purchase" disabled
-                            data-submitting-text="{{ __('Saving…') }}">
+                            data-role="save" data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save purchase') }} <kbd class="ms-1">F2</kbd>
                     </button>
                     @unless($editing)
@@ -248,6 +248,21 @@
                        class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
+        </div>
+        {{-- The till bar — a phone only. Same reasoning as the sale screen, and
+             the same reason it lives inside the form: app.js gives the
+             hold-to-save guard to the form's own buttons, and a button attached
+             from outside with `form="…"` is never walked. --}}
+        <div class="app-till-bar d-md-none no-print">
+            <div class="min-w-0">
+                <div class="app-till-bar-label">{{ __('Grand total') }}</div>
+                <div class="app-till-bar-total money" data-role="running-total">0</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled
+                    data-role="save" data-submitting-text="{{ __('Saving…') }}">
+                {{ $editing ? __('Save changes') : __('Save purchase') }}
+            </button>
         </div>
     </form>
 @endsection
@@ -279,7 +294,9 @@
             const cartBody = document.getElementById('cart-body');
             const cartEmpty = document.getElementById('cart-empty');
             const subtotalEl = document.getElementById('subtotal');
-            const grandTotalEl = document.getElementById('grand-total');
+            // Said twice on a phone — the panel and the till bar — and once on
+            // a laptop. Both read the same number from one place.
+            const grandTotalEls = document.querySelectorAll('[data-role="running-total"]');
             const discountInput = document.getElementById('discount_shown');
             const paidInput = document.getElementById('amount_paid_shown');
             const dueNote = document.getElementById('due-note');
@@ -289,7 +306,7 @@
             const rateBox = document.getElementById('rate-box');
             const currencySelect = document.getElementById('document_currency');
             const grandTotalBase = document.getElementById('grand-total-base');
-            const saveButton = document.getElementById('save-purchase');
+            const saveButtons = document.querySelectorAll('[data-role="save"]');
 
             /*
              * Section 2b: the whole document is written in ONE currency.
@@ -445,7 +462,7 @@
                 });
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
-                saveButton.disabled = cart.length === 0;
+                saveButtons.forEach((b) => { b.disabled = cart.length === 0; });
 
                 // Nothing to put down until something is in it.
                 const hold = document.getElementById('hold-cart');
@@ -488,7 +505,7 @@
                 const grandTotal = subtotal - discount.get();
 
                 subtotalEl.textContent = show(subtotal);
-                grandTotalEl.textContent = show(grandTotal);
+                grandTotalEls.forEach((el) => { el.textContent = show(grandTotal); });
 
                 // What the books will hold, said plainly, whenever the figure
                 // above them is not already in the books' own currency.
@@ -852,7 +869,7 @@
                 // from under a half-typed price.
                 if (document.getElementById('number-pad')?.classList.contains('show')) return;
 
-                if (event.key === 'F2' && ! saveButton.disabled) {
+                if (event.key === 'F2' && ! saveButtons[0].disabled) {
                     event.preventDefault();
                     document.getElementById('purchase-form').requestSubmit();
                 }
