@@ -56,7 +56,7 @@
 
                 <div class="card">
                     <div class="table-responsive">
-                        <table class="table align-middle mb-0" id="cart-table">
+                        <table class="table align-middle mb-0 table-cart" id="cart-table">
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
@@ -130,7 +130,7 @@
                              visible. It is the number Soran reads out to the
                              customer." --}}
                         <div class="text-secondary small">{{ __('Total') }}</div>
-                        <div class="running-total" id="running-total">0</div>
+                        <div class="running-total" id="running-total" data-role="running-total">0</div>
 
                         {{-- The figure written out, the oldest anti-fraud device
                              on an invoice: a digit can be changed with a pen and
@@ -171,9 +171,9 @@
 
                 {{-- Section 9b: action buttons fixed at the bottom so they never
                      scroll away. --}}
-                <div class="d-grid gap-2 position-sticky" style="bottom: 1rem">
+                <div class="d-grid gap-2 position-sticky app-till-actions" style="bottom: 1rem">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-sale" disabled
-                            data-submitting-text="{{ __('Saving…') }}">
+                            data-role="save" data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save sale') }} <kbd class="ms-1">F2</kbd>
                     </button>
                     @unless($editing)
@@ -188,6 +188,32 @@
                        class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
+        </div>
+        {{-- ⚠️ The till bar — a phone only, and inside the form on purpose.
+
+             On a laptop the totals panel sits beside the cart and the running
+             total is never out of sight. On a phone that panel stacks under the
+             cart: with four lines scanned, Save was about fourteen hundred
+             pixels below the scanner, and the total the shopkeeper reads out to
+             the customer was down there with it.
+
+             Inside the `<form>` rather than attached to it with `form="…"`,
+             because that is what makes the hold-to-save guard find it — app.js
+             walks `form.querySelectorAll`, and a button outside the form is
+             never walked. So this Save holds for two seconds like every other
+             Save in the shop, with no change to the guard at all.
+
+             No F2 here: a phone has no F2 key. --}}
+        <div class="app-till-bar d-md-none no-print">
+            <div class="min-w-0">
+                <div class="app-till-bar-label">{{ __('Total') }}</div>
+                <div class="app-till-bar-total money" data-role="running-total">0</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled
+                    data-role="save" data-submitting-text="{{ __('Saving…') }}">
+                {{ $editing ? __('Save changes') : __('Save sale') }}
+            </button>
         </div>
     </form>
 
@@ -231,7 +257,7 @@
             let resultsBox = searches[0].results;
             const cartBody = document.getElementById('cart-body');
             const cartEmpty = document.getElementById('cart-empty');
-            const totalEl = document.getElementById('running-total');
+            const totalEls = document.querySelectorAll('[data-role="running-total"]');
             const wordsEl = document.getElementById('running-total-words');
 
             /*
@@ -297,12 +323,17 @@
             };
 
             const showTotal = (total) => {
-                totalEl.textContent = format(total);
+                // Said in two places on a phone — the panel and the till bar —
+                // and in one on a laptop. Both read the same number from here.
+                totalEls.forEach((el) => { el.textContent = format(total); });
                 if (wordsEl) wordsEl.textContent = inWords(Math.round(total));
             };
             const paidInput = document.getElementById('amount_paid');
             const dueNote = document.getElementById('due-note');
-            const saveButton = document.getElementById('save-sale');
+            // Same button, twice, for the same reason as the total. Every
+            // element wearing the role, rather than one id, so the till bar
+            // cannot fall out of step with the panel.
+            const saveButtons = document.querySelectorAll('[data-role="save"]');
             const customerSelect = document.getElementById('customer_id');
 
             // Section 8: an edit starts from the sale's current lines.
@@ -325,7 +356,7 @@
                     // either opens the keypad, which a finger can use on a
                     // touchscreen and a keyboard can drive just as fast.
                     row.innerHTML = `
-                        <td>
+                        <td class="cart-cell-product">
                             <div class="fw-medium">
                                 ${escapeHtml(line.name)}
                                 ${line.kind === 'service'
@@ -353,7 +384,7 @@
                             </div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                         </td>
-                        <td>
+                        <td class="cart-cell-qty">
                             {{-- Section 4: a product is counted in its own unit,
                                  and the same unit buys and sells it. Writing it
                                  beside the box is the whole of it — there is no
@@ -368,15 +399,15 @@
                                                      style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
                             </div>
                         </td>
-                        <td>
+                        <td class="cart-cell-price">
                             <input type="number" min="0" step="1" dir="ltr"
                                    class="form-control form-control-sm text-end"
                                    name="lines[${index}][unit_price]" value="${line.price}"
                                    data-role="price" data-index="${index}"
                                    data-numpad="${escapeHtml(line.name)}">
                         </td>
-                        <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
-                        <td>
+                        <td class="money fw-semibold cart-cell-total">${format(line.quantity * line.price)}</td>
+                        <td class="cart-cell-actions">
                             <div class="btn-group btn-group-sm">
                                 {{-- Section 4: "one sale can list the same
                                      product on two lines at two prices", which
@@ -400,7 +431,7 @@
                 });
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
-                saveButton.disabled = cart.length === 0;
+                saveButtons.forEach((b) => { b.disabled = cart.length === 0; });
 
                 // Nothing to put down until something is in it.
                 const hold = document.getElementById('hold-cart');
@@ -670,7 +701,7 @@
                 // from under a half-typed price.
                 if (document.getElementById('number-pad')?.classList.contains('show')) return;
 
-                if (event.key === 'F2' && ! saveButton.disabled) {
+                if (event.key === 'F2' && ! saveButtons[0].disabled) {
                     event.preventDefault();
                     document.getElementById('sale-form').requestSubmit();
                 }
