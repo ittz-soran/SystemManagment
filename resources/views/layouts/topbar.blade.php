@@ -1,10 +1,19 @@
 {{-- Section 9b: a slim topbar holding global search, language switch, theme
      toggle and the user menu. --}}
-<header class="app-topbar bg-body border-bottom px-3 py-2 d-flex align-items-center gap-3 no-print">
+<header class="app-topbar bg-body border-bottom px-3 py-2 d-flex align-items-center gap-2 gap-md-3 no-print">
+    {{-- The only way to the menu on a phone, where the sidebar is a drawer.
+         Above md the sidebar is on the screen already and this would be a
+         button that opens what is open. --}}
+    <button type="button" class="btn btn-sm btn-outline-secondary d-md-none flex-shrink-0"
+            data-bs-toggle="offcanvas" data-bs-target="#app-nav"
+            aria-controls="app-nav" aria-label="{{ __('Menu') }}">
+        <i class="bi bi-list"></i>
+    </button>
+
     {{-- One box for the whole shop: a product, a person, a document number off a
          printed invoice, or the name of a screen. What it finds is decided by
          the server, which shows a reader only what they may open. --}}
-    <div class="app-search flex-grow-1 position-relative" style="max-width: 30rem">
+    <div class="app-search flex-grow-1 min-w-0 position-relative" style="max-width: 30rem">
         <div class="input-group input-group-sm">
             <span class="input-group-text bg-body-tertiary border-end-0">
                 <i class="bi bi-search"></i>

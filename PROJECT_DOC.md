@@ -1296,7 +1296,21 @@ Rules:
 
 ### The shell
 
-Fixed **left sidebar** (right in RTL) with grouped navigation, plus a slim topbar holding: global search, language switch, theme toggle, user menu. Sidebar collapses to icons on narrow screens. Only show nav items the user has permission for — never show a link that leads to "access denied".
+Fixed **left sidebar** (right in RTL) with grouped navigation, plus a slim topbar holding: global search, language switch, theme toggle, user menu. Only show nav items the user has permission for — never show a link that leads to "access denied".
+
+**The shell has three shapes, and only the widest two were ever looked at:**
+
+| | sidebar | topbar |
+|---|---|---|
+| **phone** (< 768px) | a drawer, opened by a hamburger, **with the labels** | sticky, so the menu survives a long list |
+| **tablet** (768–991) | the icon rail | scrolls with the page |
+| **laptop** (≥ 992) | the full sidebar | scrolls with the page |
+
+The icon rail used to start at 992 and run all the way down, so a 390px phone spent an eighth of its screen on fourteen unlabelled icons it could not dismiss. It now stops where the iPad does.
+
+⚠️ **`min-w-0` on the column beside the sidebar is load-bearing.** A flex item's `min-width` defaults to `auto` — never narrower than its content — so a wide table does not scroll inside its `.table-responsive`; it pushes the column, the topbar and the whole shell past the edge of the screen. That column carried `min-vw-0`, which is not a Bootstrap class and was defined nowhere, so the rule was never made: on a phone the products list measured **784px on a 390px screen**, sales 763, payments 738, each dragged bodily sideways to read the second half of a row. Nothing failed, because a class that matches no rule is silent. `LayoutClassTest` now reads the literal class names out of `layouts/` and fails on any that resolve to nothing — no CSS rule, no mention in the scripts.
+
+Two more rules that a phone makes matter, both written as the pattern rather than per screen: the page-header action row **wraps** (a product page's lens plus three buttons measured 546px), and a `.money.fs-4` headline inside a card **steps down a size** below 576px, because `.money` is deliberately `nowrap` and "92,366,109 IQD" does not fit half a phone.
 
 ### Modal or full page? — one rule
 

@@ -45,6 +45,23 @@ body {
 // Shell — fixed sidebar (right in RTL) plus a slim topbar.
 // ---------------------------------------------------------------------------
 
+// ⚠️ Lets a flex item shrink below its own content.
+//
+// A flex item's `min-width` defaults to `auto`, which means "never narrower
+// than what is inside me". A wide table inside such an item does not scroll in
+// its `.table-responsive` — it pushes the item, and everything beside it, wider
+// than the screen. Every list in the shop did that on a phone: 784px of
+// products on a 390px screen, dragged sideways to read the second half of a
+// row.
+//
+// Bootstrap has no such utility, which is how `min-vw-0` — a class that exists
+// nowhere and therefore did nothing — sat in the shell unnoticed. This one is
+// real, global, and LayoutClassTest checks the layouts only name classes that
+// resolve to something.
+.min-w-0 {
+  min-width: 0;
+}
+
 .app-sidebar {
   width: var(--app-sidebar-width);
   flex: 0 0 var(--app-sidebar-width);
@@ -89,8 +106,27 @@ body {
   color: var(--bs-secondary-color);
 }
 
-@include media-breakpoint-down(lg) {
-  // Section 9b: the sidebar collapses to icons on narrow screens.
+// The sidebar's own padding and stacking, said here rather than as utilities on
+// the element: at and above md Bootstrap's responsive-offcanvas rules set
+// `padding: 0` and `display: flex` on `.offcanvas-body`, and a two-class
+// selector is what it takes to keep our own.
+.app-sidebar .offcanvas-body {
+  flex-direction: column;
+  padding: 0.5rem;
+  // ⚠️ Bootstrap blanks this with `!important` at and above the breakpoint, so
+  // matching it is the only way to keep the sidebar from going transparent on
+  // every screen bigger than a phone.
+  background-color: var(--bs-tertiary-bg) !important;
+}
+
+// --- tablet: the icon rail ---------------------------------------------------
+//
+// ⚠️ `between`, not `down`. This used to be `down(lg)`, which swept the phone in
+// with the iPad and left a 390px screen showing fourteen unlabelled icons in a
+// 3.5rem strip it could never dismiss — an eighth of the screen, permanently
+// spent, to say nothing a reader could read. The iPad has room for the rail and
+// Soran says it looks right there, so the rail now stops where the iPad does.
+@include media-breakpoint-between(md, lg) {
   .app-sidebar {
     --app-sidebar-width: 3.5rem;
 
@@ -102,6 +138,62 @@ body {
 
     .nav-link {
       text-align: center;
+    }
+  }
+}
+
+// --- phone: the drawer -------------------------------------------------------
+@include media-breakpoint-down(md) {
+  .app-sidebar {
+    // Narrower than Bootstrap's 400px default, which is wider than the phone
+    // this is for.
+    --bs-offcanvas-width: min(82vw, 17rem);
+
+    // Beats `.app-sidebar { position: sticky; height: 100vh }` above, which is
+    // written for a sidebar that sits in the row rather than over it.
+    position: fixed;
+    height: 100%;
+    border-inline-end: 0;
+
+    // It is a drawer over the page now, not a column beside it, so nothing in
+    // the flex row should be holding space for it.
+    width: auto;
+    flex: none;
+  }
+
+  // The rail's rules do not reach here — see `between` above — so the labels,
+  // the group headings and the shop's name are all present. That is the point
+  // of the drawer.
+
+  // On a phone the topbar is the only way to the menu, so it has to still be
+  // there after a long list has been scrolled. On wider screens the sidebar is
+  // on the screen the whole time and the bar can go with the page.
+  //
+  // Below the offcanvas (1045) and its backdrop (1040) on purpose: the drawer
+  // this bar opens must cover it, not slide underneath.
+  .app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+  }
+
+  // ⚠️ The drawer comes from the side the reader started on.
+  //
+  // `offcanvas-start` means the physical left, and this shop runs the LTR
+  // Bootstrap build flipped with `dir="rtl"` — so in Kurdish, Arabic and
+  // Persian the button sits on the right and the drawer flew in from the left,
+  // across the whole screen, away from the thumb that asked for it.
+  //
+  // Scoped to this one drawer on purpose: the screen-help panel is
+  // `offcanvas-end` and has its own side.
+  [dir="rtl"] .app-sidebar.offcanvas-start {
+    inset-inline-start: 0;
+    left: auto;
+    transform: translateX(100%);
+
+    &.show,
+    &.showing {
+      transform: none;
     }
   }
 }
@@ -346,9 +438,25 @@ th.money {
     font-size: .7rem;
   }
 
-  // A row is two lines of text; the name must not push the note off the edge.
-  .min-w-0 {
-    min-width: 0;
+}
+
+// ⚠️ A headline figure is nine digits and a currency mark, and on a phone it
+// has half a screen to say them in.
+//
+// `.money` is `white-space: nowrap` — deliberately, because a number broken
+// across two lines is worse than one that is cut — so at `fs-4` in a
+// half-width card "92,366,109 IQD" simply ran off the edge. The figure is the
+// one thing on such a card a shopkeeper actually reads, so on a small screen it
+// gets smaller rather than cut.
+//
+// Written as the pattern rather than a class on each of the nine screens that
+// use it — dashboard, reports, payments, expenses, a customer's balance, a
+// supplier's — so the tenth one is right the day it is written. `!important`
+// because `.fs-4` is one of Bootstrap's `!important` utilities.
+@include media-breakpoint-down(sm) {
+  .card .money.fs-4,
+  .card-body .money.fs-4 {
+    font-size: 1.15rem !important;
   }
 }
 
