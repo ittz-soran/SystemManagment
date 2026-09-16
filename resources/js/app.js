@@ -1778,3 +1778,98 @@ document.addEventListener('DOMContentLoaded', () => {
 
     schedule();
 });
+
+/**
+ * Tapping a remembrance.
+ *
+ * Soran asked for counters beside the أذكار. This keeps them in the browser and
+ * sends nothing to the server, which is a decision rather than a shortcut:
+ *
+ *   A tap must answer instantly. This is somebody standing at a counter saying
+ *   a dhikr under their breath, not filling in a form — a round trip per tap,
+ *   on shop wifi, would make the number lag behind the words.
+ *
+ *   It is nobody else's business. No row, no audit entry, no backup carrying
+ *   how many times the shopkeeper said سبحان الله this morning.
+ *
+ *   And there is nothing to lose. The count is for today and starts again
+ *   tomorrow; it is a tally, not a record.
+ *
+ * ⚠️ The cost, stated plainly: the tally is per device. The same person on the
+ * counter PC and on their phone keeps two counts. That is the honest trade for
+ * the three things above, and moving it to the server is a small change if
+ * Soran would rather it followed him.
+ *
+ * ⚠️ The day comes from the SHOP's clock, written into the markup, not from the
+ * browser's. A phone left on a plane keeps the wrong date, and the shop rolling
+ * over at its own midnight is the only rollover that means anything.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const lists = Array.from(document.querySelectorAll('.app-dhikr-list'));
+
+    if (lists.length === 0) return;
+
+    const day = lists[0].dataset.day ?? '';
+    const shelf = `dhikr:${day}`;
+
+    /*
+     * ⚠️ Every read and write is wrapped. localStorage throws outright in a
+     * private window on some browsers, and comes back empty when site data has
+     * been cleared. A counter that cannot be stored is a counter that still has
+     * to count — the page must work with the number simply not surviving a
+     * refresh, rather than not working at all.
+     */
+    const read = () => {
+        try {
+            return JSON.parse(localStorage.getItem(shelf) ?? '{}') ?? {};
+        } catch {
+            return {};
+        }
+    };
+
+    const write = (counts) => {
+        try {
+            // Yesterday's tallies are not history, they are litter. Clearing
+            // them here means the shop never accumulates a key per day forever.
+            Object.keys(localStorage)
+                .filter((key) => key.startsWith('dhikr:') && key !== shelf)
+                .forEach((key) => localStorage.removeItem(key));
+
+            localStorage.setItem(shelf, JSON.stringify(counts));
+        } catch {
+            // Nothing to do, and nothing worth saying: the count on screen is
+            // still correct for as long as this page is open.
+        }
+    };
+
+    let counts = read();
+
+    const paint = () => {
+        document.querySelectorAll('.app-dhikr').forEach((button) => {
+            const count = counts[button.dataset.dhikr] ?? 0;
+
+            button.querySelector('.app-dhikr-count').textContent = String(count);
+            button.classList.toggle('is-counted', count > 0);
+        });
+    };
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.app-dhikr');
+
+        if (! button) return;
+
+        const key = button.dataset.dhikr;
+        counts[key] = (counts[key] ?? 0) + 1;
+
+        write(counts);
+        paint();
+    });
+
+    document.getElementById('dhikr-reset')?.addEventListener('click', () => {
+        counts = {};
+        write(counts);
+        paint();
+    });
+
+    paint();
+});

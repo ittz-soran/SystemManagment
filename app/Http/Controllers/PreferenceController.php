@@ -89,6 +89,21 @@ class PreferenceController extends Controller
         return back()->with('success', __('Preferences saved'));
     }
 
+    /**
+     * Whether the remembrances appear for this person.
+     *
+     * ⚠️ Per person, not per shop. What somebody says at their own counter is
+     * not an admin's setting to make on their behalf — so this sits beside
+     * language and theme rather than in Settings, and an admin turning it off
+     * turns it off for the admin.
+     */
+    public function remembrance(Request $request): RedirectResponse
+    {
+        $request->user()->forceFill(['adhkar_off' => ! $request->boolean('adhkar')])->save();
+
+        return back()->with('success', __('Preferences saved'));
+    }
+
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([

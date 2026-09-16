@@ -23,6 +23,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\RemembranceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
@@ -100,6 +101,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
     Route::post('notifications/seen', [NotificationController::class, 'seen'])->name('notifications.seen');
+
+    /*
+     * The remembrances — أذكار — asked for 2026-09-15.
+     *
+     * No permission and nothing to save: the list belongs to the shop and is
+     * edited in Settings, and the tally beside each line never leaves the
+     * reader's own browser.
+     */
+    Route::get('remembrance', [RemembranceController::class, 'index'])->name('remembrance.index');
+    Route::post('preferences/remembrance', [PreferenceController::class, 'remembrance'])
+        ->name('preferences.remembrance');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');

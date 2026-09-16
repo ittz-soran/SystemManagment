@@ -91,6 +91,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'notifications_seen_id' => 'integer',
+            'adhkar_off' => 'boolean',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'items_per_page' => 'integer',
