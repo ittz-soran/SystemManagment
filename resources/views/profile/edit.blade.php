@@ -133,6 +133,47 @@
                     </form>
                 </div>
             </div>
+
+            {{-- What the bell is allowed to say to this person.
+
+                 ⚠️ Alerts have no switch, and that is the point: somebody who
+                 has silenced everything must still be told that their own
+                 account was signed into from an address they do not use, and
+                 that the invoices were deleted. A preference here is about
+                 noise, not about being kept in the dark. --}}
+            <div class="card mb-4">
+                <div class="card-header">{{ __('Notifications') }}</div>
+                <div class="card-body">
+                    <form action="{{ route('preferences.notifications') }}" method="POST" data-guard-submit>
+                        @csrf
+
+                        @php($heard = App\Support\Notifications::tiersFor(auth()->user()))
+
+                        @foreach(App\Support\Notifications::TIERS as $tier)
+                            @php($locked = $tier === App\Support\Notifications::ALERT)
+
+                            <div class="mb-3 form-check form-switch">
+                                {{-- The unchecked box has to reach the server too, or
+                                     turning one off would look like not answering. --}}
+                                <input type="hidden" name="{{ $tier }}" value="0">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="notify-{{ $tier }}" name="{{ $tier }}" value="1"
+                                       @checked(in_array($tier, $heard, true))
+                                       @disabled($locked)>
+                                <label class="form-check-label" for="notify-{{ $tier }}">
+                                    {{ App\Support\Notifications::label($tier) }}
+                                    @if($locked)
+                                        <span class="badge text-bg-secondary ms-1">{{ __('Always on') }}</span>
+                                    @endif
+                                </label>
+                                <div class="form-text">{{ App\Support\Notifications::explain($tier) }}</div>
+                            </div>
+                        @endforeach
+
+                        <button class="btn btn-primary">{{ __('Save notifications') }}</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 @endsection

@@ -15,6 +15,7 @@ use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\InstallController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\PrintController;
@@ -83,6 +84,22 @@ Route::middleware(['auth'])->group(function () {
     Route::post('preferences/theme', [PreferenceController::class, 'theme'])->name('preferences.theme');
     Route::post('preferences/currency', [PreferenceController::class, 'currency'])->name('preferences.currency');
     Route::patch('preferences', [PreferenceController::class, 'update'])->name('preferences.update');
+    Route::post('preferences/notifications', [PreferenceController::class, 'notifications'])
+        ->name('preferences.notifications');
+
+    /*
+     * The bell.
+     *
+     * ⚠️ No permission on any of the three, deliberately. Every signed-in
+     * person has a bell; what it is allowed to say is decided entry by entry in
+     * NotificationFeed, against the permissions that person already holds. A
+     * `permission:` here would be the wrong question asked in the wrong place —
+     * and would leave the reader who holds the fewest permissions, the one most
+     * likely to miss something, with no bell at all.
+     */
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('notifications/seen', [NotificationController::class, 'seen'])->name('notifications.seen');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');

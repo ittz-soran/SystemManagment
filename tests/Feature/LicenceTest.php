@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Permission;
 use App\Models\Setting;
@@ -370,6 +371,42 @@ class LicenceTest extends TestCase
 
         $this->put(route('settings.update'), [...Setting::cached(), 'shop_name' => 'Soran Store'])
             ->assertSessionHasNoErrors();
+    }
+
+    /**
+     * ⚠️ And can still clear its own bell.
+     *
+     * Found by watching the dev shop, whose licence is deliberately invalid:
+     * the bell's badge climbed and would not come down, because marking it read
+     * is a POST and the guard refused it. The entry it would not let the shop
+     * dismiss included the one saying the licence had run out.
+     *
+     * It writes one number onto the reader's own row, records nothing about the
+     * shop's business, and costs the seller nothing.
+     */
+    public function test_an_expired_shop_can_still_clear_its_notifications(): void
+    {
+        // ⚠️ Not assertSessionHasNoErrors(): the guard refuses by flashing
+        // `error`, which is not a validation bag, so that assertion passes
+        // against a request that was blocked. The mark moving is the only
+        // proof the write happened.
+        $this->admin->forceFill(['notifications_seen_id' => 0])->save();
+
+        ActivityLog::create([
+            'user_id' => $this->admin->id, 'action' => 'create', 'module' => 'products',
+            'tier' => 'news', 'description' => 'Created Product Pilot Pen',
+        ]);
+
+        $this->licensed(['expires' => now()->subDays(30)->toDateString()]);
+
+        $this->post(route('notifications.seen'))->assertSessionMissing('error');
+
+        $this->assertGreaterThan(
+            0,
+            (int) $this->admin->fresh()->notifications_seen_id,
+            'An expired shop could not clear its own bell, so the badge climbs forever — '
+            .'including over the alert that says the licence has run out.'
+        );
     }
 
     /**

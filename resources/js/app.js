@@ -1629,3 +1629,152 @@ document.addEventListener('DOMContentLoaded', () => {
         .register(base + '/sw.js', { scope: base + '/' })
         .catch(() => {});
 });
+
+/**
+ * The bell, kept live.
+ *
+ * Soran asked for *"live changes"*. This polls; it does not hold a socket open.
+ * A shop on shared cPanel hosting has no websocket to hold, and a request every
+ * forty-five seconds costs one indexed range scan — see the migration for why
+ * that is all it is.
+ *
+ * ⚠️ **Only while the tab is being looked at.** A phone left on a counter with
+ * the shop open in a background tab would otherwise ask the server two thousand
+ * times a day for a number nobody is reading.
+ *
+ * ⚠️ **Every string goes in with textContent, never innerHTML.** A notification
+ * is one of the few places where what one person typed is drawn on another
+ * person's screen, and a product named `<img onerror=…>` would otherwise be a
+ * script running in the admin's session.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const bell = document.querySelector('.app-bell');
+
+    if (! bell) return;
+
+    const badge = bell.querySelector('.app-bell-count');
+    const number = bell.querySelector('.app-bell-number');
+    const list = bell.querySelector('.app-bell-list');
+    const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    const EVERY = 45000;
+
+    let timer = null;
+    let open = false;
+
+    const showCount = (count) => {
+        // ⚠️ Into the number's own span, not the badge. The badge also holds a
+        // visually-hidden "unread" for a screen reader, and writing over the
+        // whole thing would drop it the first time this ran — leaving a badge
+        // that reads as a bare "3" to anybody not looking at it.
+        number.textContent = count > 99 ? '99+' : String(count);
+        badge.classList.toggle('d-none', count === 0);
+    };
+
+    /** One row, built to the same shape as resources/views/partials/bell-row.blade.php. */
+    const row = (item) => {
+        const line = document.createElement('a');
+        line.className = 'app-bell-row d-flex gap-2 px-3 py-2 text-decoration-none text-body border-bottom'
+            + (item.unread ? ' is-unread' : '');
+
+        if (item.url) line.href = item.url;
+
+        const icon = document.createElement('i');
+        icon.className = `bi ${item.icon} mt-1 flex-shrink-0 `
+            + (item.tier === 'alert' ? 'text-danger' : 'text-secondary');
+        icon.setAttribute('aria-hidden', 'true');
+
+        const body = document.createElement('span');
+        body.className = 'min-w-0 flex-grow-1';
+
+        const text = document.createElement('span');
+        text.className = 'app-bell-text d-block small';
+        text.textContent = item.text;
+
+        const meta = document.createElement('span');
+        meta.className = 'app-bell-meta d-block text-secondary';
+        meta.textContent = `${item.who} · ${item.when}`;
+
+        body.append(text, meta);
+        line.append(icon, body);
+
+        return line;
+    };
+
+    const draw = (items) => {
+        list.replaceChildren();
+
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'px-3 py-4 text-center text-secondary small app-bell-empty';
+            empty.textContent = bell.dataset.empty ?? '';
+            list.append(empty);
+
+            return;
+        }
+
+        items.forEach((item) => list.append(row(item)));
+    };
+
+    const ask = async () => {
+        // Nobody is looking, and nobody is going to be surprised by a count
+        // that is forty-five seconds old when they come back.
+        if (document.visibilityState !== 'visible') return;
+
+        try {
+            const response = await fetch(bell.dataset.feed, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+                cache: 'no-store',
+                signal: AbortSignal.timeout(8000),
+            });
+
+            if (! response.ok) return;
+
+            const data = await response.json();
+
+            showCount(data.count);
+
+            // ⚠️ Not while it is open. Replacing the rows under an open panel
+            // moves what somebody is reaching for, and the shop is used with a
+            // thumb.
+            if (! open) draw(data.items);
+        } catch {
+            // A poll that failed is a count that stays as it was. The
+            // connection dot in the topbar is what says the server is gone;
+            // this does not need to say it a second time.
+        }
+    };
+
+    const schedule = () => {
+        clearInterval(timer);
+        timer = setInterval(ask, EVERY);
+    };
+
+    // Opening it is reading it: the badge clears, but the marks on the rows
+    // stay for this viewing — a list that forgets what was new the instant you
+    // look at it cannot answer "what was that thing I just saw".
+    bell.addEventListener('show.bs.dropdown', () => {
+        open = true;
+        showCount(0);
+
+        fetch(bell.dataset.seen, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+        }).catch(() => {});
+    });
+
+    bell.addEventListener('hidden.bs.dropdown', () => {
+        open = false;
+        ask();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') ask();
+    });
+
+    schedule();
+});

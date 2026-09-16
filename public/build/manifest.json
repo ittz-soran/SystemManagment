@@ -128,17 +128,17 @@
     "src": "node_modules/@fontsource/vazirmatn/files/vazirmatn-latin-600-normal.woff2"
   },
   "resources/fonts/bootstrap-icons-subset.woff2": {
-    "file": "assets/bootstrap-icons-subset-Ck7vH5ZZ.woff2",
+    "file": "assets/bootstrap-icons-subset-Ce0AI740.woff2",
     "src": "resources/fonts/bootstrap-icons-subset.woff2"
   },
   "resources/js/app.js": {
-    "file": "assets/app-B7HXW-RK.js",
+    "file": "assets/app-BzMCINNq.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/scss/app.scss": {
-    "file": "assets/app-2B-imjnZ.css",
+    "file": "assets/app-W8X_3MPD.css",
     "name": "app",
     "names": [
       "app.css"
@@ -146,7 +146,7 @@
     "src": "resources/scss/app.scss",
     "isEntry": true,
     "assets": [
-      "assets/bootstrap-icons-subset-Ck7vH5ZZ.woff2",
+      "assets/bootstrap-icons-subset-Ce0AI740.woff2",
       "assets/noto-sans-arabic-latin-400-normal-CjsIS08k.woff2",
       "assets/noto-sans-arabic-latin-400-normal-lr8cikIT.woff",
       "assets/noto-sans-arabic-latin-600-normal-BUFr-ZM9.woff2",

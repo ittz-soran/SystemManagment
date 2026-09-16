@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Support\Notifications;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -19,6 +20,7 @@ class ActivityLogger
         ?string $description = null,
         ?array $oldValues = null,
         ?User $user = null,
+        ?string $tier = null,
     ): ?ActivityLog {
         $user ??= auth()->user();
 
@@ -36,7 +38,42 @@ class ActivityLogger
             'description' => $description,
             'old_values' => $oldValues,
             'ip_address' => request()->ip(),
+
+            /*
+             * How loudly this entry is worth saying, decided here and stored,
+             * so the bell can find the few rows that matter with an index
+             * instead of reading a thousand and classifying them in PHP.
+             *
+             * An override only for the one case a rule cannot see: whether a
+             * sign-in came from a familiar address — see logSignIn().
+             */
+            'tier' => $tier ?? Notifications::tierFor($action, $module),
         ]);
+    }
+
+    /**
+     * Somebody signed in, recorded with the one thing that makes it worth
+     * telling them: whether the address was theirs.
+     *
+     * Its own method rather than a branch in the Login listener, because the
+     * question "is this worth a bell" belongs beside every other answer to it
+     * and not in a provider that wires events together.
+     */
+    public function logSignIn(User $user): ?ActivityLog
+    {
+        $ip = request()->ip();
+        $tier = Notifications::signInTier($user, $ip);
+
+        return $this->log(
+            action: 'login',
+            module: 'auth',
+            recordId: $user->getKey(),
+            description: $tier === Notifications::ALERT
+                ? __('Signed in from an address this account has not used before')
+                : __('Logged in'),
+            user: $user,
+            tier: $tier,
+        );
     }
 
     /** Convenience for the common case: an action against one model. */
