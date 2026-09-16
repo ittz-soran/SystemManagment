@@ -1832,7 +1832,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Yesterday's tallies are not history, they are litter. Clearing
             // them here means the shop never accumulates a key per day forever.
             Object.keys(localStorage)
-                .filter((key) => key.startsWith('dhikr:') && key !== shelf)
+                // ⚠️ `dhikr` and not `dhikr:` — the turn counter is written as
+                // `dhikr-turn:<day>` and was never being swept, so a shop
+                // accumulated one dead key per day forever. `dhikr-last` is
+                // kept deliberately: it is a moment on the clock, not a tally,
+                // and it has to outlive the day it was written in.
+                .filter((key) => key.startsWith('dhikr') && key !== shelf && key !== 'dhikr-last')
+                .filter((key) => key !== `dhikr-turn:${day}`)
                 .forEach((key) => localStorage.removeItem(key));
 
             localStorage.setItem(shelf, JSON.stringify(counts));
@@ -1902,6 +1908,14 @@ document.addEventListener('DOMContentLoaded', () => {
  *
  * In order rather than at random, so the list gets worked through instead of
  * landing on the same one all morning.
+ *
+ * ⚠️ **The schedule is a wall clock, not a page timer, and the first build got
+ * this wrong.** `setInterval` starts counting at page load — and every click in
+ * this shop is a full page load, because it is server-rendered. Soran set it to
+ * one minute and saw almost nothing: opening a product, saving a sale, going
+ * back to the list, each one restarted the minute from zero. So the moment the
+ * last one appeared is remembered, and what is due is worked out from the
+ * clock. A reload now costs nothing at all.
  */
 document.addEventListener('DOMContentLoaded', () => {
     // ⚠️ The bell's copy only. The remembrance page renders the same partial
@@ -1921,6 +1935,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (buttons.length === 0) return;
 
     const spot = `dhikr-turn:${source.dataset.day ?? ''}`;
+
+    // ⚠️ NOT keyed by the day. This is "when did one last appear", a moment on
+    // the clock, and it has to survive midnight the same as it survives a
+    // reload — otherwise the first remembrance of a new day arrives the instant
+    // somebody opens the shop.
+    const clock = 'dhikr-last';
+
+    const every = minutes * 60 * 1000;
+
     let turn = 0;
 
     try {
@@ -1929,11 +1952,40 @@ document.addEventListener('DOMContentLoaded', () => {
         // Starting from the top is a perfectly good answer.
     }
 
-    const show = () => {
-        if (document.visibilityState !== 'visible') return;
+    const lastShown = () => {
+        try {
+            const stored = Number(localStorage.getItem(clock));
 
-        // Somebody is in the middle of one thing. Come back next time.
-        if (document.querySelector('.modal.show')) return;
+            if (Number.isFinite(stored) && stored > 0) {
+                return stored;
+            }
+        } catch {
+            // Falls through to seeding below.
+        }
+
+        /*
+         * Never seen one. Start the clock NOW rather than firing immediately:
+         * "every minute" means the first one a minute from now, and a card that
+         * appears the instant somebody signs in reads as something being wrong
+         * rather than as a remembrance.
+         */
+        const now = Date.now();
+        remember(now);
+
+        return now;
+    };
+
+    const remember = (when) => {
+        try {
+            localStorage.setItem(clock, String(when));
+        } catch {
+            // Without storage this falls back to counting from page load, which
+            // is what it did before and is better than nothing.
+        }
+    };
+
+    const show = () => {
+        remember(Date.now());
 
         // Named apart from the list above on purpose: shadowing `source` here
         // reads as the same thing and is not.
@@ -1984,5 +2036,40 @@ document.addEventListener('DOMContentLoaded', () => {
         instance.show();
     };
 
-    setInterval(show, minutes * 60 * 1000);
+    /*
+     * A short heartbeat that asks "is one due yet", rather than one long timer.
+     *
+     * ⚠️ This is what makes every skip recoverable. A long timer that fired
+     * while the number pad was open lost that turn until the next one — half an
+     * hour later, on the thirty-minute setting. A due-check simply comes back
+     * fifteen seconds later and asks again.
+     *
+     * ⚠️ Every five seconds, not fifteen. Fifteen was the first try and it
+     * showed: the interval restarts on each page load, so the first due-check
+     * of a page lands fifteen seconds in, and a one-minute setting measured
+     * 78 seconds. A quarter late is the difference between "every minute" and
+     * "about every minute", and the one-minute setting is the one Soran asked
+     * about. Twelve comparisons a minute is still nothing.
+     */
+    const due = () => {
+        // Nobody is looking. Not shown, and NOT counted as shown — it will be
+        // overdue the moment they come back, which is when it should appear.
+        if (document.visibilityState !== 'visible') return;
+
+        // Somebody is in the middle of one thing, with their whole attention.
+        // The number pad is where this shop types prices.
+        if (document.querySelector('.modal.show')) return;
+
+        if (Date.now() - lastShown() < every) return;
+
+        show();
+    };
+
+    setInterval(due, 5000);
+
+    // And the moment a tab is looked at again, rather than up to five seconds
+    // later.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') due();
+    });
 });

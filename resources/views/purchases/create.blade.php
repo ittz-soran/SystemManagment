@@ -231,7 +231,14 @@
                     </div>
                 </div>
 
-                <div class="d-grid gap-2 position-sticky app-till-actions" style="bottom: 1rem">
+                {{-- ⚠️ Not sticky, and it used to be. A bottom-sticky block is
+                     pinned to the bottom of the window and paints over whatever
+                     the last field is — on the sale screen that made the Method
+                     dropdown unclickable on an empty cart at 1280×800. The long
+                     version of the reasoning is in sales/create.blade.php; this
+                     panel has the same shape and lost it for the same reason.
+                     F2 already saves from anywhere here. --}}
+                <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-purchase" disabled
                             data-role="save" data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save purchase') }} <kbd class="ms-1">F2</kbd>
