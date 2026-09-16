@@ -357,17 +357,16 @@ body {
     padding-bottom: 5rem !important;
   }
 
-  // ⚠️ And the panel's own sticky block stops sticking.
+  // ⚠️ The `.app-till-actions` override that used to live here is gone, and so
+  // is the class.
   //
-  // `position-sticky; bottom: 1rem` is right on a laptop, where that column
-  // stands beside the cart. On a phone the column is the whole width and the
-  // block pinned itself to the bottom of the viewport while the fields above it
-  // scrolled underneath — Save and Hold this cart painted straight over the
-  // Date field. The bar above does that job here; these go back to sitting at
-  // the end of the page where they belong.
-  .app-till-actions {
-    position: static !important;
-  }
+  // It existed to undo `position-sticky; bottom: 1rem` on phones, where the
+  // block painted over the Date field. The same thing turned out to be true on
+  // a laptop — measured at 1280×800 on an empty cart, it made the Method
+  // dropdown unclickable — because a bottom-sticky element is pinned to the
+  // bottom of the window and lands on whatever the last field is, at every
+  // width. So the sticky went rather than the symptom, and an override that
+  // undoes nothing would only mislead whoever reads this next.
 }
 
 // ---------------------------------------------------------------------------

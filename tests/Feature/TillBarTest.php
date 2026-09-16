@@ -73,6 +73,76 @@ class TillBarTest extends TestCase
         'purchases.create' => 'purchase-form',
     ];
 
+    /**
+     * ⚠️ Nothing in the totals panel is pinned to the bottom of the window.
+     *
+     * The Save block used to carry `position-sticky; bottom: 1rem`, written for
+     * Section 9b's *"action buttons fixed at the bottom so they never scroll
+     * away"*. A bottom-sticky element keeps its space in the page and DRAWS
+     * somewhere else — pinned to the bottom of the window — so it lands on
+     * whatever the last field happens to be.
+     *
+     * Measured in a browser at 1280×800 on an EMPTY cart, the state this screen
+     * opens in: the block drew at y 644–784, the Method dropdown sits at
+     * 764–802, and `document.elementFromPoint` over the middle of Method
+     * returned the block. The field could not be clicked at all until somebody
+     * scrolled. After the fix, every visible control in the panel is clickable
+     * at 1280×800, 1366×768, 1440×900 and 1920×1080, on both screens.
+     *
+     * There is no version of bottom-sticky that avoids this — anything pinned
+     * to the bottom of the window lands on the last field — so the guard is
+     * simply that it does not come back. It costs nothing: F2 already saves
+     * from anywhere on these screens, and the hint under the scanner says so.
+     */
+    #[DataProvider('tills')]
+    public function test_the_totals_panel_pins_nothing_to_the_bottom_of_the_window(string $route): void
+    {
+        $html = $this->actingAs($this->user)->get(route($route))->assertOk()->getContent();
+
+        $panel = $this->panel($html);
+
+        $this->assertStringNotContainsString(
+            'position-sticky',
+            $panel,
+            'Something in the totals panel is pinned to the bottom of the window again. '
+            .'It will draw over the last field and make it unclickable — that is what '
+            .'`position-sticky; bottom: 1rem` did to the Method dropdown.'
+        );
+
+        $this->assertStringNotContainsString('position: sticky', $panel);
+    }
+
+    /**
+     * ⚠️ And Save is still reachable without a mouse.
+     *
+     * This is what makes dropping the sticky cheap rather than a loss, so it is
+     * asserted rather than assumed: the keyboard shortcut and the hint that
+     * teaches it both have to be on the page.
+     */
+    #[DataProvider('tills')]
+    public function test_save_is_still_a_keystroke_away(string $route): void
+    {
+        $html = $this->actingAs($this->user)->get(route($route))->assertOk()->getContent();
+
+        $this->assertStringContainsString("event.key === 'F2'", $html);
+        $this->assertStringContainsString('F2 saves', $html);
+    }
+
+    /** The right-hand totals panel, as markup. */
+    private function panel(string $html): string
+    {
+        $document = new DOMDocument;
+        @$document->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+
+        $panel = (new DOMXPath($document))->query(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " col-lg-4 ")]'
+        )->item(0);
+
+        $this->assertNotNull($panel, 'The totals panel is no longer a col-lg-4; this test is looking at nothing.');
+
+        return $document->saveHTML($panel);
+    }
+
     #[DataProvider('tills')]
     public function test_the_bar_is_inside_the_form_that_holds_to_save(string $route): void
     {

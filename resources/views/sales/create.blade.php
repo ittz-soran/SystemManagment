@@ -169,9 +169,30 @@
                     </div>
                 </div>
 
-                {{-- Section 9b: action buttons fixed at the bottom so they never
-                     scroll away. --}}
-                <div class="d-grid gap-2 position-sticky app-till-actions" style="bottom: 1rem">
+                {{--
+                    ⚠️ **Not sticky, and it used to be.**
+
+                    `position-sticky; bottom: 1rem` was written for Section 9b's
+                    *"action buttons fixed at the bottom so they never scroll
+                    away"*. A bottom-sticky element is pinned to the bottom of
+                    the window whenever its own place in the page is below the
+                    fold — and it paints over whatever is there, because sticky
+                    keeps its space where it was and only draws somewhere else.
+
+                    What that meant, measured at 1280×800 on an EMPTY cart, the
+                    state this screen opens in: the buttons drew at y 644–784,
+                    the Method dropdown sits at 764–802, and
+                    `document.elementFromPoint` over the middle of Method
+                    returned the button block. The field was not merely covered,
+                    it could not be clicked, until somebody scrolled.
+
+                    There is no version of bottom-sticky that avoids this: any
+                    element pinned to the bottom of the window lands on whatever
+                    the last field is. So it goes — and it costs almost nothing,
+                    because F2 already saves from anywhere on this page and the
+                    hint under the scanner says so.
+                --}}
+                <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-sale" disabled
                             data-role="save" data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save sale') }} <kbd class="ms-1">F2</kbd>
