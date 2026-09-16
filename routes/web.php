@@ -32,6 +32,8 @@ use App\Http\Controllers\SecondHandController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockRoomController;
+use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -418,6 +420,38 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::get('guide', [GuideController::class, 'index'])->name('guide.index');
     Route::get('guide/{topic}', [GuideController::class, 'show'])->name('guide.show');
+
+    /*
+     * Stock rooms — Soran, 2026-09-15.
+     *
+     * ⚠️ Three permissions, not one. Seeing which room holds what is something
+     * a counter assistant needs to answer "have you got one out the back".
+     * Moving goods, and adding or closing a room, change where the shop's stock
+     * is — a shop should be able to say who may do that.
+     */
+    Route::get('stock-rooms', [StockRoomController::class, 'index'])
+        ->middleware('permission:stock_rooms.view')->name('stock-rooms.index');
+    Route::get('stock-rooms/{stockRoom}', [StockRoomController::class, 'show'])
+        ->middleware('permission:stock_rooms.view')->name('stock-rooms.show');
+    Route::post('stock-rooms', [StockRoomController::class, 'store'])
+        ->middleware('permission:stock_rooms.manage')->name('stock-rooms.store');
+    Route::put('stock-rooms/{stockRoom}', [StockRoomController::class, 'update'])
+        ->middleware('permission:stock_rooms.manage')->name('stock-rooms.update');
+    Route::delete('stock-rooms/{stockRoom}', [StockRoomController::class, 'destroy'])
+        ->middleware('permission:stock_rooms.manage')->name('stock-rooms.destroy');
+
+    Route::get('stock-transfers', [StockTransferController::class, 'index'])
+        ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');
+    Route::get('stock-transfers/create', [StockTransferController::class, 'create'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.create');
+    Route::get('stock-transfers/room/{stockRoom}', [StockTransferController::class, 'stock'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.stock');
+    Route::post('stock-transfers', [StockTransferController::class, 'store'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.store');
+    Route::get('stock-transfers/{stockTransfer}', [StockTransferController::class, 'show'])
+        ->middleware('permission:stock_rooms.view')->name('stock-transfers.show');
+    Route::delete('stock-transfers/{stockTransfer}', [StockTransferController::class, 'destroy'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.destroy');
 
     Route::get('activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('permission:activity_logs.view')->name('activity-logs.index');

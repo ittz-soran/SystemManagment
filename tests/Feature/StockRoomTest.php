@@ -437,6 +437,136 @@ class StockRoomTest extends TestCase
     }
 
     // =====================================================================
+    // The screens
+    // =====================================================================
+
+    /** The rooms page says what each room is holding. */
+    public function test_the_rooms_page_says_what_each_room_holds(): void
+    {
+        $this->buy(10, 10_000);
+        $this->move(4, $this->main, $this->back);
+
+        $this->actingAs($this->user)->get(route('stock-rooms.index'))
+            ->assertOk()
+            ->assertSee('Back room')
+            ->assertSee('Main store');
+    }
+
+    /** A transfer can be made from the screen, end to end. */
+    public function test_stock_can_be_moved_from_the_screen(): void
+    {
+        $this->buy(10, 10_000);
+
+        $this->actingAs($this->user)->post(route('stock-transfers.store'), [
+            'from_room_id' => $this->main->id,
+            'to_room_id' => $this->back->id,
+            'transferred_at' => now()->toDateString(),
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 6]],
+        ])->assertRedirect();
+
+        $this->assertSame(6, $this->heldIn($this->back));
+        $this->assertSame(4, $this->heldIn($this->main));
+    }
+
+    /**
+     * ⚠️ A refusal comes back to the form with what was typed, not as a 500.
+     *
+     * Every refusal here is a true sentence about the shop's stock, and the
+     * person reading it has a cart half filled in.
+     */
+    public function test_a_refused_move_returns_to_the_form_rather_than_crashing(): void
+    {
+        $this->buy(2, 10_000);
+
+        $this->actingAs($this->user)->post(route('stock-transfers.store'), [
+            'from_room_id' => $this->main->id,
+            'to_room_id' => $this->back->id,
+            'transferred_at' => now()->toDateString(),
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 5]],
+        ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, $this->heldIn($this->back), 'A refused move still moved stock.');
+    }
+
+    /** Moving between the same room is refused before anything is written. */
+    public function test_the_form_refuses_one_room_to_itself(): void
+    {
+        $this->buy(10, 10_000);
+
+        $this->actingAs($this->user)->post(route('stock-transfers.store'), [
+            'from_room_id' => $this->main->id,
+            'to_room_id' => $this->main->id,
+            'transferred_at' => now()->toDateString(),
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('to_room_id');
+    }
+
+    /**
+     * ⚠️ The product page separates what the shop OWNS from what it can SELL.
+     *
+     * This is the number a shopkeeper is standing at the counter asking about.
+     */
+    public function test_the_product_page_says_what_is_sellable_and_where_the_rest_is(): void
+    {
+        $this->buy(10, 10_000);
+        $this->move(8, $this->main, $this->back);
+
+        $this->actingAs($this->user)->get(route('products.show', $this->product))
+            ->assertOk()
+            ->assertSee(__('Sellable now'))
+            ->assertSee(__('Where it is'))
+            ->assertSee('Back room');
+    }
+
+    /** A one-room shop is told nothing about rooms on the product page. */
+    public function test_a_one_room_shop_sees_no_room_furniture(): void
+    {
+        StockRoom::whereKey($this->back->id)->forceDelete();
+
+        $this->buy(10, 10_000);
+
+        $this->actingAs($this->user)->get(route('products.show', $this->product))
+            ->assertOk()
+            ->assertDontSee(__('Sellable now'))
+            ->assertDontSee(__('Where it is'));
+    }
+
+    /** The main room cannot be removed, however the request is made. */
+    public function test_the_main_room_cannot_be_removed(): void
+    {
+        $this->actingAs($this->user)
+            ->delete(route('stock-rooms.destroy', $this->main))
+            ->assertSessionHas('error');
+
+        $this->assertNotNull(StockRoom::find($this->main->id));
+    }
+
+    /** Nor can a room that still holds something. */
+    public function test_a_room_holding_stock_cannot_be_removed(): void
+    {
+        $this->buy(10, 10_000);
+        $this->move(4, $this->main, $this->back);
+
+        $this->actingAs($this->user)
+            ->delete(route('stock-rooms.destroy', $this->back))
+            ->assertSessionHas('error');
+
+        $this->assertNotNull(StockRoom::find($this->back->id));
+    }
+
+    /** An empty one can. */
+    public function test_an_empty_room_can_be_removed(): void
+    {
+        $this->actingAs($this->user)
+            ->delete(route('stock-rooms.destroy', $this->back))
+            ->assertRedirect();
+
+        $this->assertNull(StockRoom::find($this->back->id));
+    }
+
+    // =====================================================================
     // Helpers
     // =====================================================================
 
