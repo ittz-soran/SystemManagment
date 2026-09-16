@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  * empty batches as closed.
  */
 #[Fillable([
-    'product_id', 'source_type', 'source_id', 'purchase_item_id',
+    'product_id', 'room_id', 'source_type', 'source_id', 'purchase_item_id', 'parent_batch_id',
     'unit_cost', 'quantity_in', 'quantity_remaining', 'received_at', 'sequence',
 ])]
 class StockBatch extends Model
@@ -41,6 +41,9 @@ class StockBatch extends Model
     public const SOURCE_PURCHASE = 'purchase';
 
     public const SOURCE_ADJUSTMENT = 'adjustment';
+
+    /** A layer split off another one and carried into a different room. */
+    public const SOURCE_TRANSFER = 'transfer';
 
     protected function casts(): array
     {
@@ -92,6 +95,24 @@ class StockBatch extends Model
         return $this->belongsTo(PurchaseItem::class);
     }
 
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(StockRoom::class, 'room_id');
+    }
+
+    /**
+     * The layer this one was split off, for a batch carried in from elsewhere.
+     *
+     * A transfer does not move a batch, it splits one: units come out of the
+     * source layer and a new layer is made in the destination at the same cost
+     * and the same received_at. This is what keeps the chain walkable back to
+     * the purchase the goods actually arrived on.
+     */
+    public function parentBatch(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_batch_id');
+    }
+
     public function movements(): HasMany
     {
         return $this->hasMany(StockMovement::class);
@@ -111,5 +132,19 @@ class StockBatch extends Model
     public function scopeWithStock(Builder $query): Builder
     {
         return $query->where('quantity_remaining', '>', 0);
+    }
+
+    /**
+     * Layers held in one room.
+     *
+     * ⚠️ The till uses this and the reorder level does NOT. Soran, 2026-09-15:
+     * the level stays on what the shop owns, not on what is within reach — a
+     * shop with forty in the back room has not run out of anything, and an
+     * order raised because the shopfront shelf is empty is an order for goods
+     * already paid for.
+     */
+    public function scopeInRoom(Builder $query, int $roomId): Builder
+    {
+        return $query->where('room_id', $roomId);
     }
 }
