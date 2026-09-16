@@ -1598,3 +1598,34 @@ document.querySelectorAll('[data-trend]').forEach((chart) => {
         });
     });
 });
+
+/*
+ * Registering the service worker (Section 9b).
+ *
+ * The one thing a browser insists on before it will offer to put the shop on a
+ * home screen. What it actually does is deliberately almost nothing — see
+ * InstallController::serviceWorker: it keeps the hashed build assets and passes
+ * every page, every search and every total straight to the server.
+ *
+ * ⚠️ Never cache a figure. A till showing yesterday's stock out of a cache is
+ * worse than a till showing an error, because the error is obvious and the
+ * stale number is not.
+ *
+ * The path is read from the page rather than hard-coded: a shop can be
+ * installed in a subdirectory, and a worker registered at the domain root would
+ * claim the shop beside it.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    if (! ('serviceWorker' in navigator)) {
+        return;
+    }
+
+    const base = document.body.dataset.base ?? '';
+
+    // Nothing depends on this: no screen waits for it, and a refusal — an
+    // insecure origin, a browser with workers switched off — must leave the
+    // shop working exactly as it did.
+    navigator.serviceWorker
+        .register(base + '/sw.js', { scope: base + '/' })
+        .catch(() => {});
+});

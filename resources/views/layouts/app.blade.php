@@ -12,6 +12,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    {{-- Section 9b: what a phone needs to keep the shop on its home screen.
+
+         The manifest is a route rather than a file because one codebase serves
+         many shops and each has its own name, colour and logo — see
+         InstallController.
+
+         `theme-color` paints the phone's status bar, so an installed shop looks
+         like one application rather than a page in a browser. iOS ignores the
+         manifest's icons and reads `apple-touch-icon`, and ignores
+         `display: standalone` unless told separately — hence the two
+         apple-prefixed tags, which are old and still the only way. --}}
+    <link rel="manifest" href="{{ route('install.manifest') }}">
+    <meta name="theme-color" content="{{ App\Http\Controllers\InstallController::brandColour() }}">
+    <link rel="apple-touch-icon" href="{{ route('install.icon', ['size' => 192, 'v' => app(App\Http\Controllers\InstallController::class)->iconVersion()]) }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="{{ \Illuminate\Support\Str::limit(setting('shop_name', config('app.name')), 12, '') }}">
+
     {{--
         Writing an amount the way the server writes it.
 

@@ -13,6 +13,7 @@ use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
+use App\Http\Controllers\InstallController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
@@ -42,6 +43,20 @@ Route::get('/', fn () => redirect()->route('dashboard'));
  * installs. Outside the auth group, because the login page shows it.
  */
 Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
+
+/*
+ * Section 9b: the shop on a phone's home screen.
+ *
+ * All three outside the auth group, and they have to be: a phone fetches the
+ * manifest and the icon while the login page is on the screen, before anybody
+ * has signed in, and a service worker is registered for the whole site rather
+ * than for a session. None of them says anything the login page does not
+ * already say — the shop's name, its colour and its logo.
+ */
+Route::get('manifest.webmanifest', [InstallController::class, 'manifest'])->name('install.manifest');
+Route::get('app-icon-{size}.png', [InstallController::class, 'icon'])
+    ->whereNumber('size')->name('install.icon');
+Route::get('sw.js', [InstallController::class, 'serviceWorker'])->name('install.worker');
 
 Route::middleware(['auth'])->group(function () {
     /*
