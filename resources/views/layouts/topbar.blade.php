@@ -101,6 +101,12 @@
             </button>
         @endif
 
+        {{-- What has happened in the shop since this person last looked.
+             Before the language and theme switches, which are set once and
+             forgotten, and after the help button — this is the one control in
+             the row that changes by itself. --}}
+        @include('partials.bell')
+
         {{-- Language switch. Section 2: text and direction change together. --}}
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"

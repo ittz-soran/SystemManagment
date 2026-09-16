@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Middleware\SetUserPreferences;
 use App\Models\Currency;
 use App\Support\Money;
+use App\Support\Notifications;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -66,6 +67,26 @@ class PreferenceController extends Controller
         ])->save();
 
         return back();
+    }
+
+    /**
+     * Which tiers of notification reach this person.
+     *
+     * ⚠️ Alerts are not on this form and cannot be turned off. Somebody who has
+     * silenced everything should still be told that their own account was
+     * signed into from an address they do not use, and that the invoices were
+     * deleted. A preference here is about noise, not about being kept in the
+     * dark — `Notifications::tiersFor()` puts alerts back whatever is stored.
+     */
+    public function notifications(Request $request): RedirectResponse
+    {
+        $wanted = collect(Notifications::TIERS)
+            ->filter(fn (string $tier) => $tier === Notifications::ALERT || $request->boolean($tier))
+            ->values();
+
+        $request->user()->forceFill(['notify_tiers' => $wanted->implode(',')])->save();
+
+        return back()->with('success', __('Preferences saved'));
     }
 
     public function update(Request $request): RedirectResponse

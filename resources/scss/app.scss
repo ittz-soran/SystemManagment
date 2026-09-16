@@ -1756,3 +1756,70 @@ a.stat-tile {
     --app-trend-band: rgba(120, 134, 143, .18);
   }
 }
+
+/*
+ * The bell.
+ *
+ * Soran asked for *"notification system to user get last changes or live
+ * changes"*. The panel behind it is a list somebody scans in two seconds while
+ * standing at a counter, so almost all of this is about keeping it small,
+ * scrollable, and readable on a phone held in one hand.
+ */
+.app-bell {
+    .app-bell-count {
+        // Riding the top corner of the button rather than sitting beside it,
+        // so the topbar's width does not change when the first one arrives.
+        position: absolute;
+        top: 0;
+        inset-inline-end: 0;
+        transform: translate(35%, -35%);
+        font-size: .625rem;
+        padding: .2em .4em;
+        line-height: 1;
+    }
+
+    .app-bell-menu {
+        // ⚠️ min() against the viewport, not a fixed width. A 22rem dropdown on
+        // a 390px phone is a dropdown with its far edge off the screen, and the
+        // one it cuts off is the timestamp.
+        width: min(22rem, calc(100vw - 1.5rem));
+    }
+
+    .app-bell-list {
+        // About five rows, then it scrolls. Long enough to be worth opening,
+        // short enough that the panel never runs off the bottom of a phone.
+        max-height: min(24rem, 60vh);
+    }
+}
+
+.app-bell-row {
+    // The whole row is the target, not the words in it: a thumb at a counter is
+    // about 44px across and the text is 14.
+    min-height: 3rem;
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--bs-tertiary-bg);
+    }
+
+    &:last-child {
+        border-bottom: 0 !important;
+    }
+
+    /*
+     * Unread.
+     *
+     * A bar down the leading edge rather than a bold font or a coloured
+     * background: bold is already doing work in this list (the description
+     * carries a document number), and a tinted row reads as "selected" to
+     * anybody who has used a computer before.
+     */
+    &.is-unread {
+        border-inline-start: 3px solid var(--bs-primary);
+        background-color: var(--bs-tertiary-bg);
+    }
+}
+
+.app-bell-meta {
+    font-size: .75rem;
+}
