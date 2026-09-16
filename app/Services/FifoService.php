@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Models\StockRoom;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -43,6 +44,20 @@ class FifoService
 
         $batch = StockBatch::create([
             'product_id' => $product->id,
+
+            /*
+             * ⚠️ Goods arrive in the main room, and that is Soran's rule rather
+             * than a default I chose: *"when purchased book at main storage
+             * then do transfer to another storage"*. A purchase that could land
+             * straight in a back room would be stock the till cannot see, booked
+             * by somebody who thought they were putting it on the shelf.
+             *
+             * There is no parameter for this on purpose. The only stock that
+             * arrives anywhere else is stock a transfer carried there, and a
+             * transfer builds its own layer — see TransferService, which has to
+             * write the parent link and the paired movements anyway.
+             */
+            'room_id' => StockRoom::main()->id,
             'source_type' => $sourceType,
             'source_id' => $sourceId,
             'purchase_item_id' => $purchaseItemId,
@@ -95,12 +110,27 @@ class FifoService
         ?int $referenceItemId,
         Carbon $occurredAt,
         User $user,
+        ?int $roomId = null,
     ): Collection {
         $this->assertInTransaction();
 
         if ($quantity <= 0) {
             throw new RuntimeException('Cannot consume a non-positive quantity.');
         }
+
+        /*
+         * ⚠️ One room, and by default the one that sells.
+         *
+         * Soran, 2026-09-15: *"No pos or sale always user mainstore or
+         * mainstorage while sale"*. A till that could reach into a back room
+         * would let a shopkeeper sell a thing he then cannot hand over, which
+         * is worse than telling him it is not here — he has taken the money.
+         *
+         * Defaulted rather than required so that every existing caller means
+         * what it has always meant, and so a caller added later cannot quietly
+         * become the one that sells the back room.
+         */
+        $roomId ??= StockRoom::main()->id;
 
         // Section 5 (Concurrency): lock BEFORE checking. A check outside the lock
         // is worthless — two staff can both read "5 available" and both consume 4.
@@ -111,6 +141,7 @@ class FifoService
         $this->claim([$product->id]);
 
         $batches = StockBatch::where('product_id', $product->id)
+            ->inRoom($roomId)
             ->withStock()
             ->fifoOrder()
             ->lockForUpdate()
@@ -120,7 +151,19 @@ class FifoService
         $available = (int) $batches->sum('quantity_remaining');
 
         if ($available < $quantity) {
-            throw new InsufficientStockException($available, $quantity);
+            /*
+             * ⚠️ Say where the rest of it is.
+             *
+             * "3 available" when the shop owns forty, with thirty-seven of them
+             * one room away, is a true sentence that sends somebody to count a
+             * shelf. Telling them it is in the back room is the difference
+             * between a wasted afternoon and a two-minute transfer.
+             */
+            throw new InsufficientStockException(
+                $available,
+                $quantity,
+                $this->elsewhere($product, $roomId, $available, $quantity),
+            );
         }
 
         $movements = collect();
@@ -423,6 +466,32 @@ class FifoService
                 ['count' => $short],
             ));
         }
+    }
+
+    /**
+     * "Not enough here" — and, when it is true, where the rest of it is.
+     *
+     * ⚠️ Only ever a MORE helpful sentence, never a different decision. The
+     * sale is refused either way; this decides what the shopkeeper is told
+     * while refusing it. Returning null falls back to the plain message, which
+     * is what a shop with one room sees and has always seen.
+     */
+    private function elsewhere(Product $product, int $roomId, int $available, int $requested): ?string
+    {
+        $held = (int) StockBatch::where('product_id', $product->id)
+            ->where('room_id', '!=', $roomId)
+            ->sum('quantity_remaining');
+
+        if ($held <= 0) {
+            return null;
+        }
+
+        return __('Not enough in :room: :available available, :requested needed. Another :held are in other rooms — transfer them first.', [
+            'room' => StockRoom::find($roomId)?->name ?? __('this room'),
+            'available' => number_format($available),
+            'requested' => number_format($requested),
+            'held' => number_format($held),
+        ]);
     }
 
     /** The next movement sequence within one document. */

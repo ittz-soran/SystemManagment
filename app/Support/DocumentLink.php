@@ -48,6 +48,10 @@ final class DocumentLink
         'payment' => ['payments.show', 'payments.view'],
         'expense' => ['expenses.show', 'expenses.view'],
         'adjustment' => ['stock-adjustments.show', 'stock_adjustments.view'],
+        // Stock rooms, 2026-09-15. Without this a transferred layer read
+        // "Document TRF-00001" on the product page — the one badge on that
+        // screen that said nothing about what had happened and led nowhere.
+        'transfer' => ['stock-transfers.show', 'stock_rooms.view'],
     ];
 
     /**
@@ -65,6 +69,7 @@ final class DocumentLink
             'sale_return' => __('Sale return'),
             'purchase_return' => __('Purchase return'),
             'adjustment' => __('Adjustment'),
+            'transfer' => __('Stock move'),
             'payment' => __('Payment'),
             'expense' => __('Expense'),
             'customer' => __('Customer'),

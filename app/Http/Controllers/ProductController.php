@@ -10,6 +10,7 @@ use App\Models\PurchaseItem;
 use App\Models\SaleItem;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Models\StockRoom;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
 use App\Services\DailyTotals;
@@ -222,6 +223,16 @@ class ProductController extends Controller
             // Section 2b — the currency this reader wants these figures in.
             'lens' => $request->user()->lens(),
             'product' => $product->load('category'),
+
+            /*
+             * The shop's rooms — Soran, 2026-09-15.
+             *
+             * Read here rather than in the Blade so the page has ONE reading of
+             * them: the "where it is" card and the "sellable now" tile both ask
+             * whether there is more than one room, and two calls could not
+             * disagree today but a third would.
+             */
+            'rooms' => StockRoom::query()->inOrder()->get(),
 
             /*
              * Ninety days of this one thing, drawn the same way the reports

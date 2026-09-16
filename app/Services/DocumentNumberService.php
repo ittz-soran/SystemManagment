@@ -30,6 +30,9 @@ class DocumentNumberService
 
     public const PREFIX_ADJUSTMENT = 'ADJ';
 
+    /** Goods carried between rooms — Soran, 2026-09-15. */
+    public const PREFIX_TRANSFER = 'TRF';
+
     /**
      * Section 4: the SKU counter, whose visible prefix is configurable via
      * settings, and the barcode serial counter. Neither produces a document
@@ -48,6 +51,7 @@ class DocumentNumberService
         self::PREFIX_PURCHASE_RETURN,
         self::PREFIX_EXPENSE,
         self::PREFIX_ADJUSTMENT,
+        self::PREFIX_TRANSFER,
         self::PREFIX_SKU,
         self::PREFIX_BARCODE,
     ];
