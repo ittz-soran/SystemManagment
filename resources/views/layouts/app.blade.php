@@ -210,7 +210,8 @@
 {{-- Section 9b: toasts sit top-right, and top-left in RTL. --}}
 <x-number-pad />
 
-<div class="toast-container position-fixed top-0 end-0 p-3 no-print" style="z-index: 1090">
+<div class="toast-container position-fixed top-0 end-0 p-3 no-print" style="z-index: 1090"
+     data-close="{{ __('Close') }}">
     @foreach(['success' => 'success', 'error' => 'danger', 'warning' => 'warning'] as $key => $variant)
         @if(session($key))
             <div class="toast align-items-center text-bg-{{ $variant }} border-0" role="alert" aria-live="polite">

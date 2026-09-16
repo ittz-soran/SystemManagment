@@ -1904,3 +1904,65 @@ a.stat-tile {
         min-height: 12rem;
     }
 }
+
+/*
+ * A remembrance showing itself.
+ *
+ * Asked for 2026-09-16, and Soran chose the shape: on every screen, in the
+ * corner, *"never covering the total or Save"*. So everything below is about
+ * staying out of the way of work.
+ */
+/*
+ * ⚠️ Below the topbar, not over it.
+ *
+ * The shared toast container is pinned to `top-0`, which puts a card straight
+ * across the bell, the language switch and the user menu. A "Saved" message has
+ * got away with that for months because it happens when somebody has just
+ * pressed Save and is not reaching for anything; one of these arrives every
+ * minute, unasked, and would make those controls unclickable for fifteen
+ * seconds at a time.
+ *
+ * Only when the container is holding one of these, so the existing toasts are
+ * left exactly as they were.
+ */
+.toast-container:has(.app-dhikr-toast) {
+    // ⚠️ `!important` because the container wears Bootstrap's `top-0`, and its
+    // spacing utilities are `!important`. Without it this rule loses silently
+    // and the card goes straight back over the bell — the same trap the till
+    // bar's bottom padding fell into.
+    top: 3rem !important;
+}
+
+.app-dhikr-toast {
+    // The shop's own surface rather than a coloured one. A success toast is
+    // green because something happened; this did not happen, it is simply here,
+    // and a coloured card in the corner reads as an alert.
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color) !important;
+    box-shadow: var(--bs-box-shadow);
+    cursor: pointer;
+}
+
+.app-dhikr-toast-body {
+    // Arabic with full tashkeel stacks marks above and below the line.
+    line-height: 2.1;
+    font-size: 1.05rem;
+}
+
+/*
+ * ⚠️ On a phone the toast container is pinned to the TOP, which is already
+ * clear of the till bar at the bottom — but only while it stays narrow. Left
+ * unconstrained it would stretch the full width and sit over the page header,
+ * which on the cart screens is where the document number lives.
+ */
+@include media-breakpoint-down(md) {
+    .toast-container:has(.app-dhikr-toast) {
+        max-width: calc(100vw - 1.5rem);
+    }
+
+    .app-dhikr-toast {
+        // Never the whole screen. A remembrance that covers the cart is the
+        // thing he asked me not to build, arriving by a different door.
+        max-width: 17rem;
+    }
+}

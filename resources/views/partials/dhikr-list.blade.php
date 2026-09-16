@@ -10,7 +10,7 @@
 --}}
 @php($today = App\Support\Adhkar::shopTime()->format('Y-m-d'))
 
-<div class="app-dhikr-list" data-day="{{ $today }}">
+<div class="app-dhikr-list" data-day="{{ $today }}" @isset($every) data-every="{{ $every }}" @endisset>
     @foreach($texts as $text)
         {{-- A button, not a div: this is tapped, so it must be reachable by a
              keyboard and announced as something that can be pressed. --}}

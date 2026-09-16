@@ -1873,3 +1873,116 @@ document.addEventListener('DOMContentLoaded', () => {
 
     paint();
 });
+
+/**
+ * A remembrance that shows itself.
+ *
+ * **Soran, 2026-09-16:** *"i want every 1 min or 5 min show on of Remembrances
+ * as notification show on screen, without user go to read Remembrance
+ * manualy"*.
+ *
+ * ⚠️ This reverses his earlier *"never a dialog over the till"*, and the
+ * reversal is narrow. He asked for it to appear by itself, on every screen,
+ * and chose the shape: a small card in the top corner that never covers the
+ * total or Save. So:
+ *
+ *   It is a toast, in the corner the shop already puts toasts in — top right,
+ *   top left in RTL. Never a modal, never centred, never over the till bar.
+ *
+ *   It never takes the keyboard. Somebody typing a price into the cart keeps
+ *   typing into the cart; this cannot steal a keystroke, and nothing it does
+ *   can change what gets saved.
+ *
+ *   It waits while a modal is open. The number pad is a person doing one thing
+ *   with their whole attention, and a price is the number this shop most often
+ *   gets wrong.
+ *
+ *   It goes quiet while nobody is looking, rather than queueing up ninety of
+ *   them to fire the moment the tab comes back.
+ *
+ * In order rather than at random, so the list gets worked through instead of
+ * landing on the same one all morning.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    // ⚠️ The bell's copy only. The remembrance page renders the same partial
+    // once per window, and three timers would mean three at once.
+    const source = document.querySelector('.app-dhikr-list[data-every]');
+    const container = document.querySelector('.toast-container');
+
+    if (! source || ! container) return;
+
+    const minutes = Number(source.dataset.every ?? 0);
+
+    // 0 is off, and off is a real answer.
+    if (! Number.isFinite(minutes) || minutes <= 0) return;
+
+    const buttons = Array.from(source.querySelectorAll('.app-dhikr'));
+
+    if (buttons.length === 0) return;
+
+    const spot = `dhikr-turn:${source.dataset.day ?? ''}`;
+    let turn = 0;
+
+    try {
+        turn = Number(localStorage.getItem(spot) ?? 0) || 0;
+    } catch {
+        // Starting from the top is a perfectly good answer.
+    }
+
+    const show = () => {
+        if (document.visibilityState !== 'visible') return;
+
+        // Somebody is in the middle of one thing. Come back next time.
+        if (document.querySelector('.modal.show')) return;
+
+        // Named apart from the list above on purpose: shadowing `source` here
+        // reads as the same thing and is not.
+        const chosen = buttons[turn % buttons.length];
+        turn = (turn + 1) % buttons.length;
+
+        try {
+            localStorage.setItem(spot, String(turn));
+        } catch {
+            // It will simply start from the top next time the page loads.
+        }
+
+        const toast = document.createElement('div');
+        toast.className = 'toast app-dhikr-toast border-0';
+        // polite, never assertive: this must wait its turn behind whatever a
+        // screen reader is already saying rather than cutting across it.
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+
+        const body = document.createElement('div');
+        body.className = 'toast-body app-dhikr-toast-body';
+        body.setAttribute('dir', 'rtl');
+        body.setAttribute('lang', 'ar');
+        // ⚠️ textContent. The shop's own adhkar are typed by an admin into a
+        // Settings box, and this is markup being built by hand.
+        body.textContent = chosen.querySelector('.app-dhikr-text').textContent;
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'btn-close me-2 m-auto';
+        close.setAttribute('data-bs-dismiss', 'toast');
+        close.setAttribute('aria-label', container.dataset.close ?? 'Close');
+
+        const row = document.createElement('div');
+        row.className = 'd-flex';
+        row.append(body, close);
+        toast.append(row);
+        container.append(toast);
+
+        // Tapping it counts it, exactly as tapping the row in the panel does —
+        // the click listener above is on the document and finds .app-dhikr.
+        body.addEventListener('click', () => chosen.click());
+
+        // Long enough to read Arabic with full tashkeel, which is slower than
+        // the four seconds a "Saved" message gets.
+        const instance = bootstrap.Toast.getOrCreateInstance(toast, { delay: 15000 });
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+        instance.show();
+    };
+
+    setInterval(show, minutes * 60 * 1000);
+});

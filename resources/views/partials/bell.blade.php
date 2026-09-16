@@ -15,6 +15,7 @@
 @php($bellUnread = $bell->unreadCount(auth()->user()))
 @php($bellItems = $bell->panel(auth()->user()))
 @php($bellDhikr = ! (bool) (auth()->user()->getAttributes()['adhkar_off'] ?? false))
+@php($bellEvery = (int) (auth()->user()->getAttributes()['adhkar_every'] ?? 5))
 
 <div class="dropdown app-bell"
      data-feed="{{ route('notifications.feed') }}"

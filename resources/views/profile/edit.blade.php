@@ -200,6 +200,31 @@
                             </div>
                         </div>
 
+                        {{-- **Soran, 2026-09-16:** *"i want every 1 min or 5 min
+                             show on of Remembrances as notification show on
+                             screen, without user go to read Remembrance
+                             manualy"*.
+
+                             A closed list rather than a number box: a box lets
+                             somebody ask for one every six seconds, which is not
+                             devotion, it is a screen nobody can work at. --}}
+                        <div class="mb-3">
+                            <label for="adhkar_every" class="form-label">{{ __('Show one by itself') }}</label>
+                            <select id="adhkar_every" name="adhkar_every" class="form-select">
+                                @foreach(App\Support\Adhkar::EVERY as $minutes)
+                                    <option value="{{ $minutes }}"
+                                        @selected((int) (auth()->user()->getAttributes()['adhkar_every'] ?? 5) === $minutes)>
+                                        {{ $minutes === 0
+                                            ? __('Never — only when I open the tab')
+                                            : trans_choice('{1}Every minute|[2,*]Every :count minutes', $minutes, ['count' => $minutes]) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                {{ __('A small card in the corner that fades away on its own. It never covers the total or Save, and it waits while the number pad is open.') }}
+                            </div>
+                        </div>
+
                         <button class="btn btn-primary">{{ __('Save remembrance') }}</button>
                     </form>
                 </div>

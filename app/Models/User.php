@@ -92,6 +92,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'notifications_seen_id' => 'integer',
             'adhkar_off' => 'boolean',
+            'adhkar_every' => 'integer',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'items_per_page' => 'integer',
