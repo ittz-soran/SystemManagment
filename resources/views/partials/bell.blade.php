@@ -2,8 +2,9 @@
     The bell.
 
     Asked for by Soran: *"notification system to user get last changes or live
-    changes"*. What it shows is a reading position over the activity log — see
-    the migration — so nothing here is a second record of anything.
+    changes"*, and then *"add section after alerts, news, history onl, add
+    islamic Remembrance"* — so it holds two tabs, and only the first of them
+    ever carries a count.
 
     ⚠️ Rendered on the server for the first paint and rebuilt in the browser
     from JSON afterwards. Both, on purpose: the server pass means the bell works
@@ -13,6 +14,7 @@
 @php($bell = app(App\Services\NotificationFeed::class))
 @php($bellUnread = $bell->unreadCount(auth()->user()))
 @php($bellItems = $bell->panel(auth()->user()))
+@php($bellDhikr = ! (bool) (auth()->user()->getAttributes()['adhkar_off'] ?? false))
 
 <div class="dropdown app-bell"
      data-feed="{{ route('notifications.feed') }}"
@@ -37,19 +39,62 @@
     </button>
 
     <div class="dropdown-menu dropdown-menu-end app-bell-menu p-0">
-        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-            <span class="fw-semibold">{{ __('Notifications') }}</span>
-            <a href="{{ route('notifications.index') }}" class="small">{{ __('See all') }}</a>
-        </div>
+        @if($bellDhikr)
+            {{-- ⚠️ Notifications is always the tab that opens, whatever hour it
+                 is. A panel that decided for itself which half you wanted would
+                 hide the deleted invoice behind a tab on the morning somebody
+                 deleted it. --}}
+            <ul class="nav nav-tabs nav-fill" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" role="tab"
+                            data-bs-target="#bell-pane-news" aria-controls="bell-pane-news"
+                            aria-selected="true" type="button">
+                        {{ __('Notifications') }}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" role="tab"
+                            data-bs-target="#bell-pane-dhikr" aria-controls="bell-pane-dhikr"
+                            aria-selected="false" type="button">
+                        {{ __('Remembrance') }}
+                    </button>
+                </li>
+            </ul>
+        @else
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+                <span class="fw-semibold">{{ __('Notifications') }}</span>
+                <a href="{{ route('notifications.index') }}" class="small">{{ __('See all') }}</a>
+            </div>
+        @endif
 
-        <div class="app-bell-list overflow-auto">
-            @forelse($bellItems as $item)
-                @include('partials.bell-row', ['item' => $item])
-            @empty
-                <div class="px-3 py-4 text-center text-secondary small app-bell-empty">
-                    {{ __('Nothing new.') }}
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="bell-pane-news" role="tabpanel">
+                @if($bellDhikr)
+                    <div class="d-flex justify-content-end px-3 py-1 border-bottom">
+                        <a href="{{ route('notifications.index') }}" class="small">{{ __('See all') }}</a>
+                    </div>
+                @endif
+
+                <div class="app-bell-list overflow-auto">
+                    @forelse($bellItems as $item)
+                        @include('partials.bell-row', ['item' => $item])
+                    @empty
+                        <div class="px-3 py-4 text-center text-secondary small app-bell-empty">
+                            {{ __('Nothing new.') }}
+                        </div>
+                    @endforelse
                 </div>
-            @endforelse
+            </div>
+
+            @if($bellDhikr)
+                <div class="tab-pane fade" id="bell-pane-dhikr" role="tabpanel">
+                    <div class="d-flex justify-content-end px-3 py-1 border-bottom">
+                        <a href="{{ route('remembrance.index') }}" class="small">{{ __('See all') }}</a>
+                    </div>
+
+                    @include('partials.dhikr-tab')
+                </div>
+            @endif
         </div>
     </div>
 </div>

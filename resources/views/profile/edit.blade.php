@@ -172,6 +172,36 @@
 
                         <button class="btn btn-primary">{{ __('Save notifications') }}</button>
                     </form>
+
+                    {{-- The remembrances, asked for 2026-09-15.
+
+                         Its own form beside the tiers rather than a fourth
+                         switch among them, because it is not a tier: the others
+                         decide how loud the bell is, and this decides whether a
+                         whole tab exists. Per person — what somebody says at
+                         their own counter is not an admin's setting to make on
+                         their behalf. --}}
+                    <hr class="my-4">
+
+                    <form action="{{ route('preferences.remembrance') }}" method="POST" data-guard-submit>
+                        @csrf
+
+                        @php($dhikrOn = ! (bool) (auth()->user()->getAttributes()['adhkar_off'] ?? false))
+
+                        <div class="mb-3 form-check form-switch">
+                            <input type="hidden" name="adhkar" value="0">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="adhkar" name="adhkar" value="1" @checked($dhikrOn)>
+                            <label class="form-check-label" for="adhkar">
+                                {{ __('Remembrance') }}
+                            </label>
+                            <div class="form-text">
+                                {{ __('A tab beside the bell holding the shop’s أذكار, with a tap counter on each. No badge, and it never opens by itself.') }}
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary">{{ __('Save remembrance') }}</button>
+                    </form>
                 </div>
             </div>
         </div>

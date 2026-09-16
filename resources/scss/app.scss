@@ -1823,3 +1823,84 @@ a.stat-tile {
 .app-bell-meta {
     font-size: .75rem;
 }
+
+/*
+ * The remembrances — أذكار — beside the bell.
+ *
+ * Soran asked for these as a section of the notification panel, with a tap
+ * counter on each. Almost all of this is about the tap: it is a thumb at a
+ * counter, repeated, so the target has to be big and the feedback immediate.
+ */
+.app-dhikr {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    // Comfortably past the 44px a thumb needs, because this is the one control
+    // in the shop somebody presses thirty times in a row.
+    min-height: 3rem;
+    padding: .5rem .75rem;
+    border: 0;
+    border-radius: var(--bs-border-radius);
+    background: transparent;
+    color: inherit;
+
+    &:hover {
+        background-color: var(--bs-tertiary-bg);
+    }
+
+    // Pressed, and visibly so. Without this a fast second tap looks like a tap
+    // that did not register, and somebody starts over.
+    &:active {
+        background-color: var(--bs-secondary-bg);
+        transform: scale(.99);
+    }
+
+    /* One that has been said today. Quiet — it is a tally, not a task list. */
+    &.is-counted .app-dhikr-count {
+        background-color: var(--bs-primary) !important;
+        opacity: 1;
+    }
+}
+
+.app-dhikr-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    // Arabic with full tashkeel stacks marks above and below the line, and the
+    // default line height crops them against the row above.
+    line-height: 2;
+}
+
+.app-dhikr-count {
+    flex: 0 0 auto;
+    min-width: 2.25rem;
+    font-variant-numeric: tabular-nums;
+
+    /*
+     * ⚠️ Faded until it means something, and never hidden.
+     *
+     * Seventeen grey zeros down the side of the list shout louder than the
+     * words do, and the words are the point. Faded rather than removed because
+     * the badge is what says the row can be tapped — take it away at zero and
+     * the list looks like text, and nobody presses text.
+     */
+    opacity: .35;
+}
+
+/*
+ * The bell's tabs.
+ *
+ * ⚠️ The pane keeps its own height rather than the menu resizing as somebody
+ * moves between tabs — a panel that jumps when you look at the other half is a
+ * panel that loses whatever your finger was aimed at.
+ */
+.app-bell-menu {
+    .nav-tabs .nav-link {
+        border-radius: 0;
+        padding-block: .5rem;
+        font-size: .875rem;
+    }
+
+    .tab-pane .app-bell-list {
+        min-height: 12rem;
+    }
+}
