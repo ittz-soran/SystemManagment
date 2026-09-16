@@ -24,6 +24,12 @@
             </div>
         @endif
 
-        @include('partials.dhikr-list', ['texts' => $shown['texts']])
+        @include('partials.dhikr-list', [
+            'texts' => $shown['texts'],
+            // ⚠️ Only this copy of the list drives the ones that show
+            // themselves. The full page renders the same partial three times
+            // over, and three timers would mean three at once.
+            'every' => $bellEvery,
+        ])
     @endif
 </div>

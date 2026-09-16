@@ -266,28 +266,186 @@ class AdhkarTest extends TestCase
             ->assertSessionHasErrors('adhkar_morning_window');
     }
 
+    // =====================================================================
+    // Showing themselves
+    // =====================================================================
+
     /**
-     * ⚠️ Nothing about this ever opens by itself.
+     * ⚠️ They now DO open by themselves, and the rule that replaced the old one
+     * is narrow.
      *
-     * Soran's rule: *"never a dialog over the till"*. The script may only react
-     * to somebody pressing something — no timer, no auto-open, no modal.
+     * **Soran, 2026-09-16:** *"i want every 1 min or 5 min show on of
+     * Remembrances as notification show on screen, without user go to read
+     * Remembrance manualy"* — reversing his own earlier *"never a dialog over
+     * the till"*. Asked which shape he wanted, he chose: every screen, a small
+     * card in the corner, never covering the total or Save.
+     *
+     * So the guard is no longer "never appears". It is "never appears as
+     * something that can take a keystroke or block a sale", which is the part
+     * of his first rule that was actually protecting the till.
      */
-    public function test_the_remembrances_never_open_themselves(): void
+    public function test_one_that_shows_itself_can_never_block_the_till(): void
     {
-        $js = file_get_contents(base_path('resources/js/app.js'));
+        $block = $this->script('A remembrance that shows itself');
 
-        $start = strpos($js, 'Tapping a remembrance');
-        $this->assertNotFalse($start, 'The remembrance script is gone from app.js.');
-
-        $block = preg_replace('#^\s*(//|/\*|\*).*$#m', '', substr($js, $start));
-
-        foreach (['setInterval', 'setTimeout', '.show()', 'Modal', 'Toast'] as $forbidden) {
+        foreach ([
+            'Modal' => 'a modal stops the shop until it is dismissed',
+            '.focus(' => 'taking focus steals the next keystroke from the cart',
+            'alert(' => 'a browser alert freezes the page',
+            'confirm(' => 'a browser confirm freezes the page',
+            'innerHTML' => 'the adhkar are typed by an admin and drawn on somebody else’s screen',
+        ] as $forbidden => $why) {
             $this->assertStringNotContainsString(
                 $forbidden,
                 $block,
-                "The remembrances must never appear on their own — `{$forbidden}` is how that starts."
+                "A remembrance must not use `{$forbidden}`: {$why}."
             );
         }
+
+        // And it is the corner toast he chose, not something invented.
+        $this->assertStringContainsString('bootstrap.Toast', $block);
+        $this->assertStringContainsString('textContent', $block);
+    }
+
+    /** It keeps quiet while somebody is doing one thing with their attention. */
+    public function test_it_waits_for_the_number_pad_and_for_a_tab_nobody_is_watching(): void
+    {
+        $block = $this->script('A remembrance that shows itself');
+
+        $this->assertStringContainsString(
+            "document.querySelector('.modal.show')",
+            $block,
+            'A remembrance appeared over the number pad, which is where this shop types prices.'
+        );
+
+        $this->assertStringContainsString(
+            "document.visibilityState !== 'visible'",
+            $block,
+            'A tab nobody is looking at would queue up ninety of these to fire at once.'
+        );
+    }
+
+    /**
+     * ⚠️ Exactly one list drives the timer.
+     *
+     * The remembrance page renders the same partial once per window. If they
+     * all carried the interval, three timers would run and three cards would
+     * arrive together.
+     */
+    public function test_only_one_list_on_a_page_can_drive_the_timer(): void
+    {
+        Setting::updateOrCreate(['key' => 'adhkar_morning'], ['value' => 'اللَّهُمَّ بِكَ أَصْبَحْنَا']);
+
+        $page = $this->actingAs($this->admin())->get(route('remembrance.index'))->assertOk();
+
+        $this->assertSame(
+            1,
+            substr_count($page->getContent(), 'data-every='),
+            'More than one list claimed the timer, so several remembrances would arrive at once.'
+        );
+    }
+
+    /** How often is the reader's own, and 0 is a real answer. */
+    public function test_how_often_is_a_preference_and_off_is_one_of_the_choices(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->post(route('preferences.remembrance'), ['adhkar' => '1', 'adhkar_every' => '1'])
+            ->assertRedirect();
+
+        $this->assertSame(1, (int) $admin->fresh()->adhkar_every);
+
+        $this->actingAs($admin->fresh())
+            ->post(route('preferences.remembrance'), ['adhkar' => '1', 'adhkar_every' => '0'])
+            ->assertRedirect();
+
+        $this->assertSame(0, (int) $admin->fresh()->adhkar_every);
+    }
+
+    /**
+     * ⚠️ A number nobody chose is refused.
+     *
+     * Six seconds is not devotion, it is a screen nobody can work at — and the
+     * list exists so that the browser is never asked for one.
+     */
+    public function test_an_interval_nobody_offered_is_refused(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->post(route('preferences.remembrance'), ['adhkar' => '1', 'adhkar_every' => '1'])
+            ->assertRedirect();
+
+        $this->actingAs($admin->fresh())
+            ->post(route('preferences.remembrance'), ['adhkar' => '1', 'adhkar_every' => '0.1'])
+            ->assertSessionHasErrors('adhkar_every');
+
+        $this->assertSame(1, (int) $admin->fresh()->adhkar_every);
+    }
+
+    /**
+     * ⚠️ The switch on the remembrance page does not reset how often they come.
+     *
+     * That form posts `adhkar` alone. Reading a missing field as zero would
+     * turn the timer off every time somebody used the show/hide link.
+     */
+    public function test_hiding_and_showing_leaves_how_often_alone(): void
+    {
+        $admin = $this->admin();
+        $admin->forceFill(['adhkar_every' => 15])->save();
+
+        $this->actingAs($admin->fresh())
+            ->post(route('preferences.remembrance'), ['adhkar' => '0'])
+            ->assertRedirect();
+
+        $fresh = $admin->fresh();
+
+        $this->assertTrue((bool) $fresh->adhkar_off);
+        $this->assertSame(15, (int) $fresh->adhkar_every, 'Hiding the tab silently turned off the timer too.');
+    }
+
+    /**
+     * ⚠️ The card sits below the topbar, and the rule has to shout to do it.
+     *
+     * The shared toast container wears Bootstrap's `top-0`, whose utilities are
+     * `!important`. Without `!important` here the offset loses silently and one
+     * of these lands across the bell, the language switch and the user menu —
+     * unclickable for fifteen seconds, every minute. Measured in a browser at
+     * 1280×800: topbar ends at 49px, the card starts at 64.
+     *
+     * The same trap took the till bar's bottom padding once already.
+     */
+    public function test_the_card_is_pushed_clear_of_the_topbar(): void
+    {
+        $scss = file_get_contents(base_path('resources/scss/app.scss'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.toast-container:has\(\.app-dhikr-toast\)\s*\{[^}]*top:[^;]*!important/s',
+            $scss,
+            'The offset that keeps a remembrance off the bell has lost its !important, '
+            .'so Bootstrap’s top-0 wins and the card covers the topbar controls.'
+        );
+    }
+
+    /** The block of app.js that drives one feature, with its comments stripped. */
+    private function script(string $heading): string
+    {
+        $js = file_get_contents(base_path('resources/js/app.js'));
+
+        $start = strpos($js, $heading);
+        $this->assertNotFalse($start, "The script for “{$heading}” is gone from app.js.");
+
+        $end = strpos($js, '/**', $start);
+
+        // Comments stripped: these blocks explain what they refuse to do, and a
+        // test that cannot tell a warning from the thing it warns about is no
+        // test. That mistake was made once already, on the bell.
+        return preg_replace(
+            '#^\s*(//|/\*|\*).*$#m',
+            '',
+            $end === false ? substr($js, $start) : substr($js, $start, $end - $start),
+        );
     }
 
     protected function setUp(): void

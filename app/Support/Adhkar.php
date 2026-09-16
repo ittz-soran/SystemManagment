@@ -66,6 +66,21 @@ final class Adhkar
 عَلَيْهِ الصَّلَاةُ وَالسَّلَامُ
 ARABIC;
 
+    /**
+     * How often one may show itself, in minutes. 0 is off.
+     *
+     * **Soran, 2026-09-16:** *"i want every 1 min or 5 min show on of
+     * Remembrances as notification show on screen"* — he was deciding as he
+     * wrote, so both are here and so is off.
+     *
+     * ⚠️ A closed list, not a free number. A box would let somebody type 0.1
+     * and get a remembrance every six seconds, which is not devotion, it is a
+     * screen nobody can work at.
+     *
+     * @var list<int>
+     */
+    public const EVERY = [0, 1, 5, 15, 30];
+
     /** Before anybody sets their own hours. Overridden in Settings. */
     public const MORNING_WINDOW = '05:00-11:00';
 
