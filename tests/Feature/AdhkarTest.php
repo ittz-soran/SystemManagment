@@ -307,6 +307,43 @@ class AdhkarTest extends TestCase
         $this->assertStringContainsString('textContent', $block);
     }
 
+    /**
+     * ⚠️ The schedule is a wall clock, not a page timer.
+     *
+     * **Soran, 2026-09-16:** *"may timer reset when browser reload or when
+     * change tab or do any thing browser need reloaded and not show every min
+     * when i set at every 1 min"*. He was right and it was my bug.
+     * `setInterval` starts counting at page load, and every click in this shop
+     * IS a page load because it is server-rendered — so opening a product,
+     * saving a sale or going back to a list each restarted the minute from
+     * zero, and the one-minute setting showed almost nothing.
+     *
+     * The fix is to remember when the last one appeared and work out what is
+     * due from the clock. These three assertions are the whole of it.
+     */
+    public function test_reloading_a_page_does_not_restart_the_wait(): void
+    {
+        $block = $this->script('A remembrance that shows itself');
+
+        $this->assertStringContainsString(
+            "'dhikr-last'",
+            $block,
+            'Nothing remembers when the last remembrance appeared, so every page load '
+            .'starts the wait again — which is the bug Soran reported.'
+        );
+
+        $this->assertStringContainsString(
+            'Date.now() - lastShown() < every',
+            $block,
+            'What is due is no longer worked out from the clock.'
+        );
+
+        // ⚠️ The heartbeat, not one long timer. A long timer that fired while
+        // the number pad was open lost that turn until the next one — half an
+        // hour later, on the thirty-minute setting.
+        $this->assertStringContainsString('setInterval(due, 5000)', $block);
+    }
+
     /** It keeps quiet while somebody is doing one thing with their attention. */
     public function test_it_waits_for_the_number_pad_and_for_a_tab_nobody_is_watching(): void
     {
