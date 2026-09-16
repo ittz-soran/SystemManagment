@@ -51,7 +51,7 @@
                             {{ number_format((int) ($stat->units ?? 0)) }}
                         </td>
                         <td class="text-end" data-label="{{ __('Products') }}">
-                            {{ number_format((int) ($stat->lines ?? 0)) }}
+                            {{ number_format((int) ($stat->products_held ?? 0)) }}
                         </td>
                         {{-- `list-card-actions`: on a phone this row becomes a
                              card, and a bare button with no label would read as

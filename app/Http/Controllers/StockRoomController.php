@@ -36,7 +36,22 @@ class StockRoomController extends Controller
          * looking for when I go out there".
          */
         $held = StockBatch::query()
-            ->selectRaw('room_id, SUM(quantity_remaining) as units, COUNT(DISTINCT product_id) as lines')
+            /*
+             * ⚠️ `products_held`, not `lines`.
+             *
+             * LINES is a RESERVED WORD in MariaDB — it belongs to
+             * `LOAD DATA … LINES TERMINATED BY` — so an unquoted alias of that
+             * name is a syntax error there and perfectly ordinary in SQLite.
+             * The suite runs on SQLite, so this passed locally and took the
+             * MariaDB job down:
+             *
+             *     SQLSTATE[42000]: 1064 …check the manual… near 'lines from
+             *     `stock_batches` where `quantity_remaining` > ? group by …'
+             *
+             * The same trap is already recorded in DataIntegrityService, which
+             * survives a check that will not run for exactly this reason.
+             */
+            ->selectRaw('room_id, SUM(quantity_remaining) as units, COUNT(DISTINCT product_id) as products_held')
             ->where('quantity_remaining', '>', 0)
             ->groupBy('room_id')
             ->get()
