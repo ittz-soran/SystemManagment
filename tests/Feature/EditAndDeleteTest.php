@@ -8,11 +8,14 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Models\StockRoom;
+use App\Models\StockTransfer;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
+use App\Services\TransferService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
@@ -480,6 +483,131 @@ class EditAndDeleteTest extends TestCase
         $this->assertSame(5, $this->other->refresh()->quantity);
     }
 
+    /**
+     * ⚠️ **Soran, 2026-09-17: "why should lock after 24h of created at, not
+     * purchase date".**
+     *
+     * He is right about what it should do, and it is what Section 8 says:
+     * "Within 24 hours of CREATION". Backdating an invoice to the day the goods
+     * actually arrived is ordinary bookkeeping and must not spend the hour the
+     * shop has to correct a typo — otherwise entering last week's delivery
+     * would lock it the instant it was saved.
+     *
+     * Pinned here because the clock is one word away from the wrong column and
+     * nothing else in the suite reads a backdated purchase.
+     */
+    public function test_backdating_a_purchase_does_not_start_the_clock_early(): void
+    {
+        $purchase = app(PurchaseService::class)->create(
+            supplier: $this->supplier,
+            lines: [['product_id' => $this->product->id, 'quantity' => 5, 'unit_price' => 10_000]],
+            user: $this->user, purchaseDate: now(),
+        );
+
+        // Five minutes later, the date is corrected to when the goods arrived.
+        app(PurchaseService::class)->update(
+            purchase: $purchase,
+            supplier: $this->supplier,
+            lines: [['product_id' => $this->product->id, 'quantity' => 5, 'unit_price' => 10_000]],
+            user: $this->user,
+            purchaseDate: now()->subDays(3),
+        );
+
+        $purchase->refresh();
+
+        $this->assertSame(now()->subDays(3)->toDateString(), $purchase->purchase_date->toDateString());
+        $this->assertTrue(
+            $purchase->canBeModified($this->user)['allowed'],
+            'The 24 hours run from when the row was written, not from the date typed on it.'
+        );
+    }
+
+    /**
+     * ⚠️ **Soran, 2026-09-17: a purchase locked itself and nothing had been sold.**
+     *
+     * A transfer takes units out of this purchase's layer and opens a new one
+     * in the destination room, so rule 2's sum read a move between two of the
+     * shop's own rooms as a consumption. Carrying a crate to the back room
+     * locked the purchase made ten minutes earlier with "2 units from this
+     * purchase have already been used" — while all five units were still on the
+     * premises and no customer had been near them.
+     *
+     * The lock itself is right and stays: the carried layer points back at a
+     * batch the edit would delete. It is the sentence that was a lie, and it
+     * sent somebody looking for a sale that does not exist.
+     */
+    public function test_moving_a_crate_between_rooms_does_not_call_it_sold(): void
+    {
+        $purchase = app(PurchaseService::class)->create(
+            supplier: $this->supplier,
+            lines: [['product_id' => $this->product->id, 'quantity' => 5, 'unit_price' => 10_000]],
+            user: $this->user, purchaseDate: now(),
+        );
+
+        $this->assertTrue($purchase->refresh()->canBeModified($this->user)['allowed']);
+
+        $this->carry($this->product, 2);
+
+        $lock = $purchase->refresh()->canBeModified($this->user);
+
+        $this->assertFalse($lock['allowed'], 'Editing now would orphan the layer in the other room.');
+        $this->assertStringNotContainsString('already been used', $lock['reason']);
+        $this->assertStringContainsString('moved to another room', $lock['reason']);
+        $this->assertStringContainsString('Delete the transfer first', $lock['reason']);
+
+        // Nothing left the shop.
+        $this->assertSame(5, $this->product->refresh()->quantity);
+    }
+
+    /**
+     * Section 8: "Delete the dependent record first, and the parent unlocks."
+     * The transfer is a dependent record like any other, so undoing it must
+     * hand the units back and let the Edit button return by itself.
+     */
+    public function test_undoing_the_transfer_frees_the_purchase_again(): void
+    {
+        $purchase = app(PurchaseService::class)->create(
+            supplier: $this->supplier,
+            lines: [['product_id' => $this->product->id, 'quantity' => 5, 'unit_price' => 10_000]],
+            user: $this->user, purchaseDate: now(),
+        );
+
+        $transfer = $this->carry($this->product, 2);
+
+        $this->assertFalse($purchase->refresh()->canBeModified($this->user)['allowed']);
+
+        app(TransferService::class)->delete($transfer, $this->user);
+
+        $this->assertTrue(
+            $purchase->refresh()->canBeModified($this->user)['allowed'],
+            'The units came back, so the purchase should be editable again with no extra code.'
+        );
+    }
+
+    /**
+     * ⚠️ The sale is still the hard blocker. A unit that has genuinely left the
+     * shop must keep saying so even when a crate was moved as well, or this fix
+     * would have turned a real lock into a misleading one in the other
+     * direction.
+     */
+    public function test_a_sold_unit_still_reads_as_sold_even_when_a_crate_also_moved(): void
+    {
+        $purchase = app(PurchaseService::class)->create(
+            supplier: $this->supplier,
+            lines: [['product_id' => $this->product->id, 'quantity' => 5, 'unit_price' => 10_000]],
+            user: $this->user, purchaseDate: now(),
+        );
+
+        $this->sell($this->product, 1, 30_000);
+        $this->carry($this->product, 2);
+
+        $lock = $purchase->refresh()->canBeModified($this->user);
+
+        $this->assertFalse($lock['allowed']);
+        $this->assertStringContainsString('already been used', $lock['reason']);
+        $this->assertStringContainsString('1 unit', $lock['reason']);
+    }
+
     // ------------------------------------------------------------- helpers
 
     private function buy(Product $product, int $quantity, int $unitPrice): StockBatch
@@ -502,6 +630,20 @@ class EditAndDeleteTest extends TestCase
             customer: $this->customer,
             lines: [['product_id' => $product->id, 'quantity' => $quantity, 'unit_price' => $unitPrice]],
             user: $this->user, saleDate: now(), amountPaid: 0,
+        );
+    }
+
+    /** Move units out of the room they landed in, into another one. */
+    private function carry(Product $product, int $quantity): StockTransfer
+    {
+        $from = StockRoom::orderBy('id')->firstOrFail();
+        $to = StockRoom::where('id', '!=', $from->id)->orderBy('id')->first()
+            ?? StockRoom::create(['name' => 'Back room', 'is_active' => true]);
+
+        return app(TransferService::class)->create(
+            from: $from, to: $to,
+            lines: [['product_id' => $product->id, 'quantity' => $quantity]],
+            transferredAt: now(), note: null, user: $this->user,
         );
     }
 }
