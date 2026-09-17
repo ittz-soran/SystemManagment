@@ -230,6 +230,24 @@ class CurrencyController extends Controller
         $isBase = $currency->code === Money::base()->code;
 
         $fields = $request->validate([
+            /*
+             * ⚠️ Editable — asked for by Soran, 2026-09-17.
+             *
+             * His base was coded `IRQ`, which is not the dinar's code; `IQD`
+             * is. Until now a code could only be chosen once, when the currency
+             * was created, so the only way to correct a typo was to delete the
+             * currency — and the base currency cannot be deleted, because the
+             * books are kept in it. A shop was stuck with it forever.
+             *
+             * Same rules as creating one, and unique against every OTHER row.
+             */
+            'code' => [
+                // `sometimes`, the same as `decimals` below: a caller that does
+                // not send the field keeps the code the row holds rather than
+                // having it wiped. The form always sends it.
+                'sometimes', 'required', 'string', 'max:8', 'regex:/^[A-Za-z][A-Za-z0-9]*$/',
+                Rule::unique('currencies', 'code')->ignore($currency->id),
+            ],
             'name' => ['required', 'string', 'max:255'],
             'symbol' => ['nullable', 'string', 'max:8'],
             // `sometimes`, so a caller that does not send the field keeps what
@@ -240,7 +258,13 @@ class CurrencyController extends Controller
 
         $places = (int) ($fields['decimals'] ?? $currency->decimals);
 
+        // Before the row changes, so the references can still be found by it.
+        $code = strtoupper($fields['code'] ?? $currency->code);
+
+        $renamedFrom = $this->renameCode($currency, $code);
+
         $currency->update([
+            'code' => $code,
             'name' => $fields['name'],
             'symbol' => ($fields['symbol'] ?? '') ?: null,
 
@@ -268,13 +292,76 @@ class CurrencyController extends Controller
             'is_active' => $isBase || $request->boolean('is_active'),
         ]);
 
+        /*
+         * ⚠️ A rename is named as one in the log.
+         *
+         * "Changed the currency IQD" would leave no record anywhere that it was
+         * called IRQ yesterday — and somebody reading an old printed purchase
+         * six months from now needs to be able to find out why its code does
+         * not match the shop's.
+         */
         $this->logger->log(
             action: 'update', module: 'settings',
-            description: __('Changed the currency :code', ['code' => $currency->code]),
+            description: $renamedFrom === null
+                ? __('Changed the currency :code', ['code' => $currency->code])
+                : __('Renamed the currency :from to :to', ['from' => $renamedFrom, 'to' => $currency->code]),
             user: $request->user(),
         );
 
-        return back()->with('success', __('Currency saved'));
+        return back()->with('success', $renamedFrom === null
+            ? __('Currency saved')
+            : __(':from is now :to everywhere.', ['from' => $renamedFrom, 'to' => $currency->code]));
+    }
+
+    /**
+     * Carry every reference to a currency's code across to its new one.
+     *
+     * Returns the old code when something was renamed, and null when it did not
+     * change.
+     *
+     * ⚠️ **A code is not a label, it is a KEY.** Three things store one, and a
+     * rename that moved only the currency row would break all three:
+     *
+     *   `settings.currency_base` — which currency the books are kept in. Left
+     *   behind, `Money::base()` finds no row and falls back to an ASSUMED
+     *   currency, so every figure in the shop is read against a rate nobody
+     *   set.
+     *
+     *   `users.display_currency` — each reader's lens. Left behind, everybody
+     *   silently drops back to the base and has to choose again.
+     *
+     *   `purchase_items.entered_currency` — frozen on historical lines. Left
+     *   behind, `PurchaseItem::typedIn()` returns null and the printed document
+     *   quietly loses its "typed as $120" note. Not corrupt, but a fact about
+     *   the purchase gone from the paperwork.
+     *
+     * ⚠️ Renaming the history is the RIGHT answer, and worth being clear about.
+     * This is not rewriting what happened: a line that said `IRQ` meant the
+     * dinar, and it still means the dinar. Only the shop's name for it has been
+     * corrected. Leaving those lines behind would point them at a currency that
+     * no longer exists.
+     *
+     * One transaction, because a half-done rename is worse than either state.
+     */
+    private function renameCode(Currency $currency, string $to): ?string
+    {
+        $from = $currency->code;
+
+        if ($from === $to) {
+            return null;
+        }
+
+        DB::transaction(function () use ($from, $to) {
+            if ((string) setting('currency_base', '') === $from) {
+                Setting::put('currency_base', $to);
+            }
+
+            User::where('display_currency', $from)->update(['display_currency' => $to]);
+
+            PurchaseItem::where('entered_currency', $from)->update(['entered_currency' => $to]);
+        });
+
+        return $from;
     }
 
     /**

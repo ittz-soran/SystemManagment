@@ -165,6 +165,34 @@
                     </div>
 
                     <div class="modal-body d-flex flex-column gap-3">
+                        {{--
+                            **Soran, 2026-09-17:** *"fix currency code"*. His
+                            base was coded IRQ; the dinar's code is IQD.
+
+                            ⚠️ Until now a code could only be chosen when the
+                            currency was created, so a typo could only be undone
+                            by deleting the currency — and the base cannot be
+                            deleted, because the books are kept in it. A shop was
+                            stuck with it forever.
+
+                            Renaming carries the code across everything that
+                            stores one: the base setting, every reader's lens and
+                            the frozen code on historical purchase lines. See
+                            CurrencyController::renameCode().
+                        --}}
+                        <div>
+                            <label for="code-{{ $currency->id }}" class="form-label">{{ __('Code') }}</label>
+                            <input id="code-{{ $currency->id }}" name="code" class="form-control app-code" dir="ltr"
+                                   value="{{ old('code', $currency->code) }}" maxlength="8" required>
+                            <div class="form-text">
+                                @if($isBase)
+                                    {{ __('The books are kept in this. Changing it renames it everywhere — on old purchases too — and changes nothing about what is written down.') }}
+                                @else
+                                    {{ __('Changing it renames it everywhere, including on purchases already entered in it.') }}
+                                @endif
+                            </div>
+                        </div>
+
                         <div>
                             <label for="name-{{ $currency->id }}" class="form-label">{{ __('Name') }}</label>
                             <input id="name-{{ $currency->id }}" name="name" class="form-control"
