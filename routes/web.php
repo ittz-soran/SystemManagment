@@ -105,6 +105,18 @@ Route::middleware(['auth'])->group(function () {
     Route::post('notifications/seen', [NotificationController::class, 'seen'])->name('notifications.seen');
 
     /*
+     * A phone asking to be buzzed with the app closed — Soran, 2026-09-17.
+     *
+     * No permission, like the rest of the bell: every signed-in person may ask
+     * for their own device to be notified, and what it is allowed to say is
+     * decided per entry by the same rules the bell uses.
+     */
+    Route::post('notifications/device', [NotificationController::class, 'subscribe'])
+        ->name('notifications.subscribe');
+    Route::delete('notifications/device', [NotificationController::class, 'unsubscribe'])
+        ->name('notifications.unsubscribe');
+
+    /*
      * The remembrances — أذكار — asked for 2026-09-15.
      *
      * No permission and nothing to save: the list belongs to the shop and is

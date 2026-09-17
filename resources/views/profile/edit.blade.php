@@ -170,6 +170,74 @@
                             </div>
                         @endforeach
 
+                        {{--
+                            **Soran, 2026-09-17:** *"i added to home screen in
+                            iphone but not recived notifications"*.
+
+                            ⚠️ The tiers above are the BELL. These are the
+                            phone, and they are deliberately a different
+                            setting: a badge and a buzz in a pocket at eleven at
+                            night are not the same event.
+                        --}}
+                        <hr class="my-4">
+
+                        {{--
+                            ⚠️ **iOS will not ask unless a person taps.**
+                            Safari on iPhone refuses `Notification.requestPermission()`
+                            unless it comes from a real tap inside an app added
+                            to the Home Screen — a page that asked on load would
+                            be silently denied, which is exactly what "I added
+                            it to my home screen but got nothing" looks like.
+
+                            So it is a button, it says which state this device
+                            is in, and the script explains rather than failing
+                            quietly when the device cannot do it at all.
+                        --}}
+                        <div class="mb-3" id="push-device"
+                             data-key="{{ config('push.public_key') }}"
+                             data-subscribe="{{ route('notifications.subscribe') }}"
+                             data-unsubscribe="{{ route('notifications.unsubscribe') }}"
+                             data-on="{{ __('This device is on') }}"
+                             data-off="{{ __('Turn on notifications on this device') }}"
+                             data-blocked="{{ __('Your phone is blocking notifications for this app. Turn them back on in Settings → Notifications.') }}"
+                             data-install="{{ __('On iPhone this works only from the app on your Home Screen — open it from there, not from Safari.') }}"
+                             data-unsupported="{{ __('This device cannot receive notifications.') }}"
+                             data-slow="{{ __('Could not reach the notification service. Check the connection and try again.') }}"
+                             data-unset="{{ __('The shop has no notification keys yet. An admin runs: php artisan push:keys') }}">
+
+                            <button type="button" class="btn btn-outline-primary" id="push-toggle">
+                                <i class="bi bi-bell me-1" aria-hidden="true"></i><span id="push-label">{{ __('Turn on notifications on this device') }}</span>
+                            </button>
+
+                            <div class="form-text" id="push-note">
+                                {{ __('Lets the shop reach this device when the app is closed.') }}
+                            </div>
+                        </div>
+
+                        @php($phone = App\Support\Notifications::pushTiersFor(auth()->user()))
+
+                        @foreach(App\Support\Notifications::TIERS as $tier)
+                            @continue($tier === App\Support\Notifications::ROUTINE)
+                            @php($locked = $tier === App\Support\Notifications::ALERT)
+
+                            <div class="mb-2 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="push-{{ $tier }}" name="push_tiers[]" value="{{ $tier }}"
+                                       @checked(in_array($tier, $phone, true))
+                                       @disabled($locked)>
+                                <label class="form-check-label" for="push-{{ $tier }}">
+                                    {{ __('Send :tier to my phone', ['tier' => mb_strtolower(App\Support\Notifications::label($tier))]) }}
+                                    @if($locked)
+                                        <span class="badge text-bg-secondary ms-1">{{ __('Always on') }}</span>
+                                    @endif
+                                </label>
+                            </div>
+                        @endforeach
+
+                        {{-- Always posted, so unticking the last one is an
+                             answer rather than a form that did not ask. --}}
+                        <input type="hidden" name="push_tiers[]" value="alert">
+
                         <button class="btn btn-primary">{{ __('Save notifications') }}</button>
                     </form>
 

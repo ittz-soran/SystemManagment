@@ -116,6 +116,20 @@ class PreferenceController extends Controller
             $changes['adhkar_every'] = (int) $request->input('adhkar_every');
         }
 
+        /*
+         * How loud the PHONE is, kept separate from the bell — a number on a
+         * badge and a buzz in a pocket at eleven at night are not the same
+         * event. Absent means "this form did not ask", the same rule as above.
+         */
+        if ($request->has('push_tiers')) {
+            $wantedOnPhone = collect(Notifications::TIERS)
+                ->filter(fn (string $tier) => $tier === Notifications::ALERT
+                    || in_array($tier, (array) $request->input('push_tiers', []), true))
+                ->values();
+
+            $changes['push_tiers'] = $wantedOnPhone->implode(',');
+        }
+
         $user->forceFill($changes)->save();
 
         return back()->with('success', __('Preferences saved'));
