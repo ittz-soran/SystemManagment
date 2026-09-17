@@ -2073,3 +2073,181 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.visibilityState === 'visible') due();
     });
 });
+
+/**
+ * Registering the service worker.
+ *
+ * ⚠️ **This was missing, and it is why nothing worked.** `sw.js` has been
+ * served since Add to Home Screen was built, and nothing ever registered it. A
+ * worker that is served and never registered does not exist as far as the
+ * browser is concerned: no push can arrive, because `PushManager` lives on the
+ * registration. Soran added the shop to his iPhone and got nothing, and this is
+ * the reason.
+ *
+ * Registered on load rather than behind a tap, because registering is not
+ * asking for anything — no permission, no prompt. Only `Notification.request`
+ * needs the gesture, and that stays behind its button.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const url = document.querySelector('meta[name="service-worker"]')?.content;
+
+    if (! url || ! ('serviceWorker' in navigator)) return;
+
+    // Failing is quiet on purpose: a shop served over plain http in a test
+    // environment cannot register one, and that must not put an error in front
+    // of a shopkeeper who never asked for notifications.
+    navigator.serviceWorker.register(url).catch(() => {});
+});
+
+/**
+ * Asking a phone to let the shop reach it — Soran, 2026-09-17.
+ *
+ * *"i added to home screen in iphone but not recived notifications, for ex
+ * edited an product success, should recived notify to app on iphone"*.
+ *
+ * ⚠️ **iOS will not ask unless a person taps, inside an installed app.** Safari
+ * on iPhone refuses `Notification.requestPermission()` from anywhere else —
+ * page load, a timer, an iframe — and denies it without a word. A shop that
+ * asked on load would look exactly like a shop whose notifications are broken,
+ * which is what Soran was looking at.
+ *
+ * So: a button, and a sentence for every way this can fail, because "nothing
+ * happened" is the one answer a shopkeeper cannot act on.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('push-device');
+
+    if (! box) return;
+
+    const button = document.getElementById('push-toggle');
+    const label = document.getElementById('push-label');
+    const note = document.getElementById('push-note');
+    const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    const say = (message) => { note.textContent = message; };
+
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+    /*
+     * ⚠️ On iOS, installed means `display-mode: standalone` OR the old
+     * `navigator.standalone`. Checked because iOS reports PushManager as
+     * present in a Safari tab and then refuses everything — telling somebody to
+     * open it from the Home Screen is the only useful thing to say.
+     */
+    const installed = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    if (! supported) {
+        button.disabled = true;
+        say(box.dataset.unsupported);
+
+        return;
+    }
+
+    if (! box.dataset.key) {
+        button.disabled = true;
+        say(box.dataset.unset);
+
+        return;
+    }
+
+    if (iOS && ! installed) {
+        button.disabled = true;
+        say(box.dataset.install);
+
+        return;
+    }
+
+    /** The key travels as base64url and the browser wants bytes. */
+    const asBytes = (base64) => {
+        const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4))
+            .replace(/-/g, '+').replace(/_/g, '/');
+        const raw = window.atob(padded);
+
+        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+    };
+
+    const paint = (on) => {
+        label.textContent = on ? box.dataset.on : box.dataset.off;
+        button.classList.toggle('btn-primary', on);
+        button.classList.toggle('btn-outline-primary', ! on);
+    };
+
+    const current = async () => (await navigator.serviceWorker.ready).pushManager.getSubscription();
+
+    current().then((subscription) => paint(Boolean(subscription))).catch(() => {});
+
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const existing = await registration.pushManager.getSubscription();
+
+            if (existing) {
+                await fetch(box.dataset.unsubscribe, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint: existing.endpoint }),
+                });
+
+                await existing.unsubscribe();
+                paint(false);
+                say('');
+
+                return;
+            }
+
+            // ⚠️ Inside the click, not before it. iOS treats the gesture as
+            // spent the moment anything awaits too long before asking.
+            const allowed = await Notification.requestPermission();
+
+            if (allowed !== 'granted') {
+                say(box.dataset.blocked);
+
+                return;
+            }
+
+            /*
+             * ⚠️ **`subscribe()` can hang forever.** It is the browser calling
+             * Apple's or Google's push service, and on a connection that
+             * cannot reach it the promise simply never settles — the button
+             * stays dead and nothing is said, which is the exact "nothing
+             * happened" this whole screen exists to end. Measured: twenty
+             * seconds and still waiting, where a reachable service answers in
+             * well under one.
+             */
+            const subscription = await Promise.race([
+                registration.pushManager.subscribe({
+                    // Required, and required to be true: a push nobody sees is
+                    // not allowed by any browser that implements this.
+                    userVisibleOnly: true,
+                    applicationServerKey: asBytes(box.dataset.key),
+                }),
+                new Promise((resolve, reject) => {
+                    window.setTimeout(() => reject(new Error('slow')), 20000);
+                }),
+            ]);
+
+            await fetch(box.dataset.subscribe, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify(subscription.toJSON()),
+            });
+
+            paint(true);
+            say('');
+        } catch (error) {
+            // Whatever went wrong, the shopkeeper gets a sentence rather than a
+            // button that did nothing. Not being able to reach the service is
+            // worth its own sentence: it is the one failure that is fixed by
+            // trying again, and telling somebody to go and unblock a
+            // permission they never blocked would send them the wrong way.
+            say(error?.message === 'slow' ? box.dataset.slow : box.dataset.blocked);
+        } finally {
+            button.disabled = false;
+        }
+    });
+});

@@ -32,3 +32,23 @@ $backup = Schedule::command('backup:run')
 $backups->isWeekly()
     ? $backup->weeklyOn($backups->scheduledWeekday(), $backups->scheduledTime())
     : $backup->dailyAt($backups->scheduledTime());
+
+/*
+ * Buzzing the phones that asked — Soran, 2026-09-17.
+ *
+ * ⚠️ On the cron a shop ALREADY has. Backups needed one crontab line and this
+ * rides on the same one, so a shopkeeper has nothing new to set up:
+ *
+ *     * * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1
+ *
+ * Every minute, because "somebody signed into your account" is worth a minute
+ * and not worth five. It costs one indexed query when nothing has happened, and
+ * returns immediately when the shop has no keys or no phones.
+ *
+ * withoutOverlapping, because a push service being slow must not let two runs
+ * read the same watermark and send the same buzz twice.
+ */
+Schedule::command('push:send')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();

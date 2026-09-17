@@ -141,6 +141,65 @@ class InstallController extends Controller
         self.addEventListener('install', () => self.skipWaiting());
         self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
+        /*
+         * A message from the shop, arriving with the app closed.
+         *
+         * ⚠️ On iOS this ONLY works for an app added to the Home Screen. Safari
+         * tabs get nothing, whatever permission says — which is why the button
+         * that asks for permission lives behind a check for standalone mode.
+         *
+         * Everything shown comes from the payload, which the server encrypted:
+         * the push service carried it and could not read it.
+         */
+        self.addEventListener('push', (event) => {
+            let news = {};
+
+            try {
+                news = event.data ? event.data.json() : {};
+            } catch (e) {
+                news = {};
+            }
+
+            event.waitUntil(self.registration.showNotification(news.title || 'Shop', {
+                body: news.body || '',
+                // One tag, so a second message REPLACES the first on the lock
+                // screen rather than stacking. A shopkeeper should find one
+                // current notification, not eleven from this morning.
+                tag: news.tag || 'shop-news',
+                renotify: true,
+                icon: '{$base}/app-icon-192.png',
+                badge: '{$base}/app-icon-192.png',
+                data: { url: news.url || '{$base}/' },
+            }));
+        });
+
+        /*
+         * Tapping it opens the shop rather than a second copy of it.
+         *
+         * A shopkeeper with the app already open behind the lock screen should
+         * be taken to THAT window, not given a new one — otherwise a half-typed
+         * sale is left behind in a window nobody can find.
+         */
+        self.addEventListener('notificationclick', (event) => {
+            event.notification.close();
+
+            const wanted = (event.notification.data && event.notification.data.url) || '{$base}/';
+
+            event.waitUntil(
+                self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+                    for (const window of windows) {
+                        if (window.url.indexOf('{$base}/') !== -1 && 'focus' in window) {
+                            window.navigate && window.navigate(wanted);
+
+                            return window.focus();
+                        }
+                    }
+
+                    return self.clients.openWindow(wanted);
+                })
+            );
+        });
+
         self.addEventListener('fetch', (event) => {
             const url = new URL(event.request.url);
 

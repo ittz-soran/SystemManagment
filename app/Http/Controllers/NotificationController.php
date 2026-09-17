@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\PushSubscription;
 use App\Services\NotificationFeed;
 use App\Support\Notifications;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -73,6 +75,54 @@ class NotificationController extends Controller
                 'url' => Notifications::linkFor($log->module, $log->action, $log->record_id),
             ])->all(),
         ]);
+    }
+
+    /**
+     * This device would like to be buzzed — Soran, 2026-09-17.
+     *
+     * ⚠️ Keyed by the endpoint, so the same phone subscribing twice updates one
+     * row rather than making two. Browsers re-subscribe freely — after an
+     * update, after clearing data — and a table of duplicates would mean a
+     * shopkeeper getting the same buzz three times.
+     */
+    public function subscribe(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'endpoint' => ['required', 'string', 'max:1000', 'url'],
+            'keys.p256dh' => ['required', 'string', 'max:255'],
+            'keys.auth' => ['required', 'string', 'max:255'],
+        ]);
+
+        PushSubscription::updateOrCreate(
+            ['endpoint_hash' => PushSubscription::hashFor($data['endpoint'])],
+            [
+                'user_id' => $request->user()->id,
+                'endpoint' => $data['endpoint'],
+                'p256dh' => $data['keys']['p256dh'],
+                'auth' => $data['keys']['auth'],
+                // Trimmed hard: it is only ever shown back to somebody deciding
+                // which of their own devices to switch off.
+                'device' => Str::limit((string) $request->userAgent(), 190, ''),
+            ],
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** And would like to stop. */
+    public function unsubscribe(Request $request): JsonResponse
+    {
+        $endpoint = (string) $request->input('endpoint');
+
+        if ($endpoint !== '') {
+            PushSubscription::where('endpoint_hash', PushSubscription::hashFor($endpoint))
+                // ⚠️ Their own devices only. An endpoint is not a secret worth
+                // much, but it is not a licence to unsubscribe somebody else.
+                ->where('user_id', $request->user()->id)
+                ->delete();
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     /** Opening the panel is reading it. */

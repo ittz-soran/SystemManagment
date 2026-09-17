@@ -24,6 +24,15 @@
          `display: standalone` unless told separately — hence the two
          apple-prefixed tags, which are old and still the only way. --}}
     <link rel="manifest" href="{{ route('install.manifest') }}">
+
+    {{-- ⚠️ The worker's URL, because NOTHING WAS EVER REGISTERING IT.
+
+         `sw.js` has been served since Add to Home Screen was built, and no page
+         ever called `navigator.serviceWorker.register()`. A worker that is
+         served and never registered does nothing at all — which is why Soran
+         could add the shop to his Home Screen on 2026-09-17 and receive
+         nothing: there was no worker to receive it. --}}
+    <meta name="service-worker" content="{{ route('install.worker') }}">
     <meta name="theme-color" content="{{ App\Http\Controllers\InstallController::brandColour() }}">
     <link rel="apple-touch-icon" href="{{ route('install.icon', ['size' => 192, 'v' => app(App\Http\Controllers\InstallController::class)->iconVersion()]) }}">
     <meta name="apple-mobile-web-app-capable" content="yes">

@@ -175,6 +175,33 @@ final class Notifications
     }
 
     /**
+     * The tiers this person wants sent to their PHONE.
+     *
+     * ⚠️ Read from its own column, not the bell's. A number on a badge and a
+     * buzz in a pocket at eleven at night are not the same event, and somebody
+     * may well want everything on the bell and only the serious things on the
+     * phone.
+     *
+     * Alerts are here for the same reason they are on the bell: somebody who
+     * has turned the noise down should still be told their own account was
+     * signed into from an address they do not use.
+     *
+     * @return list<string>
+     */
+    public static function pushTiersFor(User $user): array
+    {
+        $stored = (string) ($user->getAttributes()['push_tiers'] ?? self::DEFAULT_TIERS);
+
+        return array_values(array_unique([
+            self::ALERT,
+            ...array_filter(
+                array_map(trim(...), explode(',', $stored)),
+                fn (string $tier) => in_array($tier, self::TIERS, true),
+            ),
+        ]));
+    }
+
+    /**
      * The tiers this person wants, always including alerts.
      *
      * ⚠️ Alerts are not optional. Somebody who has turned everything off should
