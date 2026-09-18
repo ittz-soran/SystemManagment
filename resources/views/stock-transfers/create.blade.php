@@ -202,6 +202,33 @@
             sum();
         }
 
+        /**
+         * ⚠️ **Only the rows somebody typed in are sent.**
+         *
+         * This list has a box per product in the room, so a room holding 306
+         * products posts 612 fields. PHP's max_input_vars is 1000 by default:
+         * a room with 500 products would go over it and the rest of the POST
+         * would be DROPPED WITHOUT A WORD — a transfer that quietly moves the
+         * wrong things, which is far worse than a page of red text.
+         *
+         * A disabled input is not submitted, which is the whole trick. The
+         * server drops empty rows too and is the one that must be right; this
+         * is what keeps the request small enough to arrive intact.
+         */
+        document.getElementById('transfer-form').addEventListener('submit', () => {
+            rows.querySelectorAll('input[data-role="move"]').forEach((box) => {
+                if (Number(box.value) > 0) return;
+
+                box.disabled = true;
+
+                // The product id that travels with it, or the row would arrive
+                // as a product with no quantity rather than not at all.
+                const id = box.parentElement.querySelector('input[type="hidden"]');
+
+                if (id) id.disabled = true;
+            });
+        });
+
         from.addEventListener('change', async () => {
             const url = from.dataset.stockUrl.replace('__ROOM__', from.value);
 

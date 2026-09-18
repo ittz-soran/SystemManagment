@@ -490,6 +490,94 @@ class StockRoomTest extends TestCase
         $this->assertSame(0, $this->heldIn($this->back), 'A refused move still moved stock.');
     }
 
+    /**
+     * ⚠️ **Soran, 2026-09-18: a move answered with 305 error messages.**
+     *
+     * This screen is not a cart you add to — it lists EVERY product the room
+     * holds, with a quantity box on each, and posts all of them. He typed one
+     * number in a room holding 306 products and got back:
+     *
+     *     The lines.1.quantity field must be at least 1.
+     *     The lines.2.quantity field must be at least 1.
+     *     … 303 more …
+     *
+     * A blank box means "not this one", which is the ordinary way to use a list
+     * like this. Reproduced here at his exact size, because the fault only
+     * shows up once the room holds more than the one product a test usually
+     * makes.
+     */
+    public function test_a_room_full_of_untouched_rows_is_not_a_page_of_errors(): void
+    {
+        $this->buy(10, 10_000);
+
+        $lines = [['product_id' => $this->product->id, 'quantity' => 3]];
+
+        for ($i = 0; $i < 305; $i++) {
+            $lines[] = ['product_id' => $this->product->id, 'quantity' => 0];
+        }
+
+        $this->actingAs($this->user)->post(route('stock-transfers.store'), [
+            'from_room_id' => $this->main->id,
+            'to_room_id' => $this->back->id,
+            'transferred_at' => now()->toDateString(),
+            'lines' => $lines,
+        ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        // And it moved what was typed, not 306 lines of nothing.
+        $this->assertSame(3, $this->heldIn($this->back));
+        $this->assertSame(7, $this->heldIn($this->main));
+        $this->assertSame(1, StockTransfer::latest('id')->firstOrFail()->items()->count());
+    }
+
+    /**
+     * Touching nothing at all still has to say something useful — one sentence
+     * naming what to do, not silence and not a list.
+     */
+    public function test_moving_nothing_says_so_once(): void
+    {
+        $this->buy(10, 10_000);
+
+        $lines = [];
+
+        for ($i = 0; $i < 20; $i++) {
+            $lines[] = ['product_id' => $this->product->id, 'quantity' => 0];
+        }
+
+        $response = $this->actingAs($this->user)->post(route('stock-transfers.store'), [
+            'from_room_id' => $this->main->id,
+            'to_room_id' => $this->back->id,
+            'transferred_at' => now()->toDateString(),
+            'lines' => $lines,
+        ])->assertSessionHasErrors('lines');
+
+        $bag = $response->baseResponse->getSession()->get('errors');
+        $messages = is_object($bag) ? $bag->getBag('default')->all() : array_merge(...array_values($bag['default']['messages'] ?? [[]]));
+
+        $this->assertCount(1, $messages, 'One instruction, not one message per untouched row.');
+        $this->assertStringContainsString('at least one product', $messages[0]);
+        $this->assertSame(0, $this->heldIn($this->back));
+    }
+
+    /**
+     * ⚠️ The form must not post a field per product either.
+     *
+     * A room with 500 products would send more than PHP's default
+     * max_input_vars of 1000, and the overflow is dropped WITHOUT A WORD — a
+     * transfer that quietly moves the wrong things. A disabled input is not
+     * submitted, which is what keeps the request small enough to arrive whole.
+     */
+    public function test_the_form_sends_only_the_rows_somebody_typed_in(): void
+    {
+        $html = $this->actingAs($this->user)->get(route('stock-transfers.create'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString("getElementById('transfer-form').addEventListener('submit'", $html);
+        $this->assertStringContainsString('box.disabled = true', $html);
+    }
+
     /** Moving between the same room is refused before anything is written. */
     public function test_the_form_refuses_one_room_to_itself(): void
     {
