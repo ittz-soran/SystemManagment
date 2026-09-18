@@ -67,6 +67,34 @@ class StockTransferController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        /*
+         * ⚠️ **A row nobody typed in is not a mistake — Soran, 2026-09-18.**
+         *
+         * This screen is not a cart you add to; it lists EVERY product the room
+         * holds, with a quantity box on each, and posts all of them. Type 3
+         * against one product in a room holding 306 and the other 305 arrive as
+         * zero — so `min:1` on every row answered with 305 error messages:
+         *
+         *     The lines.1.quantity field must be at least 1.
+         *     The lines.2.quantity field must be at least 1.
+         *     … 303 more …
+         *
+         * with the one real instruction nowhere in sight. A blank box means "not
+         * this one", which is the ordinary way to use a list like this, so the
+         * empty rows are dropped before anything is judged. What is left is
+         * what the shopkeeper actually asked to move, and `lines` being empty
+         * after that has one honest sentence of its own.
+         *
+         * The rule below stays as the backstop: a row that survives this and
+         * still says zero was not typed by this form.
+         */
+        $request->merge([
+            'lines' => collect((array) $request->input('lines', []))
+                ->filter(fn ($line) => is_array($line) && (int) ($line['quantity'] ?? 0) > 0)
+                ->values()
+                ->all(),
+        ]);
+
         $data = $request->validate([
             'from_room_id' => ['required', Rule::exists('stock_rooms', 'id')->whereNull('deleted_at')],
             'to_room_id' => ['required', 'different:from_room_id', Rule::exists('stock_rooms', 'id')->whereNull('deleted_at')],
@@ -77,6 +105,8 @@ class StockTransferController extends Controller
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
         ], [
             'to_room_id.different' => __('Choose two different rooms.'),
+            'lines.required' => __('Type how many to move against at least one product.'),
+            'lines.min' => __('Type how many to move against at least one product.'),
         ]);
 
         try {
