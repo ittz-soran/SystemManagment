@@ -7,6 +7,7 @@ use App\Models\Currency;
 use App\Models\HeldCart;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\Money;
@@ -300,6 +301,71 @@ class PurchaseCurrencyTest extends TestCase
         }
     }
 
+    /**
+     * ⚠️ **A new purchase never opened in dinars — Soran, 2026-09-18:
+     * *"purchase always in dinar or system selected which currency use it"*.**
+     *
+     * The screen worked out its currency from history, and its fallback was
+     * `$foreign->first()` — a list that EXCLUDES the base. So a shop with USD
+     * switched on for reading prices opened every purchase in dollars, whether
+     * or not a single invoice had ever been written in one.
+     *
+     * Settings → "Purchases are written in" is the shop saying so outright, and
+     * blank means its own money.
+     */
+    public function test_a_new_purchase_opens_in_the_shops_own_money_by_default(): void
+    {
+        $this->lira();
+
+        Setting::query()->updateOrCreate(['key' => 'purchase_currency'], ['value' => null]);
+        cache()->flush();
+
+        $html = $this->actingAs($this->admin)->get(route('purchases.create'))->assertOk()->getContent();
+
+        $this->assertStringContainsString(
+            '<option value="IQD" selected',
+            $html,
+            'A new purchase opened in a foreign currency nobody asked for.'
+        );
+    }
+
+    /** And it opens on whatever the shop chose, when the shop chose one. */
+    public function test_a_shop_that_buys_in_dollars_says_so_once_in_settings(): void
+    {
+        Setting::query()->updateOrCreate(['key' => 'purchase_currency'], ['value' => 'USD']);
+        cache()->flush();
+
+        $html = $this->actingAs($this->admin)->get(route('purchases.create'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('<option value="USD" selected', $html);
+    }
+
+    /**
+     * ⚠️ Still only a default. Reopening a dollar invoice must show dollars
+     * whatever Settings says, or its lines would come back read as dinars and
+     * the money would change on a screen nobody typed in.
+     */
+    public function test_the_setting_never_overrules_what_an_invoice_was_written_in(): void
+    {
+        Setting::query()->updateOrCreate(['key' => 'purchase_currency'], ['value' => null]);
+        cache()->flush();
+
+        $this->buy([[
+            'product_id' => $this->product->id,
+            'quantity' => 1,
+            'unit_price' => 13_200,
+            'entered_currency' => 'USD',
+            'entered_amount' => 1_000,
+        ]], rate: 1_320)->assertRedirect();
+
+        $purchase = Purchase::latest('id')->firstOrFail();
+
+        $html = $this->actingAs($this->admin)->get(route('purchases.edit', $purchase))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('<option value="USD" selected', $html);
+    }
+
     /** A currency switched off in Settings is not a currency you can type in. */
     public function test_a_currency_that_is_switched_off_is_not_offered_and_is_refused(): void
     {
@@ -319,17 +385,43 @@ class PurchaseCurrencyTest extends TestCase
     }
 
     /**
+     * §2b: "An invoice in the base currency records no rate at all." Now that a
+     * new purchase opens in the shop's own money, that is the ordinary case
+     * rather than a corner of it.
+     */
+    public function test_an_invoice_in_the_shops_own_money_carries_no_rate(): void
+    {
+        Setting::query()->updateOrCreate(['key' => 'purchase_currency'], ['value' => null]);
+        cache()->flush();
+
+        $this->actingAs($this->admin)
+            ->get(route('purchases.create'))
+            ->assertOk()
+            ->assertViewHas('documentCurrency', Money::base()->code)
+            ->assertViewHas('documentRate', 0);
+    }
+
+    /**
      * The rate box starts at what Settings holds, in WHOLE base units.
      *
      * `purchases.exchange_rate` has always been a whole number of dinars per
      * one foreign unit, and every rate already recorded means that. The
      * currencies table can carry 1,320.125 for reading; this box cannot, and
      * widening it would change the meaning of the column underneath.
+     *
+     * ⚠️ The shop is set to buy in dollars first, which it did not have to be
+     * before: the screen used to open on a foreign currency of its own accord,
+     * and this test was reading that. An invoice in the base currency carries
+     * no rate at all — see the test below — so asking what the rate box holds
+     * only means something once the invoice is in something else.
      */
     public function test_the_rate_box_starts_at_the_saved_rate(): void
     {
         Currency::where('code', 'USD')->firstOrFail()->update(['rate' => 1_450 * Money::RATE_SCALE]);
         Currency::flushCache();
+
+        Setting::query()->updateOrCreate(['key' => 'purchase_currency'], ['value' => 'USD']);
+        cache()->flush();
 
         $this->actingAs($this->admin)
             ->get(route('purchases.create'))

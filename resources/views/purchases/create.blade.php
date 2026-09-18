@@ -118,6 +118,35 @@
                             <div class="form-text">{{ __('Their number on their paperwork. Useful when reconciling.') }}</div>
                         </div>
 
+                        {{-- Where the delivery went — Soran, 2026-09-18:
+                             "add purchase directly to other rooms, but sale
+                             always in main".
+
+                             ⚠️ Shown only when the shop HAS another room. A
+                             shop with one room would otherwise get a control
+                             with one answer, which is a question it never
+                             needed to be asked. --}}
+                        @if($rooms->count() > 1)
+                            <div class="mb-3">
+                                <label for="room_id" class="form-label">{{ __('Goods arrive in') }}</label>
+                                @php
+                                    $defaultRoom = $rooms->firstWhere('is_main', true) ?? $rooms->first();
+                                    $chosenRoom = (int) old('room_id', $editing ? $purchase->room_id : $defaultRoom?->id);
+                                @endphp
+                                <select id="room_id" name="room_id" class="form-select">
+                                    @foreach($rooms as $room)
+                                        <option value="{{ $room->id }}" @selected($chosenRoom === $room->id)>
+                                            {{ $room->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                {{-- The reason the old rule existed, said out
+                                     loud rather than enforced. --}}
+                                <div class="form-text">{{ __('Stock in another room cannot be sold at the till until it is moved.') }}</div>
+                                @error('room_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
+                        @endif
+
                         <div class="mb-3">
                             <label for="purchase_date" class="form-label">{{ __('Date') }}</label>
                             <input id="purchase_date" type="date" name="purchase_date" class="form-control"

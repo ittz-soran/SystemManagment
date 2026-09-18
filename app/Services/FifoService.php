@@ -39,6 +39,7 @@ class FifoService
         int $sequence,
         User $user,
         ?int $purchaseItemId = null,
+        ?int $roomId = null,
     ): StockBatch {
         $this->assertInTransaction();
 
@@ -46,18 +47,26 @@ class FifoService
             'product_id' => $product->id,
 
             /*
-             * ⚠️ Goods arrive in the main room, and that is Soran's rule rather
-             * than a default I chose: *"when purchased book at main storage
-             * then do transfer to another storage"*. A purchase that could land
-             * straight in a back room would be stock the till cannot see, booked
-             * by somebody who thought they were putting it on the shelf.
+             * Where the goods physically went.
              *
-             * There is no parameter for this on purpose. The only stock that
-             * arrives anywhere else is stock a transfer carried there, and a
-             * transfer builds its own layer — see TransferService, which has to
-             * write the parent link and the paired movements anyway.
+             * ⚠️ **This was main-room-only, and Soran changed his own rule —
+             * 2026-09-18: "add purchase directly to other rooms, but sale
+             * always in main".** The earlier rule was his too — *"when
+             * purchased book at main storage then do transfer to another
+             * storage"* — and the reason behind it has not gone away: stock
+             * booked into a back room is stock the till cannot sell until
+             * somebody carries it forward. A delivery that goes straight to the
+             * lock-up now says so on the purchase instead of being booked to
+             * the shop floor and moved on paper afterwards.
+             *
+             * The SELLING side is untouched: FifoService::consume still
+             * defaults to the main room, so nothing about what the till can
+             * reach has changed.
+             *
+             * Defaulted rather than required, because a caller with no opinion
+             * — a stock adjustment correcting the shelf — means the shop floor.
              */
-            'room_id' => StockRoom::main()->id,
+            'room_id' => $roomId ?? StockRoom::main()->id,
             'source_type' => $sourceType,
             'source_id' => $sourceId,
             'purchase_item_id' => $purchaseItemId,
