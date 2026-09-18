@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'document_no', 'supplier_id', 'user_id', 'supplier_invoice_no',
+    'document_no', 'supplier_id', 'room_id', 'user_id', 'supplier_invoice_no',
     'total_amount', 'discount_amount', 'grand_total', 'status',
     'exchange_rate', 'purchase_date',
 ])]
@@ -56,6 +56,12 @@ class Purchase extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    /** Where the delivery was booked. Null is the shop floor. */
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(StockRoom::class, 'room_id');
     }
 
     public function returns(): HasMany

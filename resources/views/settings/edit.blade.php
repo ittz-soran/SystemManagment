@@ -172,6 +172,24 @@
                                 <div class="form-text">{{ __('Pre-fills the purchase form; editable per purchase.') }}</div>
                             </div>
                             <div class="col-6">
+                                <label for="purchase_currency" class="form-label">{{ __('Purchases are written in') }}</label>
+                                @php
+                                    $purchaseCurrency = old('purchase_currency', setting('purchase_currency'));
+                                    $purchaseChoices = collect(App\Models\Currency::cached())
+                                        ->filter(fn ($currency) => $currency->is_active);
+                                @endphp
+                                <select id="purchase_currency" name="purchase_currency" class="form-select">
+                                    <option value="">{{ __('The shop\'s own money') }}</option>
+                                    @foreach($purchaseChoices as $code => $currency)
+                                        <option value="{{ $code }}" @selected($purchaseCurrency === $code)>
+                                            {{ $currency->name }} ({{ $code }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">{{ __('Which currency a new purchase opens in; still changeable on the purchase itself.') }}</div>
+                                @error('purchase_currency')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-6">
                                 <label for="low_stock_threshold" class="form-label">{{ __('Low stock threshold') }}</label>
                                 <input id="low_stock_threshold" type="number" step="1" min="0" name="low_stock_threshold"
                                        class="form-control text-end" dir="ltr"

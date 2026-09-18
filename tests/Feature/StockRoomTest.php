@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientStockException;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
@@ -561,21 +562,88 @@ class StockRoomTest extends TestCase
     }
 
     /**
-     * ⚠️ The form must not post a field per product either.
+     * ⚠️ **The search looks inside the ROOM, not across the catalogue.**
      *
-     * A room with 500 products would send more than PHP's default
-     * max_input_vars of 1000, and the overflow is dropped WITHOUT A WORD — a
-     * transfer that quietly moves the wrong things. A disabled input is not
-     * submitted, which is what keeps the request small enough to arrive whole.
+     * A transfer can only carry what is on that shelf. Offering a product the
+     * room does not hold would be offering a line the engine is going to
+     * refuse, one at a time — which is the thing this screen was built to
+     * avoid. The quantity beside each name is what THAT room has, which is the
+     * number the person is deciding against.
      */
-    public function test_the_form_sends_only_the_rows_somebody_typed_in(): void
+    public function test_the_search_offers_only_what_the_room_holds(): void
     {
+        $this->buy(10, 10_000);
+        $this->move(4, $this->main, $this->back);
+
+        $inMain = $this->actingAs($this->user)
+            ->getJson(route('stock-transfers.stock', ['stockRoom' => $this->main->id, 'q' => 'Widget']))
+            ->assertOk()->json();
+
+        $inBack = $this->actingAs($this->user)
+            ->getJson(route('stock-transfers.stock', ['stockRoom' => $this->back->id, 'q' => 'Widget']))
+            ->assertOk()->json();
+
+        $this->assertSame(6, (int) $inMain['products'][0]['units'], 'The main room should offer what is left there.');
+        $this->assertSame(4, (int) $inBack['products'][0]['units'], 'The back room should offer what was carried to it.');
+    }
+
+    /** A product with nothing left in that room is not on the shelf to carry. */
+    public function test_a_product_the_room_has_none_of_is_not_offered(): void
+    {
+        $this->buy(10, 10_000);
+        $this->move(10, $this->main, $this->back);
+
+        $this->actingAs($this->user)
+            ->getJson(route('stock-transfers.stock', ['stockRoom' => $this->main->id, 'q' => 'Widget']))
+            ->assertOk()
+            ->assertJsonCount(0, 'products');
+    }
+
+    /** A scanned code means one product, so the screen is told to add it. */
+    public function test_a_whole_code_is_an_exact_hit(): void
+    {
+        $this->buy(10, 10_000);
+
+        $this->actingAs($this->user)
+            ->getJson(route('stock-transfers.stock', ['stockRoom' => $this->main->id, 'q' => $this->product->sku]))
+            ->assertOk()
+            ->assertJsonPath('exact', true)
+            ->assertJsonCount(1, 'products');
+
+        // Half a code is a search, not a scan.
+        $this->actingAs($this->user)
+            ->getJson(route('stock-transfers.stock', ['stockRoom' => $this->main->id, 'q' => 'Widg']))
+            ->assertOk()
+            ->assertJsonPath('exact', false);
+    }
+
+    /**
+     * ⚠️ **The screen must not carry a field per product in the room.**
+     *
+     * A room with 500 products sent more than PHP's default max_input_vars of
+     * 1000, and the overflow is dropped WITHOUT A WORD — a transfer that
+     * quietly moves the wrong things. The cart settled this by construction
+     * rather than by guard: a row exists only once somebody has chosen the
+     * product, so there is nothing to strip on the way out.
+     *
+     * Asserted on a room with stock in it, because a page that lists nothing
+     * would pass this whatever the screen did.
+     */
+    public function test_the_screen_carries_no_field_per_product_in_the_room(): void
+    {
+        $this->buy(10, 10_000);
+
         $html = $this->actingAs($this->user)->get(route('stock-transfers.create'))
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString("getElementById('transfer-form').addEventListener('submit'", $html);
-        $this->assertStringContainsString('box.disabled = true', $html);
+        // The cart opens empty, so no line inputs are rendered at all.
+        $this->assertStringNotContainsString('name="lines[', $html);
+        $this->assertStringNotContainsString($this->product->name, $html);
+
+        // What is there is a search box against this room's stock.
+        $this->assertStringContainsString('id="product-search"', $html);
+        $this->assertStringContainsString('data-stock-url', $html);
     }
 
     /** Moving between the same room is refused before anything is written. */
@@ -657,6 +725,123 @@ class StockRoomTest extends TestCase
     // =====================================================================
     // Helpers
     // =====================================================================
+
+    // =====================================================================
+    // A delivery that goes straight to the back room
+    // =====================================================================
+
+    /**
+     * ⚠️ **Soran reversed his own rule — 2026-09-18: "add purchase directly to
+     * other rooms, but sale always in main".**
+     *
+     * The engine recorded the earlier one: *"when purchased book at main
+     * storage then do transfer to another storage"*. Goods that arrive at the
+     * lock-up now say so on the purchase, instead of being booked to the shop
+     * floor and carried there on paper afterwards.
+     */
+    public function test_a_delivery_can_be_booked_straight_into_another_room(): void
+    {
+        $this->actingAs($this->user)->post(route('purchases.store'), [
+            'supplier_id' => Supplier::create(['name' => 'S'])->id,
+            'purchase_date' => now()->toDateString(),
+            'room_id' => $this->back->id,
+            'payment_method' => 'cash',
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 10, 'unit_price' => 1_000]],
+        ])->assertRedirect();
+
+        $this->assertSame(10, $this->heldIn($this->back), 'The delivery did not land in the room it named.');
+        $this->assertSame(0, $this->heldIn($this->main));
+    }
+
+    /** Naming no room is the shop floor, which is what it always meant. */
+    public function test_a_delivery_with_no_room_named_lands_on_the_shop_floor(): void
+    {
+        $this->buy(10, 1_000);
+
+        $this->assertSame(10, $this->heldIn($this->main));
+        $this->assertSame(0, $this->heldIn($this->back));
+    }
+
+    /**
+     * ⚠️ **The selling side is untouched, and that is the half that matters.**
+     *
+     * Soran: "but sale always in main". Stock booked into a back room is stock
+     * the till cannot reach until somebody carries it forward — which is the
+     * reason the old rule existed, and it has not stopped being true. The
+     * screen says so; the engine enforces it.
+     */
+    public function test_the_till_still_cannot_sell_what_is_in_the_back_room(): void
+    {
+        $this->actingAs($this->user)->post(route('purchases.store'), [
+            'supplier_id' => Supplier::create(['name' => 'S'])->id,
+            'purchase_date' => now()->toDateString(),
+            'room_id' => $this->back->id,
+            'payment_method' => 'cash',
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 10, 'unit_price' => 1_000]],
+        ])->assertRedirect();
+
+        $this->expectException(InsufficientStockException::class);
+
+        app(SaleService::class)->create(
+            customer: Customer::firstOrFail(),
+            lines: [['product_id' => $this->product->id, 'quantity' => 1, 'unit_price' => 2_000]],
+            user: $this->user,
+            saleDate: now(),
+
+            // ⚠️ Paid in full, or the Cash Customer rule refuses first and this
+            // test passes on an exception that has nothing to do with rooms.
+            amountPaid: 2_000,
+        );
+    }
+
+    /**
+     * Editing a purchase reverses and re-applies it, so the room has to travel
+     * with it — otherwise correcting a price would quietly move the goods to
+     * the shop floor.
+     */
+    public function test_editing_a_delivery_leaves_it_in_the_room_it_was_booked_to(): void
+    {
+        $supplier = Supplier::create(['name' => 'S']);
+
+        $this->actingAs($this->user)->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'purchase_date' => now()->toDateString(),
+            'room_id' => $this->back->id,
+            'payment_method' => 'cash',
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 10, 'unit_price' => 1_000]],
+        ])->assertRedirect();
+
+        $purchase = Purchase::latest('id')->firstOrFail();
+
+        $this->actingAs($this->user)->put(route('purchases.update', $purchase), [
+            'supplier_id' => $supplier->id,
+            'purchase_date' => now()->toDateString(),
+            'room_id' => $this->back->id,
+            'lines' => [['product_id' => $this->product->id, 'quantity' => 10, 'unit_price' => 1_200]],
+        ])->assertRedirect();
+
+        $this->assertSame(10, $this->heldIn($this->back), 'Correcting the price moved the goods.');
+        $this->assertSame(0, $this->heldIn($this->main));
+    }
+
+    /** One room means no question to answer, so the control is not shown. */
+    public function test_a_shop_with_one_room_is_not_asked_where_the_goods_went(): void
+    {
+        $this->back->delete();
+
+        $this->actingAs($this->user)->get(route('purchases.create'))
+            ->assertOk()
+            ->assertDontSee('name="room_id"', escape: false);
+    }
+
+    /** And a shop with two is. */
+    public function test_a_shop_with_two_rooms_is_asked(): void
+    {
+        $this->actingAs($this->user)->get(route('purchases.create'))
+            ->assertOk()
+            ->assertSee('name="room_id"', escape: false)
+            ->assertSee('Back room');
+    }
 
     private function heldIn(StockRoom $room): int
     {

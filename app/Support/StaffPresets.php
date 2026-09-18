@@ -37,6 +37,17 @@ final class StaffPresets
                     'products.view', 'second_hand.view', 'services.view',
                     'customers.view', 'customers.create',
                     'payments.view', 'payments.create',
+
+                    /*
+                     * ⚠️ Seeing where stock is, without being able to move it.
+                     *
+                     * When the till refuses a sale it says "Another 5 are in
+                     * other rooms — transfer them first". Without this key that
+                     * sentence points at a door the person cannot open, and the
+                     * question it answers — "have you got one out the back" —
+                     * is asked at the counter more than anywhere else.
+                     */
+                    'stock_rooms.view',
                 ],
             ],
 
@@ -53,6 +64,10 @@ final class StaffPresets
                     'purchase_returns.view', 'purchase_returns.create',
                     'stock_adjustments.view', 'stock_adjustments.create', 'stock_adjustments.edit',
                     'stock.recheck',
+
+                    // This is the person who carries the crates. Moving stock
+                    // between rooms is the job, not an extra.
+                    'stock_rooms.view', 'stock_rooms.transfer',
                 ],
             ],
 

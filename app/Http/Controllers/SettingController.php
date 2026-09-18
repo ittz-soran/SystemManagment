@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Currency;
 use App\Models\Setting;
 use App\Rules\WritableDirectory;
 use App\Services\ActivityLogger;
@@ -181,6 +182,30 @@ class SettingController extends Controller
 
             'timezone' => ['required', 'timezone'],
             'usd_rate' => ['required', 'integer', 'min:1'],
+
+            /*
+             * Which currency the purchase screen opens in — Soran, 2026-09-18:
+             * *"purchase always in dinar or system selected which currency use
+             * it"*.
+             *
+             * It used to open on whatever the shop invoiced in last, which is a
+             * guess made from history; this is the shop saying so outright.
+             * Blank means the shop's own money. It is a DEFAULT and not a rule:
+             * the Invoice currency combo is still on the purchase, because a
+             * supplier who invoices in dollars does not care what the shop
+             * usually does.
+             *
+             * ⚠️ Checked against the ACTIVE list, so a shop cannot set its
+             * purchases to open in a currency it has switched off — the combo
+             * would not show it and every purchase would open on a code that is
+             * not there.
+             */
+            'purchase_currency' => ['nullable', 'string', 'max:8', Rule::in(
+                collect(Currency::cached())
+                    ->filter(fn (Currency $c) => $c->is_active)
+                    ->keys()
+                    ->all()
+            )],
             'books_closed_before' => ['nullable', 'date'],
             'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'sku_prefix' => ['required', 'string', 'max:8'],

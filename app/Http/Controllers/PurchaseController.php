@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Currency;
 use App\Models\HeldCart;
 use App\Models\Purchase;
-use App\Models\PurchaseItem;
+use App\Models\StockRoom;
 use App\Models\Supplier;
 use App\Services\BulkDeleteService;
 use App\Services\PurchaseService;
@@ -67,6 +67,14 @@ class PurchaseController extends Controller
                 ? HeldCartController::linesFor($lines, fn ($p) => null)
                 : ($held ? HeldCartController::rebuild($held, fn ($p) => null) : null),
             'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
+
+            /*
+             * Where a delivery may be booked. Active rooms only — a closed room
+             * is one the shop has stopped using, and offering it would let
+             * somebody book stock into a place nothing can be moved into.
+             */
+            'rooms' => StockRoom::where('is_active', true)
+                ->orderByDesc('is_main')->orderBy('sort_order')->orderBy('name')->get(),
             // Section 6b: pre-filled from settings, editable per purchase,
             // because the rate you actually paid at is the one that matters.
             ...$this->currencyChoices(),
@@ -79,6 +87,14 @@ class PurchaseController extends Controller
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'purchase_date' => ['required', 'date'],
             'supplier_invoice_no' => ['nullable', 'string', 'max:64'],
+
+            /*
+             * Where the delivery went — Soran, 2026-09-18: *"add purchase
+             * directly to other rooms"*. Nullable, and null means the shop
+             * floor: a shop with one room never sees this control and every
+             * purchase it has ever written means the same thing.
+             */
+            'room_id' => ['nullable', Rule::exists('stock_rooms', 'id')->whereNull('deleted_at')],
             // Section 6: SIGNED, because a supplier may round UP.
             'discount_amount' => ['nullable', 'integer'],
             'amount_paid' => ['nullable', 'integer', 'min:0'],
@@ -111,6 +127,7 @@ class PurchaseController extends Controller
                 amountPaid: (int) ($data['amount_paid'] ?? 0),
                 supplierInvoiceNo: $data['supplier_invoice_no'] ?? null,
                 exchangeRate: $data['exchange_rate'] ?? null,
+                roomId: $data['room_id'] ?? null,
                 paymentMethod: $data['payment_method'],
             );
         } catch (\RuntimeException $e) {
@@ -143,6 +160,14 @@ class PurchaseController extends Controller
             'purchase' => $purchase,
             'cartLines' => $this->cartLines($purchase),
             'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
+
+            /*
+             * Where a delivery may be booked. Active rooms only — a closed room
+             * is one the shop has stopped using, and offering it would let
+             * somebody book stock into a place nothing can be moved into.
+             */
+            'rooms' => StockRoom::where('is_active', true)
+                ->orderByDesc('is_main')->orderBy('sort_order')->orderBy('name')->get(),
             // Section 6b: the rate this purchase was actually entered at, so
             // re-saving it does not silently reprice the USD lines.
             ...$this->currencyChoices($purchase),
@@ -194,21 +219,29 @@ class PurchaseController extends Controller
             ->filter(fn (Currency $c) => $c->is_active && $c->code !== $base->code)
             ->values();
 
-        // What this invoice was written in, if it is being edited. Read off the
-        // lines, because that is where it was recorded.
-        //
-        // A new one opens on whatever the shop invoiced in last, which for a
-        // shop that only ever buys in dollars is dollars — and which beats
-        // picking whichever code happens to sort first.
+        /*
+         * What this invoice was written in, if it is being edited. Read off the
+         * lines, because that is where it was recorded.
+         *
+         * ⚠️ **A NEW one opens on what the shop says, not on what it did last
+         * — Soran, 2026-09-18: "purchase always in dinar or system selected
+         * which currency use it".**
+         *
+         * It used to look up the most recent foreign line and open on that,
+         * which is a guess made from history: one dollar invoice typed months
+         * ago and every purchase since opens in dollars, including the ordinary
+         * dinar ones. Settings → "Purchases are written in" is the shop saying
+         * so outright, and blank there means its own money.
+         *
+         * Still only a default. The Invoice currency combo is untouched,
+         * because a supplier who invoices in dollars does not care what the
+         * shop usually does.
+         */
         $was = $purchase !== null
             ? $purchase->items
                 ->pluck('entered_currency')
                 ->first(fn (?string $code) => $code !== null && $code !== $base->code)
-            : PurchaseItem::query()
-                ->whereNotNull('entered_currency')
-                ->where('entered_currency', '!=', $base->code)
-                ->latest('id')
-                ->value('entered_currency');
+            : (setting('purchase_currency') ?: null);
 
         // ⚠️ And the same for the choice on the screen: a purchase written in
         // a currency since switched off still opens on it, or its lines would
@@ -221,7 +254,24 @@ class PurchaseController extends Controller
             }
         }
 
-        $chosen = $foreign->firstWhere('code', $was) ?? $foreign->first();
+        /*
+         * ⚠️ **`?? $foreign->first()` is why this never opened in dinars.**
+         *
+         * `$foreign` excludes the base, so falling back to its first entry made
+         * the screen open in a foreign currency whenever the shop had one
+         * switched on — whether or not a single purchase had ever been written
+         * in it. A shop that buys everything in dinars and keeps USD on the
+         * list for reading prices opened every purchase in dollars.
+         *
+         * null is now a real answer and it means the shop's own money, which is
+         * what a blank setting says and what an invoice with no foreign line
+         * has always meant.
+         */
+        $wanted = $was ?: $base->code;
+
+        $chosen = $wanted === $base->code
+            ? null
+            : $foreign->firstWhere('code', $wanted);
 
         return [
             'base' => $base,
@@ -300,6 +350,14 @@ class PurchaseController extends Controller
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'purchase_date' => ['required', 'date'],
             'supplier_invoice_no' => ['nullable', 'string', 'max:64'],
+
+            /*
+             * Where the delivery went — Soran, 2026-09-18: *"add purchase
+             * directly to other rooms"*. Nullable, and null means the shop
+             * floor: a shop with one room never sees this control and every
+             * purchase it has ever written means the same thing.
+             */
+            'room_id' => ['nullable', Rule::exists('stock_rooms', 'id')->whereNull('deleted_at')],
             'discount_amount' => ['nullable', 'integer'],
             'exchange_rate' => ['nullable', 'integer', 'min:1'],
             // The entry screen's own memory — see store().
@@ -322,6 +380,7 @@ class PurchaseController extends Controller
                 discountAmount: (int) ($data['discount_amount'] ?? 0),
                 supplierInvoiceNo: $data['supplier_invoice_no'] ?? null,
                 exchangeRate: $data['exchange_rate'] ?? null,
+                roomId: $data['room_id'] ?? null,
             );
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());

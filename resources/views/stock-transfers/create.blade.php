@@ -4,13 +4,17 @@
 
 @section('content')
     {{--
-        **Soran, 2026-09-15:** *"when purchased book at main storage then do
-        transfer to another storage"*, and any room to any room.
+        **Soran, 2026-09-15:** any room to any room.
 
-        ⚠️ The picker offers only what the FROM room actually holds. A list of
-        the whole catalogue would let somebody fill a transfer with things that
-        are not in that room and find out one line at a time. The engine refuses
-        either way; this is about not wasting a morning.
+        **2026-09-18:** *"change move mechanism to same as sale/purchase to
+        search products, show cart"*. It listed the whole room with a box on
+        every line, which meant a room of 306 products was 306 boxes to scroll
+        past to reach the one crate being carried — and it posted all of them.
+        It is a cart now, like the two screens everybody already knows.
+
+        ⚠️ The search still offers only what the FROM room actually holds. A
+        search across the catalogue would offer lines the engine is going to
+        refuse, one at a time.
     --}}
     <form method="POST" action="{{ route('stock-transfers.store') }}" id="transfer-form" data-guard-submit>
         @csrf
@@ -74,6 +78,20 @@
 
                 <div class="card">
                     <div class="card-header">{{ __('What is moving') }}</div>
+
+                    <div class="card-body pb-0">
+                        <label for="product-search" class="form-label">{{ __('Find a product') }}</label>
+                        <div class="position-relative">
+                            <input id="product-search" class="form-control" autocomplete="off"
+                                   placeholder="{{ __('Name, SKU or barcode') }}">
+                            {{-- Absolute, so the rows below do not jump down the
+                                 page every time somebody types a letter. --}}
+                            <div id="search-results" class="list-group position-absolute w-100 shadow d-none"
+                                 style="z-index: 5"></div>
+                        </div>
+                        <div class="form-text">{{ __('Only what this room holds.') }}</div>
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table align-middle mb-0" id="transfer-lines">
                             <thead>
@@ -81,17 +99,17 @@
                                 <th>{{ __('Product') }}</th>
                                 <th class="text-end" style="width: 10rem">{{ __('In this room') }}</th>
                                 <th class="text-end" style="width: 11rem">{{ __('Move') }}</th>
+                                <th style="width: 3rem"></th>
                             </tr>
                             </thead>
                             <tbody id="transfer-rows">
-                                {{-- Drawn by the script below from what the room
-                                     holds, and redrawn whenever the room changes. --}}
+                                {{-- The cart: only what somebody chose. --}}
                             </tbody>
                         </table>
                     </div>
 
-                    <div id="transfer-empty" class="p-4 text-center text-secondary small d-none">
-                        {{ __('This room is empty.') }}
+                    <div id="transfer-empty" class="p-4 text-center text-secondary small">
+                        {{ __('Nothing in the cart yet. Find a product above.') }}
                     </div>
                 </div>
             </div>
@@ -122,13 +140,19 @@
 @push('scripts')
 <script>
     /**
-     * The transfer cart.
+     * The transfer cart — Soran, 2026-09-18.
+     *
+     * *"change move mechanism to same as sale/purchase to search products,
+     * show cart"*.
      *
      * ⚠️ Rows are built with createElement and textContent, never innerHTML: a
      * product name is typed by a shopkeeper and drawn on somebody else's screen.
      */
     (function () {
+        const form = document.getElementById('transfer-form');
         const from = document.getElementById('from_room_id');
+        const search = document.getElementById('product-search');
+        const results = document.getElementById('search-results');
         const rows = document.getElementById('transfer-rows');
         const empty = document.getElementById('transfer-empty');
         const total = document.getElementById('transfer-total');
@@ -137,108 +161,234 @@
 
         const words = {
             lines: @json(__(':count products')),
+            remove: @json(__('Remove')),
         };
 
-        let stock = @json($stock);
+        /** The cart: what somebody chose, in the order they chose it. */
+        let cart = [];
+        let highlighted = -1;
+        let timer = null;
+
+        const number = new Intl.NumberFormat('en-US');
 
         function sum() {
-            let units = 0;
-            let lines = 0;
+            const units = cart.reduce((n, line) => n + (Number(line.quantity) || 0), 0);
 
-            rows.querySelectorAll('input[data-role="move"]').forEach((box) => {
-                const value = Number(box.value) || 0;
+            total.textContent = number.format(units);
+            counted.textContent = words.lines.replace(':count', String(cart.length));
+            empty.classList.toggle('d-none', cart.length > 0);
 
-                if (value > 0) { units += value; lines += 1; }
-            });
-
-            total.textContent = new Intl.NumberFormat('en-US').format(units);
-            counted.textContent = words.lines.replace(':count', String(lines));
+            // Nothing to move is not a transfer. The server says the same, in a
+            // sentence, for anybody who gets past this.
             save.disabled = units === 0;
         }
 
         function draw() {
             rows.replaceChildren();
-            empty.classList.toggle('d-none', stock.length > 0);
 
-            stock.forEach((item, index) => {
+            cart.forEach((line, index) => {
                 const tr = document.createElement('tr');
 
                 const name = document.createElement('td');
                 const strong = document.createElement('div');
-                strong.textContent = item.name;
+                strong.textContent = line.name;
                 const sku = document.createElement('div');
                 sku.className = 'small text-secondary app-code';
-                sku.textContent = item.sku ?? '';
+                sku.textContent = line.sku ?? '';
                 name.append(strong, sku);
 
                 const has = document.createElement('td');
                 has.className = 'text-end';
-                has.textContent = new Intl.NumberFormat('en-US').format(item.units)
-                    + (item.unit ? ' ' + item.unit : '');
+                has.textContent = number.format(line.units) + (line.unit ? ' ' + line.unit : '');
 
                 const cell = document.createElement('td');
                 const id = document.createElement('input');
                 id.type = 'hidden';
                 id.name = `lines[${index}][product_id]`;
-                id.value = item.id;
+                id.value = line.id;
 
                 const box = document.createElement('input');
                 box.type = 'number';
                 box.className = 'form-control form-control-sm text-end';
                 box.dir = 'ltr';
-                box.min = '0';
-                box.max = String(item.units);
-                box.value = '0';
+                box.min = '1';
+
+                // ⚠️ What the ROOM holds, not what the shop holds. Moving more
+                // than is on that shelf is the one mistake this screen can
+                // stop before the engine has to.
+                box.max = String(line.units);
+                box.value = String(line.quantity);
                 box.name = `lines[${index}][quantity]`;
-                box.dataset.role = 'move';
                 box.setAttribute('data-english-digits', '');
-                box.addEventListener('input', sum);
+                box.addEventListener('input', () => {
+                    line.quantity = Math.max(0, Math.min(Number(box.value) || 0, line.units));
+                    sum();
+                });
 
                 cell.append(id, box);
-                tr.append(name, has, cell);
+
+                const remove = document.createElement('td');
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-sm btn-outline-danger';
+                button.title = words.remove;
+                button.setAttribute('aria-label', words.remove);
+                button.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+                button.addEventListener('click', () => {
+                    cart.splice(index, 1);
+                    draw();
+                });
+                remove.append(button);
+
+                tr.append(name, has, cell, remove);
                 rows.append(tr);
             });
 
             sum();
         }
 
-        /**
-         * ⚠️ **Only the rows somebody typed in are sent.**
-         *
-         * This list has a box per product in the room, so a room holding 306
-         * products posts 612 fields. PHP's max_input_vars is 1000 by default:
-         * a room with 500 products would go over it and the rest of the POST
-         * would be DROPPED WITHOUT A WORD — a transfer that quietly moves the
-         * wrong things, which is far worse than a page of red text.
-         *
-         * A disabled input is not submitted, which is the whole trick. The
-         * server drops empty rows too and is the one that must be right; this
-         * is what keeps the request small enough to arrive intact.
-         */
-        document.getElementById('transfer-form').addEventListener('submit', () => {
-            rows.querySelectorAll('input[data-role="move"]').forEach((box) => {
-                if (Number(box.value) > 0) return;
+        function hideResults() {
+            results.classList.add('d-none');
+            results.replaceChildren();
+            highlighted = -1;
+        }
 
-                box.disabled = true;
+        function add(product) {
+            const already = cart.find((line) => line.id === product.id);
 
-                // The product id that travels with it, or the row would arrive
-                // as a product with no quantity rather than not at all.
-                const id = box.parentElement.querySelector('input[type="hidden"]');
-
-                if (id) id.disabled = true;
-            });
-        });
-
-        from.addEventListener('change', async () => {
-            const url = from.dataset.stockUrl.replace('__ROOM__', from.value);
-
-            try {
-                const response = await fetch(url, { headers: { Accept: 'application/json' } });
-                stock = response.ok ? await response.json() : [];
-            } catch {
-                stock = [];
+            // The same product twice is somebody remembering another crate, not
+            // a mistake — the purchase cart reads it the same way.
+            if (already) {
+                already.quantity = Math.min(already.quantity + 1, already.units);
+            } else {
+                cart.push({ ...product, units: Number(product.units), quantity: 1 });
             }
 
+            search.value = '';
+            hideResults();
+            draw();
+        }
+
+        async function runSearch(term) {
+            const url = from.dataset.stockUrl.replace('__ROOM__', from.value);
+
+            let data;
+
+            try {
+                const response = await fetch(`${url}?q=${encodeURIComponent(term)}`, {
+                    headers: { Accept: 'application/json' },
+                });
+
+                if (! response.ok) return;
+
+                data = await response.json();
+            } catch {
+                return;
+            }
+
+            // A scan is a whole code and means one product, so it goes in.
+            if (data.exact && data.products.length === 1) {
+                add(data.products[0]);
+
+                return;
+            }
+
+            results.replaceChildren();
+            highlighted = -1;
+
+            data.products.forEach((product) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action d-flex justify-content-between';
+
+                const left = document.createElement('span');
+                const label = document.createElement('span');
+                label.className = 'fw-medium';
+                label.textContent = product.name;
+                const code = document.createElement('span');
+                code.className = 'small text-secondary ms-2';
+                code.dir = 'ltr';
+                code.textContent = product.sku ?? '';
+                left.append(label, code);
+
+                const right = document.createElement('span');
+                right.className = 'small text-secondary';
+                right.textContent = number.format(product.units) + (product.unit ? ' ' + product.unit : '');
+
+                item.append(left, right);
+                item.addEventListener('click', () => add(product));
+                results.append(item);
+            });
+
+            results.classList.toggle('d-none', data.products.length === 0);
+        }
+
+        search.addEventListener('input', () => {
+            const term = search.value.trim();
+
+            window.clearTimeout(timer);
+
+            if (term.length < 2) {
+                hideResults();
+
+                return;
+            }
+
+            timer = window.setTimeout(() => runSearch(term), 150);
+        });
+
+        search.addEventListener('keydown', (event) => {
+            const items = [...results.querySelectorAll('.list-group-item')];
+
+            if (event.key === 'Escape') {
+                hideResults();
+
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+
+                if (items[highlighted]) items[highlighted].click();
+
+                return;
+            }
+
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+
+            event.preventDefault();
+
+            if (items.length === 0) return;
+
+            highlighted = event.key === 'ArrowDown'
+                ? Math.min(highlighted + 1, items.length - 1)
+                : Math.max(highlighted - 1, 0);
+
+            items.forEach((item, i) => item.classList.toggle('active', i === highlighted));
+            items[highlighted].scrollIntoView({ block: 'nearest' });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (! results.contains(event.target) && event.target !== search) hideResults();
+        });
+
+        /*
+         * ⚠️ Changing the room empties the cart, and it has to.
+         *
+         * Every line carries what THAT room held. Keeping them would leave
+         * quantities checked against a shelf the transfer is no longer leaving
+         * from — a cart that looks right and is refused line by line.
+         */
+        from.addEventListener('change', () => {
+            cart = [];
+            search.value = '';
+            hideResults();
+            draw();
+        });
+
+        form.addEventListener('submit', () => {
+            // A row left at zero is somebody changing their mind, not a line.
+            cart = cart.filter((line) => Number(line.quantity) > 0);
             draw();
         });
 

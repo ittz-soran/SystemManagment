@@ -24,6 +24,9 @@ use Throwable;
  */
 class StockTransferController extends Controller
 {
+    /** Enough to choose from, few enough to read without scrolling. */
+    private const RESULTS = 8;
+
     public function __construct(private readonly TransferService $transfers) {}
 
     public function index(Request $request): View
@@ -55,14 +58,39 @@ class StockTransferController extends Controller
         return view('stock-transfers.create', [
             'rooms' => $rooms,
             'fromId' => $from,
-            'stock' => $this->whatIsIn($from),
         ]);
     }
 
-    /** What one room holds, for the picker. Asked again when the room changes. */
+    /**
+     * What one room holds, searched — Soran, 2026-09-18: *"change move
+     * mechanism to same as sale/purchase to search products, show cart"*.
+     *
+     * ⚠️ **Searched within the ROOM, not across the catalogue.** A transfer can
+     * only carry what is actually on that shelf, so offering a product the room
+     * does not hold would be offering a line the engine is going to refuse. The
+     * quantity beside each name is what that room has, which is the number the
+     * person is deciding against.
+     */
     public function stock(Request $request, StockRoom $stockRoom)
     {
-        return response()->json($this->whatIsIn($stockRoom->id)->values());
+        $term = $request->string('q')->trim()->toString();
+
+        $matches = $this->whatIsIn($stockRoom->id, $term === '' ? null : $term);
+
+        /*
+         * A scan is a whole code and means one product, so it is added rather
+         * than offered — the same rule the sale and purchase carts follow, and
+         * the reason a barcode gun works on this screen at all.
+         */
+        $exact = $term !== '' && $matches->count() === 1 && (
+            strcasecmp((string) $matches->first()->sku, $term) === 0
+            || strcasecmp((string) $matches->first()->barcode, $term) === 0
+        );
+
+        return response()->json([
+            'products' => $matches->take(self::RESULTS)->values(),
+            'exact' => $exact,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -157,14 +185,24 @@ class StockTransferController extends Controller
      *
      * @return Collection<int, object>
      */
-    private function whatIsIn(int $roomId)
+    private function whatIsIn(int $roomId, ?string $term = null)
     {
         return Product::query()
             ->join('stock_batches as b', 'b.product_id', '=', 'products.id')
             ->where('b.room_id', $roomId)
-            ->groupBy('products.id', 'products.name', 'products.sku', 'products.unit')
+            /*
+             * ⚠️ The three grouped together, not chained loose. An ungrouped
+             * `orWhere` escapes the room filter above it and the screen would
+             * offer stock from a room this transfer is not leaving from — see
+             * ProductController::search, where the same mistake was made once.
+             */
+            ->when($term !== null, fn ($q) => $q->where(fn ($q) => $q
+                ->where('products.name', 'like', '%'.$term.'%')
+                ->orWhere('products.sku', 'like', '%'.$term.'%')
+                ->orWhere('products.barcode', 'like', '%'.$term.'%')))
+            ->groupBy('products.id', 'products.name', 'products.sku', 'products.barcode', 'products.unit')
             ->havingRaw('SUM(b.quantity_remaining) > 0')
-            ->select('products.id', 'products.name', 'products.sku', 'products.unit')
+            ->select('products.id', 'products.name', 'products.sku', 'products.barcode', 'products.unit')
             ->selectRaw('SUM(b.quantity_remaining) as units')
             ->orderBy('products.name')
             ->get();
