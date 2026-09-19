@@ -7,7 +7,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Type in')" />
 @endsection
 
 @section('content')

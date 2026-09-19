@@ -1965,3 +1965,67 @@ a.stat-tile {
         max-width: 17rem;
     }
 }
+
+/*
+ * Language and currency in one menu — Soran, 2026-09-18.
+ *
+ * ⚠️ The flag is a fixed box with `object-fit: cover`, not an `auto` height.
+ * These are hand-drawn SVGs at slightly different aspect ratios, and a row of
+ * flags at four different heights reads as a mistake rather than a list.
+ */
+.app-flag {
+    width: 1.25rem;
+    height: 0.9375rem;
+    border-radius: 2px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .08);
+}
+
+.app-prefs-menu {
+    // Wide enough for two columns of names in four scripts; on a phone the
+    // columns stack and this gives way to the viewport.
+    min-width: min(30rem, calc(100vw - 1.5rem));
+}
+
+.app-prefs-title {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--bs-secondary-color);
+    padding: .25rem .75rem .35rem;
+}
+
+.app-prefs-item {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+}
+
+// The code sits at the far end of the row, and "far" flips with the page.
+.app-prefs-code {
+    margin-inline-start: auto;
+    font-size: .8rem;
+    color: var(--bs-secondary-color);
+}
+
+.app-prefs-item.active .app-prefs-code {
+    color: inherit;
+}
+
+/*
+ * The divider between the two columns — a border on the INLINE start, so it
+ * lands between them in both directions. It is only a divider while they are
+ * side by side; stacked, the section carries a top border instead.
+ */
+@media (min-width: 576px) {
+    .app-prefs-divider {
+        border-inline-start: 1px solid var(--bs-border-color);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .app-prefs-divider {
+        border-top: 1px solid var(--bs-border-color);
+    }
+}

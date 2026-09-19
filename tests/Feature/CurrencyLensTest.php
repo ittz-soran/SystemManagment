@@ -253,19 +253,32 @@ class CurrencyLensTest extends TestCase
         $this->assertNull($this->admin->fresh()->display_currency);
     }
 
-    /** The switch is furniture when the shop keeps only its own currency. */
+    /**
+     * The switch is furniture when the shop keeps only its own currency.
+     *
+     * ⚠️ **Asserted on the CONTROL, not on its label or where it sits** —
+     * 2026-09-19. This used to look for the words "Read in" on the reports
+     * page, because the switcher was a component in that page's actions bar.
+     * Soran moved it into the topbar beside the language menu, and a test
+     * pinned to the old wording fails for the one reason that does not matter.
+     *
+     * The form's action is the thing that cannot change without the feature
+     * changing, so that is what this reads now.
+     */
     public function test_the_switch_is_hidden_when_there_is_nothing_to_switch_to(): void
     {
-        $this->actingAs($this->reader())->get(route('reports.index'))
-            ->assertOk()
-            ->assertSee(__('Read in'));
+        $html = $this->actingAs($this->reader())->get(route('reports.index'))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString(route('preferences.currency'), $html);
 
         $this->usd()->update(['is_active' => false]);
         Currency::flushCache();
 
-        $this->actingAs($this->reader())->get(route('reports.index'))
-            ->assertOk()
-            ->assertDontSee(__('Read in'));
+        $html = $this->actingAs($this->reader())->get(route('reports.index'))
+            ->assertOk()->getContent();
+
+        $this->assertStringNotContainsString(route('preferences.currency'), $html);
     }
 
     /** ⚠️ Whatever a screen shows, the database is untouched by looking at it. */

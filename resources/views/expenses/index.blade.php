@@ -3,7 +3,6 @@
 @section('title', __('Expenses'))
 
 @section('actions')
-    <x-currency-lens :label="__('Type in')" />
 
     @can('expenses.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#expense-modal">

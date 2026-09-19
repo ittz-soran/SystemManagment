@@ -3,7 +3,6 @@
 @section('title', __('Purchase history'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('purchases.create')
         <a href="{{ route('purchases.create') }}" class="btn btn-primary">

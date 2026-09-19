@@ -7,7 +7,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('stock_adjustments.edit')
         <button type="button" class="btn btn-outline-secondary"

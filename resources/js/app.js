@@ -2251,3 +2251,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/**
+ * The search takes the whole bar on a phone — Soran, 2026-09-19.
+ *
+ * *"search box in top bar for mobile version should just show search icon then
+ * expand input and hide other elements because on mobile can show something at
+ * once"*.
+ *
+ * ⚠️ Classes, not inline styles, so the md breakpoint keeps its own word. The
+ * box carries `d-none d-md-block`: dropping `d-none` opens it on a phone and
+ * changes nothing above md, where it was never hidden. Adding it back closes
+ * it — and a resize past the breakpoint cannot leave a half-open bar, because
+ * `d-md-block` wins there whatever this did.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const open = document.getElementById('app-search-open');
+    const close = document.getElementById('app-search-close');
+    const box = document.querySelector('.app-search');
+    const input = document.getElementById('app-search');
+    const rest = document.getElementById('app-topbar-rest');
+    const menu = document.querySelector('[data-bs-target="#app-nav"]');
+
+    if (! open || ! box || ! input) return;
+
+    const results = document.getElementById('app-search-results');
+
+    function show(wanted) {
+        box.classList.toggle('d-none', ! wanted);
+
+        // The magnifier, the drawer button and everything on the other side
+        // step aside, which is the whole point: one thing at a time.
+        open.classList.toggle('d-none', wanted);
+        menu?.classList.toggle('d-none', wanted);
+        rest?.classList.toggle('d-none', wanted);
+
+        open.setAttribute('aria-expanded', wanted ? 'true' : 'false');
+
+        if (wanted) {
+            input.focus();
+
+            return;
+        }
+
+        // Leaving it behind with a term in it would reopen onto yesterday's
+        // search and a list of results nobody asked for again.
+        input.value = '';
+        results?.classList.remove('show');
+    }
+
+    open.addEventListener('click', () => show(true));
+    close?.addEventListener('click', () => show(false));
+
+    // Escape closes it, the same key that closes every other panel here —
+    // and only on a phone, where it is the only thing that opened.
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && window.innerWidth < 768) show(false);
+    });
+});

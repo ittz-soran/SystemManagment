@@ -3,7 +3,6 @@
 @section('title', __('Products'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('products.create')
         <a href="{{ route('products.create') }}" class="btn btn-primary">

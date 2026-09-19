@@ -3,7 +3,6 @@
 @section('title', __('Customers'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('customers.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customer-modal">

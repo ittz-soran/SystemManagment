@@ -7,7 +7,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('payments.edit')
         <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-secondary">
