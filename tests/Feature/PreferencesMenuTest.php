@@ -43,9 +43,11 @@ class PreferencesMenuTest extends TestCase
      */
     public function test_a_currency_never_gets_another_countrys_flag(): void
     {
-        $this->assertSame('flags/iq.svg', Flags::forCurrency('IRQ'), 'IRQ is the Iraqi dinar, not the Iranian rial.');
-        $this->assertSame('flags/iq.svg', Flags::forCurrency('IQD'));
-        $this->assertSame('flags/ir.svg', Flags::forCurrency('IRR'));
+        // Iraq's flag carries three green stars; Iran's carries a red emblem.
+        $this->assertStringContainsString('#007a3d', Flags::forCurrency('IRQ'), 'IRQ is the Iraqi dinar, not the Iranian rial.');
+        $this->assertStringContainsString('#007a3d', Flags::forCurrency('IQD'));
+        $this->assertStringContainsString('#239f40', Flags::forCurrency('IRR'));
+        $this->assertNotSame(Flags::forCurrency('IQD'), Flags::forCurrency('IRR'));
 
         // A currency nobody drew gets nothing rather than a guess.
         foreach (['TRY', 'JPY', 'XYZ', 'ZZ'] as $unknown) {
@@ -56,21 +58,43 @@ class PreferencesMenuTest extends TestCase
     /** ⚠️ Soran's two answers, which no rule derives: a language is not a country. */
     public function test_kurdish_and_arabic_carry_the_flags_he_asked_for(): void
     {
-        $this->assertSame('flags/krd.svg', Flags::forLanguage('ckb'), 'Central Kurdish carries the Kurdistan flag.');
-        $this->assertSame('flags/iq.svg', Flags::forLanguage('ar'), 'العربية carries Iraq, because his shops are in Iraq.');
-        $this->assertSame('flags/gb.svg', Flags::forLanguage('en'));
-        $this->assertSame('flags/ir.svg', Flags::forLanguage('fa'));
+        // The Kurdistan flag is the only one carrying the sun's gold.
+        $this->assertStringContainsString('#fdd017', Flags::forLanguage('ckb'), 'Central Kurdish carries the Kurdistan flag.');
+
+        $this->assertSame(
+            Flags::forCurrency('IQD'),
+            Flags::forLanguage('ar'),
+            'العربية carries Iraq, because his shops are in Iraq.'
+        );
+
+        $this->assertSame(Flags::forCurrency('GBP'), Flags::forLanguage('en'));
+        $this->assertSame(Flags::forCurrency('IRR'), Flags::forLanguage('fa'));
     }
 
-    /** Every flag the menu can name has to actually be on disk. */
-    public function test_every_flag_it_offers_exists(): void
+    /**
+     * ⚠️ **Drawn into the page, not fetched — Soran, 2026-09-19.**
+     *
+     * These were `<img src>` and it cost three rounds to get one file to one
+     * folder: a shop serves from its own public folder, `shop:provision`
+     * missed them, `shop:update` missed them twice over, and when the files
+     * finally were in place the page still did not show them. There is no file
+     * to fetch now, so none of that can happen again.
+     */
+    public function test_a_flag_is_drawn_into_the_page_rather_than_fetched(): void
     {
         foreach (['en', 'ckb', 'ar', 'fa'] as $language) {
-            $file = Flags::forLanguage($language);
+            $svg = Flags::forLanguage($language);
 
-            $this->assertNotNull($file, $language.' has no flag.');
-            $this->assertFileExists(public_path($file));
+            $this->assertNotNull($svg, $language.' has no flag.');
+            $this->assertStringStartsWith('<svg', $svg, 'A flag should be markup, not a URL.');
+            $this->assertStringContainsString('class="app-flag"', $svg);
         }
+
+        // And the page carries them, with nothing to go and get.
+        $html = $this->actingAs($this->admin)->get(route('dashboard'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('<svg class="app-flag"', $html);
+        $this->assertStringNotContainsString('flags/krd.svg', $html, 'Nothing should be fetching a flag by URL.');
     }
 
     /** The menu carries both halves, with their flags. */
@@ -81,8 +105,8 @@ class PreferencesMenuTest extends TestCase
         $html = $this->actingAs($this->admin)->get(route('dashboard'))->assertOk()->getContent();
 
         $this->assertStringContainsString('aria-label="Language and currency"', $html);
-        $this->assertStringContainsString('flags/krd.svg', $html, 'The Kurdish flag should be in the menu.');
-        $this->assertStringContainsString('flags/us.svg', $html, 'A currency the shop keeps should be in the menu.');
+        $this->assertStringContainsString('#fdd017', $html, 'The Kurdish flag should be in the menu.');
+        $this->assertStringContainsString('#3c3b6e', $html, 'A currency the shop keeps should be in the menu.');
         $this->assertStringContainsString(route('preferences.language'), $html);
         $this->assertStringContainsString(route('preferences.currency'), $html);
     }

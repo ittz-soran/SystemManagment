@@ -108,7 +108,7 @@ class ListCardTest extends TestCase
                 continue;
             }
 
-            if (! preg_match('/<tbody>(.*?)<\/tbody>/s', $text, $body)) {
+            if (! preg_match('/<tbody\b[^>]*>(.*?)<\/tbody>/s', $text, $body)) {
                 continue;
             }
 
@@ -123,11 +123,22 @@ class ListCardTest extends TestCase
         return $found;
     }
 
+    /**
+     * ⚠️ `<thead>` and `<tbody>` are matched with their attributes.
+     *
+     * Both patterns used to name the bare tag, so a list whose header carried
+     * so much as a class — `<thead class="table-light">`, which is how Soran
+     * restyled the second-hand list — counted **zero** columns. That is loud
+     * rather than silent, because zero never equals the number of cells, but
+     * it reports a markup error where there is none and sends the reader to
+     * the wrong file. `<tbody id="cart-body">` already exists on three cart
+     * screens, so this was one `.table-cards` away from happening anyway.
+     */
     private function headerCount(string $path): int
     {
         $text = (string) file_get_contents($path);
 
-        preg_match('/<thead>(.*?)<\/thead>/s', $text, $head);
+        preg_match('/<thead\b[^>]*>(.*?)<\/thead>/s', $text, $head);
         preg_match_all('/<th\b/', $head[1] ?? '', $headers);
 
         return count($headers[0]);

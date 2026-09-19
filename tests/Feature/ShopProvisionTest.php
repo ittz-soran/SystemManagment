@@ -63,53 +63,6 @@ class ShopProvisionTest extends TestCase
         $this->madeAssets = true;
     }
 
-    /**
-     * ⚠️ **Soran, 2026-09-19: "flags not show??"**
-     *
-     * A shop serves from ITS OWN public folder, not the shared one. The flags
-     * the language and currency menu draws were added to the shared `public/`
-     * and to nothing else, so his shop rendered the menu with no flags in it —
-     * the files had never been carried across and every one was a 404.
-     *
-     * Worse, it failed SILENTLY: `Flags::file()` only returns a path for a file
-     * that is actually on disk, so with them missing no `<img>` was written at
-     * all. No broken image, no console error, nothing to see but a menu that
-     * looked plain.
-     *
-     * Anything else added to the shared public folder and asked for by URL
-     * needs the same treatment and belongs in this test.
-     */
-    public function test_a_new_shop_gets_the_flags_its_menu_asks_for(): void
-    {
-        $this->assertSame(0, $this->provision('flagshop'));
-
-        $public = $this->public('flagshop');
-
-        $this->assertDirectoryExists($public.'/flags', 'A shop with no flags folder serves a menu of 404s.');
-
-        // Every flag the shared folder has, the shop has.
-        foreach (glob(base_path('public/flags/*.svg')) as $flag) {
-            $this->assertFileExists(
-                $public.'/flags/'.basename($flag),
-                basename($flag).' never reached the shop.'
-            );
-        }
-    }
-
-    /**
-     * ⚠️ And the one the application actually asks for by name.
-     *
-     * A folder that exists and is empty would pass the test above on a
-     * checkout where the flags had been deleted; this names a file the menu
-     * genuinely draws.
-     */
-    public function test_the_kurdistan_flag_reaches_a_new_shop(): void
-    {
-        $this->assertSame(0, $this->provision('kurdshop'));
-
-        $this->assertFileExists($this->public('kurdshop').'/flags/krd.svg');
-    }
-
     private function provision(string $name, array $options = []): int
     {
         return Artisan::call('shop:provision', array_merge([

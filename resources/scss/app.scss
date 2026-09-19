@@ -476,6 +476,16 @@ body {
       overflow-wrap: anywhere;
       // Room for the actions in the corner.
       padding-inline-end: 2.5rem;
+
+      // ⚠️ The name is bold; what sits under it is not. This cell is the row's
+      // name plus whatever belongs to it — a stock code, a barcode, a
+      // second-hand item's condition — and the weight above was being
+      // inherited by all of it, so "P-1001 · 6009880012" came out as loud as
+      // the product. The secondary line is already marked `.small` at every
+      // call site; this stops it shouting.
+      .small {
+        font-weight: 400;
+      }
     }
 
     .list-card-check {
