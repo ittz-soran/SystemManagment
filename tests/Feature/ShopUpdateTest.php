@@ -261,6 +261,54 @@ class ShopUpdateTest extends TestCase
         }
     }
 
+    /**
+     * ⚠️ **Soran, 2026-09-19: "update, sttil not showing" — and he was right.**
+     *
+     * The first fix copied the flags inside `copyAssets()`, which runs ONLY
+     * when the shop's build differs from the shared one. His shop had already
+     * taken the new build on an earlier update, so the next update skipped that
+     * branch entirely and the flags never moved. The test below passed because
+     * a fresh test shop has no assets at all, so that branch always ran — it
+     * never covered the case every real shop is in.
+     *
+     * This is that case: update once so the assets match, take the flags away,
+     * and update again with nothing else to do.
+     */
+    public function test_the_flags_arrive_even_when_the_build_has_not_changed(): void
+    {
+        $this->asJson('shop:update', '--no-backup');
+
+        $this->assertFileExists($this->public.'/flags/krd.svg');
+
+        // The shop is now current, which is where his was.
+        $this->assertFalse(
+            $this->assetsWouldBeCopied(),
+            'This test is meaningless unless the assets are already up to date.'
+        );
+
+        foreach (glob($this->public.'/flags/*.svg') as $flag) {
+            unlink($flag);
+        }
+
+        $this->asJson('shop:update', '--no-backup');
+
+        foreach (glob(base_path('public/flags/*.svg')) as $flag) {
+            $this->assertFileExists(
+                $this->public.'/flags/'.basename($flag),
+                basename($flag).' was skipped because the build had not changed.'
+            );
+        }
+    }
+
+    /** Do the shop and the shared codebase hold the same compiled assets? */
+    private function assetsWouldBeCopied(): bool
+    {
+        $shared = base_path('public/build/manifest.json');
+        $theirs = $this->public.'/build/manifest.json';
+
+        return ! is_file($theirs) || hash_file('sha256', $theirs) !== hash_file('sha256', $shared);
+    }
+
     /** A flag already in place is not written over on every update. */
     public function test_flags_already_matching_are_not_copied_twice(): void
     {
