@@ -38,7 +38,14 @@ return new class extends Migration
              * Null is a sale written in the shop's own money, which is every
              * sale recorded before today.
              */
-            $table->unsignedInteger('exchange_rate')->nullable()->after('grand_total');
+            /*
+             * ⚠️ `total_amount`, NOT `grand_total`. A sale has no grand_total —
+             * that column is the purchase side's, and naming it here was copied
+             * across without looking. SQLite ignores `after()` completely, so
+             * every test passed locally; MariaDB enforces it, threw on the
+             * ALTER, and took 997 tests down with the migration.
+             */
+            $table->unsignedInteger('exchange_rate')->nullable()->after('total_amount');
         });
 
         Schema::table('sale_items', function (Blueprint $table) {
