@@ -3,7 +3,6 @@
 @section('title', __('Customers'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('customers.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customer-modal">
@@ -36,7 +35,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Name') }}</th>
@@ -48,7 +47,7 @@
                     <tbody>
                     @foreach($customers as $customer)
                         <tr class="{{ $customer->is_active ? '' : 'opacity-50' }}">
-                            <td>
+                            <td class="list-card-title">
                                 <a href="{{ route('customers.show', $customer) }}" class="text-decoration-none fw-medium">
                                     {{ $customer->displayName() }}
                                 </a>
@@ -56,11 +55,11 @@
                                     <span class="badge text-bg-light">{{ __('System') }}</span>
                                 @endif
                             </td>
-                            <td><span class="app-code">{{ $customer->phone ?: '—' }}</span></td>
-                            <td class="money {{ $customer->balance > 0 ? 'fw-semibold' : 'text-secondary' }}">
+                            <td data-label="{{ __('Phone') }}"><span class="app-code">{{ $customer->phone ?: '—' }}</span></td>
+                            <td class="money {{ $customer->balance > 0 ? 'fw-semibold' : 'text-secondary' }}" data-label="{{ __('Owes the shop') }}">
                                 {{ money($customer->balance, in: $lens) }}
                             </td>
-                            <td class="text-end">
+                            <td class="list-card-actions text-end">
                                 {{-- Section 4: the Cash Customer cannot be renamed,
                                      so it is not offered a pencil. --}}
                                 <x-row-actions

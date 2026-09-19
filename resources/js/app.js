@@ -1598,3 +1598,714 @@ document.querySelectorAll('[data-trend]').forEach((chart) => {
         });
     });
 });
+
+/*
+ * Registering the service worker (Section 9b).
+ *
+ * The one thing a browser insists on before it will offer to put the shop on a
+ * home screen. What it actually does is deliberately almost nothing — see
+ * InstallController::serviceWorker: it keeps the hashed build assets and passes
+ * every page, every search and every total straight to the server.
+ *
+ * ⚠️ Never cache a figure. A till showing yesterday's stock out of a cache is
+ * worse than a till showing an error, because the error is obvious and the
+ * stale number is not.
+ *
+ * The path is read from the page rather than hard-coded: a shop can be
+ * installed in a subdirectory, and a worker registered at the domain root would
+ * claim the shop beside it.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    if (! ('serviceWorker' in navigator)) {
+        return;
+    }
+
+    const base = document.body.dataset.base ?? '';
+
+    // Nothing depends on this: no screen waits for it, and a refusal — an
+    // insecure origin, a browser with workers switched off — must leave the
+    // shop working exactly as it did.
+    navigator.serviceWorker
+        .register(base + '/sw.js', { scope: base + '/' })
+        .catch(() => {});
+});
+
+/**
+ * The bell, kept live.
+ *
+ * Soran asked for *"live changes"*. This polls; it does not hold a socket open.
+ * A shop on shared cPanel hosting has no websocket to hold, and a request every
+ * forty-five seconds costs one indexed range scan — see the migration for why
+ * that is all it is.
+ *
+ * ⚠️ **Only while the tab is being looked at.** A phone left on a counter with
+ * the shop open in a background tab would otherwise ask the server two thousand
+ * times a day for a number nobody is reading.
+ *
+ * ⚠️ **Every string goes in with textContent, never innerHTML.** A notification
+ * is one of the few places where what one person typed is drawn on another
+ * person's screen, and a product named `<img onerror=…>` would otherwise be a
+ * script running in the admin's session.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const bell = document.querySelector('.app-bell');
+
+    if (! bell) return;
+
+    const badge = bell.querySelector('.app-bell-count');
+    const number = bell.querySelector('.app-bell-number');
+    const list = bell.querySelector('.app-bell-list');
+    const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    const EVERY = 45000;
+
+    let timer = null;
+    let open = false;
+
+    const showCount = (count) => {
+        // ⚠️ Into the number's own span, not the badge. The badge also holds a
+        // visually-hidden "unread" for a screen reader, and writing over the
+        // whole thing would drop it the first time this ran — leaving a badge
+        // that reads as a bare "3" to anybody not looking at it.
+        number.textContent = count > 99 ? '99+' : String(count);
+        badge.classList.toggle('d-none', count === 0);
+    };
+
+    /** One row, built to the same shape as resources/views/partials/bell-row.blade.php. */
+    const row = (item) => {
+        const line = document.createElement('a');
+        line.className = 'app-bell-row d-flex gap-2 px-3 py-2 text-decoration-none text-body border-bottom'
+            + (item.unread ? ' is-unread' : '');
+
+        if (item.url) line.href = item.url;
+
+        const icon = document.createElement('i');
+        icon.className = `bi ${item.icon} mt-1 flex-shrink-0 `
+            + (item.tier === 'alert' ? 'text-danger' : 'text-secondary');
+        icon.setAttribute('aria-hidden', 'true');
+
+        const body = document.createElement('span');
+        body.className = 'min-w-0 flex-grow-1';
+
+        const text = document.createElement('span');
+        text.className = 'app-bell-text d-block small';
+        text.textContent = item.text;
+
+        const meta = document.createElement('span');
+        meta.className = 'app-bell-meta d-block text-secondary';
+        meta.textContent = `${item.who} · ${item.when}`;
+
+        body.append(text, meta);
+        line.append(icon, body);
+
+        return line;
+    };
+
+    const draw = (items) => {
+        list.replaceChildren();
+
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'px-3 py-4 text-center text-secondary small app-bell-empty';
+            empty.textContent = bell.dataset.empty ?? '';
+            list.append(empty);
+
+            return;
+        }
+
+        items.forEach((item) => list.append(row(item)));
+    };
+
+    const ask = async () => {
+        // Nobody is looking, and nobody is going to be surprised by a count
+        // that is forty-five seconds old when they come back.
+        if (document.visibilityState !== 'visible') return;
+
+        try {
+            const response = await fetch(bell.dataset.feed, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+                cache: 'no-store',
+                signal: AbortSignal.timeout(8000),
+            });
+
+            if (! response.ok) return;
+
+            const data = await response.json();
+
+            showCount(data.count);
+
+            // ⚠️ Not while it is open. Replacing the rows under an open panel
+            // moves what somebody is reaching for, and the shop is used with a
+            // thumb.
+            if (! open) draw(data.items);
+        } catch {
+            // A poll that failed is a count that stays as it was. The
+            // connection dot in the topbar is what says the server is gone;
+            // this does not need to say it a second time.
+        }
+    };
+
+    const schedule = () => {
+        clearInterval(timer);
+        timer = setInterval(ask, EVERY);
+    };
+
+    // Opening it is reading it: the badge clears, but the marks on the rows
+    // stay for this viewing — a list that forgets what was new the instant you
+    // look at it cannot answer "what was that thing I just saw".
+    bell.addEventListener('show.bs.dropdown', () => {
+        open = true;
+        showCount(0);
+
+        fetch(bell.dataset.seen, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+                Accept: 'application/json',
+            },
+        }).catch(() => {});
+    });
+
+    bell.addEventListener('hidden.bs.dropdown', () => {
+        open = false;
+        ask();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') ask();
+    });
+
+    schedule();
+});
+
+/**
+ * Tapping a remembrance.
+ *
+ * Soran asked for counters beside the أذكار. This keeps them in the browser and
+ * sends nothing to the server, which is a decision rather than a shortcut:
+ *
+ *   A tap must answer instantly. This is somebody standing at a counter saying
+ *   a dhikr under their breath, not filling in a form — a round trip per tap,
+ *   on shop wifi, would make the number lag behind the words.
+ *
+ *   It is nobody else's business. No row, no audit entry, no backup carrying
+ *   how many times the shopkeeper said سبحان الله this morning.
+ *
+ *   And there is nothing to lose. The count is for today and starts again
+ *   tomorrow; it is a tally, not a record.
+ *
+ * ⚠️ The cost, stated plainly: the tally is per device. The same person on the
+ * counter PC and on their phone keeps two counts. That is the honest trade for
+ * the three things above, and moving it to the server is a small change if
+ * Soran would rather it followed him.
+ *
+ * ⚠️ The day comes from the SHOP's clock, written into the markup, not from the
+ * browser's. A phone left on a plane keeps the wrong date, and the shop rolling
+ * over at its own midnight is the only rollover that means anything.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const lists = Array.from(document.querySelectorAll('.app-dhikr-list'));
+
+    if (lists.length === 0) return;
+
+    const day = lists[0].dataset.day ?? '';
+    const shelf = `dhikr:${day}`;
+
+    /*
+     * ⚠️ Every read and write is wrapped. localStorage throws outright in a
+     * private window on some browsers, and comes back empty when site data has
+     * been cleared. A counter that cannot be stored is a counter that still has
+     * to count — the page must work with the number simply not surviving a
+     * refresh, rather than not working at all.
+     */
+    const read = () => {
+        try {
+            return JSON.parse(localStorage.getItem(shelf) ?? '{}') ?? {};
+        } catch {
+            return {};
+        }
+    };
+
+    const write = (counts) => {
+        try {
+            // Yesterday's tallies are not history, they are litter. Clearing
+            // them here means the shop never accumulates a key per day forever.
+            Object.keys(localStorage)
+                // ⚠️ `dhikr` and not `dhikr:` — the turn counter is written as
+                // `dhikr-turn:<day>` and was never being swept, so a shop
+                // accumulated one dead key per day forever. `dhikr-last` is
+                // kept deliberately: it is a moment on the clock, not a tally,
+                // and it has to outlive the day it was written in.
+                .filter((key) => key.startsWith('dhikr') && key !== shelf && key !== 'dhikr-last')
+                .filter((key) => key !== `dhikr-turn:${day}`)
+                .forEach((key) => localStorage.removeItem(key));
+
+            localStorage.setItem(shelf, JSON.stringify(counts));
+        } catch {
+            // Nothing to do, and nothing worth saying: the count on screen is
+            // still correct for as long as this page is open.
+        }
+    };
+
+    let counts = read();
+
+    const paint = () => {
+        document.querySelectorAll('.app-dhikr').forEach((button) => {
+            const count = counts[button.dataset.dhikr] ?? 0;
+
+            button.querySelector('.app-dhikr-count').textContent = String(count);
+            button.classList.toggle('is-counted', count > 0);
+        });
+    };
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.app-dhikr');
+
+        if (! button) return;
+
+        const key = button.dataset.dhikr;
+        counts[key] = (counts[key] ?? 0) + 1;
+
+        write(counts);
+        paint();
+    });
+
+    document.getElementById('dhikr-reset')?.addEventListener('click', () => {
+        counts = {};
+        write(counts);
+        paint();
+    });
+
+    paint();
+});
+
+/**
+ * A remembrance that shows itself.
+ *
+ * **Soran, 2026-09-16:** *"i want every 1 min or 5 min show on of Remembrances
+ * as notification show on screen, without user go to read Remembrance
+ * manualy"*.
+ *
+ * ⚠️ This reverses his earlier *"never a dialog over the till"*, and the
+ * reversal is narrow. He asked for it to appear by itself, on every screen,
+ * and chose the shape: a small card in the top corner that never covers the
+ * total or Save. So:
+ *
+ *   It is a toast, in the corner the shop already puts toasts in — top right,
+ *   top left in RTL. Never a modal, never centred, never over the till bar.
+ *
+ *   It never takes the keyboard. Somebody typing a price into the cart keeps
+ *   typing into the cart; this cannot steal a keystroke, and nothing it does
+ *   can change what gets saved.
+ *
+ *   It waits while a modal is open. The number pad is a person doing one thing
+ *   with their whole attention, and a price is the number this shop most often
+ *   gets wrong.
+ *
+ *   It goes quiet while nobody is looking, rather than queueing up ninety of
+ *   them to fire the moment the tab comes back.
+ *
+ * In order rather than at random, so the list gets worked through instead of
+ * landing on the same one all morning.
+ *
+ * ⚠️ **The schedule is a wall clock, not a page timer, and the first build got
+ * this wrong.** `setInterval` starts counting at page load — and every click in
+ * this shop is a full page load, because it is server-rendered. Soran set it to
+ * one minute and saw almost nothing: opening a product, saving a sale, going
+ * back to the list, each one restarted the minute from zero. So the moment the
+ * last one appeared is remembered, and what is due is worked out from the
+ * clock. A reload now costs nothing at all.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    // ⚠️ The bell's copy only. The remembrance page renders the same partial
+    // once per window, and three timers would mean three at once.
+    const source = document.querySelector('.app-dhikr-list[data-every]');
+    const container = document.querySelector('.toast-container');
+
+    if (! source || ! container) return;
+
+    const minutes = Number(source.dataset.every ?? 0);
+
+    // 0 is off, and off is a real answer.
+    if (! Number.isFinite(minutes) || minutes <= 0) return;
+
+    const buttons = Array.from(source.querySelectorAll('.app-dhikr'));
+
+    if (buttons.length === 0) return;
+
+    const spot = `dhikr-turn:${source.dataset.day ?? ''}`;
+
+    // ⚠️ NOT keyed by the day. This is "when did one last appear", a moment on
+    // the clock, and it has to survive midnight the same as it survives a
+    // reload — otherwise the first remembrance of a new day arrives the instant
+    // somebody opens the shop.
+    const clock = 'dhikr-last';
+
+    const every = minutes * 60 * 1000;
+
+    let turn = 0;
+
+    try {
+        turn = Number(localStorage.getItem(spot) ?? 0) || 0;
+    } catch {
+        // Starting from the top is a perfectly good answer.
+    }
+
+    const lastShown = () => {
+        try {
+            const stored = Number(localStorage.getItem(clock));
+
+            if (Number.isFinite(stored) && stored > 0) {
+                return stored;
+            }
+        } catch {
+            // Falls through to seeding below.
+        }
+
+        /*
+         * Never seen one. Start the clock NOW rather than firing immediately:
+         * "every minute" means the first one a minute from now, and a card that
+         * appears the instant somebody signs in reads as something being wrong
+         * rather than as a remembrance.
+         */
+        const now = Date.now();
+        remember(now);
+
+        return now;
+    };
+
+    const remember = (when) => {
+        try {
+            localStorage.setItem(clock, String(when));
+        } catch {
+            // Without storage this falls back to counting from page load, which
+            // is what it did before and is better than nothing.
+        }
+    };
+
+    const show = () => {
+        remember(Date.now());
+
+        // Named apart from the list above on purpose: shadowing `source` here
+        // reads as the same thing and is not.
+        const chosen = buttons[turn % buttons.length];
+        turn = (turn + 1) % buttons.length;
+
+        try {
+            localStorage.setItem(spot, String(turn));
+        } catch {
+            // It will simply start from the top next time the page loads.
+        }
+
+        const toast = document.createElement('div');
+        toast.className = 'toast app-dhikr-toast border-0';
+        // polite, never assertive: this must wait its turn behind whatever a
+        // screen reader is already saying rather than cutting across it.
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+
+        const body = document.createElement('div');
+        body.className = 'toast-body app-dhikr-toast-body';
+        body.setAttribute('dir', 'rtl');
+        body.setAttribute('lang', 'ar');
+        // ⚠️ textContent. The shop's own adhkar are typed by an admin into a
+        // Settings box, and this is markup being built by hand.
+        body.textContent = chosen.querySelector('.app-dhikr-text').textContent;
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'btn-close me-2 m-auto';
+        close.setAttribute('data-bs-dismiss', 'toast');
+        close.setAttribute('aria-label', container.dataset.close ?? 'Close');
+
+        const row = document.createElement('div');
+        row.className = 'd-flex';
+        row.append(body, close);
+        toast.append(row);
+        container.append(toast);
+
+        // Tapping it counts it, exactly as tapping the row in the panel does —
+        // the click listener above is on the document and finds .app-dhikr.
+        body.addEventListener('click', () => chosen.click());
+
+        // Long enough to read Arabic with full tashkeel, which is slower than
+        // the four seconds a "Saved" message gets.
+        const instance = bootstrap.Toast.getOrCreateInstance(toast, { delay: 15000 });
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+        instance.show();
+    };
+
+    /*
+     * A short heartbeat that asks "is one due yet", rather than one long timer.
+     *
+     * ⚠️ This is what makes every skip recoverable. A long timer that fired
+     * while the number pad was open lost that turn until the next one — half an
+     * hour later, on the thirty-minute setting. A due-check simply comes back
+     * fifteen seconds later and asks again.
+     *
+     * ⚠️ Every five seconds, not fifteen. Fifteen was the first try and it
+     * showed: the interval restarts on each page load, so the first due-check
+     * of a page lands fifteen seconds in, and a one-minute setting measured
+     * 78 seconds. A quarter late is the difference between "every minute" and
+     * "about every minute", and the one-minute setting is the one Soran asked
+     * about. Twelve comparisons a minute is still nothing.
+     */
+    const due = () => {
+        // Nobody is looking. Not shown, and NOT counted as shown — it will be
+        // overdue the moment they come back, which is when it should appear.
+        if (document.visibilityState !== 'visible') return;
+
+        // Somebody is in the middle of one thing, with their whole attention.
+        // The number pad is where this shop types prices.
+        if (document.querySelector('.modal.show')) return;
+
+        if (Date.now() - lastShown() < every) return;
+
+        show();
+    };
+
+    setInterval(due, 5000);
+
+    // And the moment a tab is looked at again, rather than up to five seconds
+    // later.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') due();
+    });
+});
+
+/**
+ * Registering the service worker.
+ *
+ * ⚠️ **This was missing, and it is why nothing worked.** `sw.js` has been
+ * served since Add to Home Screen was built, and nothing ever registered it. A
+ * worker that is served and never registered does not exist as far as the
+ * browser is concerned: no push can arrive, because `PushManager` lives on the
+ * registration. Soran added the shop to his iPhone and got nothing, and this is
+ * the reason.
+ *
+ * Registered on load rather than behind a tap, because registering is not
+ * asking for anything — no permission, no prompt. Only `Notification.request`
+ * needs the gesture, and that stays behind its button.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const url = document.querySelector('meta[name="service-worker"]')?.content;
+
+    if (! url || ! ('serviceWorker' in navigator)) return;
+
+    // Failing is quiet on purpose: a shop served over plain http in a test
+    // environment cannot register one, and that must not put an error in front
+    // of a shopkeeper who never asked for notifications.
+    navigator.serviceWorker.register(url).catch(() => {});
+});
+
+/**
+ * Asking a phone to let the shop reach it — Soran, 2026-09-17.
+ *
+ * *"i added to home screen in iphone but not recived notifications, for ex
+ * edited an product success, should recived notify to app on iphone"*.
+ *
+ * ⚠️ **iOS will not ask unless a person taps, inside an installed app.** Safari
+ * on iPhone refuses `Notification.requestPermission()` from anywhere else —
+ * page load, a timer, an iframe — and denies it without a word. A shop that
+ * asked on load would look exactly like a shop whose notifications are broken,
+ * which is what Soran was looking at.
+ *
+ * So: a button, and a sentence for every way this can fail, because "nothing
+ * happened" is the one answer a shopkeeper cannot act on.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('push-device');
+
+    if (! box) return;
+
+    const button = document.getElementById('push-toggle');
+    const label = document.getElementById('push-label');
+    const note = document.getElementById('push-note');
+    const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    const say = (message) => { note.textContent = message; };
+
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+    /*
+     * ⚠️ On iOS, installed means `display-mode: standalone` OR the old
+     * `navigator.standalone`. Checked because iOS reports PushManager as
+     * present in a Safari tab and then refuses everything — telling somebody to
+     * open it from the Home Screen is the only useful thing to say.
+     */
+    const installed = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    if (! supported) {
+        button.disabled = true;
+        say(box.dataset.unsupported);
+
+        return;
+    }
+
+    if (! box.dataset.key) {
+        button.disabled = true;
+        say(box.dataset.unset);
+
+        return;
+    }
+
+    if (iOS && ! installed) {
+        button.disabled = true;
+        say(box.dataset.install);
+
+        return;
+    }
+
+    /** The key travels as base64url and the browser wants bytes. */
+    const asBytes = (base64) => {
+        const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4))
+            .replace(/-/g, '+').replace(/_/g, '/');
+        const raw = window.atob(padded);
+
+        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+    };
+
+    const paint = (on) => {
+        label.textContent = on ? box.dataset.on : box.dataset.off;
+        button.classList.toggle('btn-primary', on);
+        button.classList.toggle('btn-outline-primary', ! on);
+    };
+
+    const current = async () => (await navigator.serviceWorker.ready).pushManager.getSubscription();
+
+    current().then((subscription) => paint(Boolean(subscription))).catch(() => {});
+
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const existing = await registration.pushManager.getSubscription();
+
+            if (existing) {
+                await fetch(box.dataset.unsubscribe, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint: existing.endpoint }),
+                });
+
+                await existing.unsubscribe();
+                paint(false);
+                say('');
+
+                return;
+            }
+
+            // ⚠️ Inside the click, not before it. iOS treats the gesture as
+            // spent the moment anything awaits too long before asking.
+            const allowed = await Notification.requestPermission();
+
+            if (allowed !== 'granted') {
+                say(box.dataset.blocked);
+
+                return;
+            }
+
+            /*
+             * ⚠️ **`subscribe()` can hang forever.** It is the browser calling
+             * Apple's or Google's push service, and on a connection that
+             * cannot reach it the promise simply never settles — the button
+             * stays dead and nothing is said, which is the exact "nothing
+             * happened" this whole screen exists to end. Measured: twenty
+             * seconds and still waiting, where a reachable service answers in
+             * well under one.
+             */
+            const subscription = await Promise.race([
+                registration.pushManager.subscribe({
+                    // Required, and required to be true: a push nobody sees is
+                    // not allowed by any browser that implements this.
+                    userVisibleOnly: true,
+                    applicationServerKey: asBytes(box.dataset.key),
+                }),
+                new Promise((resolve, reject) => {
+                    window.setTimeout(() => reject(new Error('slow')), 20000);
+                }),
+            ]);
+
+            await fetch(box.dataset.subscribe, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify(subscription.toJSON()),
+            });
+
+            paint(true);
+            say('');
+        } catch (error) {
+            // Whatever went wrong, the shopkeeper gets a sentence rather than a
+            // button that did nothing. Not being able to reach the service is
+            // worth its own sentence: it is the one failure that is fixed by
+            // trying again, and telling somebody to go and unblock a
+            // permission they never blocked would send them the wrong way.
+            say(error?.message === 'slow' ? box.dataset.slow : box.dataset.blocked);
+        } finally {
+            button.disabled = false;
+        }
+    });
+});
+
+/**
+ * The search takes the whole bar on a phone — Soran, 2026-09-19.
+ *
+ * *"search box in top bar for mobile version should just show search icon then
+ * expand input and hide other elements because on mobile can show something at
+ * once"*.
+ *
+ * ⚠️ Classes, not inline styles, so the md breakpoint keeps its own word. The
+ * box carries `d-none d-md-block`: dropping `d-none` opens it on a phone and
+ * changes nothing above md, where it was never hidden. Adding it back closes
+ * it — and a resize past the breakpoint cannot leave a half-open bar, because
+ * `d-md-block` wins there whatever this did.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const open = document.getElementById('app-search-open');
+    const close = document.getElementById('app-search-close');
+    const box = document.querySelector('.app-search');
+    const input = document.getElementById('app-search');
+    const rest = document.getElementById('app-topbar-rest');
+    const menu = document.querySelector('[data-bs-target="#app-nav"]');
+
+    if (! open || ! box || ! input) return;
+
+    const results = document.getElementById('app-search-results');
+
+    function show(wanted) {
+        box.classList.toggle('d-none', ! wanted);
+
+        // The magnifier, the drawer button and everything on the other side
+        // step aside, which is the whole point: one thing at a time.
+        open.classList.toggle('d-none', wanted);
+        menu?.classList.toggle('d-none', wanted);
+        rest?.classList.toggle('d-none', wanted);
+
+        open.setAttribute('aria-expanded', wanted ? 'true' : 'false');
+
+        if (wanted) {
+            input.focus();
+
+            return;
+        }
+
+        // Leaving it behind with a term in it would reopen onto yesterday's
+        // search and a list of results nobody asked for again.
+        input.value = '';
+        results?.classList.remove('show');
+    }
+
+    open.addEventListener('click', () => show(true));
+    close?.addEventListener('click', () => show(false));
+
+    // Escape closes it, the same key that closes every other panel here —
+    // and only on a phone, where it is the only thing that opened.
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && window.innerWidth < 768) show(false);
+    });
+});

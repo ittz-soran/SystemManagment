@@ -56,7 +56,7 @@
 
                 <div class="card">
                     <div class="table-responsive">
-                        <table class="table align-middle mb-0" id="cart-table">
+                        <table class="table align-middle mb-0 table-cart" id="cart-table">
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
@@ -117,6 +117,47 @@
                         </div>
 
                         <div class="mb-3">
+                            {{-- The receipt's own currency and rate — Soran,
+                                 2026-09-19: "if currency on usd change sale
+                                 page to usd, but in sale page have combo to
+                                 change again and input to rate".
+
+                                 ⚠️ Only base-currency integers are ever stored.
+                                 Each price box below is unnamed and has a
+                                 hidden field beside it holding the base figure
+                                 the form actually posts — the same rule the
+                                 purchase cart has followed since §2b. --}}
+                            @if($foreignCurrencies->isNotEmpty())
+                                @php
+                                    $chosenCode = old('document_currency', $documentCurrency);
+                                @endphp
+                                <div class="row g-2 mb-3">
+                                    <div class="col-7">
+                                        <label for="document_currency" class="form-label">{{ __('Receipt currency') }}</label>
+                                        <select id="document_currency" name="document_currency" class="form-select"
+                                                data-meta="{{ json_encode($currencyMeta) }}"
+                                                data-base="{{ $base->code }}">
+                                            <option value="{{ $base->code }}" @selected($chosenCode === $base->code)>
+                                                {{ $base->name }} ({{ $base->code }})
+                                            </option>
+                                            @foreach($foreignCurrencies as $currency)
+                                                <option value="{{ $currency->code }}" @selected($chosenCode === $currency->code)>
+                                                    {{ $currency->name }} ({{ $currency->code }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-5">
+                                        <label for="exchange_rate" class="form-label">{{ __('Rate') }}</label>
+                                        <input id="exchange_rate" type="number" step="1" min="1" dir="ltr"
+                                               name="exchange_rate" class="form-control text-end"
+                                               value="{{ old('exchange_rate', $documentRate ?: '') }}"
+                                               @disabled($chosenCode === $base->code)
+                                               data-english-digits>
+                                    </div>
+                                </div>
+                            @endif
+
                             <label for="sale_date" class="form-label">{{ __('Date') }}</label>
                             <input id="sale_date" type="date" name="sale_date" class="form-control"
                                    value="{{ old('sale_date', $editing ? $sale->sale_date->toDateString() : today()->toDateString()) }}" required>
@@ -130,7 +171,7 @@
                              visible. It is the number Soran reads out to the
                              customer." --}}
                         <div class="text-secondary small">{{ __('Total') }}</div>
-                        <div class="running-total" id="running-total">0</div>
+                        <div class="running-total" id="running-total" data-role="running-total">0</div>
 
                         {{-- The figure written out, the oldest anti-fraud device
                              on an invoice: a digit can be changed with a pen and
@@ -169,11 +210,32 @@
                     </div>
                 </div>
 
-                {{-- Section 9b: action buttons fixed at the bottom so they never
-                     scroll away. --}}
-                <div class="d-grid gap-2 position-sticky" style="bottom: 1rem">
+                {{--
+                    ⚠️ **Not sticky, and it used to be.**
+
+                    `position-sticky; bottom: 1rem` was written for Section 9b's
+                    *"action buttons fixed at the bottom so they never scroll
+                    away"*. A bottom-sticky element is pinned to the bottom of
+                    the window whenever its own place in the page is below the
+                    fold — and it paints over whatever is there, because sticky
+                    keeps its space where it was and only draws somewhere else.
+
+                    What that meant, measured at 1280×800 on an EMPTY cart, the
+                    state this screen opens in: the buttons drew at y 644–784,
+                    the Method dropdown sits at 764–802, and
+                    `document.elementFromPoint` over the middle of Method
+                    returned the button block. The field was not merely covered,
+                    it could not be clicked, until somebody scrolled.
+
+                    There is no version of bottom-sticky that avoids this: any
+                    element pinned to the bottom of the window lands on whatever
+                    the last field is. So it goes — and it costs almost nothing,
+                    because F2 already saves from anywhere on this page and the
+                    hint under the scanner says so.
+                --}}
+                <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-sale" disabled
-                            data-submitting-text="{{ __('Saving…') }}">
+                            data-role="save" data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save sale') }} <kbd class="ms-1">F2</kbd>
                     </button>
                     @unless($editing)
@@ -188,6 +250,32 @@
                        class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
+        </div>
+        {{-- ⚠️ The till bar — a phone only, and inside the form on purpose.
+
+             On a laptop the totals panel sits beside the cart and the running
+             total is never out of sight. On a phone that panel stacks under the
+             cart: with four lines scanned, Save was about fourteen hundred
+             pixels below the scanner, and the total the shopkeeper reads out to
+             the customer was down there with it.
+
+             Inside the `<form>` rather than attached to it with `form="…"`,
+             because that is what makes the hold-to-save guard find it — app.js
+             walks `form.querySelectorAll`, and a button outside the form is
+             never walked. So this Save holds for two seconds like every other
+             Save in the shop, with no change to the guard at all.
+
+             No F2 here: a phone has no F2 key. --}}
+        <div class="app-till-bar d-md-none no-print">
+            <div class="min-w-0">
+                <div class="app-till-bar-label">{{ __('Total') }}</div>
+                <div class="app-till-bar-total money" data-role="running-total">0</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled
+                    data-role="save" data-submitting-text="{{ __('Saving…') }}">
+                {{ $editing ? __('Save changes') : __('Save sale') }}
+            </button>
         </div>
     </form>
 
@@ -231,7 +319,7 @@
             let resultsBox = searches[0].results;
             const cartBody = document.getElementById('cart-body');
             const cartEmpty = document.getElementById('cart-empty');
-            const totalEl = document.getElementById('running-total');
+            const totalEls = document.querySelectorAll('[data-role="running-total"]');
             const wordsEl = document.getElementById('running-total-words');
 
             /*
@@ -297,12 +385,17 @@
             };
 
             const showTotal = (total) => {
-                totalEl.textContent = format(total);
+                // Said in two places on a phone — the panel and the till bar —
+                // and in one on a laptop. Both read the same number from here.
+                totalEls.forEach((el) => { el.textContent = format(total); });
                 if (wordsEl) wordsEl.textContent = inWords(Math.round(total));
             };
             const paidInput = document.getElementById('amount_paid');
             const dueNote = document.getElementById('due-note');
-            const saveButton = document.getElementById('save-sale');
+            // Same button, twice, for the same reason as the total. Every
+            // element wearing the role, rather than one id, so the till bar
+            // cannot fall out of step with the panel.
+            const saveButtons = document.querySelectorAll('[data-role="save"]');
             const customerSelect = document.getElementById('customer_id');
 
             // Section 8: an edit starts from the sale's current lines.
@@ -325,7 +418,7 @@
                     // either opens the keypad, which a finger can use on a
                     // touchscreen and a keyboard can drive just as fast.
                     row.innerHTML = `
-                        <td>
+                        <td class="cart-cell-product">
                             <div class="fw-medium">
                                 ${escapeHtml(line.name)}
                                 ${line.kind === 'service'
@@ -353,7 +446,7 @@
                             </div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
                         </td>
-                        <td>
+                        <td class="cart-cell-qty">
                             {{-- Section 4: a product is counted in its own unit,
                                  and the same unit buys and sells it. Writing it
                                  beside the box is the whole of it — there is no
@@ -368,15 +461,27 @@
                                                      style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
                             </div>
                         </td>
-                        <td>
-                            <input type="number" min="0" step="1" dir="ltr"
+                        <td class="cart-cell-price">
+                            {{-- ⚠️ The visible box is the SCREEN'S; the hidden
+                                 one beside it is the BOOKS'. Whatever currency
+                                 this receipt is written in, only a base-currency
+                                 integer is ever posted — §2b, and the same
+                                 shape the purchase cart uses. --}}
+                            <input type="number" min="0" step="any" dir="ltr"
                                    class="form-control form-control-sm text-end"
-                                   name="lines[${index}][unit_price]" value="${line.price}"
+                                   value="${line.price}"
                                    data-role="price" data-index="${index}"
                                    data-numpad="${escapeHtml(line.name)}">
+                            <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}"
+                                   data-role="price-base" data-index="${index}">
+                            <input type="hidden" name="lines[${index}][entered_currency]"
+                                   data-role="price-code" data-index="${index}">
+                            <input type="hidden" name="lines[${index}][entered_amount]"
+                                   data-role="price-typed" data-index="${index}">
+                            <div class="small text-secondary text-end d-none" data-role="price-base-note" data-index="${index}"></div>
                         </td>
-                        <td class="money fw-semibold">${format(line.quantity * line.price)}</td>
-                        <td>
+                        <td class="money fw-semibold cart-cell-total">${format(line.quantity * line.price)}</td>
+                        <td class="cart-cell-actions">
                             <div class="btn-group btn-group-sm">
                                 {{-- Section 4: "one sale can list the same
                                      product on two lines at two prices", which
@@ -400,7 +505,7 @@
                 });
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
-                saveButton.disabled = cart.length === 0;
+                saveButtons.forEach((b) => { b.disabled = cart.length === 0; });
 
                 // Nothing to put down until something is in it.
                 const hold = document.getElementById('hold-cart');
@@ -597,10 +702,147 @@
                 row.querySelector('.money').textContent = format(line.quantity * line.price);
                 row.querySelector('[data-role="below-cost"]').classList.toggle('d-none', ! line.belowCost);
 
+                recalc();
+            }
+
+            /**
+             * The running total, always from the BASE figures.
+             *
+             * Its own function because changing the receipt's currency or its
+             * rate has to redo it without there being one row to refresh.
+             */
+            function recalc() {
                 const total = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
+
                 showTotal(total);
                 updateDue(total);
             }
+
+            /**
+             * The receipt's own currency — Soran, 2026-09-19.
+             *
+             * ⚠️ **`line.price` is ALWAYS the base figure.** The visible box
+             * holds whatever this receipt is written in; the hidden field
+             * beside it, the totals, the amount due and the held cart all read
+             * the base one. Nothing about what the shop is owed depends on
+             * which currency somebody chose to type in.
+             */
+            const docSelect = document.getElementById('document_currency');
+            const rateBox = document.getElementById('exchange_rate');
+            const currencyMeta = docSelect ? JSON.parse(docSelect.dataset.meta) : {};
+            const baseCode = docSelect ? docSelect.dataset.base : null;
+
+            function docCurrency() {
+                if (! docSelect) return null;
+
+                const code = docSelect.value;
+
+                if (! code || code === baseCode) return null;
+
+                return currencyMeta[code] ?? null;
+            }
+
+            function docRate() {
+                return Math.max(1, Number(rateBox?.value || 0));
+            }
+
+            /** What somebody typed, read back as base units. */
+            function toBase(typed) {
+                return docCurrency() ? Math.round(typed * docRate()) : Math.round(typed);
+            }
+
+            /** A base figure, written in the currency this receipt names. */
+            function fromBase(base) {
+                const currency = docCurrency();
+
+                if (! currency) return base;
+
+                return Number((base / docRate()).toFixed(currency.decimals));
+            }
+
+            /** The three hidden fields and the note under a price box. */
+            function writePrice(index) {
+                const line = cart[index];
+                if (! line) return;
+
+                const currency = docCurrency();
+                const at = (role) => cartBody.querySelector(`[data-role="${role}"][data-index="${index}"]`);
+
+                const base = at('price-base');
+                const code = at('price-code');
+                const typed = at('price-typed');
+                const note = at('price-base-note');
+
+                if (base) base.value = line.price;
+
+                if (code) code.value = currency && line.typed != null ? currency.code : '';
+
+                // ⚠️ Scaled by THIS currency's own minor units, not by a
+                // hundred: a yen has none, and dividing it by 100 on the way
+                // back would show ¥5 for ¥500 — §2b learned that once already.
+                if (typed) {
+                    typed.value = currency && line.typed != null
+                        ? Math.round(line.typed * currency.minorPerMajor)
+                        : '';
+                }
+
+                if (note) {
+                    note.textContent = currency ? `= ${format(line.price)}` : '';
+                    note.classList.toggle('d-none', ! currency);
+                }
+            }
+
+            /** Redraw every visible price box in the currency now chosen. */
+            function redrawPrices() {
+                const currency = docCurrency();
+
+                if (rateBox) rateBox.disabled = ! currency;
+
+                cart.forEach((line, index) => {
+                    const box = cartBody.querySelector(`[data-role="price"][data-index="${index}"]`);
+
+                    if (box) box.value = fromBase(line.price);
+
+                    writePrice(index);
+                });
+            }
+
+            docSelect?.addEventListener('change', () => {
+                const currency = docCurrency();
+
+                // Opening the rate box on the shop's saved rate, so nobody has
+                // to remember today's before they can type a price.
+                if (currency && ! Number(rateBox.value)) rateBox.value = currency.rate;
+
+                /*
+                 * ⚠️ The untouched-field rule, §2b. A line somebody typed a
+                 * foreign figure into follows the currency; a line that still
+                 * holds its base price is merely REDRAWN in it. Re-reading a
+                 * redrawn figure back would move money on a screen nobody
+                 * touched.
+                 */
+                cart.forEach((line) => { if (! currency) line.typed = null; });
+
+                redrawPrices();
+                recalc();
+            });
+
+            rateBox?.addEventListener('input', () => {
+                const currency = docCurrency();
+
+                if (! currency) return;
+
+                // Only the lines actually typed in this currency move with it.
+                cart.forEach((line, index) => {
+                    if (line.typed == null) return;
+
+                    line.price = toBase(line.typed);
+                    refreshRow(index);
+                });
+
+                redrawPrices();
+                recalc();
+            });
 
             cartBody.addEventListener('input', (event) => {
                 const index = Number(event.target.dataset.index);
@@ -610,7 +852,12 @@
                 if (event.target.dataset.role === 'qty') {
                     line.quantity = Math.max(1, Number(event.target.value || 1));
                 } else if (event.target.dataset.role === 'price') {
-                    line.price = Math.max(0, Number(event.target.value || 0));
+                    const typed = Math.max(0, Number(event.target.value || 0));
+
+                    // What they typed, and what the books take from it.
+                    line.typed = docCurrency() ? typed : null;
+                    line.price = Math.max(0, toBase(typed));
+                    writePrice(index);
                     // Section 9b: below-cost warns, never blocks — Soran may sell
                     // below cost deliberately for clearance or damaged goods.
                     line.belowCost = line.cost !== null && line.price < line.cost;
@@ -670,7 +917,7 @@
                 // from under a half-typed price.
                 if (document.getElementById('number-pad')?.classList.contains('show')) return;
 
-                if (event.key === 'F2' && ! saveButton.disabled) {
+                if (event.key === 'F2' && ! saveButtons[0].disabled) {
                     event.preventDefault();
                     document.getElementById('sale-form').requestSubmit();
                 }
@@ -704,6 +951,8 @@
                     return {
                         product_id: +document.querySelector(`[name="lines[${index}][product_id]"]`).value,
                         quantity: +qty.value,
+                        // The base figure, never the box somebody typed a
+                        // dollar into — a held cart comes back on any screen.
                         unit_price: +document.querySelector(`[name="lines[${index}][unit_price]"]`).value,
                     };
                 });

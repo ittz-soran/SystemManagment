@@ -37,6 +37,16 @@ class EnforceLicence
         'profile.*',
         'password.*',
         'preferences.*',
+
+        /*
+         * Marking the bell read. It writes one number onto the reader's own
+         * row and records nothing about the shop's business, so it costs the
+         * seller nothing — and blocking it is actively harmful: the badge
+         * would grow forever on the one shop that cannot clear it, and among
+         * the entries it will not let them dismiss is the alert saying the
+         * licence has run out.
+         */
+        'notifications.*',
         'verification.*',
         'authenticator.*',
     ];

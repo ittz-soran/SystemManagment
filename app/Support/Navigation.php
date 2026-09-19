@@ -40,6 +40,8 @@ final class Navigation
                 ['route' => 'second-hand.index', 'permission' => 'second_hand.view', 'icon' => 'arrow-repeat', 'label' => __('Second-hand')],
                 ['route' => 'services.index', 'permission' => 'services.view', 'icon' => 'magic', 'label' => __('Services')],
                 ['route' => 'stock-adjustments.index', 'permission' => 'stock_adjustments.view', 'icon' => 'sliders', 'label' => __('Stock adjustments')],
+                ['route' => 'stock-rooms.index', 'permission' => 'stock_rooms.view', 'icon' => 'building', 'label' => __('Stock rooms')],
+                ['route' => 'stock-transfers.index', 'permission' => 'stock_rooms.view', 'icon' => 'box-arrow-right', 'label' => __('Stock moves')],
             ],
             __('People') => [
                 ['route' => 'customers.index', 'permission' => 'customers.view', 'icon' => 'people', 'label' => __('Customers')],

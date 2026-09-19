@@ -10,7 +10,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 @endsection
 
 @section('content')

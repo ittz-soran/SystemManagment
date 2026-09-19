@@ -45,6 +45,23 @@ body {
 // Shell — fixed sidebar (right in RTL) plus a slim topbar.
 // ---------------------------------------------------------------------------
 
+// ⚠️ Lets a flex item shrink below its own content.
+//
+// A flex item's `min-width` defaults to `auto`, which means "never narrower
+// than what is inside me". A wide table inside such an item does not scroll in
+// its `.table-responsive` — it pushes the item, and everything beside it, wider
+// than the screen. Every list in the shop did that on a phone: 784px of
+// products on a 390px screen, dragged sideways to read the second half of a
+// row.
+//
+// Bootstrap has no such utility, which is how `min-vw-0` — a class that exists
+// nowhere and therefore did nothing — sat in the shell unnoticed. This one is
+// real, global, and LayoutClassTest checks the layouts only name classes that
+// resolve to something.
+.min-w-0 {
+  min-width: 0;
+}
+
 .app-sidebar {
   width: var(--app-sidebar-width);
   flex: 0 0 var(--app-sidebar-width);
@@ -89,8 +106,27 @@ body {
   color: var(--bs-secondary-color);
 }
 
-@include media-breakpoint-down(lg) {
-  // Section 9b: the sidebar collapses to icons on narrow screens.
+// The sidebar's own padding and stacking, said here rather than as utilities on
+// the element: at and above md Bootstrap's responsive-offcanvas rules set
+// `padding: 0` and `display: flex` on `.offcanvas-body`, and a two-class
+// selector is what it takes to keep our own.
+.app-sidebar .offcanvas-body {
+  flex-direction: column;
+  padding: 0.5rem;
+  // ⚠️ Bootstrap blanks this with `!important` at and above the breakpoint, so
+  // matching it is the only way to keep the sidebar from going transparent on
+  // every screen bigger than a phone.
+  background-color: var(--bs-tertiary-bg) !important;
+}
+
+// --- tablet: the icon rail ---------------------------------------------------
+//
+// ⚠️ `between`, not `down`. This used to be `down(lg)`, which swept the phone in
+// with the iPad and left a 390px screen showing fourteen unlabelled icons in a
+// 3.5rem strip it could never dismiss — an eighth of the screen, permanently
+// spent, to say nothing a reader could read. The iPad has room for the rail and
+// Soran says it looks right there, so the rail now stops where the iPad does.
+@include media-breakpoint-between(md, lg) {
   .app-sidebar {
     --app-sidebar-width: 3.5rem;
 
@@ -102,6 +138,370 @@ body {
 
     .nav-link {
       text-align: center;
+    }
+  }
+}
+
+// --- phone: the drawer -------------------------------------------------------
+@include media-breakpoint-down(md) {
+  .app-sidebar {
+    // Narrower than Bootstrap's 400px default, which is wider than the phone
+    // this is for.
+    --bs-offcanvas-width: min(82vw, 17rem);
+
+    // Beats `.app-sidebar { position: sticky; height: 100vh }` above, which is
+    // written for a sidebar that sits in the row rather than over it.
+    position: fixed;
+    height: 100%;
+    border-inline-end: 0;
+
+    // It is a drawer over the page now, not a column beside it, so nothing in
+    // the flex row should be holding space for it.
+    width: auto;
+    flex: none;
+  }
+
+  // The rail's rules do not reach here — see `between` above — so the labels,
+  // the group headings and the shop's name are all present. That is the point
+  // of the drawer.
+
+  // On a phone the topbar is the only way to the menu, so it has to still be
+  // there after a long list has been scrolled. On wider screens the sidebar is
+  // on the screen the whole time and the bar can go with the page.
+  //
+  // Below the offcanvas (1045) and its backdrop (1040) on purpose: the drawer
+  // this bar opens must cover it, not slide underneath.
+  .app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+  }
+
+  // ⚠️ The drawer comes from the side the reader started on.
+  //
+  // `offcanvas-start` means the physical left, and this shop runs the LTR
+  // Bootstrap build flipped with `dir="rtl"` — so in Kurdish, Arabic and
+  // Persian the button sits on the right and the drawer flew in from the left,
+  // across the whole screen, away from the thumb that asked for it.
+  //
+  // Scoped to this one drawer on purpose: the screen-help panel is
+  // `offcanvas-end` and has its own side.
+  [dir="rtl"] .app-sidebar.offcanvas-start {
+    inset-inline-start: 0;
+    left: auto;
+    transform: translateX(100%);
+
+    &.show,
+    &.showing {
+      transform: none;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The cart row on a phone
+// ---------------------------------------------------------------------------
+
+// The lists became cards by stacking each cell as a labelled line. A cart
+// cannot: it is an entry table, and quantity and price are boxes somebody types
+// in one after the other. Stacked, the two numbers a shopkeeper is comparing
+// end up on different lines, and every line of the cart is six rows tall.
+//
+// So this one is a small grid instead. The name and the row's buttons on the
+// first line, the code and what is on the shelf under it, then the three
+// figures that belong together — how many, at what each, what that comes to —
+// side by side on one line:
+//
+//     Samsung A55 charger cable                    [+] [x]
+//     56d80abf · 381 karton in stock
+//     [  1  karton ]  [    9000 ]            9,000
+//
+// What it replaces: the columns are sized for a laptop — 7.5rem of quantity,
+// 10rem of price, 9rem of total — which is already wider than a 390px screen
+// before the product has said anything. The name column collapsed to nothing,
+// names broke one word to a line, and the line total was off the edge.
+@include media-breakpoint-down(sm) {
+  .table-cart {
+    thead {
+      // The columns are not columns here. Clipped rather than removed, so the
+      // header is still there for a screen reader walking the table.
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    tbody,
+    tr {
+      display: block;
+      width: auto;
+    }
+
+    tr {
+      display: grid;
+      // ⚠️ Both flexible tracks are `minmax(0, …)`. A grid track sized `auto`
+      // takes its content's max-content width, and a number input asks for
+      // about twenty characters — so the quantity took the row and the price
+      // box was squeezed to two digits of a five-digit price.
+      grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) auto;
+      grid-template-areas:
+        'product product actions'
+        'qty     price   total';
+      align-items: center;
+      gap: 0.4rem 0.5rem;
+
+      padding: 0.6rem 0.75rem;
+      border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+    }
+
+    td {
+      display: block;
+      padding: 0;
+      border: 0;
+      background-color: transparent;
+    }
+
+    .cart-cell-product { grid-area: product; min-width: 0; }
+    .cart-cell-qty     { grid-area: qty; min-width: 0; }
+    .cart-cell-price   { grid-area: price; min-width: 0; }
+    .cart-cell-total   { grid-area: total; }
+
+    .cart-cell-actions {
+      grid-area: actions;
+      // Level with the first line of the name rather than the middle of a cell
+      // that may be three lines tall.
+      align-self: start;
+    }
+
+    // The price box takes whatever the row has left after the quantity, rather
+    // than the twenty-odd characters a number input asks for by default.
+    .cart-cell-price .form-control {
+      min-width: 0;
+    }
+
+    // ⚠️ Things a finger has to hit, at the size a finger needs.
+    //
+    // The cart wears `-sm` controls, which is right on a laptop and gives a
+    // 32px square on a phone — a third under the 44px a fingertip actually
+    // covers. This is the till: the two boxes and the two buttons here are
+    // tapped more than anything else in the shop.
+    //
+    // 2.75rem is the same square `pointer: coarse` already gives the row
+    // actions on the lists; this says it by width instead, because the screen
+    // being narrow is the thing that is known here.
+    .cart-cell-actions .btn {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+
+    .cart-cell-qty .form-control,
+    .cart-cell-price .form-control,
+    .cart-cell-qty .input-group-text {
+      min-height: 2.5rem;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The till bar — the total and Save, on a phone
+// ---------------------------------------------------------------------------
+
+@include media-breakpoint-down(md) {
+  .app-till-bar {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 1030;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+
+    padding: 0.5rem 0.9rem;
+    // Clear of the home indicator on a phone that has one, and of nothing at
+    // all on one that does not.
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+
+    background-color: var(--bs-body-bg);
+    border-top: var(--bs-border-width) solid var(--bs-border-color);
+    box-shadow: 0 -0.25rem 0.75rem rgba(0, 0, 0, 0.06);
+
+    .btn {
+      flex-shrink: 0;
+    }
+  }
+
+  .app-till-bar-label {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--bs-secondary-color);
+  }
+
+  .app-till-bar-total {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  // Room under the last card for the bar, so nothing is parked beneath it.
+  // Only on the screens that have one — a page with no till bar should not be
+  // scrollable past its own end.
+  //
+  // ⚠️ `!important` because `main` wears `p-3`, and Bootstrap's spacing
+  // utilities are `!important`. Without it this rule loses and the last field
+  // on the page sits under the bar, which is exactly the thing being fixed.
+  main:has(.app-till-bar) {
+    padding-bottom: 5rem !important;
+  }
+
+  // ⚠️ The `.app-till-actions` override that used to live here is gone, and so
+  // is the class.
+  //
+  // It existed to undo `position-sticky; bottom: 1rem` on phones, where the
+  // block painted over the Date field. The same thing turned out to be true on
+  // a laptop — measured at 1280×800 on an empty cart, it made the Method
+  // dropdown unclickable — because a bottom-sticky element is pinned to the
+  // bottom of the window and lands on whatever the last field is, at every
+  // width. So the sticky went rather than the symptom, and an override that
+  // undoes nothing would only mislead whoever reads this next.
+}
+
+// ---------------------------------------------------------------------------
+// Lists on a phone — a card per row
+// ---------------------------------------------------------------------------
+
+// A table is a grid because the eye compares down a column. A phone has no
+// column to compare down: at 390px a seven-column list is twice the width of
+// the screen, and reading one sale means dragging the page sideways and losing
+// which row you were on. Under `.table-responsive` that became a sideways
+// scroll rather than a broken page — correct, and still not something anybody
+// wants to do at a counter.
+//
+// So below `sm` each row becomes a card and each cell a labelled line. The
+// markup does not change: the same table serves both, `thead` simply stops
+// being drawn and the label each cell would have read off it is carried on the
+// cell as `data-label`. One table, one set of figures, two shapes.
+//
+// ⚠️ The label is on the CELL and not read from the header, because CSS cannot
+// reach across the table to find it and doing it in JavaScript would leave the
+// first paint unlabelled. `ListCardTest` checks every cell of the lists that
+// use this has one, so a column added later cannot quietly lose its name.
+@include media-breakpoint-down(sm) {
+  .table-cards {
+    // Bootstrap's table borders are drawn per cell; the card draws its own.
+    border-collapse: separate;
+
+    thead {
+      // Its words live on the cells now. `clip` rather than `none` so the
+      // header is still announced to a screen reader walking the table.
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    tbody,
+    tr,
+    td {
+      display: block;
+      width: auto;
+    }
+
+    tr {
+      border: var(--bs-border-width) solid var(--bs-border-color);
+      border-radius: var(--bs-border-radius);
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 0.5rem;
+      background-color: var(--bs-body-bg);
+      // For the row's actions, which sit in the corner rather than on a line
+      // of their own — see below.
+      position: relative;
+    }
+
+    td {
+      // The row's own frame is the separator now.
+      border: 0;
+      padding: 0.15rem 0;
+      // Bootstrap's striping and hover paint cells; on a card they would paint
+      // a stripe across one line of it.
+      background-color: transparent;
+      box-shadow: none;
+    }
+
+    // A labelled line: what it is on the reading side, what it says on the far
+    // side, which puts each on the correct side in all four languages without a
+    // rule per direction.
+    td[data-label]:not([data-label=''])::before {
+      content: attr(data-label);
+      color: var(--bs-secondary-color);
+      font-size: 0.8rem;
+      padding-inline-end: 1rem;
+      // Its own weight, not the cell's. A bold quantity was giving itself a
+      // bold label, which made the label look like the answer.
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    td[data-label]:not([data-label='']) {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    // The two cells that are not a labelled line. The tick and the document
+    // number are the row's name, so they share the first line; the actions sit
+    // at the foot of the card where a thumb expects them.
+    .list-card-check,
+    .list-card-title {
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+
+    .list-card-title {
+      // ⚠️ A column, not a row. The cell is `inline-flex` so it can sit beside
+      // the tick, and that made flex items of its children: a product's name
+      // and the SKU under it came out as "Anker 20W adapterea062c31".
+      flex-direction: column;
+      align-items: flex-start;
+      font-weight: 600;
+      // A long customer name must not push the figures out of the card.
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      // Room for the actions in the corner.
+      padding-inline-end: 2.5rem;
+    }
+
+    .list-card-check {
+      padding-inline-end: 0.5rem;
+      // Level with the first line of the name, not with the middle of a title
+      // that has a code under it.
+      vertical-align: top;
+      padding-block-start: 0.2rem;
+    }
+
+    // In the card's corner rather than on a line of its own. As its own line it
+    // cost forty pixels a card and left a gap under every set of figures; up
+    // here it is beside the name it acts on, which is also where a thumb
+    // reaches first.
+    .list-card-actions {
+      position: absolute;
+      inset-block-start: 0.4rem;
+      inset-inline-end: 0.5rem;
+      padding: 0;
+    }
+
+    // A figure keeps its own alignment rules (tabular, LTR, nowrap) but stops
+    // being pushed to the end of a column that no longer exists — the flex line
+    // above is what puts it opposite its label.
+    td.money {
+      text-align: end;
     }
   }
 }
@@ -346,9 +746,25 @@ th.money {
     font-size: .7rem;
   }
 
-  // A row is two lines of text; the name must not push the note off the edge.
-  .min-w-0 {
-    min-width: 0;
+}
+
+// ⚠️ A headline figure is nine digits and a currency mark, and on a phone it
+// has half a screen to say them in.
+//
+// `.money` is `white-space: nowrap` — deliberately, because a number broken
+// across two lines is worse than one that is cut — so at `fs-4` in a
+// half-width card "92,366,109 IQD" simply ran off the edge. The figure is the
+// one thing on such a card a shopkeeper actually reads, so on a small screen it
+// gets smaller rather than cut.
+//
+// Written as the pattern rather than a class on each of the nine screens that
+// use it — dashboard, reports, payments, expenses, a customer's balance, a
+// supplier's — so the tenth one is right the day it is written. `!important`
+// because `.fs-4` is one of Bootstrap's `!important` utilities.
+@include media-breakpoint-down(sm) {
+  .card .money.fs-4,
+  .card-body .money.fs-4 {
+    font-size: 1.15rem !important;
   }
 }
 
@@ -1338,4 +1754,278 @@ a.stat-tile {
     --app-trend-0: #78868f;
     --app-trend-band: rgba(120, 134, 143, .18);
   }
+}
+
+/*
+ * The bell.
+ *
+ * Soran asked for *"notification system to user get last changes or live
+ * changes"*. The panel behind it is a list somebody scans in two seconds while
+ * standing at a counter, so almost all of this is about keeping it small,
+ * scrollable, and readable on a phone held in one hand.
+ */
+.app-bell {
+    .app-bell-count {
+        // Riding the top corner of the button rather than sitting beside it,
+        // so the topbar's width does not change when the first one arrives.
+        position: absolute;
+        top: 0;
+        inset-inline-end: 0;
+        transform: translate(35%, -35%);
+        font-size: .625rem;
+        padding: .2em .4em;
+        line-height: 1;
+    }
+
+    .app-bell-menu {
+        // ⚠️ min() against the viewport, not a fixed width. A 22rem dropdown on
+        // a 390px phone is a dropdown with its far edge off the screen, and the
+        // one it cuts off is the timestamp.
+        width: min(22rem, calc(100vw - 1.5rem));
+    }
+
+    .app-bell-list {
+        // About five rows, then it scrolls. Long enough to be worth opening,
+        // short enough that the panel never runs off the bottom of a phone.
+        max-height: min(24rem, 60vh);
+    }
+}
+
+.app-bell-row {
+    // The whole row is the target, not the words in it: a thumb at a counter is
+    // about 44px across and the text is 14.
+    min-height: 3rem;
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--bs-tertiary-bg);
+    }
+
+    &:last-child {
+        border-bottom: 0 !important;
+    }
+
+    /*
+     * Unread.
+     *
+     * A bar down the leading edge rather than a bold font or a coloured
+     * background: bold is already doing work in this list (the description
+     * carries a document number), and a tinted row reads as "selected" to
+     * anybody who has used a computer before.
+     */
+    &.is-unread {
+        border-inline-start: 3px solid var(--bs-primary);
+        background-color: var(--bs-tertiary-bg);
+    }
+}
+
+.app-bell-meta {
+    font-size: .75rem;
+}
+
+/*
+ * The remembrances — أذكار — beside the bell.
+ *
+ * Soran asked for these as a section of the notification panel, with a tap
+ * counter on each. Almost all of this is about the tap: it is a thumb at a
+ * counter, repeated, so the target has to be big and the feedback immediate.
+ */
+.app-dhikr {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    // Comfortably past the 44px a thumb needs, because this is the one control
+    // in the shop somebody presses thirty times in a row.
+    min-height: 3rem;
+    padding: .5rem .75rem;
+    border: 0;
+    border-radius: var(--bs-border-radius);
+    background: transparent;
+    color: inherit;
+
+    &:hover {
+        background-color: var(--bs-tertiary-bg);
+    }
+
+    // Pressed, and visibly so. Without this a fast second tap looks like a tap
+    // that did not register, and somebody starts over.
+    &:active {
+        background-color: var(--bs-secondary-bg);
+        transform: scale(.99);
+    }
+
+    /* One that has been said today. Quiet — it is a tally, not a task list. */
+    &.is-counted .app-dhikr-count {
+        background-color: var(--bs-primary) !important;
+        opacity: 1;
+    }
+}
+
+.app-dhikr-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    // Arabic with full tashkeel stacks marks above and below the line, and the
+    // default line height crops them against the row above.
+    line-height: 2;
+}
+
+.app-dhikr-count {
+    flex: 0 0 auto;
+    min-width: 2.25rem;
+    font-variant-numeric: tabular-nums;
+
+    /*
+     * ⚠️ Faded until it means something, and never hidden.
+     *
+     * Seventeen grey zeros down the side of the list shout louder than the
+     * words do, and the words are the point. Faded rather than removed because
+     * the badge is what says the row can be tapped — take it away at zero and
+     * the list looks like text, and nobody presses text.
+     */
+    opacity: .35;
+}
+
+/*
+ * The bell's tabs.
+ *
+ * ⚠️ The pane keeps its own height rather than the menu resizing as somebody
+ * moves between tabs — a panel that jumps when you look at the other half is a
+ * panel that loses whatever your finger was aimed at.
+ */
+.app-bell-menu {
+    .nav-tabs .nav-link {
+        border-radius: 0;
+        padding-block: .5rem;
+        font-size: .875rem;
+    }
+
+    .tab-pane .app-bell-list {
+        min-height: 12rem;
+    }
+}
+
+/*
+ * A remembrance showing itself.
+ *
+ * Asked for 2026-09-16, and Soran chose the shape: on every screen, in the
+ * corner, *"never covering the total or Save"*. So everything below is about
+ * staying out of the way of work.
+ */
+/*
+ * ⚠️ Below the topbar, not over it.
+ *
+ * The shared toast container is pinned to `top-0`, which puts a card straight
+ * across the bell, the language switch and the user menu. A "Saved" message has
+ * got away with that for months because it happens when somebody has just
+ * pressed Save and is not reaching for anything; one of these arrives every
+ * minute, unasked, and would make those controls unclickable for fifteen
+ * seconds at a time.
+ *
+ * Only when the container is holding one of these, so the existing toasts are
+ * left exactly as they were.
+ */
+.toast-container:has(.app-dhikr-toast) {
+    // ⚠️ `!important` because the container wears Bootstrap's `top-0`, and its
+    // spacing utilities are `!important`. Without it this rule loses silently
+    // and the card goes straight back over the bell — the same trap the till
+    // bar's bottom padding fell into.
+    top: 3rem !important;
+}
+
+.app-dhikr-toast {
+    // The shop's own surface rather than a coloured one. A success toast is
+    // green because something happened; this did not happen, it is simply here,
+    // and a coloured card in the corner reads as an alert.
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color) !important;
+    box-shadow: var(--bs-box-shadow);
+    cursor: pointer;
+}
+
+.app-dhikr-toast-body {
+    // Arabic with full tashkeel stacks marks above and below the line.
+    line-height: 2.1;
+    font-size: 1.05rem;
+}
+
+/*
+ * ⚠️ On a phone the toast container is pinned to the TOP, which is already
+ * clear of the till bar at the bottom — but only while it stays narrow. Left
+ * unconstrained it would stretch the full width and sit over the page header,
+ * which on the cart screens is where the document number lives.
+ */
+@include media-breakpoint-down(md) {
+    .toast-container:has(.app-dhikr-toast) {
+        max-width: calc(100vw - 1.5rem);
+    }
+
+    .app-dhikr-toast {
+        // Never the whole screen. A remembrance that covers the cart is the
+        // thing he asked me not to build, arriving by a different door.
+        max-width: 17rem;
+    }
+}
+
+/*
+ * Language and currency in one menu — Soran, 2026-09-18.
+ *
+ * ⚠️ The flag is a fixed box with `object-fit: cover`, not an `auto` height.
+ * These are hand-drawn SVGs at slightly different aspect ratios, and a row of
+ * flags at four different heights reads as a mistake rather than a list.
+ */
+.app-flag {
+    width: 1.25rem;
+    height: 0.9375rem;
+    border-radius: 2px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .08);
+}
+
+.app-prefs-menu {
+    // Wide enough for two columns of names in four scripts; on a phone the
+    // columns stack and this gives way to the viewport.
+    min-width: min(30rem, calc(100vw - 1.5rem));
+}
+
+.app-prefs-title {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--bs-secondary-color);
+    padding: .25rem .75rem .35rem;
+}
+
+.app-prefs-item {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+}
+
+// The code sits at the far end of the row, and "far" flips with the page.
+.app-prefs-code {
+    margin-inline-start: auto;
+    font-size: .8rem;
+    color: var(--bs-secondary-color);
+}
+
+.app-prefs-item.active .app-prefs-code {
+    color: inherit;
+}
+
+/*
+ * The divider between the two columns — a border on the INLINE start, so it
+ * lands between them in both directions. It is only a divider while they are
+ * side by side; stacked, the section carries a top border instead.
+ */
+@media (min-width: 576px) {
+    .app-prefs-divider {
+        border-inline-start: 1px solid var(--bs-border-color);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .app-prefs-divider {
+        border-top: 1px solid var(--bs-border-color);
+    }
 }

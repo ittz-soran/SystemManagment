@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'document_no', 'supplier_id', 'user_id', 'supplier_invoice_no',
+    'document_no', 'supplier_id', 'room_id', 'user_id', 'supplier_invoice_no',
     'total_amount', 'discount_amount', 'grand_total', 'status',
     'exchange_rate', 'purchase_date',
 ])]
@@ -56,6 +56,12 @@ class Purchase extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    /** Where the delivery was booked. Null is the shop floor. */
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(StockRoom::class, 'room_id');
     }
 
     public function returns(): HasMany
@@ -169,10 +175,46 @@ class Purchase extends Model
             - (int) $this->batches()->sum('quantity_remaining');
 
         if ($consumed > 0) {
+            /*
+             * ⚠️ **Carried to another room is not the same as used up.**
+             *
+             * A transfer takes units out of this purchase's layer and opens a
+             * new one in the destination room — the source's quantity_remaining
+             * drops, so this sum reads a move as a consumption. Soran moves a
+             * crate to the back room and the purchase he made ten minutes ago
+             * says "2 units have already been used", with nothing sold and the
+             * same five units still on the premises.
+             *
+             * The lock is right and stays: the carried layer points back at a
+             * batch this purchase's edit would delete, so editing now would
+             * orphan real stock. Only the sentence was wrong, and a wrong
+             * sentence here is worse than no sentence — it sends somebody
+             * looking for a sale that does not exist.
+             *
+             * So it says what happened and how to undo it, which is Section 8's
+             * own rule: "Delete the dependent record first and the parent
+             * unlocks." Deleting the transfer hands these units back to this
+             * layer, and the Edit button returns by itself.
+             */
+            $moved = -(int) StockMovement::whereIn('stock_batch_id', $this->batches()->select('id'))
+                ->where('reference_type', StockMovement::REF_TRANSFER)
+                ->where('quantity', '<', 0)
+                ->sum('quantity');
+
+            $used = $consumed - $moved;
+
+            if ($used > 0) {
+                return $deny(trans_choice(
+                    '{1}Locked: :count unit from this purchase has already been used.'
+                    .'|[2,*]Locked: :count units from this purchase have already been used.',
+                    $used, ['count' => $used],
+                ));
+            }
+
             return $deny(trans_choice(
-                '{1}Locked: :count unit from this purchase has already been used.'
-                .'|[2,*]Locked: :count units from this purchase have already been used.',
-                $consumed, ['count' => $consumed],
+                '{1}Locked: :count unit from this purchase has been moved to another room. Delete the transfer first.'
+                .'|[2,*]Locked: :count units from this purchase have been moved to another room. Delete the transfer first.',
+                $moved, ['count' => $moved],
             ));
         }
 

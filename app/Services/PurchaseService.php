@@ -41,6 +41,7 @@ class PurchaseService
         ?string $supplierInvoiceNo = null,
         ?int $exchangeRate = null,
         string $paymentMethod = 'cash',
+        ?int $roomId = null,
     ): Purchase {
         if ($lines === []) {
             throw new RuntimeException(__('A purchase needs at least one line.'));
@@ -52,7 +53,7 @@ class PurchaseService
 
         return DB::transaction(function () use (
             $supplier, $lines, $user, $purchaseDate, $discountAmount,
-            $amountPaid, $supplierInvoiceNo, $exchangeRate, $paymentMethod
+            $amountPaid, $supplierInvoiceNo, $exchangeRate, $paymentMethod, $roomId
         ) {
             $totalAmount = array_sum(array_map(
                 fn (array $l) => $l['quantity'] * $l['unit_price'],
@@ -75,6 +76,13 @@ class PurchaseService
             $purchase = Purchase::create([
                 'document_no' => $this->numbers->next(DocumentNumberService::PREFIX_PURCHASE),
                 'supplier_id' => $supplier->id,
+
+                /*
+                 * Where the delivery went — Soran, 2026-09-18. Null is the shop
+                 * floor, which is what every purchase written before rooms
+                 * existed meant, and what a shop with one room always means.
+                 */
+                'room_id' => $roomId,
                 'user_id' => $user->id,
                 'supplier_invoice_no' => $supplierInvoiceNo,
                 'total_amount' => $totalAmount,
@@ -144,6 +152,7 @@ class PurchaseService
         int $discountAmount = 0,
         ?string $supplierInvoiceNo = null,
         ?int $exchangeRate = null,
+        ?int $roomId = null,
     ): Purchase {
         if ($lines === []) {
             throw new RuntimeException(__('A purchase needs at least one line.'));
@@ -155,7 +164,7 @@ class PurchaseService
 
         return DB::transaction(function () use (
             $purchase, $supplier, $lines, $user, $purchaseDate,
-            $discountAmount, $supplierInvoiceNo, $exchangeRate
+            $discountAmount, $supplierInvoiceNo, $exchangeRate, $roomId
         ) {
             // Section 8: "Controllers call it AND re-check inside the
             // transaction." Between the page loading and this running, someone
@@ -203,6 +212,7 @@ class PurchaseService
 
             $purchase->update([
                 'supplier_id' => $supplier->id,
+                'room_id' => $roomId,
                 'supplier_invoice_no' => $supplierInvoiceNo,
                 'total_amount' => $totalAmount,
                 'discount_amount' => $discountAmount,
@@ -343,6 +353,10 @@ class PurchaseService
                 sequence: $item->sequence,
                 user: $user,
                 purchaseItemId: $item->id,
+
+                // Where the delivery went. Null is the shop floor, which is
+                // what every purchase written before rooms existed meant.
+                roomId: $purchase->room_id,
             );
 
             $product->forceFill(['purchase_price' => $item->unit_price])->save();

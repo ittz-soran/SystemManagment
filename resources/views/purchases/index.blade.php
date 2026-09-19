@@ -3,7 +3,6 @@
 @section('title', __('Purchase history'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('purchases.create')
         <a href="{{ route('purchases.create') }}" class="btn btn-primary">
@@ -71,7 +70,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         @can('purchases.delete')
@@ -93,25 +92,25 @@
                     @foreach($purchases as $purchase)
                         <tr>
                             @can('purchases.delete')
-                                <td>
+                                <td class="list-card-check">
                                     <input type="checkbox" class="form-check-input" data-bulk-id="{{ $purchase->id }}"
                                            aria-label="{{ __('Select :document', ['document' => $purchase->document_no]) }}">
                                 </td>
                             @endcan
-                            <td class="fw-medium">
+                            <td class="list-card-title fw-medium">
                                 <x-document-link :document="$purchase" :kind="false" />
                                 @if($purchase->supplier_invoice_no)
                                     <div class="small text-secondary app-code">{{ $purchase->supplier_invoice_no }}</div>
                                 @endif
                             </td>
-                            <td><span class="app-code">{{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td><x-document-link :document="$purchase->supplier" :kind="false" /></td>
-                            <td><x-status-badge :status="$purchase->status" /></td>
-                            <td class="money">{{ money($purchase->grand_total, in: $lens) }}</td>
-                            <td class="money {{ $purchase->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">
+                            <td data-label="{{ __('Date') }}"><span class="app-code">{{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td data-label="{{ __('Supplier') }}"><x-document-link :document="$purchase->supplier" :kind="false" /></td>
+                            <td data-label="{{ __('Status') }}"><x-status-badge :status="$purchase->status" /></td>
+                            <td class="money" data-label="{{ __('Grand total') }}">{{ money($purchase->grand_total, in: $lens) }}</td>
+                            <td class="money {{ $purchase->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}" data-label="{{ __('Due') }}">
                                 {{ money($purchase->amountDue(), in: $lens) }}
                             </td>
-                            <td class="text-end">
+                            <td class="list-card-actions text-end">
                                 <x-row-actions :print="route('purchases.print', $purchase)" />
                             </td>
                         </tr>

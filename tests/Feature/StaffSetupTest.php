@@ -60,6 +60,46 @@ class StaffSetupTest extends TestCase
         }
     }
 
+    /**
+     * ⚠️ **The two written-out presets went stale, exactly as their own comment
+     * warned they would — Soran, 2026-09-18: "recheck user permissions because
+     * we added some new pages".**
+     *
+     * Stock rooms arrived with three keys and neither hand-written preset
+     * gained any of them. The manager's set is "everything except" and followed
+     * on its own; these two are typed out and did not.
+     *
+     * Named one screen at a time rather than "must contain every new key",
+     * because whether a job needs a new permission is a judgement about the
+     * job — the only useful test is one that says what this person has to be
+     * able to do and why.
+     */
+    public function test_the_counter_can_see_where_the_stock_is(): void
+    {
+        $counter = StaffPresets::resolved(Permission::pluck('key')->all())['counter']['keys'];
+
+        // The till's own refusal says "Another 5 are in other rooms — transfer
+        // them first". Without this, that sentence points at a locked door.
+        $this->assertContains('stock_rooms.view', $counter);
+
+        // Seeing where it is, not moving it, and not opening or closing a room.
+        $this->assertNotContains('stock_rooms.transfer', $counter);
+        $this->assertNotContains('stock_rooms.manage', $counter);
+    }
+
+    /** The person who carries the crates has to be able to carry the crates. */
+    public function test_the_stock_keeper_can_move_stock_between_rooms(): void
+    {
+        $stock = StaffPresets::resolved(Permission::pluck('key')->all())['stock']['keys'];
+
+        $this->assertContains('stock_rooms.view', $stock);
+        $this->assertContains('stock_rooms.transfer', $stock);
+
+        // Adding and closing rooms is a shape-of-the-shop decision, not a
+        // day's work, so it stays with the manager.
+        $this->assertNotContains('stock_rooms.manage', $stock);
+    }
+
     /** "Everything except" is worked out from the catalogue, so it cannot go stale. */
     public function test_the_manager_preset_covers_every_key_but_the_owners_own(): void
     {

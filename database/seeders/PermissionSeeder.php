@@ -99,6 +99,20 @@ class PermissionSeeder extends Seeder
             'stock.recheck' => 'Recheck stock against batch sums',
         ],
         /*
+         * Stock rooms — Soran, 2026-09-15.
+         *
+         * ⚠️ Three keys, not one, and the split is the point. Seeing which room
+         * holds what is something a counter assistant needs in order to answer
+         * "have you got one out the back". Moving goods between rooms, and
+         * adding or closing a room, are not — those change where the shop's
+         * stock is, and a shop should be able to say who may do that.
+         */
+        'stock_rooms' => [
+            'stock_rooms.view' => 'See stock rooms and what each holds',
+            'stock_rooms.manage' => 'Add, rename and close stock rooms',
+            'stock_rooms.transfer' => 'Move stock between rooms',
+        ],
+        /*
          * Three screens that used to ride on products.view, which meant they
          * could not be withheld from anybody allowed to look at the catalogue —
          * and there was nothing on the permissions page to withhold.

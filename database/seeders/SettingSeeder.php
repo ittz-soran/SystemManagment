@@ -45,6 +45,16 @@ class SettingSeeder extends Seeder
         // Operational values.
         'timezone' => 'Asia/Baghdad',
         'usd_rate' => '1320',
+
+        /*
+         * Which currency the purchase screen opens in — Soran, 2026-09-18.
+         *
+         * Empty means the shop's own money, and that is deliberately not a
+         * hard-coded code: the base is chosen on the currencies page and a
+         * default naming IQD would be wrong for the first shop that keeps its
+         * books in something else. PurchaseController reads it that way.
+         */
+        'purchase_currency' => null,
         'books_closed_before' => null,
         'low_stock_threshold' => '5',
         'sku_prefix' => 'SS',

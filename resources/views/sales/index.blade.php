@@ -3,7 +3,6 @@
 @section('title', __('Sales history'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('sales.create')
         <a href="{{ route('sales.create') }}" class="btn btn-primary">
@@ -71,7 +70,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         @can('sales.delete')
@@ -93,20 +92,25 @@
                     @foreach($sales as $sale)
                         <tr>
                             @can('sales.delete')
-                                <td>
+                                <td class="list-card-check">
                                     <input type="checkbox" class="form-check-input" data-bulk-id="{{ $sale->id }}"
                                            aria-label="{{ __('Select :document', ['document' => $sale->document_no]) }}">
                                 </td>
                             @endcan
-                            <td><x-document-link :document="$sale" :kind="false" /></td>
-                            <td><span class="app-code">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td><x-document-link :document="$sale->customer" :kind="false" /></td>
-                            <td><x-status-badge :status="$sale->status" /></td>
-                            <td class="money">{{ money($sale->total_amount, in: $lens) }}</td>
-                            <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}">
+                            {{-- Section 9b: on a phone this row is a card, and
+                                 `data-label` is the word the header would have
+                                 said. The invoice number is the card's name, so
+                                 it carries no label. --}}
+                            <td class="list-card-title"><x-document-link :document="$sale" :kind="false" /></td>
+                            <td data-label="{{ __('Date') }}"><span class="app-code">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td data-label="{{ __('Customer') }}"><x-document-link :document="$sale->customer" :kind="false" /></td>
+                            <td data-label="{{ __('Status') }}"><x-status-badge :status="$sale->status" /></td>
+                            <td class="money" data-label="{{ __('Total') }}">{{ money($sale->total_amount, in: $lens) }}</td>
+                            <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}"
+                                data-label="{{ __('Due') }}">
                                 {{ money($sale->amountDue(), in: $lens) }}
                             </td>
-                            <td class="text-end">
+                            <td class="text-end list-card-actions">
                                 <x-row-actions :print="route('sales.print', $sale)" />
                             </td>
                         </tr>

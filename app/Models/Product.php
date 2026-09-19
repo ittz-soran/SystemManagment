@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 #[Fillable([
@@ -42,6 +43,39 @@ class Product extends Model
             'reorder_level' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * How many of this the TILL can reach — Soran, 2026-09-15.
+     *
+     * ⚠️ Not the same as `quantity`, and the difference is the whole feature.
+     * `quantity` is what the shop owns, across every room, which is what the
+     * reorder level works from. This is what is in the room that sells. A shop
+     * with forty in the back and two on the shelf can sell two.
+     */
+    public function sellable(): int
+    {
+        return (int) StockBatch::where('product_id', $this->id)
+            ->where('room_id', StockRoom::main()->id)
+            ->sum('quantity_remaining');
+    }
+
+    /**
+     * What each room holds of this product, in the shop's own room order.
+     *
+     * @return Collection<int, object>
+     */
+    public function byRoom()
+    {
+        return StockRoom::query()
+            ->inOrder()
+            ->leftJoin('stock_batches as b', function ($join) {
+                $join->on('b.room_id', '=', 'stock_rooms.id')->where('b.product_id', '=', $this->id);
+            })
+            ->groupBy('stock_rooms.id', 'stock_rooms.name', 'stock_rooms.is_main', 'stock_rooms.is_active', 'stock_rooms.sort_order')
+            ->select('stock_rooms.id', 'stock_rooms.name', 'stock_rooms.is_main')
+            ->selectRaw('COALESCE(SUM(b.quantity_remaining), 0) as units')
+            ->get();
     }
 
     public function category(): BelongsTo

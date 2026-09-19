@@ -4,7 +4,6 @@
 @section('subheading', __('One row for one thing: what was paid, what is asked, what it made'))
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('suppliers.view')
         <a href="{{ route('second-hand.sellers') }}" class="btn btn-outline-secondary">

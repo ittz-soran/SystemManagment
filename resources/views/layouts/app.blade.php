@@ -12,6 +12,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    {{-- Section 9b: what a phone needs to keep the shop on its home screen.
+
+         The manifest is a route rather than a file because one codebase serves
+         many shops and each has its own name, colour and logo — see
+         InstallController.
+
+         `theme-color` paints the phone's status bar, so an installed shop looks
+         like one application rather than a page in a browser. iOS ignores the
+         manifest's icons and reads `apple-touch-icon`, and ignores
+         `display: standalone` unless told separately — hence the two
+         apple-prefixed tags, which are old and still the only way. --}}
+    <link rel="manifest" href="{{ route('install.manifest') }}">
+
+    {{-- ⚠️ The worker's URL, because NOTHING WAS EVER REGISTERING IT.
+
+         `sw.js` has been served since Add to Home Screen was built, and no page
+         ever called `navigator.serviceWorker.register()`. A worker that is
+         served and never registered does nothing at all — which is why Soran
+         could add the shop to his Home Screen on 2026-09-17 and receive
+         nothing: there was no worker to receive it. --}}
+    <meta name="service-worker" content="{{ route('install.worker') }}">
+    <meta name="theme-color" content="{{ App\Http\Controllers\InstallController::brandColour() }}">
+    <link rel="apple-touch-icon" href="{{ route('install.icon', ['size' => 192, 'v' => app(App\Http\Controllers\InstallController::class)->iconVersion()]) }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="{{ \Illuminate\Support\Str::limit(setting('shop_name', config('app.name')), 12, '') }}">
+
     {{--
         Writing an amount the way the server writes it.
 
@@ -111,7 +137,19 @@
 <div class="d-flex">
     @include('layouts.sidebar')
 
-    <div class="flex-grow-1 min-vw-0 d-flex flex-column">
+    {{-- ⚠️ `min-w-0`, and it matters more than it looks.
+
+         This column is a flex item, and a flex item's default `min-width: auto`
+         refuses to shrink below its own content. A wide table therefore does not
+         scroll inside its `.table-responsive` — it pushes this column, the
+         topbar and the whole shell wider than the screen, and the reader drags
+         the entire page sideways to reach the second half of a row.
+
+         It carried `min-vw-0` for a year, which is not a Bootstrap class and is
+         defined nowhere: the rule said nothing at all. On a 390px phone the
+         products list measured 784px, sales 763, payments 738. See
+         LayoutClassTest, which now fails on a class that resolves to nothing. --}}
+    <div class="flex-grow-1 min-w-0 d-flex flex-column">
         @include('layouts.topbar')
 
         @include('partials.screen-help')
@@ -160,7 +198,15 @@
                         <div class="text-secondary small">@yield('subheading')</div>
                     @endif
                 </div>
-                <div class="d-flex gap-2 no-print">@yield('actions')</div>
+                {{-- ⚠️ `flex-wrap`, and a phone is why.
+
+                     Most screens put three things in here — the currency lens,
+                     one or two buttons, sometimes a Delete — and on a laptop
+                     they sit in a row with room to spare. On a 390px phone that
+                     row measured 546px on a product page and dragged the whole
+                     screen sideways, because a `d-flex` with no wrap would
+                     rather overflow than go to a second line. --}}
+                <div class="d-flex flex-wrap gap-2 no-print">@yield('actions')</div>
             </div>
 
             @include('partials.flash')
@@ -173,7 +219,8 @@
 {{-- Section 9b: toasts sit top-right, and top-left in RTL. --}}
 <x-number-pad />
 
-<div class="toast-container position-fixed top-0 end-0 p-3 no-print" style="z-index: 1090">
+<div class="toast-container position-fixed top-0 end-0 p-3 no-print" style="z-index: 1090"
+     data-close="{{ __('Close') }}">
     @foreach(['success' => 'success', 'error' => 'danger', 'warning' => 'warning'] as $key => $variant)
         @if(session($key))
             <div class="toast align-items-center text-bg-{{ $variant }} border-0" role="alert" aria-live="polite">

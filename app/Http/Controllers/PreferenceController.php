@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Middleware\SetUserPreferences;
 use App\Models\Currency;
+use App\Support\Adhkar;
 use App\Support\Money;
+use App\Support\Notifications;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -66,6 +68,71 @@ class PreferenceController extends Controller
         ])->save();
 
         return back();
+    }
+
+    /**
+     * Which tiers of notification reach this person.
+     *
+     * ⚠️ Alerts are not on this form and cannot be turned off. Somebody who has
+     * silenced everything should still be told that their own account was
+     * signed into from an address they do not use, and that the invoices were
+     * deleted. A preference here is about noise, not about being kept in the
+     * dark — `Notifications::tiersFor()` puts alerts back whatever is stored.
+     */
+    public function notifications(Request $request): RedirectResponse
+    {
+        $wanted = collect(Notifications::TIERS)
+            ->filter(fn (string $tier) => $tier === Notifications::ALERT || $request->boolean($tier))
+            ->values();
+
+        $request->user()->forceFill(['notify_tiers' => $wanted->implode(',')])->save();
+
+        return back()->with('success', __('Preferences saved'));
+    }
+
+    /**
+     * Whether the remembrances appear for this person.
+     *
+     * ⚠️ Per person, not per shop. What somebody says at their own counter is
+     * not an admin's setting to make on their behalf — so this sits beside
+     * language and theme rather than in Settings, and an admin turning it off
+     * turns it off for the admin.
+     */
+    public function remembrance(Request $request): RedirectResponse
+    {
+        $request->validate([
+            // ⚠️ In the list or nowhere. A free number would let somebody ask
+            // for one every six seconds, which is a screen nobody can work at.
+            'adhkar_every' => ['nullable', Rule::in(Adhkar::EVERY)],
+        ]);
+
+        $user = $request->user();
+        $changes = ['adhkar_off' => ! $request->boolean('adhkar')];
+
+        // Absent means "this form did not ask" — the switch on the remembrance
+        // page posts without it, and must not silently reset how often they
+        // appear.
+        if ($request->has('adhkar_every')) {
+            $changes['adhkar_every'] = (int) $request->input('adhkar_every');
+        }
+
+        /*
+         * How loud the PHONE is, kept separate from the bell — a number on a
+         * badge and a buzz in a pocket at eleven at night are not the same
+         * event. Absent means "this form did not ask", the same rule as above.
+         */
+        if ($request->has('push_tiers')) {
+            $wantedOnPhone = collect(Notifications::TIERS)
+                ->filter(fn (string $tier) => $tier === Notifications::ALERT
+                    || in_array($tier, (array) $request->input('push_tiers', []), true))
+                ->values();
+
+            $changes['push_tiers'] = $wantedOnPhone->implode(',');
+        }
+
+        $user->forceFill($changes)->save();
+
+        return back()->with('success', __('Preferences saved'));
     }
 
     public function update(Request $request): RedirectResponse

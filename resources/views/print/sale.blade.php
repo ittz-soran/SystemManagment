@@ -27,6 +27,22 @@
             <th class="money">{{ __('Total') }}</th>
         </tr>
         </thead>
+        @php($writtenIn = $sale->writtenIn())
+
+        {{-- ⚠️ **ONE currency on a receipt, not two — Soran, 2026-09-19:
+             "if system on dinar all receipts show on dinar and same for other
+             currencies".**
+
+             This is where the receipt parts company with the purchase document,
+             which prints both figures and the rate (decision 1c). A supplier
+             invoice is reconciled against paperwork in two currencies; a
+             customer receipt is handed across a counter and has to say one
+             number. The rate still comes off the DOCUMENT, never today's
+             table — Sale::asWritten. --}}
+        @php($say = fn (int $base, bool $mark = true) => $writtenIn
+            ? $sale->asWritten($base).($mark ? ' '.$writtenIn->mark() : '')
+            : money($base, $mark))
+
         <tbody>
         @foreach($sale->items as $item)
             <tr>
@@ -36,26 +52,26 @@
                     <div class="small" dir="ltr">{{ $item->product->sku }}</div>
                 </td>
                 <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
-                <td class="money">{{ money($item->unit_price, false) }}</td>
-                <td class="money">{{ money($item->lineTotal(), false) }}</td>
+                <td class="money">{{ $say($item->unit_price, false) }}</td>
+                <td class="money">{{ $say($item->lineTotal(), false) }}</td>
             </tr>
         @endforeach
         </tbody>
         <tfoot>
         <tr class="fw-bold">
             <td colspan="4" class="text-end">{{ __('Total') }}</td>
-            <td class="money">{{ money($sale->total_amount) }}</td>
+            <td class="money">{{ $say($sale->total_amount) }}</td>
         </tr>
         @if($sale->amountPaid() > 0)
             <tr>
                 <td colspan="4" class="text-end">{{ __('Paid') }}</td>
-                <td class="money">{{ money($sale->amountPaid(), false) }}</td>
+                <td class="money">{{ $say($sale->amountPaid(), false) }}</td>
             </tr>
         @endif
         @if($sale->amountDue() > 0)
             <tr class="fw-bold">
                 <td colspan="4" class="text-end">{{ __('Remaining') }}</td>
-                <td class="money">{{ money($sale->amountDue(), false) }}</td>
+                <td class="money">{{ $say($sale->amountDue(), false) }}</td>
             </tr>
         @endif
         </tfoot>

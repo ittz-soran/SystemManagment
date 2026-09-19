@@ -184,6 +184,8 @@ So they go quiet until they are reached for: no border, no fill, the icon in sec
 
 **Screens with the lens:** every screen that says an amount — the dashboard, reports, both carts' surroundings, every list and every document page, and every entry form. **Screens that must never have it:** the sale screen and anything printed.
 
+> ⚠️ **2026-09-19: the sale screen now has a currency of its own, and that is not this.** It carries a document currency and a frozen rate, like the purchase cart — see "What is not done yet" above. The READER'S lens still never reaches it, and `CurrencyReachTest` still enforces that.
+
 ⚠️ **`CurrencyReachTest` checks both halves of that sentence, because neither can be remembered.** The lens is opt-in per screen, which is what keeps it off the till and is also what lets a screen be silently left out — a figure in the wrong currency looks exactly like a figure. The test walks every Blade template, parses out every `money()` call, and fails with the filename when one is drawn without a currency on a screen that converts, or with one on a screen that must not. A new screen that prints money cannot quietly skip it.
 
 Two screens print an amount and stay in the base currency on purpose, listed in that test: the held-carts list, shared with the till and holding carts put down before any currency was chosen; and the purchase cart, whose figures follow the **invoice** currency chosen on the document rather than the reader's own preference.
@@ -268,7 +270,16 @@ And the screen now **says** when the setting names a currency that is not on the
 
 ### What is not done yet
 
-Sales carry no `exchange_rate` column, so a sale cannot be written in a foreign currency and its printout has one figure. That follows from decision 3b — you sell across a counter in dinars — and is not an omission.
+~~Sales carry no `exchange_rate` column, so a sale cannot be written in a foreign currency and its printout has one figure. That follows from decision 3b — you sell across a counter in dinars — and is not an omission.~~
+
+⚠️ **Reversed — Soran, 2026-09-19:** *"if currency on usd change sale page to usd, but in sale page have combo to change again and input to rate"*. He sells phones priced in dollars, so it was an omission after all. `sales.exchange_rate` and `sale_items.entered_currency` / `entered_amount` now exist and mean exactly what their purchase-side namesakes mean.
+
+- The sale screen opens in whatever **Settings → "Purchases are written in"** says — one answer for the shop rather than two that can disagree — with its own combo and rate box to overrule it for the receipt in hand.
+- **Only base-currency integers are stored, unchanged.** `unit_price`, `total_amount` and `grand_total` are dinars exactly as before, so FIFO, the ledger, every balance and every report are untouched. The two `entered_*` columns are a record of what somebody typed.
+- The **untouched-field rule** applies here as on the purchase cart: a line typed in dollars follows the rate; a line still holding its base price is merely redrawn in dollars and keeps its figure. Measured in a browser: 9,000 IQD redrawn at 1,550 shows $5.81 and still posts 9,000; typing $120 posts 186,000; moving the rate to 1,500 takes that line to 180,000.
+- ⚠️ **A receipt prints in ONE currency** — Soran: *"if system on dinar all receipts show on dinar and same for other currencies"*. This is where it parts company with the purchase document, which prints both figures and the rate (decision 1c): a supplier invoice is reconciled against paperwork in two currencies, a customer receipt is handed across a counter and has to say one number. The rate still comes off the document, never today's table.
+
+**The till rule is unchanged, and the distinction is the whole of it.** The READER'S lens still never reaches the sale screen — `CurrencyReachTest` still lists `sales/create` under NEVER. A lens converts a stored figure at today's rate for reading; a document currency writes the sale at a rate frozen onto that receipt. Two different things, and only the second one is new.
 
 ---
 
@@ -1296,7 +1307,35 @@ Rules:
 
 ### The shell
 
-Fixed **left sidebar** (right in RTL) with grouped navigation, plus a slim topbar holding: global search, language switch, theme toggle, user menu. Sidebar collapses to icons on narrow screens. Only show nav items the user has permission for — never show a link that leads to "access denied".
+Fixed **left sidebar** (right in RTL) with grouped navigation, plus a slim topbar holding: global search, language switch, theme toggle, user menu. Only show nav items the user has permission for — never show a link that leads to "access denied".
+
+**The shell has three shapes, and only the widest two were ever looked at:**
+
+| | sidebar | topbar |
+|---|---|---|
+| **phone** (< 768px) | a drawer, opened by a hamburger, **with the labels** | sticky, so the menu survives a long list |
+| **tablet** (768–991) | the icon rail | scrolls with the page |
+| **laptop** (≥ 992) | the full sidebar | scrolls with the page |
+
+The icon rail used to start at 992 and run all the way down, so a 390px phone spent an eighth of its screen on fourteen unlabelled icons it could not dismiss. It now stops where the iPad does.
+
+⚠️ **`min-w-0` on the column beside the sidebar is load-bearing.** A flex item's `min-width` defaults to `auto` — never narrower than its content — so a wide table does not scroll inside its `.table-responsive`; it pushes the column, the topbar and the whole shell past the edge of the screen. That column carried `min-vw-0`, which is not a Bootstrap class and was defined nowhere, so the rule was never made: on a phone the products list measured **784px on a 390px screen**, sales 763, payments 738, each dragged bodily sideways to read the second half of a row. Nothing failed, because a class that matches no rule is silent. `LayoutClassTest` now reads the literal class names out of `layouts/` and fails on any that resolve to nothing — no CSS rule, no mention in the scripts.
+
+**The shop installs to a home screen.** A manifest, an icon and a service worker, all three served by `InstallController` and all three outside the auth group — a phone fetches them while the login page is on screen. ⚠️ **None of it can be a static file**: one codebase serves many shops (Section 8d), each with its own name, colour and logo, and a `public/manifest.json` would put the same name on every customer's phone. `scope` and `start_url` are the install's own folder, never `/`, or one customer's installed app claims another's shop on the same domain. The icon is drawn — the shop's logo composited on its brand colour, inside the middle 60% so a maskable crop cannot cut it — cached under a hash of the logo and the colour so a change reaches a phone that already installed the old one; without GD it falls back to a plain square in the shop's colour, written byte by byte.
+
+⚠️ **The service worker caches the hashed build assets and nothing else — never a page, never a figure.** The obvious thing to do with a service worker is make the shop work offline. Do not: a till showing yesterday's stock out of a cache is worse than a till showing an error, because the error is obvious and the stale number is not, and the shop already says plainly when it has lost the server. The worker exists because a browser will not offer "install" without one. `InstallTest` asserts the build-path gate comes *before* `respondWith`, and that the worker names no precache and no navigation handler.
+
+⚠️ **`theme-color` goes through `brand_palette()`, not `setting('primary_color')`.** The first version echoed the raw setting into the head — and `AppearanceTest` caught it, because `primary_color` is typed by a person and that test exists for somebody typing `red; } body { display: none` into it. One validator, one place to be right.
+
+**A list is a card on a phone, not a sideways table.** A table is a grid because the eye compares down a column, and a phone has no column to compare down. Below `sm`, `.table-cards` turns each row into a bordered card: the tick and the document number share the first line, the row's actions sit in the corner, and every other cell becomes a labelled line — the label on the reading side, the figure opposite it, which puts each on the correct side in all four languages without a rule per direction. The same table serves both shapes; `thead` is simply clipped away (clipped, not removed, so a screen reader still walks the table) and each cell carries the word its header would have said as `data-label`.
+
+⚠️ **The label has to be on the cell.** CSS cannot reach across a table to find the matching `th`, and doing it in JavaScript would leave the first paint showing bare figures with nothing saying which is the total and which is still owed. The ten lists a shopkeeper opens on a phone carry them: sales, purchases, both returns, products, payments, expenses, customers, suppliers, stock adjustments. `ListCardTest` checks every cell of every such list has a label or one of the three roles that deliberately has none, **and that the row has exactly as many cells as the header has columns** — the labels are matched by position, so one cell out of step names every figure after it wrongly. The tables on `show` pages keep scrolling; a batch ledger is not browsed on a phone.
+
+**The cart row.** The lists became cards by stacking each cell as a labelled line; a cart cannot, because quantity and price are boxes somebody types in one after the other and stacking puts the two numbers being compared on different lines. Below `sm` each row is a small grid instead — the name and the row's buttons on the first line, the code and what is on the shelf under it, then how many, at what each and what that comes to, side by side. ⚠️ **Both flexible tracks are `minmax(0, …)`:** a track sized `auto` takes its content's max-content width, and a number input asks for about twenty characters, so the quantity box took the row and the price was squeezed to two digits of a five-digit price. The controls here are `-sm`, which is a 32px square on a phone — a third under what a fingertip covers — so on a narrow screen the two boxes and the two buttons are given 2.75rem, the same square `pointer: coarse` already gives the row actions on the lists. ⚠️ **This is the one piece of layout in the shop assembled in JavaScript**: the row is a template string in `render()`, the grid places its children by name, and a cell that loses its class lands wherever auto-placement puts it — on phones only, while the laptop stays perfect. `CartRowTest` checks both halves: every part is named in the row the server sends, and every name has a rule in the **compiled** stylesheet, because the Sass being right is not the same as the build being current.
+
+**The till bar.** On a laptop the totals panel stands beside the cart and the running total is never out of sight; on a phone it stacks underneath, so with four lines scanned Save sat about fourteen hundred pixels below the scanner. Below `md` both cart screens carry a fixed bar with the live total and Save. ⚠️ **It lives inside the `<form>`** — `app.js` gives every save button its hold-for-two-seconds guard by walking `form.querySelectorAll`, so a button attached from outside with `form="…"` would submit perfectly well and be the one Save in the shop that fires on a single tap. `TillBarTest` walks the rendered page as a tree and asserts the bar's ancestor is that form. The panel's own `position-sticky` block stops sticking below `md`, where it used to paint Save and Hold this cart straight over the Date field.
+
+Two more rules that a phone makes matter, both written as the pattern rather than per screen: the page-header action row **wraps** (a product page's lens plus three buttons measured 546px), and a `.money.fs-4` headline inside a card **steps down a size** below 576px, because `.money` is deliberately `nowrap` and "92,366,109 IQD" does not fit half a phone.
 
 ### Modal or full page? — one rule
 

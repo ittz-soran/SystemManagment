@@ -43,6 +43,196 @@ class CurrencyScreenTest extends TestCase
         return Currency::where('code', 'IQD')->firstOrFail();
     }
 
+    // ---- Renaming a code -------------------------------------------------
+
+    /**
+     * **Soran, 2026-09-17:** *"fix currency code"*.
+     *
+     * His base was coded `IRQ`. The dinar's code is `IQD`. Until now a code
+     * could only be chosen when the currency was created, so the only way to
+     * correct a typo was to delete the currency — and the base cannot be
+     * deleted, because the books are kept in it. A shop was stuck with it.
+     */
+    public function test_a_code_can_be_corrected(): void
+    {
+        $this->rename($this->usd(), 'USDX')->assertSessionHasNoErrors();
+
+        $this->assertNull(Currency::where('code', 'USD')->first());
+        $this->assertNotNull(Currency::where('code', 'USDX')->first());
+    }
+
+    /**
+     * ⚠️ The books follow the rename.
+     *
+     * `settings.currency_base` holds a CODE. Left pointing at the old one,
+     * `Money::base()` finds no row and falls back to an assumed currency — so
+     * every figure in the shop is read against a rate nobody set.
+     */
+    public function test_renaming_the_base_moves_the_books_with_it(): void
+    {
+        $this->rename($this->iqd(), 'IQD2')->assertSessionHasNoErrors();
+
+        Currency::flushCache();
+
+        $this->assertSame('IQD2', setting('currency_base'));
+        $this->assertSame('IQD2', Money::base()->code);
+
+        // And it is a REAL row, not the assumption Money falls back to.
+        $this->assertNotNull(Currency::where('code', 'IQD2')->first());
+    }
+
+    /** Every reader's lens follows it too, rather than silently resetting. */
+    public function test_renaming_carries_each_readers_lens(): void
+    {
+        $this->admin->forceFill(['display_currency' => 'USD'])->save();
+
+        $this->rename($this->usd(), 'USDX')->assertSessionHasNoErrors();
+
+        Currency::flushCache();
+
+        $this->assertSame('USDX', $this->admin->fresh()->display_currency);
+        $this->assertSame('USDX', $this->admin->fresh()->lens()?->code);
+    }
+
+    /**
+     * ⚠️ And so does the code frozen on purchases already entered.
+     *
+     * A line that said `IRQ` meant the dinar and still means the dinar — only
+     * the shop's name for it was wrong. Left behind, `typedIn()` returns null
+     * and the printed document quietly loses its "typed as $120" note.
+     */
+    public function test_renaming_carries_the_code_frozen_on_old_purchases(): void
+    {
+        $category = Category::create(['name' => 'Test']);
+        $product = Product::create([
+            'name' => 'Widget', 'sku' => 'W1', 'category_id' => $category->id, 'unit' => 'pcs',
+            'purchase_price' => 0, 'sale_price' => 1_000, 'quantity' => 0,
+        ]);
+
+        $purchase = app(PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'S']),
+            lines: [[
+                'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 150_000,
+                'entered_currency' => 'USD', 'entered_amount' => 100,
+            ]],
+            user: $this->admin,
+            purchaseDate: now(),
+        );
+
+        $line = $purchase->items()->firstOrFail();
+        $this->assertSame('USD', $line->entered_currency);
+
+        $this->rename($this->usd(), 'USDX')->assertSessionHasNoErrors();
+
+        Currency::flushCache();
+
+        $line = $line->fresh();
+
+        $this->assertSame('USDX', $line->entered_currency);
+        $this->assertSame(
+            'USDX',
+            $line->typedIn()?->code,
+            'The old purchase line lost the currency it was typed in.'
+        );
+    }
+
+    /** Two currencies cannot end up sharing a code. */
+    public function test_a_code_already_in_use_is_refused(): void
+    {
+        $this->rename($this->usd(), 'IQD')->assertSessionHasErrors('code');
+
+        $this->assertSame('USD', $this->usd()->code);
+    }
+
+    /** The same rules as creating one: no spaces, no punctuation. */
+    public function test_a_code_that_is_not_a_code_is_refused(): void
+    {
+        $this->rename($this->usd(), 'US $')->assertSessionHasErrors('code');
+
+        $this->assertSame('USD', $this->usd()->code);
+    }
+
+    /** Typed in lower case, stored the way every other code is. */
+    public function test_a_code_is_stored_upper_case(): void
+    {
+        $this->rename($this->usd(), 'usdx')->assertSessionHasNoErrors();
+
+        $this->assertNotNull(Currency::where('code', 'USDX')->first());
+    }
+
+    /** Saving the form without touching the code changes nothing. */
+    public function test_saving_without_changing_the_code_renames_nothing(): void
+    {
+        $this->admin->forceFill(['display_currency' => 'USD'])->save();
+
+        $this->rename($this->usd(), 'USD')->assertSessionHasNoErrors();
+
+        $this->assertSame('USD', $this->usd()->code);
+        $this->assertSame('USD', $this->admin->fresh()->display_currency);
+    }
+
+    /**
+     * ⚠️ **Soran's own shop, and the reason this was worth building.**
+     *
+     * The comment above `baseIsMissing` in CurrencyController records it: the
+     * setting said `IQD`, he had replaced that row with his own `IRQ`, and
+     * every figure in the shop was being read against an ASSUMED currency
+     * rather than one anybody had set up. The page warned him, and there was
+     * nothing he could do about it — the code could not be edited, and the row
+     * could not be deleted.
+     *
+     * Renaming it is the cure, and it is one field.
+     */
+    public function test_a_shop_whose_books_point_at_a_missing_code_is_fixed_by_renaming(): void
+    {
+        // Put the shop in exactly that state: books kept in IQD, no such row.
+        $this->iqd()->forceFill(['code' => 'IRQ'])->save();
+        Currency::flushCache();
+
+        $this->assertFalse(
+            isset(Currency::cached()['IQD']),
+            'This test is meaningless unless the books really are pointing at nothing.'
+        );
+
+        $this->actingAs($this->admin)->get(route('currencies.index'))
+            ->assertOk()
+            ->assertViewHas('baseIsMissing', true);
+
+        // One field on one form.
+        $this->rename(Currency::where('code', 'IRQ')->firstOrFail(), 'IQD')
+            ->assertSessionHasNoErrors();
+
+        Currency::flushCache();
+
+        $this->assertTrue(isset(Currency::cached()['IQD']));
+        $this->assertSame('IQD', Money::base()->code);
+
+        $this->actingAs($this->admin)->get(route('currencies.index'))
+            ->assertOk()
+            ->assertViewHas('baseIsMissing', false);
+    }
+
+    /**
+     * Post the edit form with a code, keeping everything else as it is.
+     *
+     * ⚠️ `is_active` is sent deliberately. It is a checkbox, so the form means
+     * "off" by not sending it — and a helper that left it out switched the
+     * currency off on every rename, which made `lens()` return null and looked
+     * exactly like the rename having failed to carry the reader's lens across.
+     * The bug was in this helper, not in the rename.
+     */
+    private function rename(Currency $currency, string $to)
+    {
+        return $this->actingAs($this->admin)->put(route('currencies.update', $currency), [
+            'code' => $to,
+            'name' => $currency->name,
+            'symbol' => $currency->symbol,
+            'decimals' => $currency->decimals,
+            'rate' => $currency->rateAsTyped(),
+            'is_active' => $currency->is_active ? '1' : '0',
+        ]);
+    }
+
     // ---- Which currency the books are kept in ---------------------------
 
     /**

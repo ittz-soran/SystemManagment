@@ -52,6 +52,16 @@ class StockMovement extends Model
 
     public const REF_ADJUSTMENT = 'adjustment';
 
+    /**
+     * Goods moved between rooms — Soran, 2026-09-15.
+     *
+     * ⚠️ Always written in PAIRS that sum to zero: units out of a batch in one
+     * room, the same units into a new batch in another. The shop owns exactly
+     * as much after a transfer as before, so `SUM(quantity)` per product still
+     * equals current stock and the integrity check stays true.
+     */
+    public const REF_TRANSFER = 'transfer';
+
     protected function casts(): array
     {
         return [

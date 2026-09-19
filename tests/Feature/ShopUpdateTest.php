@@ -233,6 +233,50 @@ class ShopUpdateTest extends TestCase
         }
     }
 
+    /**
+     * ⚠️ **Soran, 2026-09-19: "flags not show??" — on a shop that was already
+     * running.**
+     *
+     * An update used to copy `public/build` and nothing else, so anything that
+     * lands in the shared public folder outside that one directory never
+     * reached a live shop at all. The flags the language and currency menu
+     * draws were exactly that: committed, pulled, and still 404 on his
+     * machine, with no broken image to show for it because `Flags::file()`
+     * writes no `<img>` for a file that is not on disk.
+     *
+     * This is the test that would have caught it, and it is about the update
+     * rather than about flags: anything else added beside `build` belongs here.
+     */
+    public function test_an_update_carries_the_flags_across(): void
+    {
+        $this->asJson('shop:update', '--no-backup');
+
+        $this->assertDirectoryExists($this->public.'/flags');
+
+        foreach (glob(base_path('public/flags/*.svg')) as $flag) {
+            $this->assertFileExists(
+                $this->public.'/flags/'.basename($flag),
+                basename($flag).' was left behind by the update.'
+            );
+        }
+    }
+
+    /** A flag already in place is not written over on every update. */
+    public function test_flags_already_matching_are_not_copied_twice(): void
+    {
+        $this->asJson('shop:update', '--no-backup');
+
+        $flag = $this->public.'/flags/krd.svg';
+        $this->assertFileExists($flag);
+
+        $before = filemtime($flag);
+        touch($flag, $before - 60);
+
+        $this->asJson('shop:update', '--no-backup');
+
+        $this->assertSame($before - 60, filemtime($flag), 'An unchanged flag was copied again.');
+    }
+
     /** A shop whose assets are current is not made to copy them again. */
     public function test_assets_already_matching_are_not_copied_twice(): void
     {

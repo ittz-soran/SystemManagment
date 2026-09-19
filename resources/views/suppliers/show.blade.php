@@ -8,7 +8,6 @@
 @endif
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('suppliers.edit')
         @if(! ($supplier->is_system ?? false))

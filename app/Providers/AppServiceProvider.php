@@ -54,6 +54,18 @@ class AppServiceProvider extends ServiceProvider
             // already store this name; mapping it lets those columns be read
             // back as a relation rather than only written as a string.
             'adjustment' => StockAdjustment::class,
+
+            /*
+             * ⚠️ Stock rooms, 2026-09-15. A transferred LAYER's source is the
+             * transfer that carried it, and a movement's reference is too — so
+             * the alias has to be here, or the product page dies resolving
+             * `source` the moment a shop moves anything between rooms.
+             *
+             * Found by a test opening the product page after a transfer, not by
+             * reading this file: a missing morph alias is silent until a row
+             * with that type exists.
+             */
+            'transfer' => \App\Models\StockTransfer::class,
             'expense' => Expense::class,
 
             // Not stored in any polymorphic column, but named here so the map
@@ -133,8 +145,12 @@ class AppServiceProvider extends ServiceProvider
             $model::observe(ActivityObserver::class);
         }
 
-        Event::listen(Login::class, fn (Login $event) => app(ActivityLogger::class)
-            ->log('login', 'auth', $event->user->getKey(), __('Logged in'), user: $event->user));
+        // Through logSignIn() rather than log(), because whether a sign-in is
+        // worth a bell depends on whether the address was a familiar one — a
+        // question this listener has no business answering.
+        Event::listen(Login::class, fn (Login $event) => $event->user instanceof User
+            ? app(ActivityLogger::class)->logSignIn($event->user)
+            : null);
 
         Event::listen(Logout::class, fn (Logout $event) => $event->user
             ? app(ActivityLogger::class)

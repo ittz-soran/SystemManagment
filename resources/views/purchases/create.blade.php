@@ -49,7 +49,7 @@
 
                 <div class="card">
                     <div class="table-responsive">
-                        <table class="table align-middle mb-0">
+                        <table class="table align-middle mb-0 table-cart">
                             <thead>
                             <tr>
                                 <th>{{ __('Product') }}</th>
@@ -117,6 +117,35 @@
                                    value="{{ old('supplier_invoice_no', $editing ? $purchase->supplier_invoice_no : null) }}">
                             <div class="form-text">{{ __('Their number on their paperwork. Useful when reconciling.') }}</div>
                         </div>
+
+                        {{-- Where the delivery went — Soran, 2026-09-18:
+                             "add purchase directly to other rooms, but sale
+                             always in main".
+
+                             ⚠️ Shown only when the shop HAS another room. A
+                             shop with one room would otherwise get a control
+                             with one answer, which is a question it never
+                             needed to be asked. --}}
+                        @if($rooms->count() > 1)
+                            <div class="mb-3">
+                                <label for="room_id" class="form-label">{{ __('Goods arrive in') }}</label>
+                                @php
+                                    $defaultRoom = $rooms->firstWhere('is_main', true) ?? $rooms->first();
+                                    $chosenRoom = (int) old('room_id', $editing ? $purchase->room_id : $defaultRoom?->id);
+                                @endphp
+                                <select id="room_id" name="room_id" class="form-select">
+                                    @foreach($rooms as $room)
+                                        <option value="{{ $room->id }}" @selected($chosenRoom === $room->id)>
+                                            {{ $room->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                {{-- The reason the old rule existed, said out
+                                     loud rather than enforced. --}}
+                                <div class="form-text">{{ __('Stock in another room cannot be sold at the till until it is moved.') }}</div>
+                                @error('room_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
+                        @endif
 
                         <div class="mb-3">
                             <label for="purchase_date" class="form-label">{{ __('Date') }}</label>
@@ -194,7 +223,7 @@
                         </div>
 
                         <div class="text-secondary small">{{ __('Grand total') }}</div>
-                        <div class="running-total" id="grand-total">0</div>
+                        <div class="running-total" id="grand-total" data-role="running-total">0</div>
                         {{-- What the books will actually hold. The figure above
                              is the same money said in the invoice's currency. --}}
                         <div class="text-secondary small mb-3 d-none" dir="ltr" id="grand-total-base"></div>
@@ -231,9 +260,16 @@
                     </div>
                 </div>
 
-                <div class="d-grid gap-2 position-sticky" style="bottom: 1rem">
+                {{-- ⚠️ Not sticky, and it used to be. A bottom-sticky block is
+                     pinned to the bottom of the window and paints over whatever
+                     the last field is — on the sale screen that made the Method
+                     dropdown unclickable on an empty cart at 1280×800. The long
+                     version of the reasoning is in sales/create.blade.php; this
+                     panel has the same shape and lost it for the same reason.
+                     F2 already saves from anywhere here. --}}
+                <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary btn-lg" id="save-purchase" disabled
-                            data-submitting-text="{{ __('Saving…') }}">
+                            data-role="save" data-submitting-text="{{ __('Saving…') }}">
                         {{ $editing ? __('Save changes') : __('Save purchase') }} <kbd class="ms-1">F2</kbd>
                     </button>
                     @unless($editing)
@@ -248,6 +284,21 @@
                        class="btn btn-outline-secondary">{{ __('Cancel') }}</a>
                 </div>
             </div>
+        </div>
+        {{-- The till bar — a phone only. Same reasoning as the sale screen, and
+             the same reason it lives inside the form: app.js gives the
+             hold-to-save guard to the form's own buttons, and a button attached
+             from outside with `form="…"` is never walked. --}}
+        <div class="app-till-bar d-md-none no-print">
+            <div class="min-w-0">
+                <div class="app-till-bar-label">{{ __('Grand total') }}</div>
+                <div class="app-till-bar-total money" data-role="running-total">0</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled
+                    data-role="save" data-submitting-text="{{ __('Saving…') }}">
+                {{ $editing ? __('Save changes') : __('Save purchase') }}
+            </button>
         </div>
     </form>
 @endsection
@@ -279,7 +330,9 @@
             const cartBody = document.getElementById('cart-body');
             const cartEmpty = document.getElementById('cart-empty');
             const subtotalEl = document.getElementById('subtotal');
-            const grandTotalEl = document.getElementById('grand-total');
+            // Said twice on a phone — the panel and the till bar — and once on
+            // a laptop. Both read the same number from one place.
+            const grandTotalEls = document.querySelectorAll('[data-role="running-total"]');
             const discountInput = document.getElementById('discount_shown');
             const paidInput = document.getElementById('amount_paid_shown');
             const dueNote = document.getElementById('due-note');
@@ -289,7 +342,7 @@
             const rateBox = document.getElementById('rate-box');
             const currencySelect = document.getElementById('document_currency');
             const grandTotalBase = document.getElementById('grand-total-base');
-            const saveButton = document.getElementById('save-purchase');
+            const saveButtons = document.querySelectorAll('[data-role="save"]');
 
             /*
              * Section 2b: the whole document is written in ONE currency.
@@ -378,7 +431,7 @@
                     const row = document.createElement('tr');
 
                     row.innerHTML = `
-                        <td>
+                        <td class="cart-cell-product">
                             <div class="fw-medium">${escapeHtml(line.name)}</div>
                             <div class="small text-secondary app-code">${escapeHtml(line.sku)}</div>
                             <input type="hidden" name="lines[${index}][product_id]" value="${line.id}">
@@ -391,7 +444,7 @@
                             <input type="hidden" name="lines[${index}][entered_amount]"
                                    value="${inBase() || line.typed === null ? '' : Math.round(line.typed * minorPer(invoiceCode()))}">
                         </td>
-                        <td>
+                        <td class="cart-cell-qty">
                             {{-- Section 4: a product is counted in its own unit,
                                  and the same unit buys and sells it. Writing it
                                  beside the box is the whole of it — there is no
@@ -406,7 +459,7 @@
                                                      style="max-width: 3.5rem" title="${escapeHtml(line.unit)}">${escapeHtml(line.unit)}</span>` : ''}
                             </div>
                         </td>
-                        <td>
+                        <td class="cart-cell-price">
                             <div class="input-group input-group-sm">
                                 <input type="number" min="0" step="${stepFor(invoiceCode())}" dir="ltr"
                                        class="form-control text-end"
@@ -421,8 +474,8 @@
                             ${inBase() ? '' : `<div class="small text-secondary text-end" dir="ltr" data-role="converted">= ${escapeHtml(showBase(line.price))}</div>`}
                             <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}">
                         </td>
-                        <td class="money fw-semibold">${show(line.quantity * line.price)}</td>
-                        <td>
+                        <td class="money fw-semibold cart-cell-total">${show(line.quantity * line.price)}</td>
+                        <td class="cart-cell-actions">
                             <div class="btn-group btn-group-sm">
                                 {{-- One delivery can bring the same thing in at
                                      two prices — the last few of an old carton
@@ -445,7 +498,7 @@
                 });
 
                 cartEmpty.classList.toggle('d-none', cart.length > 0);
-                saveButton.disabled = cart.length === 0;
+                saveButtons.forEach((b) => { b.disabled = cart.length === 0; });
 
                 // Nothing to put down until something is in it.
                 const hold = document.getElementById('hold-cart');
@@ -488,7 +541,7 @@
                 const grandTotal = subtotal - discount.get();
 
                 subtotalEl.textContent = show(subtotal);
-                grandTotalEl.textContent = show(grandTotal);
+                grandTotalEls.forEach((el) => { el.textContent = show(grandTotal); });
 
                 // What the books will hold, said plainly, whenever the figure
                 // above them is not already in the books' own currency.
@@ -852,7 +905,7 @@
                 // from under a half-typed price.
                 if (document.getElementById('number-pad')?.classList.contains('show')) return;
 
-                if (event.key === 'F2' && ! saveButton.disabled) {
+                if (event.key === 'F2' && ! saveButtons[0].disabled) {
                     event.preventDefault();
                     document.getElementById('purchase-form').requestSubmit();
                 }

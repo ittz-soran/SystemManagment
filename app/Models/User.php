@@ -90,6 +90,9 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'notifications_seen_id' => 'integer',
+            'adhkar_off' => 'boolean',
+            'adhkar_every' => 'integer',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'items_per_page' => 'integer',
@@ -110,6 +113,26 @@ class User extends Authenticatable
             'two_factor_recovery_codes' => Unreadable::class.':array',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A new account starts with the bell already read.
+     *
+     * ⚠️ Otherwise somebody joining a shop that has been running for a year
+     * signs in on their first morning to four thousand unread entries from
+     * before they worked here — which is the same as no bell at all, because
+     * nobody clears a badge that says 4,000.
+     *
+     * Here rather than in the controller that creates users: an account made by
+     * a seeder, by `shop:provision` or by an artisan command deserves the same
+     * answer, and there is no version of "you have read the shop's history from
+     * before you existed" that is true.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $user) {
+            $user->notifications_seen_id ??= ActivityLog::max('id') ?? 0;
+        });
     }
 
     /**

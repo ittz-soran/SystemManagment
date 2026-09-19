@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Models\StockRoom;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -38,11 +39,34 @@ class FifoService
         int $sequence,
         User $user,
         ?int $purchaseItemId = null,
+        ?int $roomId = null,
     ): StockBatch {
         $this->assertInTransaction();
 
         $batch = StockBatch::create([
             'product_id' => $product->id,
+
+            /*
+             * Where the goods physically went.
+             *
+             * ⚠️ **This was main-room-only, and Soran changed his own rule —
+             * 2026-09-18: "add purchase directly to other rooms, but sale
+             * always in main".** The earlier rule was his too — *"when
+             * purchased book at main storage then do transfer to another
+             * storage"* — and the reason behind it has not gone away: stock
+             * booked into a back room is stock the till cannot sell until
+             * somebody carries it forward. A delivery that goes straight to the
+             * lock-up now says so on the purchase instead of being booked to
+             * the shop floor and moved on paper afterwards.
+             *
+             * The SELLING side is untouched: FifoService::consume still
+             * defaults to the main room, so nothing about what the till can
+             * reach has changed.
+             *
+             * Defaulted rather than required, because a caller with no opinion
+             * — a stock adjustment correcting the shelf — means the shop floor.
+             */
+            'room_id' => $roomId ?? StockRoom::main()->id,
             'source_type' => $sourceType,
             'source_id' => $sourceId,
             'purchase_item_id' => $purchaseItemId,
@@ -95,12 +119,27 @@ class FifoService
         ?int $referenceItemId,
         Carbon $occurredAt,
         User $user,
+        ?int $roomId = null,
     ): Collection {
         $this->assertInTransaction();
 
         if ($quantity <= 0) {
             throw new RuntimeException('Cannot consume a non-positive quantity.');
         }
+
+        /*
+         * ⚠️ One room, and by default the one that sells.
+         *
+         * Soran, 2026-09-15: *"No pos or sale always user mainstore or
+         * mainstorage while sale"*. A till that could reach into a back room
+         * would let a shopkeeper sell a thing he then cannot hand over, which
+         * is worse than telling him it is not here — he has taken the money.
+         *
+         * Defaulted rather than required so that every existing caller means
+         * what it has always meant, and so a caller added later cannot quietly
+         * become the one that sells the back room.
+         */
+        $roomId ??= StockRoom::main()->id;
 
         // Section 5 (Concurrency): lock BEFORE checking. A check outside the lock
         // is worthless — two staff can both read "5 available" and both consume 4.
@@ -111,6 +150,7 @@ class FifoService
         $this->claim([$product->id]);
 
         $batches = StockBatch::where('product_id', $product->id)
+            ->inRoom($roomId)
             ->withStock()
             ->fifoOrder()
             ->lockForUpdate()
@@ -120,7 +160,19 @@ class FifoService
         $available = (int) $batches->sum('quantity_remaining');
 
         if ($available < $quantity) {
-            throw new InsufficientStockException($available, $quantity);
+            /*
+             * ⚠️ Say where the rest of it is.
+             *
+             * "3 available" when the shop owns forty, with thirty-seven of them
+             * one room away, is a true sentence that sends somebody to count a
+             * shelf. Telling them it is in the back room is the difference
+             * between a wasted afternoon and a two-minute transfer.
+             */
+            throw new InsufficientStockException(
+                $available,
+                $quantity,
+                $this->elsewhere($product, $roomId, $available, $quantity),
+            );
         }
 
         $movements = collect();
@@ -423,6 +475,32 @@ class FifoService
                 ['count' => $short],
             ));
         }
+    }
+
+    /**
+     * "Not enough here" — and, when it is true, where the rest of it is.
+     *
+     * ⚠️ Only ever a MORE helpful sentence, never a different decision. The
+     * sale is refused either way; this decides what the shopkeeper is told
+     * while refusing it. Returning null falls back to the plain message, which
+     * is what a shop with one room sees and has always seen.
+     */
+    private function elsewhere(Product $product, int $roomId, int $available, int $requested): ?string
+    {
+        $held = (int) StockBatch::where('product_id', $product->id)
+            ->where('room_id', '!=', $roomId)
+            ->sum('quantity_remaining');
+
+        if ($held <= 0) {
+            return null;
+        }
+
+        return __('Not enough in :room: :available available, :requested needed. Another :held are in other rooms — transfer them first.', [
+            'room' => StockRoom::find($roomId)?->name ?? __('this room'),
+            'available' => number_format($available),
+            'requested' => number_format($requested),
+            'held' => number_format($held),
+        ]);
     }
 
     /** The next movement sequence within one document. */

@@ -133,6 +133,170 @@
                     </form>
                 </div>
             </div>
+
+            {{-- What the bell is allowed to say to this person.
+
+                 ⚠️ Alerts have no switch, and that is the point: somebody who
+                 has silenced everything must still be told that their own
+                 account was signed into from an address they do not use, and
+                 that the invoices were deleted. A preference here is about
+                 noise, not about being kept in the dark. --}}
+            <div class="card mb-4">
+                <div class="card-header">{{ __('Notifications') }}</div>
+                <div class="card-body">
+                    <form action="{{ route('preferences.notifications') }}" method="POST" data-guard-submit>
+                        @csrf
+
+                        @php($heard = App\Support\Notifications::tiersFor(auth()->user()))
+
+                        @foreach(App\Support\Notifications::TIERS as $tier)
+                            @php($locked = $tier === App\Support\Notifications::ALERT)
+
+                            <div class="mb-3 form-check form-switch">
+                                {{-- The unchecked box has to reach the server too, or
+                                     turning one off would look like not answering. --}}
+                                <input type="hidden" name="{{ $tier }}" value="0">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="notify-{{ $tier }}" name="{{ $tier }}" value="1"
+                                       @checked(in_array($tier, $heard, true))
+                                       @disabled($locked)>
+                                <label class="form-check-label" for="notify-{{ $tier }}">
+                                    {{ App\Support\Notifications::label($tier) }}
+                                    @if($locked)
+                                        <span class="badge text-bg-secondary ms-1">{{ __('Always on') }}</span>
+                                    @endif
+                                </label>
+                                <div class="form-text">{{ App\Support\Notifications::explain($tier) }}</div>
+                            </div>
+                        @endforeach
+
+                        {{--
+                            **Soran, 2026-09-17:** *"i added to home screen in
+                            iphone but not recived notifications"*.
+
+                            ⚠️ The tiers above are the BELL. These are the
+                            phone, and they are deliberately a different
+                            setting: a badge and a buzz in a pocket at eleven at
+                            night are not the same event.
+                        --}}
+                        <hr class="my-4">
+
+                        {{--
+                            ⚠️ **iOS will not ask unless a person taps.**
+                            Safari on iPhone refuses `Notification.requestPermission()`
+                            unless it comes from a real tap inside an app added
+                            to the Home Screen — a page that asked on load would
+                            be silently denied, which is exactly what "I added
+                            it to my home screen but got nothing" looks like.
+
+                            So it is a button, it says which state this device
+                            is in, and the script explains rather than failing
+                            quietly when the device cannot do it at all.
+                        --}}
+                        <div class="mb-3" id="push-device"
+                             data-key="{{ config('push.public_key') }}"
+                             data-subscribe="{{ route('notifications.subscribe') }}"
+                             data-unsubscribe="{{ route('notifications.unsubscribe') }}"
+                             data-on="{{ __('This device is on') }}"
+                             data-off="{{ __('Turn on notifications on this device') }}"
+                             data-blocked="{{ __('Your phone is blocking notifications for this app. Turn them back on in Settings → Notifications.') }}"
+                             data-install="{{ __('On iPhone this works only from the app on your Home Screen — open it from there, not from Safari.') }}"
+                             data-unsupported="{{ __('This device cannot receive notifications.') }}"
+                             data-slow="{{ __('Could not reach the notification service. Check the connection and try again.') }}"
+                             data-unset="{{ __('The shop has no notification keys yet. An admin runs: php artisan push:keys') }}">
+
+                            <button type="button" class="btn btn-outline-primary" id="push-toggle">
+                                <i class="bi bi-bell me-1" aria-hidden="true"></i><span id="push-label">{{ __('Turn on notifications on this device') }}</span>
+                            </button>
+
+                            <div class="form-text" id="push-note">
+                                {{ __('Lets the shop reach this device when the app is closed.') }}
+                            </div>
+                        </div>
+
+                        @php($phone = App\Support\Notifications::pushTiersFor(auth()->user()))
+
+                        @foreach(App\Support\Notifications::TIERS as $tier)
+                            @continue($tier === App\Support\Notifications::ROUTINE)
+                            @php($locked = $tier === App\Support\Notifications::ALERT)
+
+                            <div class="mb-2 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="push-{{ $tier }}" name="push_tiers[]" value="{{ $tier }}"
+                                       @checked(in_array($tier, $phone, true))
+                                       @disabled($locked)>
+                                <label class="form-check-label" for="push-{{ $tier }}">
+                                    {{ __('Send :tier to my phone', ['tier' => mb_strtolower(App\Support\Notifications::label($tier))]) }}
+                                    @if($locked)
+                                        <span class="badge text-bg-secondary ms-1">{{ __('Always on') }}</span>
+                                    @endif
+                                </label>
+                            </div>
+                        @endforeach
+
+                        {{-- Always posted, so unticking the last one is an
+                             answer rather than a form that did not ask. --}}
+                        <input type="hidden" name="push_tiers[]" value="alert">
+
+                        <button class="btn btn-primary">{{ __('Save notifications') }}</button>
+                    </form>
+
+                    {{-- The remembrances, asked for 2026-09-15.
+
+                         Its own form beside the tiers rather than a fourth
+                         switch among them, because it is not a tier: the others
+                         decide how loud the bell is, and this decides whether a
+                         whole tab exists. Per person — what somebody says at
+                         their own counter is not an admin's setting to make on
+                         their behalf. --}}
+                    <hr class="my-4">
+
+                    <form action="{{ route('preferences.remembrance') }}" method="POST" data-guard-submit>
+                        @csrf
+
+                        @php($dhikrOn = ! (bool) (auth()->user()->getAttributes()['adhkar_off'] ?? false))
+
+                        <div class="mb-3 form-check form-switch">
+                            <input type="hidden" name="adhkar" value="0">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="adhkar" name="adhkar" value="1" @checked($dhikrOn)>
+                            <label class="form-check-label" for="adhkar">
+                                {{ __('Remembrance') }}
+                            </label>
+                            <div class="form-text">
+                                {{ __('A tab beside the bell holding the shop’s أذكار, with a tap counter on each. No badge, and it never opens by itself.') }}
+                            </div>
+                        </div>
+
+                        {{-- **Soran, 2026-09-16:** *"i want every 1 min or 5 min
+                             show on of Remembrances as notification show on
+                             screen, without user go to read Remembrance
+                             manualy"*.
+
+                             A closed list rather than a number box: a box lets
+                             somebody ask for one every six seconds, which is not
+                             devotion, it is a screen nobody can work at. --}}
+                        <div class="mb-3">
+                            <label for="adhkar_every" class="form-label">{{ __('Show one by itself') }}</label>
+                            <select id="adhkar_every" name="adhkar_every" class="form-select">
+                                @foreach(App\Support\Adhkar::EVERY as $minutes)
+                                    <option value="{{ $minutes }}"
+                                        @selected((int) (auth()->user()->getAttributes()['adhkar_every'] ?? 5) === $minutes)>
+                                        {{ $minutes === 0
+                                            ? __('Never — only when I open the tab')
+                                            : trans_choice('{1}Every minute|[2,*]Every :count minutes', $minutes, ['count' => $minutes]) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                {{ __('A small card in the corner that fades away on its own. It never covers the total or Save, and it waits while the number pad is open.') }}
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary">{{ __('Save remembrance') }}</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 @endsection

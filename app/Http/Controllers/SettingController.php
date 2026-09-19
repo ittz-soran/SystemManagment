@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Currency;
 use App\Models\Setting;
 use App\Rules\WritableDirectory;
 use App\Services\ActivityLogger;
@@ -9,6 +10,7 @@ use App\Services\BackupService;
 use App\Services\LabelPrinter;
 use App\Services\LabelService;
 use App\Services\SystemResetService;
+use App\Support\Adhkar;
 use App\Support\Units;
 use Database\Seeders\SettingSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -52,6 +54,17 @@ class SettingController extends Controller
         'label_printer', 'label_size',
         'label_show_name', 'label_show_sku', 'label_show_price',
         'label_show_barcode_number', 'label_show_shop',
+    ];
+
+    /**
+     * Section 9b — the remembrances beside the bell, asked for 2026-09-15.
+     *
+     * Lines in a setting rather than a table, for the same reasons as `units`;
+     * App\Support\Adhkar says why.
+     */
+    private const ADHKAR_KEYS = [
+        'adhkar_any', 'adhkar_morning', 'adhkar_evening',
+        'adhkar_morning_window', 'adhkar_evening_window',
     ];
 
     /** Section 8b — how, when and where backups run. */
@@ -104,6 +117,8 @@ class SettingController extends Controller
             'shopKeys' => self::SHOP_KEYS,
             'appearanceKeys' => self::APPEARANCE_KEYS,
             'operationalKeys' => self::OPERATIONAL_KEYS,
+            'adhkarKeys' => self::ADHKAR_KEYS,
+            'adhkar' => Adhkar::all(),
             'backupKeys' => self::BACKUP_KEYS,
             'labelKeys' => self::LABEL_KEYS,
             'labelSizes' => config('labels.sizes'),
@@ -135,6 +150,18 @@ class SettingController extends Controller
         $units = Units::withAlways(Units::parse($request->input('units', [])));
         $request->merge(['units' => $units]);
 
+        /*
+         * ⚠️ Tidied through Adhkar::parse, which trims the ends of each line and
+         * touches NOTHING else. No normalising and no stripping of marks — this
+         * is Qur'anic and prophetic text, and a "cleaned up" dhikr is a
+         * different dhikr. See AdhkarTest.
+         */
+        foreach ([Adhkar::ANY, Adhkar::MORNING, Adhkar::EVENING] as $window) {
+            $request->merge([
+                'adhkar_'.$window => implode(PHP_EOL, Adhkar::parse((string) $request->input('adhkar_'.$window, ''))),
+            ]);
+        }
+
         $data = $request->validate([
             'shop_name' => ['required', 'string', 'max:255'],
             'shop_name_ku' => ['nullable', 'string', 'max:255'],
@@ -155,6 +182,30 @@ class SettingController extends Controller
 
             'timezone' => ['required', 'timezone'],
             'usd_rate' => ['required', 'integer', 'min:1'],
+
+            /*
+             * Which currency the purchase screen opens in — Soran, 2026-09-18:
+             * *"purchase always in dinar or system selected which currency use
+             * it"*.
+             *
+             * It used to open on whatever the shop invoiced in last, which is a
+             * guess made from history; this is the shop saying so outright.
+             * Blank means the shop's own money. It is a DEFAULT and not a rule:
+             * the Invoice currency combo is still on the purchase, because a
+             * supplier who invoices in dollars does not care what the shop
+             * usually does.
+             *
+             * ⚠️ Checked against the ACTIVE list, so a shop cannot set its
+             * purchases to open in a currency it has switched off — the combo
+             * would not show it and every purchase would open on a code that is
+             * not there.
+             */
+            'purchase_currency' => ['nullable', 'string', 'max:8', Rule::in(
+                collect(Currency::cached())
+                    ->filter(fn (Currency $c) => $c->is_active)
+                    ->keys()
+                    ->all()
+            )],
             'books_closed_before' => ['nullable', 'date'],
             'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'sku_prefix' => ['required', 'string', 'max:8'],
@@ -179,6 +230,24 @@ class SettingController extends Controller
              * open one and save would change it without meaning to.
              */
             'default_unit' => ['required', 'string', 'max:32', Rule::in($units)],
+
+            /*
+             * The remembrances. Nullable throughout: a shop that clears every
+             * box has said it does not want them, which is a thing it is
+             * allowed to say.
+             */
+            'adhkar_any' => ['nullable', 'string', 'max:20000'],
+            'adhkar_morning' => ['nullable', 'string', 'max:20000'],
+            'adhkar_evening' => ['nullable', 'string', 'max:20000'],
+
+            /*
+             * ⚠️ Checked here as well as fallen back on in Adhkar::windowFor.
+             * The fallback is what stops a mistyped window taking down every
+             * page in the shop; this is what tells the admin they mistyped it,
+             * instead of silently ignoring what they wrote.
+             */
+            'adhkar_morning_window' => ['nullable', 'string', 'regex:/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/'],
+            'adhkar_evening_window' => ['nullable', 'string', 'regex:/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/'],
 
             'backup_frequency' => ['required', 'in:daily,weekly'],
             'backup_time' => ['required', 'date_format:H:i'],

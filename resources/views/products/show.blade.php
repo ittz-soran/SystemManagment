@@ -14,7 +14,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     {{-- Section 4: a generated barcode is never printed on the goods, so the
          shop prints its own label. --}}
@@ -72,6 +71,55 @@
         $stockValue = $batches->sum(fn ($b) => $b->quantity_remaining * $b->unit_cost);
     @endphp
 
+    {{--
+        Where this product is — Soran, 2026-09-15.
+
+        ⚠️ Shown only to a shop that has more than one room. A shop with one
+        room has nothing to say here, and a card reading "Main store: 40" under
+        a tile already reading "In stock: 40" is furniture.
+    --}}
+    @if($rooms->count() > 1 && ! $product->isService())
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>{{ __('Where it is') }}</span>
+                @can('stock_rooms.transfer')
+                    <a href="{{ route('stock-transfers.create') }}" class="small">{{ __('Move stock') }}</a>
+                @endcan
+            </div>
+            <div class="table-responsive">
+                <table class="table table-cards align-middle mb-0">
+                    {{-- ⚠️ A header even though the two columns are obvious.
+                         `table-cards` turns each row into a card on a phone and
+                         labels its lines from the column headers by POSITION —
+                         a table with no header has nothing to label them with,
+                         and ListCardTest matches this row against the next
+                         table's six columns instead. --}}
+                    <thead>
+                    <tr>
+                        <th>{{ __('Room') }}</th>
+                        <th class="text-end">{{ __('Held here') }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($product->byRoom() as $where)
+                        <tr>
+                            <td data-label="{{ __('Room') }}">
+                                {{ $where->name }}
+                                @if($where->is_main)
+                                    <span class="badge text-bg-primary ms-1">{{ __('Sells from here') }}</span>
+                                @endif
+                            </td>
+                            <td class="text-end" data-label="{{ __('Held here') }}">
+                                {{ qty($where->units, $product->unit) }}
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
+
     {{-- Section 4: products.quantity is a cache. If it ever disagrees with the
          batches, the batches win — so say so plainly rather than hiding it. --}}
     @if($product->quantity !== $batchSum || $batchSum !== $movementSum)
@@ -92,6 +140,17 @@
             ? [['label' => __('Sale price'), 'value' => money($product->sale_price, in: $lens)]]
             : [
                 ['label' => __('In stock'), 'value' => qty($product->quantity, $product->unit)],
+                /*
+                 * ⚠️ What the till can reach, beside what the shop owns —
+                 * Soran, 2026-09-15.
+                 *
+                 * Only when they differ, and only when the shop has more than
+                 * one room. A single-room shop would otherwise read the same
+                 * number twice under two labels and wonder which was wrong.
+                 */
+                ...($rooms->count() > 1 && $product->sellable() !== $product->quantity
+                    ? [['label' => __('Sellable now'), 'value' => qty($product->sellable(), $product->unit)]]
+                    : []),
                 // A total beside a count is a unit cost one division away —
                 // 100,000 over 10 pcs is 10,000 each — so it follows the same
                 // rule as every other cost on the page.

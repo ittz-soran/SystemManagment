@@ -13,7 +13,9 @@ use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
+use App\Http\Controllers\InstallController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\PrintController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\RemembranceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
@@ -29,6 +32,8 @@ use App\Http\Controllers\SecondHandController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockRoomController;
+use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +47,20 @@ Route::get('/', fn () => redirect()->route('dashboard'));
  * installs. Outside the auth group, because the login page shows it.
  */
 Route::get('branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
+
+/*
+ * Section 9b: the shop on a phone's home screen.
+ *
+ * All three outside the auth group, and they have to be: a phone fetches the
+ * manifest and the icon while the login page is on the screen, before anybody
+ * has signed in, and a service worker is registered for the whole site rather
+ * than for a session. None of them says anything the login page does not
+ * already say — the shop's name, its colour and its logo.
+ */
+Route::get('manifest.webmanifest', [InstallController::class, 'manifest'])->name('install.manifest');
+Route::get('app-icon-{size}.png', [InstallController::class, 'icon'])
+    ->whereNumber('size')->name('install.icon');
+Route::get('sw.js', [InstallController::class, 'serviceWorker'])->name('install.worker');
 
 Route::middleware(['auth'])->group(function () {
     /*
@@ -68,6 +87,45 @@ Route::middleware(['auth'])->group(function () {
     Route::post('preferences/theme', [PreferenceController::class, 'theme'])->name('preferences.theme');
     Route::post('preferences/currency', [PreferenceController::class, 'currency'])->name('preferences.currency');
     Route::patch('preferences', [PreferenceController::class, 'update'])->name('preferences.update');
+    Route::post('preferences/notifications', [PreferenceController::class, 'notifications'])
+        ->name('preferences.notifications');
+
+    /*
+     * The bell.
+     *
+     * ⚠️ No permission on any of the three, deliberately. Every signed-in
+     * person has a bell; what it is allowed to say is decided entry by entry in
+     * NotificationFeed, against the permissions that person already holds. A
+     * `permission:` here would be the wrong question asked in the wrong place —
+     * and would leave the reader who holds the fewest permissions, the one most
+     * likely to miss something, with no bell at all.
+     */
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('notifications/seen', [NotificationController::class, 'seen'])->name('notifications.seen');
+
+    /*
+     * A phone asking to be buzzed with the app closed — Soran, 2026-09-17.
+     *
+     * No permission, like the rest of the bell: every signed-in person may ask
+     * for their own device to be notified, and what it is allowed to say is
+     * decided per entry by the same rules the bell uses.
+     */
+    Route::post('notifications/device', [NotificationController::class, 'subscribe'])
+        ->name('notifications.subscribe');
+    Route::delete('notifications/device', [NotificationController::class, 'unsubscribe'])
+        ->name('notifications.unsubscribe');
+
+    /*
+     * The remembrances — أذكار — asked for 2026-09-15.
+     *
+     * No permission and nothing to save: the list belongs to the shop and is
+     * edited in Settings, and the tally beside each line never leaves the
+     * reader's own browser.
+     */
+    Route::get('remembrance', [RemembranceController::class, 'index'])->name('remembrance.index');
+    Route::post('preferences/remembrance', [PreferenceController::class, 'remembrance'])
+        ->name('preferences.remembrance');
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -374,6 +432,38 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::get('guide', [GuideController::class, 'index'])->name('guide.index');
     Route::get('guide/{topic}', [GuideController::class, 'show'])->name('guide.show');
+
+    /*
+     * Stock rooms — Soran, 2026-09-15.
+     *
+     * ⚠️ Three permissions, not one. Seeing which room holds what is something
+     * a counter assistant needs to answer "have you got one out the back".
+     * Moving goods, and adding or closing a room, change where the shop's stock
+     * is — a shop should be able to say who may do that.
+     */
+    Route::get('stock-rooms', [StockRoomController::class, 'index'])
+        ->middleware('permission:stock_rooms.view')->name('stock-rooms.index');
+    Route::get('stock-rooms/{stockRoom}', [StockRoomController::class, 'show'])
+        ->middleware('permission:stock_rooms.view')->name('stock-rooms.show');
+    Route::post('stock-rooms', [StockRoomController::class, 'store'])
+        ->middleware('permission:stock_rooms.manage')->name('stock-rooms.store');
+    Route::put('stock-rooms/{stockRoom}', [StockRoomController::class, 'update'])
+        ->middleware('permission:stock_rooms.manage')->name('stock-rooms.update');
+    Route::delete('stock-rooms/{stockRoom}', [StockRoomController::class, 'destroy'])
+        ->middleware('permission:stock_rooms.manage')->name('stock-rooms.destroy');
+
+    Route::get('stock-transfers', [StockTransferController::class, 'index'])
+        ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');
+    Route::get('stock-transfers/create', [StockTransferController::class, 'create'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.create');
+    Route::get('stock-transfers/room/{stockRoom}', [StockTransferController::class, 'stock'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.stock');
+    Route::post('stock-transfers', [StockTransferController::class, 'store'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.store');
+    Route::get('stock-transfers/{stockTransfer}', [StockTransferController::class, 'show'])
+        ->middleware('permission:stock_rooms.view')->name('stock-transfers.show');
+    Route::delete('stock-transfers/{stockTransfer}', [StockTransferController::class, 'destroy'])
+        ->middleware('permission:stock_rooms.transfer')->name('stock-transfers.destroy');
 
     Route::get('activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('permission:activity_logs.view')->name('activity-logs.index');

@@ -4,7 +4,6 @@
 @section('subheading', __('Sold, never stocked — the whole price is profit'))
 
 @section('actions')
-    <x-currency-lens :label="__('Type in')" />
 
     @can('products.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#service-modal">

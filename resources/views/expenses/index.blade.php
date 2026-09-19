@@ -3,7 +3,6 @@
 @section('title', __('Expenses'))
 
 @section('actions')
-    <x-currency-lens :label="__('Type in')" />
 
     @can('expenses.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#expense-modal">
@@ -72,7 +71,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Document') }}</th>
@@ -87,20 +86,20 @@
                     <tbody>
                     @foreach($expenses as $expense)
                         <tr>
-                            <td class="fw-medium">
+                            <td class="list-card-title fw-medium">
                                 <x-document-link :document="$expense" :kind="false" />
                             </td>
-                            <td><span class="app-code">{{ $expense->expense_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td>
+                            <td data-label="{{ __('Date') }}"><span class="app-code">{{ $expense->expense_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
+                            <td data-label="{{ __('Title') }}">
                                 {{ $expense->title }}
                                 @if($expense->notes)
                                     <div class="small text-secondary">{{ $expense->notes }}</div>
                                 @endif
                             </td>
-                            <td>{{ $expense->category->name }}</td>
-                            <td class="small text-secondary">{{ $expense->user->name }}</td>
-                            <td class="money">{{ money($expense->amount, in: $lens) }}</td>
-                            <td class="text-end">
+                            <td data-label="{{ __('Category') }}">{{ $expense->category->name }}</td>
+                            <td class="small text-secondary" data-label="{{ __('By') }}">{{ $expense->user->name }}</td>
+                            <td class="money" data-label="{{ __('Amount') }}">{{ money($expense->amount, in: $lens) }}</td>
+                            <td class="list-card-actions text-end">
                                 <x-row-actions
                                     :edit-modal="Gate::allows('expenses.edit') ? '#expense-edit' : null"
                                     :edit-data="[

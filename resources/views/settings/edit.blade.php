@@ -172,6 +172,24 @@
                                 <div class="form-text">{{ __('Pre-fills the purchase form; editable per purchase.') }}</div>
                             </div>
                             <div class="col-6">
+                                <label for="purchase_currency" class="form-label">{{ __('Purchases are written in') }}</label>
+                                @php
+                                    $purchaseCurrency = old('purchase_currency', setting('purchase_currency'));
+                                    $purchaseChoices = collect(App\Models\Currency::cached())
+                                        ->filter(fn ($currency) => $currency->is_active);
+                                @endphp
+                                <select id="purchase_currency" name="purchase_currency" class="form-select">
+                                    <option value="">{{ __('The shop\'s own money') }}</option>
+                                    @foreach($purchaseChoices as $code => $currency)
+                                        <option value="{{ $code }}" @selected($purchaseCurrency === $code)>
+                                            {{ $currency->name }} ({{ $code }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">{{ __('Which currency a new purchase opens in; still changeable on the purchase itself.') }}</div>
+                                @error('purchase_currency')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-6">
                                 <label for="low_stock_threshold" class="form-label">{{ __('Low stock threshold') }}</label>
                                 <input id="low_stock_threshold" type="number" step="1" min="0" name="low_stock_threshold"
                                        class="form-control text-end" dir="ltr"
@@ -294,6 +312,79 @@
                                     {{ __('Taking a unit off the list changes nothing about products already measured in it — they keep it, and it stays in their own dropdown.') }}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{--
+                The remembrances — أذكار — beside the bell.
+
+                **Soran, 2026-09-15:** *"add islamic Remembrance for ex from
+                morning show Morning Remembrances … or all short duas
+                remembrance"*.
+
+                ⚠️ A plain textarea here, and deliberately NOT the row-per-item
+                control the units list was rebuilt into. The reasoning that made
+                rows right there makes them wrong here: a unit is "kg" and a
+                dhikr is a sentence in Arabic, a shop adds a unit once a year and
+                may paste a whole list of these at once, and seventeen input
+                groups is a wall. The box is the shape of the thing.
+            --}}
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center gap-2">
+                        <i class="bi bi-stars" aria-hidden="true"></i>
+                        {{ __('Remembrance') }}
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary small">
+                            {{ __('One per line. These appear in their own tab beside the bell — never over the till, and never with a red badge.') }}
+                        </p>
+
+                        <div class="row g-3">
+                            <div class="col-lg-4">
+                                <label for="adhkar_any" class="form-label">{{ __('Any time') }}</label>
+                                <textarea id="adhkar_any" name="adhkar_any" rows="10" dir="rtl" lang="ar"
+                                          class="form-control @error('adhkar_any') is-invalid @enderror"
+                                          >{{ old('adhkar_any', implode(PHP_EOL, $adhkar['any'])) }}</textarea>
+                                @error('adhkar_any')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="form-text">{{ __('Shown whenever neither window below is open.') }}</div>
+                            </div>
+
+                            <div class="col-lg-4">
+                                <label for="adhkar_morning" class="form-label">{{ __('Morning') }}</label>
+                                <textarea id="adhkar_morning" name="adhkar_morning" rows="10" dir="rtl" lang="ar"
+                                          class="form-control @error('adhkar_morning') is-invalid @enderror"
+                                          >{{ old('adhkar_morning', implode(PHP_EOL, $adhkar['morning'])) }}</textarea>
+                                @error('adhkar_morning')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+                                <label for="adhkar_morning_window" class="form-label mt-2 small">{{ __('Morning hours') }}</label>
+                                <input id="adhkar_morning_window" name="adhkar_morning_window" dir="ltr"
+                                       class="form-control form-control-sm @error('adhkar_morning_window') is-invalid @enderror"
+                                       placeholder="{{ App\Support\Adhkar::MORNING_WINDOW }}"
+                                       value="{{ old('adhkar_morning_window', setting('adhkar_morning_window', App\Support\Adhkar::MORNING_WINDOW)) }}">
+                                @error('adhkar_morning_window')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+
+                            <div class="col-lg-4">
+                                <label for="adhkar_evening" class="form-label">{{ __('Evening') }}</label>
+                                <textarea id="adhkar_evening" name="adhkar_evening" rows="10" dir="rtl" lang="ar"
+                                          class="form-control @error('adhkar_evening') is-invalid @enderror"
+                                          >{{ old('adhkar_evening', implode(PHP_EOL, $adhkar['evening'])) }}</textarea>
+                                @error('adhkar_evening')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+                                <label for="adhkar_evening_window" class="form-label mt-2 small">{{ __('Evening hours') }}</label>
+                                <input id="adhkar_evening_window" name="adhkar_evening_window" dir="ltr"
+                                       class="form-control form-control-sm @error('adhkar_evening_window') is-invalid @enderror"
+                                       placeholder="{{ App\Support\Adhkar::EVENING_WINDOW }}"
+                                       value="{{ old('adhkar_evening_window', setting('adhkar_evening_window', App\Support\Adhkar::EVENING_WINDOW)) }}">
+                                @error('adhkar_evening_window')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+
+                        <div class="alert alert-light border small mt-3 mb-0">
+                            {{ __('Morning and evening start empty. Leave them that way and the any-time list shows all day; write in one and it takes over during its hours. The hours are read on the shop’s own clock, :zone.', ['zone' => setting('timezone', config('app.timezone'))]) }}
                         </div>
                     </div>
                 </div>
