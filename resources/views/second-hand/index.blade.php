@@ -5,7 +5,6 @@
 
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     @can('suppliers.view')
         <a href="{{ route('second-hand.sellers') }}" class="btn btn-outline-secondary">

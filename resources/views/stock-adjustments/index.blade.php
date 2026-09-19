@@ -4,7 +4,6 @@
 @section('subheading', __('The only way to correct a document that is already locked'))
 
 @section('actions')
-    <x-currency-lens :label="__('Type in')" />
 
     @can('stock_adjustments.create')
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#adjustment-modal">

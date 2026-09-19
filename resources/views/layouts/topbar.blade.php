@@ -13,7 +13,21 @@
     {{-- One box for the whole shop: a product, a person, a document number off a
          printed invoice, or the name of a screen. What it finds is decided by
          the server, which shows a reader only what they may open. --}}
-    <div class="app-search flex-grow-1 min-w-0 position-relative" style="max-width: 30rem">
+    {{-- On a phone the search is a magnifier until it is wanted — Soran,
+         2026-09-19: "search box in top bar for mobile version should just show
+         search icon then expand input and hide other elements because on
+         mobile can show something at once".
+
+         Below md only: above it the bar has room for the box and everything
+         else at once, and hiding a search behind a tap there would be a step
+         nobody needs. --}}
+    <button type="button" class="btn btn-sm btn-outline-secondary d-md-none flex-shrink-0"
+            id="app-search-open" aria-label="{{ __('Search') }}"
+            aria-expanded="false" aria-controls="app-search">
+        <i class="bi bi-search" aria-hidden="true"></i>
+    </button>
+
+    <div class="app-search flex-grow-1 min-w-0 position-relative d-none d-md-block" style="max-width: 30rem">
         <div class="input-group input-group-sm">
             <span class="input-group-text bg-body-tertiary border-end-0">
                 <i class="bi bi-search"></i>
@@ -26,6 +40,14 @@
                 {{-- The shortcut, where a keyboard user will look for it. --}}
                 Ctrl K
             </span>
+
+            {{-- The way back, on a phone. Without it the only way out of the
+                 search is the browser's own back button, which leaves the
+                 screen. --}}
+            <button type="button" class="btn btn-outline-secondary d-md-none" id="app-search-close"
+                    aria-label="{{ __('Close search') }}">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
         </div>
 
         <div id="app-search-results" class="app-search-results dropdown-menu w-100 p-0 overflow-auto"
@@ -34,7 +56,7 @@
              data-empty="{{ __('Nothing found.') }}"></div>
     </div>
 
-    <div class="ms-auto d-flex align-items-center gap-2">
+    <div class="ms-auto d-flex align-items-center gap-2" id="app-topbar-rest">
         {{-- Whether this screen can still reach the shop's own server.
              Section 9b's rule about saying the truth plainly, applied to the
              one thing a browser hides: a page that has lost the network looks
@@ -107,29 +129,19 @@
              the row that changes by itself. --}}
         @include('partials.bell')
 
-        {{-- Language switch. Section 2: text and direction change together. --}}
-        <div class="dropdown">
-            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
-                    aria-label="{{ __('Change language') }}">
-                <i class="bi bi-translate"></i>
-                <span class="d-none d-md-inline">
-                    {{ \App\Http\Middleware\SetUserPreferences::LANGUAGES[$currentLanguage] ?? $currentLanguage }}
-                </span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                @foreach(\App\Http\Middleware\SetUserPreferences::LANGUAGES as $code => $name)
-                    <li>
-                        <form action="{{ route('preferences.language') }}" method="POST">
-                            @csrf
-                            <input type="hidden" name="language" value="{{ $code }}">
-                            <button type="submit" class="dropdown-item {{ $currentLanguage === $code ? 'active' : '' }}">
-                                {{ $name }}
-                            </button>
-                        </form>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
+        {{-- Language and currency, in one menu — Soran, 2026-09-18:
+             "move read in/type in currency to near languages… but have flag
+             and select both languages and currency".
+
+             ⚠️ The currency half used to be `<x-currency-lens>` on THIRTY-TWO
+             screens, each in its own actions bar. One control that follows the
+             reader everywhere is what he asked for and is less to look at.
+
+             ⚠️ It is the READER'S lens and nothing else. The till is untouched:
+             `money()` still converts only where a screen hands it a currency,
+             and `CurrencyReachTest` still refuses it on sales/create. The sale
+             screen's own currency combo is a different thing — see §2b. --}}
+        @include('partials.preferences-menu')
 
         {{-- Section 8c: light / dark / auto, using Bootstrap 5.3's built-in
              dark mode. No custom dark stylesheet. --}}

@@ -12,7 +12,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     <a href="{{ route('purchase-returns.print', $return) }}" class="btn btn-outline-secondary" target="_blank">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}

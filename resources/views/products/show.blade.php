@@ -14,7 +14,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     {{-- Section 4: a generated barcode is never printed on the goods, so the
          shop prints its own label. --}}

@@ -6,7 +6,6 @@
 @endsection
 
 @section('actions')
-    <x-currency-lens :label="__('Read in')" />
 
     <button class="btn btn-outline-secondary" onclick="window.print()">
         <i class="bi bi-printer me-1"></i>{{ __('Print') }}
