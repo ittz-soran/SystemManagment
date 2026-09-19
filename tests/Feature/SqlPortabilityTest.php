@@ -149,4 +149,138 @@ class SqlPortabilityTest extends TestCase
             'The scan is not reading StockRoomController, which is where this went wrong.'
         );
     }
+
+    /**
+     * ⚠️ **`->after('x')` must name a column that table actually has.**
+     *
+     * The third fault of this exact shape, and the most expensive: SQLite
+     * IGNORES `after()` completely, so a wrong column name passes every test
+     * on the machine this is written on. MariaDB enforces it, throws on the
+     * ALTER, and takes the whole migration down with it — 997 tests failed on
+     * one word.
+     *
+     * 2026-09-19: `sales.exchange_rate` was added `after('grand_total')`,
+     * copied from the purchase side. A sale has no grand_total; it has
+     * total_amount.
+     *
+     * No database needed, which is the point — the same reason the reserved
+     * word scan above exists.
+     */
+    public function test_every_after_names_a_column_that_table_has(): void
+    {
+        /** @var array<string, list<string>> $have */
+        $have = [];
+        $problems = [];
+
+        foreach (glob(database_path('migrations/*.php')) as $path) {
+            $source = file_get_contents($path);
+
+            foreach ($this->schemaBlocks($source) as [$table, $block]) {
+                $known = $have[$table] ?? [];
+
+                // Columns this block itself adds count: a migration may add two
+                // and place the second after the first.
+                $adds = $this->columnsIn($block);
+
+                preg_match_all("/->after\(\s*'([a-z_]+)'/", $block, $afters);
+
+                foreach ($afters[1] as $column) {
+                    if (! in_array($column, $known, true) && ! in_array($column, $adds, true)) {
+                        $problems[] = basename($path).": {$table}.{$column}";
+                    }
+                }
+
+                $have[$table] = array_merge($known, $adds);
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $problems,
+            "A migration places a column after one that table does not have. SQLite ignores this; MariaDB refuses it:\n".implode("\n", $problems)
+        );
+    }
+
+    /** The scan has to be reading something, or it passes forever proving nothing. */
+    public function test_the_after_guard_is_reading_the_migrations(): void
+    {
+        $seen = 0;
+
+        foreach (glob(database_path('migrations/*.php')) as $path) {
+            foreach ($this->schemaBlocks(file_get_contents($path)) as [, $block]) {
+                $seen += preg_match_all("/->after\(\s*'[a-z_]+'/", $block);
+            }
+        }
+
+        $this->assertGreaterThan(5, $seen, 'The after() scan found almost nothing to check.');
+    }
+
+    /**
+     * Every `Schema::create`/`Schema::table` call, captured to its balanced
+     * closing bracket.
+     *
+     * ⚠️ Balanced, not a fixed window. A file holding two of these — and
+     * several do — otherwise bleeds one table's columns into the next and
+     * reports faults that are not there.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    private function schemaBlocks(string $source): array
+    {
+        preg_match_all("/Schema::(?:create|table)\(\s*'([a-z_]+)'/", $source, $matches, PREG_OFFSET_CAPTURE);
+
+        $out = [];
+
+        foreach ($matches[0] as $i => [$text, $offset]) {
+            $open = strpos($source, '(', $offset);
+            $depth = 0;
+
+            for ($j = $open; $j < strlen($source); $j++) {
+                if ($source[$j] === '(') {
+                    $depth++;
+                } elseif ($source[$j] === ')') {
+                    $depth--;
+
+                    if ($depth === 0) {
+                        break;
+                    }
+                }
+            }
+
+            $out[] = [$matches[1][$i][0], substr($source, $open, $j - $open)];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The columns one block defines.
+     *
+     * @return list<string>
+     */
+    private function columnsIn(string $block): array
+    {
+        preg_match_all("/->([a-zA-Z]+)\(\s*'([a-z_]+)'/", $block, $matches, PREG_SET_ORDER);
+
+        $skip = ['after', 'index', 'unique', 'constrained', 'references', 'on',
+            'default', 'comment', 'dropColumn', 'dropIndex', 'dropUnique'];
+
+        $columns = [];
+
+        foreach ($matches as $match) {
+            if (! in_array($match[1], $skip, true)) {
+                $columns[] = $match[2];
+            }
+        }
+
+        // The ones whose names are implied rather than typed.
+        foreach (['timestamps' => ['created_at', 'updated_at'], 'softDeletes' => ['deleted_at'],
+            'rememberToken' => ['remember_token'], 'id' => ['id']] as $method => $implied) {
+            if (preg_match('/->'.$method.'\(\s*\)/', $block)) {
+                $columns = array_merge($columns, $implied);
+            }
+        }
+
+        return $columns;
+    }
 }

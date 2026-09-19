@@ -36,6 +36,14 @@ class SaleService
         Carbon $saleDate,
         int $amountPaid = 0,
         string $paymentMethod = 'cash',
+
+        /*
+         * ⚠️ The rate this document was written at, frozen — Soran,
+         * 2026-09-19. Null is a sale in the shop's own money, which is every
+         * sale recorded before this existed. The books stay in dinars whatever
+         * this says; it is what the receipt prints and what an edit reopens.
+         */
+        ?int $exchangeRate = null,
     ): Sale {
         if ($lines === []) {
             throw new RuntimeException(__('A sale needs at least one line.'));
@@ -45,7 +53,7 @@ class SaleService
             throw new RuntimeException(__('Locked: this date is in a closed period.'));
         }
 
-        return DB::transaction(function () use ($customer, $lines, $user, $saleDate, $amountPaid, $paymentMethod) {
+        return DB::transaction(function () use ($customer, $lines, $user, $saleDate, $amountPaid, $paymentMethod, $exchangeRate) {
             /*
              * Every row this sale will contend for, claimed in one order before
              * anything is written — FifoService::claim(). It must be here, at
@@ -80,6 +88,10 @@ class SaleService
                 'total_amount' => $totalAmount,
                 'status' => Sale::STATUS_ACTIVE,
                 'sale_date' => $saleDate,
+
+                // The rate this receipt was written at, kept with it. A sale in
+                // the shop's own money records none — see §2b.
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $occurredAt = $saleDate->copy()->setTimeFrom(now());
@@ -144,6 +156,10 @@ class SaleService
         array $lines,
         User $user,
         Carbon $saleDate,
+
+        // The rate this receipt was written at, carried through the edit — or
+        // correcting a price would drop the currency off the document.
+        ?int $exchangeRate = null,
     ): Sale {
         if ($lines === []) {
             throw new RuntimeException(__('A sale needs at least one line.'));
@@ -153,7 +169,7 @@ class SaleService
             throw new RuntimeException(__('Locked: this date is in a closed period.'));
         }
 
-        return DB::transaction(function () use ($sale, $customer, $lines, $user, $saleDate) {
+        return DB::transaction(function () use ($sale, $customer, $lines, $user, $saleDate, $exchangeRate) {
             // Section 8: re-checked inside the transaction, not just before it.
             $lock = $sale->fresh()->canBeModified($user);
 
@@ -199,6 +215,7 @@ class SaleService
                 'customer_id' => $customer->id,
                 'total_amount' => $totalAmount,
                 'sale_date' => $saleDate,
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $this->applyLines($sale, $lines, $user, $saleDate);
@@ -316,7 +333,20 @@ class SaleService
                 'sale_id' => $sale->id,
                 'product_id' => $line['product_id'],
                 'quantity' => $line['quantity'],
+
+                // ⚠️ Base-currency integers, always. The two columns below are
+                // a record of what somebody TYPED; this is what the books use.
                 'unit_price' => $line['unit_price'],
+
+                /*
+                 * What the person actually put in the box, and in what — so the
+                 * receipt can show it back and an edit can reopen the box the
+                 * way they left it. The same pair the purchase side has carried
+                 * since §6b, and read the same way by `typedIn()`.
+                 */
+                'entered_currency' => $line['entered_currency'] ?? null,
+                'entered_amount' => $line['entered_amount'] ?? null,
+
                 'quantity_returned' => 0,
                 'sequence' => $index + 1,
             ]);

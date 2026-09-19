@@ -117,6 +117,47 @@
                         </div>
 
                         <div class="mb-3">
+                            {{-- The receipt's own currency and rate — Soran,
+                                 2026-09-19: "if currency on usd change sale
+                                 page to usd, but in sale page have combo to
+                                 change again and input to rate".
+
+                                 ⚠️ Only base-currency integers are ever stored.
+                                 Each price box below is unnamed and has a
+                                 hidden field beside it holding the base figure
+                                 the form actually posts — the same rule the
+                                 purchase cart has followed since §2b. --}}
+                            @if($foreignCurrencies->isNotEmpty())
+                                @php
+                                    $chosenCode = old('document_currency', $documentCurrency);
+                                @endphp
+                                <div class="row g-2 mb-3">
+                                    <div class="col-7">
+                                        <label for="document_currency" class="form-label">{{ __('Receipt currency') }}</label>
+                                        <select id="document_currency" name="document_currency" class="form-select"
+                                                data-meta="{{ json_encode($currencyMeta) }}"
+                                                data-base="{{ $base->code }}">
+                                            <option value="{{ $base->code }}" @selected($chosenCode === $base->code)>
+                                                {{ $base->name }} ({{ $base->code }})
+                                            </option>
+                                            @foreach($foreignCurrencies as $currency)
+                                                <option value="{{ $currency->code }}" @selected($chosenCode === $currency->code)>
+                                                    {{ $currency->name }} ({{ $currency->code }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-5">
+                                        <label for="exchange_rate" class="form-label">{{ __('Rate') }}</label>
+                                        <input id="exchange_rate" type="number" step="1" min="1" dir="ltr"
+                                               name="exchange_rate" class="form-control text-end"
+                                               value="{{ old('exchange_rate', $documentRate ?: '') }}"
+                                               @disabled($chosenCode === $base->code)
+                                               data-english-digits>
+                                    </div>
+                                </div>
+                            @endif
+
                             <label for="sale_date" class="form-label">{{ __('Date') }}</label>
                             <input id="sale_date" type="date" name="sale_date" class="form-control"
                                    value="{{ old('sale_date', $editing ? $sale->sale_date->toDateString() : today()->toDateString()) }}" required>
@@ -421,11 +462,23 @@
                             </div>
                         </td>
                         <td class="cart-cell-price">
-                            <input type="number" min="0" step="1" dir="ltr"
+                            {{-- ⚠️ The visible box is the SCREEN'S; the hidden
+                                 one beside it is the BOOKS'. Whatever currency
+                                 this receipt is written in, only a base-currency
+                                 integer is ever posted — §2b, and the same
+                                 shape the purchase cart uses. --}}
+                            <input type="number" min="0" step="any" dir="ltr"
                                    class="form-control form-control-sm text-end"
-                                   name="lines[${index}][unit_price]" value="${line.price}"
+                                   value="${line.price}"
                                    data-role="price" data-index="${index}"
                                    data-numpad="${escapeHtml(line.name)}">
+                            <input type="hidden" name="lines[${index}][unit_price]" value="${line.price}"
+                                   data-role="price-base" data-index="${index}">
+                            <input type="hidden" name="lines[${index}][entered_currency]"
+                                   data-role="price-code" data-index="${index}">
+                            <input type="hidden" name="lines[${index}][entered_amount]"
+                                   data-role="price-typed" data-index="${index}">
+                            <div class="small text-secondary text-end d-none" data-role="price-base-note" data-index="${index}"></div>
                         </td>
                         <td class="money fw-semibold cart-cell-total">${format(line.quantity * line.price)}</td>
                         <td class="cart-cell-actions">
@@ -649,10 +702,147 @@
                 row.querySelector('.money').textContent = format(line.quantity * line.price);
                 row.querySelector('[data-role="below-cost"]').classList.toggle('d-none', ! line.belowCost);
 
+                recalc();
+            }
+
+            /**
+             * The running total, always from the BASE figures.
+             *
+             * Its own function because changing the receipt's currency or its
+             * rate has to redo it without there being one row to refresh.
+             */
+            function recalc() {
                 const total = cart.reduce((sum, l) => sum + l.quantity * l.price, 0);
+
                 showTotal(total);
                 updateDue(total);
             }
+
+            /**
+             * The receipt's own currency — Soran, 2026-09-19.
+             *
+             * ⚠️ **`line.price` is ALWAYS the base figure.** The visible box
+             * holds whatever this receipt is written in; the hidden field
+             * beside it, the totals, the amount due and the held cart all read
+             * the base one. Nothing about what the shop is owed depends on
+             * which currency somebody chose to type in.
+             */
+            const docSelect = document.getElementById('document_currency');
+            const rateBox = document.getElementById('exchange_rate');
+            const currencyMeta = docSelect ? JSON.parse(docSelect.dataset.meta) : {};
+            const baseCode = docSelect ? docSelect.dataset.base : null;
+
+            function docCurrency() {
+                if (! docSelect) return null;
+
+                const code = docSelect.value;
+
+                if (! code || code === baseCode) return null;
+
+                return currencyMeta[code] ?? null;
+            }
+
+            function docRate() {
+                return Math.max(1, Number(rateBox?.value || 0));
+            }
+
+            /** What somebody typed, read back as base units. */
+            function toBase(typed) {
+                return docCurrency() ? Math.round(typed * docRate()) : Math.round(typed);
+            }
+
+            /** A base figure, written in the currency this receipt names. */
+            function fromBase(base) {
+                const currency = docCurrency();
+
+                if (! currency) return base;
+
+                return Number((base / docRate()).toFixed(currency.decimals));
+            }
+
+            /** The three hidden fields and the note under a price box. */
+            function writePrice(index) {
+                const line = cart[index];
+                if (! line) return;
+
+                const currency = docCurrency();
+                const at = (role) => cartBody.querySelector(`[data-role="${role}"][data-index="${index}"]`);
+
+                const base = at('price-base');
+                const code = at('price-code');
+                const typed = at('price-typed');
+                const note = at('price-base-note');
+
+                if (base) base.value = line.price;
+
+                if (code) code.value = currency && line.typed != null ? currency.code : '';
+
+                // ⚠️ Scaled by THIS currency's own minor units, not by a
+                // hundred: a yen has none, and dividing it by 100 on the way
+                // back would show ¥5 for ¥500 — §2b learned that once already.
+                if (typed) {
+                    typed.value = currency && line.typed != null
+                        ? Math.round(line.typed * currency.minorPerMajor)
+                        : '';
+                }
+
+                if (note) {
+                    note.textContent = currency ? `= ${format(line.price)}` : '';
+                    note.classList.toggle('d-none', ! currency);
+                }
+            }
+
+            /** Redraw every visible price box in the currency now chosen. */
+            function redrawPrices() {
+                const currency = docCurrency();
+
+                if (rateBox) rateBox.disabled = ! currency;
+
+                cart.forEach((line, index) => {
+                    const box = cartBody.querySelector(`[data-role="price"][data-index="${index}"]`);
+
+                    if (box) box.value = fromBase(line.price);
+
+                    writePrice(index);
+                });
+            }
+
+            docSelect?.addEventListener('change', () => {
+                const currency = docCurrency();
+
+                // Opening the rate box on the shop's saved rate, so nobody has
+                // to remember today's before they can type a price.
+                if (currency && ! Number(rateBox.value)) rateBox.value = currency.rate;
+
+                /*
+                 * ⚠️ The untouched-field rule, §2b. A line somebody typed a
+                 * foreign figure into follows the currency; a line that still
+                 * holds its base price is merely REDRAWN in it. Re-reading a
+                 * redrawn figure back would move money on a screen nobody
+                 * touched.
+                 */
+                cart.forEach((line) => { if (! currency) line.typed = null; });
+
+                redrawPrices();
+                recalc();
+            });
+
+            rateBox?.addEventListener('input', () => {
+                const currency = docCurrency();
+
+                if (! currency) return;
+
+                // Only the lines actually typed in this currency move with it.
+                cart.forEach((line, index) => {
+                    if (line.typed == null) return;
+
+                    line.price = toBase(line.typed);
+                    refreshRow(index);
+                });
+
+                redrawPrices();
+                recalc();
+            });
 
             cartBody.addEventListener('input', (event) => {
                 const index = Number(event.target.dataset.index);
@@ -662,7 +852,12 @@
                 if (event.target.dataset.role === 'qty') {
                     line.quantity = Math.max(1, Number(event.target.value || 1));
                 } else if (event.target.dataset.role === 'price') {
-                    line.price = Math.max(0, Number(event.target.value || 0));
+                    const typed = Math.max(0, Number(event.target.value || 0));
+
+                    // What they typed, and what the books take from it.
+                    line.typed = docCurrency() ? typed : null;
+                    line.price = Math.max(0, toBase(typed));
+                    writePrice(index);
                     // Section 9b: below-cost warns, never blocks — Soran may sell
                     // below cost deliberately for clearance or damaged goods.
                     line.belowCost = line.cost !== null && line.price < line.cost;
@@ -756,6 +951,8 @@
                     return {
                         product_id: +document.querySelector(`[name="lines[${index}][product_id]"]`).value,
                         quantity: +qty.value,
+                        // The base figure, never the box somebody typed a
+                        // dollar into — a held cart comes back on any screen.
                         unit_price: +document.querySelector(`[name="lines[${index}][unit_price]"]`).value,
                     };
                 });

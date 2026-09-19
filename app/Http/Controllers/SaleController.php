@@ -3,13 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\InsufficientStockException;
+use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\HeldCart;
 use App\Models\Sale;
 use App\Services\BulkDeleteService;
 use App\Services\SaleService;
+use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SaleController extends Controller
@@ -59,6 +63,9 @@ class SaleController extends Controller
             'cashCustomer' => Customer::cashCustomer(),
             'held' => $held,
             'heldCarts' => HeldCart::ofType(HeldCart::TYPE_SALE)->with('user')->latest()->get(),
+
+            // What this receipt is written in, and at what rate.
+            ...$this->currencyChoices(),
             // A submit that came back, before a cart that was put down. The
             // lines are already in old input — losing them means re-scanning
             // the whole basket to correct one field. See linesFor().
@@ -80,6 +87,20 @@ class SaleController extends Controller
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
             // Section 2: IQD is whole numbers only.
             'lines.*.unit_price' => ['required', 'integer', 'min:0'],
+
+            /*
+             * ⚠️ The receipt's own currency — Soran, 2026-09-19. §2b's decision
+             * 3b said a sale is always in dinars; he sells phones priced in
+             * dollars, so it is not.
+             *
+             * Only base-currency integers are stored. These three record what
+             * was TYPED, exactly as the purchase cart has since §6b, so the
+             * receipt can print it and an edit can reopen the box.
+             */
+            'exchange_rate' => ['nullable', 'integer', 'min:1'],
+            'lines.*.entered_currency' => ['nullable', 'string', Rule::in($this->currencyCodes())],
+            'lines.*.entered_amount' => ['nullable', 'integer', 'min:0'],
+            'document_currency' => ['nullable', 'string', Rule::in($this->currencyCodes())],
             // The cart this came from, if it was one that had been put down.
             'held_cart_id' => ['nullable', 'integer', 'exists:held_carts,id'],
         ]);
@@ -89,9 +110,10 @@ class SaleController extends Controller
                 customer: Customer::findOrFail($data['customer_id']),
                 lines: $data['lines'],
                 user: $request->user(),
-                saleDate: \Illuminate\Support\Carbon::parse($data['sale_date']),
+                saleDate: Carbon::parse($data['sale_date']),
                 amountPaid: (int) ($data['amount_paid'] ?? 0),
                 paymentMethod: $data['payment_method'],
+                exchangeRate: $data['exchange_rate'] ?? null,
             );
         } catch (InsufficientStockException $e) {
             // Section 10b T8: nothing is written and no document number is
@@ -135,6 +157,12 @@ class SaleController extends Controller
             'customers' => Customer::where('is_active', true)
                 ->orderByDesc('is_system')->orderBy('name')->get(),
             'cashCustomer' => Customer::cashCustomer(),
+
+            // ⚠️ Read off THIS receipt, not the shop's setting: reopening a
+            // dollar sale must show dollars whatever the till opens in now, or
+            // its lines come back read as dinars and the money changes on a
+            // screen nobody typed in.
+            ...$this->currencyChoices($sale),
         ]);
     }
 
@@ -186,7 +214,8 @@ class SaleController extends Controller
                 customer: Customer::findOrFail($data['customer_id']),
                 lines: $data['lines'],
                 user: $request->user(),
-                saleDate: \Illuminate\Support\Carbon::parse($data['sale_date']),
+                saleDate: Carbon::parse($data['sale_date']),
+                exchangeRate: $data['exchange_rate'] ?? null,
             );
         } catch (InsufficientStockException|\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -240,5 +269,76 @@ class SaleController extends Controller
             $result['deleted'] > 0 ? 'success' : 'error',
             $bulk->summarise($result),
         );
+    }
+
+    /**
+     * Every code a sale line may name — the shop's active currencies, base
+     * included.
+     *
+     * @return list<string>
+     */
+    private function currencyCodes(): array
+    {
+        return collect(Currency::cached())
+            ->filter(fn (Currency $c) => $c->is_active)
+            ->keys()
+            ->all();
+    }
+
+    /**
+     * What the till opens in, and what to fill the rate box with.
+     *
+     * ⚠️ **The same setting the purchase screen reads** — Soran, 2026-09-19:
+     * *"if currency on usd change sale page to usd"*. One answer for the whole
+     * shop rather than two that can disagree, and the combo on the screen still
+     * overrules it for the receipt in hand.
+     *
+     * @return array<string, mixed>
+     */
+    private function currencyChoices(?Sale $sale = null): array
+    {
+        $base = Money::base();
+
+        $foreign = collect(Currency::cached())
+            ->filter(fn (Currency $c) => $c->is_active && $c->code !== $base->code)
+            ->values();
+
+        $was = $sale !== null
+            ? $sale->items
+                ->pluck('entered_currency')
+                ->first(fn (?string $code) => $code !== null && $code !== $base->code)
+            : (setting('purchase_currency') ?: null);
+
+        // A receipt written in a currency since switched off still opens on it,
+        // or its lines would come back on a code the select cannot show.
+        if ($sale !== null && $was !== null && ! $foreign->contains('code', $was)) {
+            $kept = Currency::cached()[$was] ?? null;
+
+            if ($kept !== null) {
+                $foreign = $foreign->push($kept)->values();
+            }
+        }
+
+        $wanted = $was ?: $base->code;
+
+        $chosen = $wanted === $base->code ? null : $foreign->firstWhere('code', $wanted);
+
+        return [
+            'base' => $base,
+            'foreignCurrencies' => $foreign,
+            'documentCurrency' => $chosen?->code ?? $base->code,
+            'documentRate' => (int) ($sale?->exchange_rate
+                ?: ($chosen ? (int) round($chosen->rate / Money::RATE_SCALE) : 0)),
+            'currencyMeta' => collect(Currency::cached())
+                ->filter(fn (Currency $c) => $c->is_active)
+                ->map(fn (Currency $c) => [
+                    'code' => $c->code,
+                    'mark' => $c->mark(),
+                    'decimals' => $c->decimals,
+                    'minorPerMajor' => $c->minorPerMajor(),
+                    'rate' => (int) round($c->rate / Money::RATE_SCALE),
+                ])
+                ->all(),
+        ];
     }
 }

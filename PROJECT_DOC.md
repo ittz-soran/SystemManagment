@@ -184,6 +184,8 @@ So they go quiet until they are reached for: no border, no fill, the icon in sec
 
 **Screens with the lens:** every screen that says an amount — the dashboard, reports, both carts' surroundings, every list and every document page, and every entry form. **Screens that must never have it:** the sale screen and anything printed.
 
+> ⚠️ **2026-09-19: the sale screen now has a currency of its own, and that is not this.** It carries a document currency and a frozen rate, like the purchase cart — see "What is not done yet" above. The READER'S lens still never reaches it, and `CurrencyReachTest` still enforces that.
+
 ⚠️ **`CurrencyReachTest` checks both halves of that sentence, because neither can be remembered.** The lens is opt-in per screen, which is what keeps it off the till and is also what lets a screen be silently left out — a figure in the wrong currency looks exactly like a figure. The test walks every Blade template, parses out every `money()` call, and fails with the filename when one is drawn without a currency on a screen that converts, or with one on a screen that must not. A new screen that prints money cannot quietly skip it.
 
 Two screens print an amount and stay in the base currency on purpose, listed in that test: the held-carts list, shared with the till and holding carts put down before any currency was chosen; and the purchase cart, whose figures follow the **invoice** currency chosen on the document rather than the reader's own preference.
@@ -268,7 +270,16 @@ And the screen now **says** when the setting names a currency that is not on the
 
 ### What is not done yet
 
-Sales carry no `exchange_rate` column, so a sale cannot be written in a foreign currency and its printout has one figure. That follows from decision 3b — you sell across a counter in dinars — and is not an omission.
+~~Sales carry no `exchange_rate` column, so a sale cannot be written in a foreign currency and its printout has one figure. That follows from decision 3b — you sell across a counter in dinars — and is not an omission.~~
+
+⚠️ **Reversed — Soran, 2026-09-19:** *"if currency on usd change sale page to usd, but in sale page have combo to change again and input to rate"*. He sells phones priced in dollars, so it was an omission after all. `sales.exchange_rate` and `sale_items.entered_currency` / `entered_amount` now exist and mean exactly what their purchase-side namesakes mean.
+
+- The sale screen opens in whatever **Settings → "Purchases are written in"** says — one answer for the shop rather than two that can disagree — with its own combo and rate box to overrule it for the receipt in hand.
+- **Only base-currency integers are stored, unchanged.** `unit_price`, `total_amount` and `grand_total` are dinars exactly as before, so FIFO, the ledger, every balance and every report are untouched. The two `entered_*` columns are a record of what somebody typed.
+- The **untouched-field rule** applies here as on the purchase cart: a line typed in dollars follows the rate; a line still holding its base price is merely redrawn in dollars and keeps its figure. Measured in a browser: 9,000 IQD redrawn at 1,550 shows $5.81 and still posts 9,000; typing $120 posts 186,000; moving the rate to 1,500 takes that line to 180,000.
+- ⚠️ **A receipt prints in ONE currency** — Soran: *"if system on dinar all receipts show on dinar and same for other currencies"*. This is where it parts company with the purchase document, which prints both figures and the rate (decision 1c): a supplier invoice is reconciled against paperwork in two currencies, a customer receipt is handed across a counter and has to say one number. The rate still comes off the document, never today's table.
+
+**The till rule is unchanged, and the distinction is the whole of it.** The READER'S lens still never reaches the sale screen — `CurrencyReachTest` still lists `sales/create` under NEVER. A lens converts a stored figure at today's rate for reading; a document currency writes the sale at a rate frozen onto that receipt. Two different things, and only the second one is new.
 
 ---
 

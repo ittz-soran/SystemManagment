@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['document_no', 'customer_id', 'user_id', 'total_amount', 'status', 'sale_date'])]
+#[Fillable(['document_no', 'customer_id', 'user_id', 'total_amount', 'status', 'sale_date', 'exchange_rate'])]
 class Sale extends Model
 {
     use CreditedByReturns, HidesArchivedPeriod, SoftDeletes;
@@ -173,5 +173,43 @@ class Sale extends Model
         }
 
         return ['allowed' => true, 'reason' => null];
+    }
+
+    /**
+     * The currency this receipt was written in, or null for the shop's own.
+     *
+     * Read off the lines, because that is where it was recorded — and gated on
+     * the document's own rate, so both halves of "written in another currency"
+     * have to be present before either is believed.
+     */
+    public function writtenIn(): ?Currency
+    {
+        if (! $this->exchange_rate) {
+            return null;
+        }
+
+        return $this->items
+            ->map(fn (SaleItem $item) => $item->typedIn())
+            ->first(fn (?Currency $currency) => $currency !== null);
+    }
+
+    /**
+     * A base-currency figure, written in the currency this receipt names.
+     *
+     * ⚠️ **Divided by the rate frozen onto the DOCUMENT, never today's.** The
+     * currencies table moves every week; a receipt in a customer's hand does
+     * not. Reading the live rate would print $240 today and $232 next month for
+     * the same sale, and the second would be shown to a customer arguing about
+     * a refund. Decision 1c, applied to the other side of the counter.
+     */
+    public function asWritten(int $base): ?string
+    {
+        $currency = $this->writtenIn();
+
+        if ($currency === null) {
+            return null;
+        }
+
+        return number_format($base / $this->exchange_rate, $currency->decimals);
     }
 }

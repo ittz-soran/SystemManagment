@@ -29,6 +29,20 @@ class CurrencyReachTest extends TestCase
     private const NEVER = [
         'print/',
         'reports/print/',
+        /*
+         * ⚠️ **Still never the READER'S lens, even though the till now has a
+         * currency of its own — Soran, 2026-09-19.**
+         *
+         * These are two different things and the distinction is the whole
+         * rule. A lens converts a stored dinar figure at TODAY's rate, for
+         * reading, and it must never touch the till: a customer is standing
+         * there with notes in their hand. A document currency means the sale is
+         * WRITTEN in dollars at a rate frozen onto that receipt, which is what
+         * the purchase cart has always done and what the sale screen does now.
+         *
+         * So `money()` on this screen still takes no currency, and this entry
+         * stays exactly where it was.
+         */
         'sales/create',
         'labels/sheet',
         // The switcher itself, which draws a sample of each currency.
