@@ -37,8 +37,10 @@
     <button class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-1"
             data-bs-toggle="dropdown" data-bs-auto-close="outside"
             aria-label="{{ __('Language and currency') }}">
+        {{-- ⚠️ `{!! !!}`, and only because this is OUR OWN file read off
+             disk — never anything a shopkeeper typed. See Flags::svg. --}}
         @if($languageFlag)
-            <img src="{{ asset($languageFlag) }}" alt="" class="app-flag">
+            {!! $languageFlag !!}
         @else
             <i class="bi bi-translate" aria-hidden="true"></i>
         @endif
@@ -51,7 +53,7 @@
             <span class="text-secondary d-none d-md-inline" aria-hidden="true">·</span>
 
             @if($currencyFlag)
-                <img src="{{ asset($currencyFlag) }}" alt="" class="app-flag">
+                {!! $currencyFlag !!}
             @endif
 
             <span class="app-code d-none d-md-inline">{{ $lens }}</span>
@@ -70,7 +72,7 @@
                         <input type="hidden" name="language" value="{{ $code }}">
                         <button type="submit" class="dropdown-item app-prefs-item {{ $currentLanguage === $code ? 'active' : '' }}">
                             @if($flag)
-                                <img src="{{ asset($flag) }}" alt="" class="app-flag">
+                                {!! $flag !!}
                             @endif
                             <span>{{ $name }}</span>
                         </button>
@@ -93,7 +95,7 @@
                                     class="dropdown-item app-prefs-item {{ $currency->code === $lens ? 'active' : '' }}"
                                     @if($currency->code === $lens) aria-current="true" @endif>
                                 @if($flag)
-                                    <img src="{{ asset($flag) }}" alt="" class="app-flag">
+                                    {!! $flag !!}
                                 @endif
                                 <span>{{ $currency->name }}</span>
                                 <span class="app-code app-prefs-code">{{ $currency->code }}</span>

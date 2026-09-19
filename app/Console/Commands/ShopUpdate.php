@@ -83,19 +83,6 @@ class ShopUpdate extends Command
         $assets = $this->assetsDiffer();
         $noBuild = $this->sharedBuildMissing();
 
-        /*
-         * ⚠️ **"Up to date" has to include these, and did not.**
-         *
-         * A shop with no pending migrations and a matching build returned
-         * "Already up to date" and touched nothing — so the flags the language
-         * and currency menu draws, which are not part of the build, never
-         * reached a shop that was otherwise current. Soran updated, was told
-         * everything was fine, and still saw a menu with no flags in it.
-         *
-         * A file the pages ask for by URL and the shop does not have is a shop
-         * that is not up to date, whatever the manifest says.
-         */
-        $static = $this->staticFilesDiffer();
 
         if ($noBuild) {
             // Said before anything else and repeated at the end, because a
@@ -107,7 +94,7 @@ class ShopUpdate extends Command
             ];
         }
 
-        if ($pending === 0 && ! $assets && ! $noBuild && ! $static) {
+        if ($pending === 0 && ! $assets && ! $noBuild) {
             $this->steps[] = ['step' => 'check', 'done' => false, 'detail' => 'already up to date'];
 
             return $this->finish(true, 'Already up to date.');
@@ -129,23 +116,6 @@ class ShopUpdate extends Command
             // holds the old Blade, and that is what draws the screen.
             $this->clearCompiled();
 
-            /*
-             * ⚠️ **ALWAYS, and this is the second time these were missed.**
-             *
-             * The static files the pages ask for by URL — the flags the
-             * language and currency menu draws — are NOT part of the build, so
-             * "the build has not changed" says nothing about whether they are
-             * in place. They were copied inside `copyAssets()` at first, which
-             * runs only when the manifest differs; Soran's shop had already
-             * taken the new build on an earlier update, so the next one skipped
-             * that branch entirely and the flags never moved. He updated and
-             * still saw no flags, which is exactly right.
-             *
-             * Cheap to do every time: each file is hashed and only a changed
-             * one is written, so an update that has nothing to carry copies
-             * nothing.
-             */
-            $this->copyStaticFiles();
 
             if ($assets) {
                 $this->copyAssets();
@@ -216,26 +186,6 @@ class ShopUpdate extends Command
     private function sharedBuildMissing(): bool
     {
         return ! is_file(base_path('public/build/manifest.json'));
-    }
-
-    /**
-     * Is the shop missing any static file the pages ask for by URL?
-     *
-     * Only the flags today. Anything else that lands in the shared public
-     * folder and is fetched by a page belongs in this list, or a shop that is
-     * otherwise current will be told it is up to date while serving 404s.
-     */
-    private function staticFilesDiffer(): bool
-    {
-        foreach ($this->filesIn(base_path('public/flags')) as $file) {
-            $theirs = $this->shopPublic().'/flags/'.basename($file);
-
-            if (! is_file($theirs) || hash_file('sha256', $theirs) !== hash_file('sha256', $file)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /** Is the shop's public/build behind the shared one? */
@@ -347,61 +297,6 @@ class ShopUpdate extends Command
      * Old files are left where they are. They are a few hundred kilobytes and
      * they are what a browser mid-page-load is still asking for.
      */
-    /**
-     * A flat folder of static files, copied only where it differs.
-     *
-     * Hashed rather than copied blindly, like the assets above: an update runs
-     * on a live shop and rewriting a file the browser already has cached is
-     * work for nothing.
-     */
-    private function copyPlainFolder(string $from, string $to): int
-    {
-        if (! is_dir($from)) {
-            return 0;
-        }
-
-        if (! is_dir($to) && ! @mkdir($to, 0755, true) && ! is_dir($to)) {
-            throw new RuntimeException("could not make [{$to}]. Check the folder’s permissions.");
-        }
-
-        $copied = 0;
-
-        foreach ($this->filesIn($from) as $file) {
-            $target = $to.'/'.basename($file);
-
-            if (is_file($target) && hash_file('sha256', $target) === hash_file('sha256', $file)) {
-                continue;
-            }
-
-            if (! @copy($file, $target)) {
-                throw new RuntimeException('could not write ['.$target.'].');
-            }
-
-            $copied++;
-        }
-
-        return $copied;
-    }
-
-    /**
-     * The static files a page asks for by URL, outside the build.
-     *
-     * Its own step rather than part of the assets, because it must not inherit
-     * their condition — see the call site.
-     */
-    private function copyStaticFiles(): void
-    {
-        $copied = $this->copyPlainFolder(base_path('public/flags'), $this->shopPublic().'/flags');
-
-        $this->steps[] = [
-            'step' => 'static',
-            'done' => true,
-            'detail' => $copied === 0
-                ? 'the shop already had every flag'
-                : "{$copied} flag(s) copied into ".$this->shopPublic().'/flags',
-        ];
-    }
-
     private function copyAssets(): void
     {
         $from = base_path('public/build');

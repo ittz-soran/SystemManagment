@@ -180,24 +180,6 @@ class ShopProvision extends Command
         }
 
         $this->copyTree($build, $public.'/build');
-
-        /*
-         * ⚠️ **The flags, and they were left out once already.**
-         *
-         * A shop serves from ITS OWN public folder, not the shared one, so
-         * anything the pages ask for by URL has to be copied here or it is a
-         * 404 on every screen. The language and currency menu asks for
-         * `flags/*.svg`, they were added to the shared `public/` alone, and
-         * Soran's shop showed a menu with no flags in it at all.
-         *
-         * Anything else that lands in the shared public folder and is asked for
-         * by URL belongs in this method too. ShopAssetsTest is the guard.
-         */
-        $flags = base_path('public/flags');
-
-        if (is_dir($flags)) {
-            $this->copyTree($flags, $public.'/flags');
-        }
     }
 
     /**
