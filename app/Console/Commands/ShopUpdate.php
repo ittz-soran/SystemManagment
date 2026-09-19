@@ -295,6 +295,42 @@ class ShopUpdate extends Command
      * Old files are left where they are. They are a few hundred kilobytes and
      * they are what a browser mid-page-load is still asking for.
      */
+    /**
+     * A flat folder of static files, copied only where it differs.
+     *
+     * Hashed rather than copied blindly, like the assets above: an update runs
+     * on a live shop and rewriting a file the browser already has cached is
+     * work for nothing.
+     */
+    private function copyPlainFolder(string $from, string $to): int
+    {
+        if (! is_dir($from)) {
+            return 0;
+        }
+
+        if (! is_dir($to) && ! @mkdir($to, 0755, true) && ! is_dir($to)) {
+            throw new RuntimeException("could not make [{$to}]. Check the folder’s permissions.");
+        }
+
+        $copied = 0;
+
+        foreach ($this->filesIn($from) as $file) {
+            $target = $to.'/'.basename($file);
+
+            if (is_file($target) && hash_file('sha256', $target) === hash_file('sha256', $file)) {
+                continue;
+            }
+
+            if (! @copy($file, $target)) {
+                throw new RuntimeException('could not write ['.$target.'].');
+            }
+
+            $copied++;
+        }
+
+        return $copied;
+    }
+
     private function copyAssets(): void
     {
         $from = base_path('public/build');
@@ -328,6 +364,17 @@ class ShopUpdate extends Command
         if (! @copy($from.'/manifest.json', $to.'/manifest.json')) {
             throw new RuntimeException("could not write [{$to}/manifest.json].");
         }
+
+        /*
+         * ⚠️ **Not only `build` — a shop serves from its own public folder.**
+         *
+         * The flags the language and currency menu draws were added to the
+         * shared `public/` and to nothing else, so an updated shop went on
+         * serving a menu with no flags in it: the files were never carried
+         * across, and an update that copies one folder is an update that
+         * quietly misses everything outside it.
+         */
+        $copied += $this->copyPlainFolder(base_path('public/flags'), $this->shopPublic().'/flags');
 
         $this->steps[] = [
             'step' => 'assets',
