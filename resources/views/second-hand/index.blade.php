@@ -94,13 +94,13 @@
 
     {{-- Owed banner --}}
     @if($figures['owed_to_sellers'] > 0)
-        <div class="alert alert-warning d-flex align-items-center justify-content-between py-2 shadow-sm">
+        <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 shadow-sm">
             <span class="d-flex align-items-center">
                 <i class="bi bi-cash-coin me-2"></i>
                 {{ __('Still owed to the people you bought from') }}
             </span>
 
-            <span class="d-flex align-items-center gap-3">
+            <span class="d-flex align-items-center gap-3 ms-auto">
                 <span class="fw-semibold money">{{ money($figures['owed_to_sellers'], in: $lens) }}</span>
                 @can('suppliers.view')
                     <a href="{{ route('second-hand.sellers') }}" class="small text-decoration-none">
@@ -115,14 +115,26 @@
     <form method="GET" class="card border-0 shadow-sm mb-3">
         <div class="card-body">
             <div class="row g-2 align-items-end">
-                <div class="col-md-3">
+                <div class="col-12 col-md-3">
                     <label for="search" class="form-label small text-secondary">{{ __('Item') }}</label>
                     <input id="search" type="search" name="search" value="{{ request('search') }}"
                            class="form-control form-control-sm"
                            placeholder="{{ __('Name, stock code or condition') }}">
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
+                    <label for="from" class="form-label small text-secondary">{{ __('From') }}</label>
+                    <input id="from" type="date" name="from" dir="ltr" value="{{ $from->toDateString() }}"
+                           class="form-control form-control-sm">
+                </div>
+
+                <div class="col-6 col-md-2">
+                    <label for="to" class="form-label small text-secondary">{{ __('To') }}</label>
+                    <input id="to" type="date" name="to" dir="ltr" value="{{ $to->toDateString() }}"
+                           class="form-control form-control-sm">
+                </div>
+
+                <div class="col-6 col-md-2">
                     <label for="status" class="form-label small text-secondary">{{ __('Status') }}</label>
                     <select id="status" name="status" class="form-select form-select-sm">
                         <option value="all" @selected($status === 'all')>
@@ -137,19 +149,7 @@
                     </select>
                 </div>
 
-                <div class="col-md-2">
-                    <label for="from" class="form-label small text-secondary">{{ __('From') }}</label>
-                    <input id="from" type="date" name="from" dir="ltr" value="{{ $from->toDateString() }}"
-                           class="form-control form-control-sm">
-                </div>
-
-                <div class="col-md-2">
-                    <label for="to" class="form-label small text-secondary">{{ __('To') }}</label>
-                    <input id="to" type="date" name="to" dir="ltr" value="{{ $to->toDateString() }}"
-                           class="form-control form-control-sm">
-                </div>
-
-                <div class="col-md-2 d-flex gap-2">
+                <div class="col-6 col-md-2 d-flex gap-2">
                     <button class="btn btn-sm btn-outline-secondary flex-fill">
                         {{ __('Filter') }}
                     </button>
@@ -175,7 +175,7 @@
         <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table align-middle mb-0">
+                    <table class="table align-middle mb-0 table-cards">
                         <thead class="table-light">
                         <tr>
                             <th class="text-secondary">{{ __('Item') }}</th>
@@ -198,8 +198,8 @@
                             @endphp
 
                             <tr class="border-bottom">
-                                <td>
-                                    <div class="d-flex flex-column">
+                                <td class="list-card-title">
+                                    <div class="d-flex flex-column align-items-start">
                                         <a href="{{ route('products.show', $item) }}"
                                            class="text-decoration-none fw-medium">
                                             {{ $item->name }}
@@ -219,7 +219,7 @@
                                     </div>
                                 </td>
 
-                                <td class="small">
+                                <td class="small" data-label="{{ __('Bought from') }}">
                                     @if($item->acquiredFrom)
                                         <x-document-link :document="$item->acquiredFrom" :kind="false" />
                                         @if($item->acquiredFrom->phone)
@@ -230,10 +230,10 @@
                                     @endif
                                 </td>
 
-                                <td class="small">
-                                    <div class="d-flex align-items-center gap-2">
+                                <td class="small" data-label="{{ __('History') }}">
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
                                         <i class="bi bi-arrow-down-left text-success"></i>
-                                        <span dir="ltr" class="text-secondary">
+                                        <span dir="ltr" class="text-secondary text-nowrap">
                                             {{ ($purchase?->purchase->purchase_date ?? $item->created_at)->format(setting('date_format', 'Y-m-d')) }}
                                         </span>
                                         @if($purchase?->purchase)
@@ -242,9 +242,9 @@
                                     </div>
 
                                     @if($sold)
-                                        <div class="d-flex align-items-center gap-2 mt-1">
+                                        <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
                                             <i class="bi bi-arrow-up-right text-danger"></i>
-                                            <span dir="ltr" class="text-secondary">
+                                            <span dir="ltr" class="text-secondary text-nowrap">
                                                 {{ $sale->sale->sale_date->format(setting('date_format', 'Y-m-d')) }}
                                             </span>
                                             <x-document-link :document="$sale->sale" :kind="false" />
@@ -259,15 +259,15 @@
                                     @endif
                                 </td>
 
-                                <td class="money">
+                                <td class="money" data-label="{{ __('Paid for it') }}">
                                     {{ money_if($cost !== null, $cost, false, $lens) }}
                                 </td>
 
-                                <td class="money">
+                                <td class="money" data-label="{{ __('Asking') }}">
                                     {{ money($item->sale_price, false, $lens) }}
                                 </td>
 
-                                <td class="money fw-semibold">
+                                <td class="money fw-semibold" data-label="{{ __('Profit') }}">
                                     @if($sold)
                                         @php($profit = $cost === null ? null : $sale->unit_price - $cost)
 
