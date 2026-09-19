@@ -41,7 +41,7 @@
                         </div>
 
                         <div class="row g-3">
-                            <div class="col-sm-4">
+                            <div class="col-12 col-sm-4">
                                 <label for="category_id" class="form-label">{{ __('Category') }}</label>
                                 <select id="category_id" name="category_id" class="form-select">
                                     @foreach($categories as $category)
@@ -57,7 +57,7 @@
                                  like any other. The controller has always taken this
                                  field; the form never offered it, so every item ever
                                  bought here took a default nobody chose. --}}
-                            <div class="col-sm-4">
+                            <div class="col-6 col-sm-4">
                                 <label for="unit" class="form-label">{{ __('Unit') }}</label>
                                 <select id="unit" name="unit"
                                         class="form-select @error('unit') is-invalid @enderror">
@@ -71,7 +71,7 @@
                                 @error('unit')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
 
-                            <div class="col-sm-4">
+                            <div class="col-6 col-sm-4">
                                 <label for="bought_at" class="form-label">{{ __('Date') }}</label>
                                 <input id="bought_at" type="date" name="bought_at" dir="ltr" required
                                        value="{{ old('bought_at', now()->toDateString()) }}"
@@ -115,14 +115,14 @@
                         <input type="hidden" name="seller_id" id="seller_id" value="{{ old('seller_id') }}">
 
                         <div class="row g-3" id="seller-new">
-                            <div class="col-sm-6">
+                            <div class="col-6">
                                 <label for="seller_name" class="form-label">{{ __('Name') }}</label>
                                 <input id="seller_name" name="seller_name" value="{{ old('seller_name') }}" required
                                        autocomplete="off"
                                        class="form-control @error('seller_name') is-invalid @enderror">
                                 @error('seller_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-sm-6">
+                            <div class="col-6">
                                 <label for="seller_phone" class="form-label">{{ __('Phone') }}</label>
                                 <input id="seller_phone" name="seller_phone" value="{{ old('seller_phone') }}" dir="ltr"
                                        autocomplete="off"

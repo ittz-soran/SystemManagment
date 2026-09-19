@@ -20,12 +20,12 @@
 
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-8 col-md-5">
                 <label for="search" class="form-label small">{{ __('Name or phone') }}</label>
                 <input id="search" type="search" name="search" value="{{ request('search') }}"
                        class="form-control form-control-sm">
             </div>
-            <div class="col-md-2">
+            <div class="col-4 col-md-2">
                 <button class="btn btn-sm btn-outline-secondary w-100">{{ __('Filter') }}</button>
             </div>
         </div>
@@ -42,7 +42,6 @@
                         <th>{{ __('Name') }}</th>
                         <th>{{ __('Phone') }}</th>
                         <th class="money">{{ __('Still owed') }}</th>
-                        <th class="text-end">{{ __('Actions') }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -57,8 +56,6 @@
                             <td class="money fw-semibold {{ $seller->balance > 0 ? 'text-danger' : 'text-secondary' }}">
                                 {{ money($seller->balance, false, $lens) }}
                             </td>
-                            <td class="text-end">
-                                </td>
                         </tr>
                     @endforeach
                     </tbody>

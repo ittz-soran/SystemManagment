@@ -85,12 +85,12 @@
     {{-- Money the shop is holding that is not its own. It belongs beside the
          figures rather than inside them: it is owed whatever period is read. --}}
     @if($figures['owed_to_sellers'] > 0)
-        <div class="alert alert-warning d-flex align-items-center justify-content-between py-2">
+        <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 py-2">
             <span>
                 <i class="bi bi-cash-coin me-1"></i>
                 {{ __('Still owed to the people you bought from') }}
             </span>
-            <span class="d-flex align-items-center gap-3">
+            <span class="d-flex align-items-center gap-3 ms-auto">
                 <span class="fw-semibold money">{{ money($figures['owed_to_sellers'], in: $lens) }}</span>
                 @can('suppliers.view')
                     <a href="{{ route('second-hand.sellers') }}" class="small">{{ __('Who') }}</a>
@@ -101,13 +101,23 @@
 
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
                 <label for="search" class="form-label small">{{ __('Item') }}</label>
                 <input id="search" type="search" name="search" value="{{ request('search') }}"
                        class="form-control form-control-sm"
                        placeholder="{{ __('Name, stock code or condition') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-2">
+                <label for="from" class="form-label small">{{ __('From') }}</label>
+                <input id="from" type="date" name="from" dir="ltr" value="{{ $from->toDateString() }}"
+                       class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-2">
+                <label for="to" class="form-label small">{{ __('To') }}</label>
+                <input id="to" type="date" name="to" dir="ltr" value="{{ $to->toDateString() }}"
+                       class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-2">
                 <label for="status" class="form-label small">{{ __('Status') }}</label>
                 <select id="status" name="status" class="form-select form-select-sm">
                     {{-- Counted, so an item that has been sold reads as moved
@@ -123,17 +133,7 @@
                     </option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label for="from" class="form-label small">{{ __('From') }}</label>
-                <input id="from" type="date" name="from" dir="ltr" value="{{ $from->toDateString() }}"
-                       class="form-control form-control-sm">
-            </div>
-            <div class="col-md-2">
-                <label for="to" class="form-label small">{{ __('To') }}</label>
-                <input id="to" type="date" name="to" dir="ltr" value="{{ $to->toDateString() }}"
-                       class="form-control form-control-sm">
-            </div>
-            <div class="col-md-2 d-flex gap-2">
+            <div class="col-6 col-md-2 d-flex gap-2">
                 <button class="btn btn-sm btn-outline-secondary flex-fill">{{ __('Filter') }}</button>
                 <a href="{{ route('second-hand.index') }}" class="btn btn-sm btn-outline-secondary"
                    title="{{ __('Clear') }}"><i class="bi bi-x-lg"></i></a>
@@ -147,7 +147,7 @@
     @else
         <div class="card">
             <div class="table-responsive">
-                <table class="table align-middle mb-0">
+                <table class="table align-middle mb-0 table-cards">
                     <thead>
                     <tr>
                         <th>{{ __('Item') }}</th>
@@ -176,7 +176,7 @@
                             $cost = cost_seen((int) ($item->stockBatches->first()->unit_cost ?? $item->purchase_price));
                         @endphp
                         <tr>
-                            <td>
+                            <td class="list-card-title">
                                 <a href="{{ route('products.show', $item) }}" class="text-decoration-none fw-medium">
                                     {{ $item->name }}
                                 </a>
@@ -190,7 +190,7 @@
                                     <div class="small text-secondary">{{ $item->condition_note }}</div>
                                 @endif
                             </td>
-                            <td class="small">
+                            <td class="small" data-label="{{ __('Bought from') }}">
                                 @if($item->acquiredFrom)
                                     <x-document-link :document="$item->acquiredFrom" :kind="false" />
                                     @if($item->acquiredFrom->phone)
@@ -203,10 +203,10 @@
                             {{-- The item's whole life in one cell: the day it
                                  came in and on which document, the day it left
                                  and on which. What a second-hand book is for. --}}
-                            <td class="small">
-                                <div class="d-flex align-items-center gap-2">
+                            <td class="small" data-label="{{ __('History') }}">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
                                     <i class="bi bi-arrow-down-left text-success"></i>
-                                    <span dir="ltr" class="text-secondary">
+                                    <span dir="ltr" class="text-secondary text-nowrap">
                                         {{ ($purchase?->purchase->purchase_date ?? $item->created_at)->format(setting('date_format', 'Y-m-d')) }}
                                     </span>
                                     @if($purchase?->purchase)
@@ -215,9 +215,9 @@
                                 </div>
 
                                 @if($sold)
-                                    <div class="d-flex align-items-center gap-2 mt-1">
+                                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
                                         <i class="bi bi-arrow-up-right text-danger"></i>
-                                        <span dir="ltr" class="text-secondary">
+                                        <span dir="ltr" class="text-secondary text-nowrap">
                                             {{ $sale->sale->sale_date->format(setting('date_format', 'Y-m-d')) }}
                                         </span>
                                         <x-document-link :document="$sale->sale" :kind="false" />
@@ -232,13 +232,13 @@
                                     </div>
                                 @endif
                             </td>
-                            <td class="money">{{ money_if($cost !== null, $cost, false, $lens) }}</td>
-                            <td class="money">{{ money($item->sale_price, false, $lens) }}</td>
+                            <td class="money" data-label="{{ __('Paid for it') }}">{{ money_if($cost !== null, $cost, false, $lens) }}</td>
+                            <td class="money" data-label="{{ __('Asking') }}">{{ money($item->sale_price, false, $lens) }}</td>
                             {{-- The whole point of the row: this item's own
                                  money. Not an average, not a share of anything —
                                  what was paid for this one thing and what it
                                  sold for. --}}
-                            <td class="money fw-semibold">
+                            <td class="money fw-semibold" data-label="{{ __('Profit') }}">
                                 @if($sold)
                                     @php($profit = $cost === null ? null : $sale->unit_price - $cost)
                                     @if($profit === null)
