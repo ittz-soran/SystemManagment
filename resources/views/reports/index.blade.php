@@ -91,6 +91,32 @@
                 <label class="form-check-label" for="detailed">{{ __('Every line, not just totals') }}</label>
             </div>
         </div>
+
+        {{-- ⚠️ Their own row, and no from/to on them. Debt does not happen
+             between two dates — it stands as at one, and what the page asks is
+             how old it is on that day. Handing them the period would invite
+             "what was owed in March", which a balance cannot answer. --}}
+        <hr class="my-3">
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small text-secondary me-2">
+                <i class="bi bi-hourglass-split me-1"></i>{{ __('Owed as at today:') }}
+            </span>
+
+            @can('customers.view')
+                <a href="{{ route('reports.receivable') }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-people me-1"></i>{{ __('Who owes the shop') }}
+                </a>
+            @endcan
+
+            @can('suppliers.view')
+                <a href="{{ route('reports.payable') }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-truck me-1"></i>{{ __('What the shop owes') }}
+                </a>
+            @endcan
+        </div>
     </div>
 
     <div class="row g-3 mb-4">

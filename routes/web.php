@@ -422,6 +422,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('customers', [ReportController::class, 'customers'])->name('customers');
         Route::get('suppliers', [ReportController::class, 'suppliers'])->name('suppliers');
+        Route::get('receivable', [ReportController::class, 'receivable'])->name('receivable');
+        Route::get('payable', [ReportController::class, 'payable'])->name('payable');
     });
 
     // ---- System ----------------------------------------------------------

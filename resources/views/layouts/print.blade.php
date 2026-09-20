@@ -29,6 +29,12 @@
             .no-print { display: none !important; }
             .print-sheet { max-width: none; padding: 0; }
 
+            /* ⚠️ A scroll box clips on paper. `.table-responsive` lets a wide
+               sheet be read on a phone instead of dragging the whole page
+               sideways, but on the printer the part scrolled out of view would
+               simply not be there. Paper has no scrollbar, so it gets none. */
+            .table-responsive { overflow: visible !important; }
+
             /* Screen-perfect tables often break across printed pages. */
             table { page-break-inside: auto; }
             tr { page-break-inside: avoid; page-break-after: auto; }
