@@ -908,7 +908,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('form[data-guard-submit]:not([data-hold-exempt])').forEach((form) => {
         form.querySelectorAll('button[type="submit"], button:not([type])').forEach((button) => {
-            hold(form, button);
+            /*
+             * ⚠️ THE FORM THE BUTTON BELONGS TO, NOT THE ONE IT SITS INSIDE.
+             *
+             * A form cannot be nested in a form, so a button that posts
+             * somewhere else names its form by id — `form="room-5-delete"` —
+             * while still sitting inside the one it is drawn next to. HTML
+             * honours that attribute; `form.querySelectorAll` above does not,
+             * because it walks the DOM.
+             *
+             * Bound to the wrong form, `finish()` below submits the wrong one,
+             * and `button.type = 'button'` has already severed the attribute
+             * the browser would have used to put it right. Soran, 2026-09-20:
+             * "i want delete an room but not deleted however show delete room
+             * success" — Remove submitted the modal's PUT instead of its own
+             * DELETE, so the room was *saved* and the page said so.
+             *
+             * `Back up now` in Settings is the same shape and was doing the
+             * same thing: saving the settings and taking no backup.
+             *
+             * `button.form` is the form owner the HTML spec defines, which is
+             * the attribute when there is one and the ancestor when there is
+             * not.
+             */
+            hold(button.form ?? form, button);
         });
     });
 
