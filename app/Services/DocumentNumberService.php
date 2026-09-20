@@ -33,6 +33,9 @@ class DocumentNumberService
     /** Goods carried between rooms — Soran, 2026-09-15. */
     public const PREFIX_TRANSFER = 'TRF';
 
+    /** A repair job — Section 9, 2026-09-20. The ticket the customer walks away with. */
+    public const PREFIX_REPAIR = 'REP';
+
     /**
      * Section 4: the SKU counter, whose visible prefix is configurable via
      * settings, and the barcode serial counter. Neither produces a document
@@ -52,6 +55,7 @@ class DocumentNumberService
         self::PREFIX_EXPENSE,
         self::PREFIX_ADJUSTMENT,
         self::PREFIX_TRANSFER,
+        self::PREFIX_REPAIR,
         self::PREFIX_SKU,
         self::PREFIX_BARCODE,
     ];

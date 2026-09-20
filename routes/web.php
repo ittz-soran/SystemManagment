@@ -33,6 +33,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockRoomController;
+use App\Http\Controllers\RepairController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
@@ -453,6 +454,34 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_rooms.manage')->name('stock-rooms.update');
     Route::delete('stock-rooms/{stockRoom}', [StockRoomController::class, 'destroy'])
         ->middleware('permission:stock_rooms.manage')->name('stock-rooms.destroy');
+
+    /*
+     * The workshop book — Soran, 2026-09-20. Nothing here moves stock or money
+     * except `collect`, which does it by making an ordinary sale.
+     */
+    Route::get('repairs', [RepairController::class, 'index'])
+        ->middleware('permission:repairs.view')->name('repairs.index');
+    Route::get('repairs/create', [RepairController::class, 'create'])
+        ->middleware('permission:repairs.create')->name('repairs.create');
+    Route::post('repairs', [RepairController::class, 'store'])
+        ->middleware('permission:repairs.create')->name('repairs.store');
+    Route::get('repairs/{repair}', [RepairController::class, 'show'])
+        ->middleware('permission:repairs.view')->name('repairs.show');
+    Route::get('repairs/{repair}/edit', [RepairController::class, 'edit'])
+        ->middleware('permission:repairs.edit')->name('repairs.edit');
+    Route::put('repairs/{repair}', [RepairController::class, 'update'])
+        ->middleware('permission:repairs.edit')->name('repairs.update');
+    Route::patch('repairs/{repair}/status', [RepairController::class, 'status'])
+        ->middleware('permission:repairs.edit')->name('repairs.status');
+    Route::patch('repairs/{repair}/hand-back', [RepairController::class, 'handBack'])
+        ->middleware('permission:repairs.edit')->name('repairs.hand-back');
+    /* ⚠️ Collecting creates a sale, so it takes the sale permission too. */
+    Route::post('repairs/{repair}/collect', [RepairController::class, 'collect'])
+        ->middleware('permission:repairs.edit', 'permission:sales.create')->name('repairs.collect');
+    Route::delete('repairs/{repair}', [RepairController::class, 'destroy'])
+        ->middleware('permission:repairs.delete')->name('repairs.destroy');
+    Route::get('repairs/{repair}/ticket', [RepairController::class, 'ticket'])
+        ->middleware('permission:repairs.view')->name('repairs.ticket');
 
     Route::get('stock-transfers', [StockTransferController::class, 'index'])
         ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');

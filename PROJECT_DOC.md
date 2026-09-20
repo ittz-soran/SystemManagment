@@ -811,6 +811,7 @@ Every document has a human-readable number in one shared format: **`PREFIX-NNNNN
 | Purchase return | `PRT` | `PRT-00092` |
 | Expense | `EXP` | `EXP-00451` |
 | Stock adjustment | `ADJ` | `ADJ-00037` |
+| Repair job | `REP` | `REP-00012` |
 
 **Schema:** add `document_no` (unique, indexed) to each of those tables.
 
@@ -1297,6 +1298,38 @@ Rules:
 - [x] **Guide** (everybody) — the reference, arranged by task rather than by menu; five headings, a reading time on each topic, a browser-side search over the whole text, and What's new. **No permission**: the reader most likely to need it holds the fewest. The one link out of a topic to a real screen is still checked per reader.
 - [x] **Help on the screen you are on** — a `?` in the topbar opening the help for that route and no other, and nothing where there is nothing to say. Also no permission of its own.
 - [x] **First-week checklist** (dashboard, admin) — five steps in the order the system needs them, read from the shop's own data, dismissible, gone once finished.
+
+### Repair jobs — Soran, 2026-09-20
+
+**Asked for as "a useful section that is not in my system", and it is the biggest gap a phone shop has.** *Services* already exists and is often mistaken for this: it is a price line — *Screen replacement, 25,000* — added to a sale. It records the money and nothing about the job. Whose phone it is, what is wrong with it, what it looked like when it came in, which stage it is at, and what went into it are all on paper today.
+
+**What a job holds**
+
+| | |
+|---|---|
+| Who | a customer, or a walk-in the same way a sale takes one |
+| What | the device as words — *iPhone 12 Pro, blue* — and an identifier, IMEI or serial, typed rather than tracked |
+| The fault | what the customer says is wrong, in their words |
+| **On arrival** | ⚠️ the condition it came in with. This is the field that stops an argument: a screen already cracked, a missing back cover, a phone that would not power on. Without it the shop carries every mark the customer notices later |
+| Promised | when they were told to come back |
+| Estimate | what it was quoted at, which is not what it ends up costing |
+| Status | received → in progress → ready → collected, plus **returned unrepaired**, which is a real outcome and not a failure to record |
+
+**⚠️ THE MONEY AND THE STOCK HAPPEN ONCE, AT COLLECTION, THROUGH AN ORDINARY SALE.**
+
+The parts a job needs are held on the job as lines. They are not taken out of stock when they are fitted. Collecting the job creates a normal `Sale` carrying those parts plus the labour, and **that** consumes FIFO, posts to the ledger, takes payment, prints an invoice, appears in the P&L at its true cost, and can be returned — all through machinery that already exists and is already tested.
+
+The alternative — moving stock when a part is fitted, then billing separately — would be **a second implementation of FIFO**, and Section 5 is the part of this system least able to afford one. It has been the source of the worst bugs here.
+
+The cost of that choice, stated rather than hidden: **a screen fitted into a customer's phone still counts as on the shelf until the job is collected.** For jobs turned round in days that is invisible. For a job waiting weeks on a part it is a number that is briefly wrong in the shop's favour, and the repairs list — which shows exactly which parts are committed — is where the truth is.
+
+**Deposits are not in this first version.** A customer leaving 20,000 to order a part is ordinary, and there is nowhere honest to put that money before a sale exists: `payments` is polymorphic over sale, purchase and the two returns, and adding a fifth payable is a ledger change rather than a screen. Left out deliberately, and worth doing next rather than never.
+
+**A ticket prints**, on the same letterhead as every other document, because the customer walks away with half of this record.
+
+**Numbering** follows Section 7b: `REP-00001`, its own counter.
+
+**Locks** follow Section 8: a job is freely editable until it is collected, and a collected job owns a sale, so it locks for the same reason a sale does.
 
 ### Aged debt — Soran, 2026-09-20
 

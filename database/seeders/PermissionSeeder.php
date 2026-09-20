@@ -40,6 +40,12 @@ class PermissionSeeder extends Seeder
             'suppliers.edit' => 'Edit suppliers',
             'suppliers.delete' => 'Delete suppliers',
         ],
+        'repairs' => [
+            'repairs.view' => 'View repair jobs',
+            'repairs.create' => 'Take in a repair',
+            'repairs.edit' => 'Work on a repair',
+            'repairs.delete' => 'Delete a repair',
+        ],
         'customers' => [
             'customers.view' => 'View customers',
             'customers.create' => 'Create customers',
