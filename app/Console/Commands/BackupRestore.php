@@ -42,6 +42,24 @@ class BackupRestore extends Command
 
         $this->line('  '.$file);
 
+        /*
+         * ⚠️ Said before the prompt, never instead of it.
+         *
+         * A file that does not reach its last line is either a backup that was
+         * cut short — the disk filled while it was being written — or one made
+         * before backups carried a marker at all. This cannot tell those apart,
+         * and it must not refuse: the moment somebody runs this command is the
+         * moment a dead end is most expensive. So it says exactly what it
+         * found, and the confirm below, which already defaults to no, is what
+         * decides.
+         */
+        if (! $backups->isWhole($file)) {
+            $this->warn(__('⚠ This file does not end the way a finished backup does.'));
+            $this->line(__('  Either it was cut short — a full disk while it was being written — or it'));
+            $this->line(__('  was made before backups carried an end marker. Restoring a file that was'));
+            $this->line(__('  cut short loads part of a database over the top of a whole one.'));
+        }
+
         if (! $this->option('force') && ! $this->confirm(__('Restore it?'), false)) {
             $this->line(__('Nothing was changed.'));
 

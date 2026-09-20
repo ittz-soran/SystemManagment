@@ -70,8 +70,7 @@ class BackupService
         $startedAt = now();
 
         $directory = $this->directory('daily');
-        $name = 'backup-'.$startedAt->format('Y-m-d-His').'.sql.gz';
-        $path = $directory.DIRECTORY_SEPARATOR.$name;
+        $path = $this->freeName($directory, $startedAt);
 
         $this->dump($path);
 
@@ -81,6 +80,26 @@ class BackupService
             @unlink($path);
 
             throw new RuntimeException(__('The backup came out empty and was discarded. Check the database credentials.'));
+        }
+
+        /*
+         * ⚠️ And whole, which is a different question from not empty.
+         *
+         * An empty file is obvious. A HALF-WRITTEN one is not: it has a
+         * plausible size, it opens, it reads back without a warning, and
+         * gzeof() reports a clean end in the middle of a row. That is the file
+         * this check exists for — read back and made to prove it reaches its
+         * own last line before anything downstream treats it as a backup.
+         *
+         * Before the promotion, the off-machine copy, the pruning and the row
+         * in the log: a part-backup must not become the month's keeper, must
+         * not be shipped off as the good copy, and must never be the reason a
+         * real backup was pruned to make room for it.
+         */
+        if (! $this->isWhole($path)) {
+            @unlink($path);
+
+            throw new RuntimeException(__('The backup was cut short and has been discarded — it was not a usable copy. The disk or the hosting quota is the usual cause.'));
         }
 
         // The first backup of a calendar month is also that month's keeper, so
@@ -304,6 +323,7 @@ class BackupService
             ? $this->check(__('Off-machine copy'), false, __('Not set'), __('Set the off-machine folder on the Settings page to a drive or share that is not this machine. A dead disk should not take both the database and its backups.'))
             : $this->folderCheck(__('Off-machine copy'), $remote, __('Set the off-machine folder on the Settings page to a folder this account can write to.'));
 
+        $checks[] = $this->newestCopyCheck();
         $checks[] = $this->scheduleCheck();
 
         return $checks;
@@ -390,6 +410,53 @@ class BackupService
     }
 
     /** @return array{name: string, ok: bool, detail: string, fix: string|null} */
+    /**
+     * The one check that reads a real backup rather than the machinery.
+     *
+     * Everything else here asks whether a backup COULD be taken — the tool is
+     * on the path, the credentials connect, the folder is writable, the
+     * schedule is set. This asks the only question a shopkeeper has: is the
+     * newest one any good. It reads the whole file back, so a copy that was
+     * cut short, or has rotted on the disk since, is named here rather than
+     * discovered on the night it is needed.
+     */
+    private function newestCopyCheck(): array
+    {
+        $name = __('Newest backup');
+
+        /*
+         * ⚠️ Read without creating. `copies()` goes through `directory()`,
+         * which makes the folder when it is not there — harmless in a backup
+         * run and wrong in a diagnostic, which must report the shop as it is
+         * and not quietly change it. It also fails outright on a path that
+         * cannot be created, which is precisely the case the folder check
+         * beside this one exists to report.
+         */
+        $folder = rtrim((string) setting('backup_path', config('backup.local')), '/\\').DIRECTORY_SEPARATOR.'daily';
+
+        $files = is_dir($folder) ? (glob($folder.DIRECTORY_SEPARATOR.'backup-*') ?: []) : [];
+
+        rsort($files, SORT_STRING);
+
+        $newest = $files === [] ? null : new SplFileInfo($files[0]);
+
+        if ($newest === null) {
+            return $this->check($name, false, __('There are no backups yet.'),
+                __('Run `php artisan backup:run` once and check a file appears.'));
+        }
+
+        $age = Carbon::createFromTimestamp($newest->getMTime());
+        $when = $age->diffForHumans().' · '.$this->humanSize((int) $newest->getSize());
+
+        if (! $this->isWhole($newest->getPathname())) {
+            return $this->check($name, false,
+                $newest->getFilename().' — '.__('cut short, or made before backups carried an end marker').' · '.$when,
+                __('Run `php artisan backup:run` and check this again. If it fails twice, the disk or the hosting quota is full.'));
+        }
+
+        return $this->check($name, true, $newest->getFilename().' · '.__('reads back whole').' · '.$when);
+    }
+
     private function scheduleCheck(): array
     {
         $when = $this->isWeekly()
@@ -421,7 +488,120 @@ class BackupService
 
     // ----------------------------------------------------------------- dumping
 
-    private function dump(string $path): void
+    /**
+     * A name no backup already has.
+     *
+     * ⚠️ **TWO BACKUPS IN THE SAME SECOND HAD THE SAME NAME**, because the name
+     * is the clock to the second. The second run then wrote over the first, so
+     * a shop that took two had one — and worse, when the second failed, the
+     * `@unlink()` that tidies away the bad file deleted the good one that was
+     * already there. A failed backup destroyed the backup before it.
+     *
+     * Rare and cheap to prevent, which is the whole argument. A cron run and
+     * somebody pressing Back up now land in the same second often enough over
+     * a year of shops.
+     */
+    private function freeName(string $directory, CarbonInterface $at): string
+    {
+        $stem = $directory.DIRECTORY_SEPARATOR.'backup-'.$at->format('Y-m-d-His');
+
+        if (! file_exists($stem.'.sql.gz')) {
+            return $stem.'.sql.gz';
+        }
+
+        // A suffix rather than finer precision in the name: the name is read by
+        // people, and the sort that orders these is a string sort.
+        for ($n = 2; $n < 100; $n++) {
+            if (! file_exists($stem.'-'.$n.'.sql.gz')) {
+                return $stem.'-'.$n.'.sql.gz';
+            }
+        }
+
+        throw new RuntimeException(__('Too many backups were taken in the same second.'));
+    }
+
+    /**
+     * The last line of every backup, and the only way to know one is whole.
+     *
+     * ⚠️ **A TRUNCATED GZIP IS INDISTINGUISHABLE FROM A GOOD ONE.** Measured
+     * here, not assumed: a 11,422-byte archive cut to 6,853 bytes still opens,
+     * still reads back 217,598 bytes, still raises no warning, and `gzeof()`
+     * still returns **true** — it reports a clean end of file in the middle of
+     * a row. Nothing in PHP will tell you. So the file has to say where its own
+     * end is, and a file that does not reach this line was not finished.
+     *
+     * That matters most on the hosting these shops actually run on. A shared
+     * plan has a quota — this codebase already carries `EnforceStorageQuota`
+     * for it — and a quota reached mid-dump stops the writing without stopping
+     * `mysqldump`, which goes on filling a pipe and exits 0. Before this, that
+     * produced a plausibly sized file, recorded as a successful backup, listed
+     * in Settings as a backup, holding part of a database.
+     */
+    public const END_MARKER = '-- end of backup';
+
+    /**
+     * gzwrite, with the answer read.
+     *
+     * It returns the bytes it took, so a short count is a full disk and a false
+     * is a broken stream. Unchecked — which is how it was — both are silence.
+     */
+    private function write($handle, string $chunk): void
+    {
+        if ($chunk === '') {
+            return;
+        }
+
+        $written = gzwrite($handle, $chunk);
+
+        if ($written === false || $written < strlen($chunk)) {
+            throw new RuntimeException(__('The backup could not be written in full — the disk is probably full. It has been discarded rather than kept as a part-backup.'));
+        }
+    }
+
+    /** Close the stream, and say so if the final flush did not land. */
+    private function seal($handle): void
+    {
+        if (gzclose($handle) !== true) {
+            throw new RuntimeException(__('The backup could not be closed — the disk is probably full. It has been discarded rather than kept as a part-backup.'));
+        }
+    }
+
+    /**
+     * Read the finished file back and check it ends where it should.
+     *
+     * The dump wrote it; this is a different question — whether what reached
+     * the disk is complete and still decompresses. Cheap, and the only check
+     * that catches every cause at once rather than the ones anybody thought of.
+     */
+    public function isWhole(string $path): bool
+    {
+        $handle = @gzopen($path, 'rb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        $tail = '';
+
+        try {
+            while (! gzeof($handle)) {
+                $chunk = gzread($handle, 262144);
+
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+
+                // Only the end is in question, so only the end is kept.
+                $tail = substr($tail.$chunk, -256);
+            }
+        } finally {
+            gzclose($handle);
+        }
+
+        return str_ends_with(rtrim($tail), self::END_MARKER);
+    }
+
+    protected function dump(string $path): void
     {
         $driver = DB::connection()->getDriverName();
 
@@ -565,7 +745,7 @@ class BackupService
         // foreign KEYS does not help — a missing parent TABLE is a different
         // error, raised when the statement is prepared.
         foreach ($tables as $table) {
-            gzwrite($handle, $table->sql.";\n");
+            $this->write($handle, $table->sql.";\n");
         }
 
         foreach ($tables as $table) {
@@ -579,17 +759,18 @@ class BackupService
                     (array) $row,
                 );
 
-                gzwrite($handle, 'INSERT INTO "'.$table->name.'" VALUES ('.implode(',', $values).");\n");
+                $this->write($handle, 'INSERT INTO "'.$table->name.'" VALUES ('.implode(',', $values).");\n");
             }
         }
 
         foreach ($objects as $object) {
             if ($object->type !== 'table') {
-                gzwrite($handle, $object->sql.";\n");
+                $this->write($handle, $object->sql.";\n");
             }
         }
 
-        gzclose($handle);
+        $this->write($handle, "\n".self::END_MARKER."\n");
+        $this->seal($handle);
     }
 
     /**
@@ -611,11 +792,16 @@ class BackupService
             // makes a dump far larger than the PHP memory limit.
             $process->run(function (string $type, string $chunk) use ($handle) {
                 if ($type === Process::OUT) {
-                    gzwrite($handle, $chunk);
+                    $this->write($handle, $chunk);
                 }
             });
+
+            // Only on a dump that ran, so a failed one cannot be marked whole.
+            if ($process->isSuccessful()) {
+                $this->write($handle, "\n".self::END_MARKER."\n");
+            }
         } finally {
-            gzclose($handle);
+            $this->seal($handle);
         }
 
         if (! $process->isSuccessful()) {

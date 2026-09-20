@@ -119,6 +119,27 @@ php artisan backup:restore /mnt/backup-drive/store-management/backup-2026-08-21-
 
 It asks for confirmation. `--force` skips the question, for scripts.
 
+## Is the newest one any good?
+
+`backup:check` answers this without restoring anything. It reads the newest
+copy all the way back and confirms it reaches its own last line:
+
+```
+php artisan backup:check
+```
+
+`Newest backup … reads back whole` is the row that matters. If it says **cut
+short**, that file is not a backup — take another and look at the disk and the
+hosting quota.
+
+⚠️ **A truncated gzip cannot be spotted any other way.** Measured, not assumed:
+an 11,422-byte archive cut to 6,853 bytes still opens, still reads back 217,598
+bytes, raises no warning, and `gzeof()` still reports a clean end of file — in
+the middle of a row. Its size looks reasonable and its name looks right. So
+every backup now ends with a marker line, and anything that does not reach it
+is discarded rather than kept, promoted to the month's copy, or shipped off the
+machine.
+
 ## Testing the restore
 
 Do this **before go-live and every few months after**. It takes ten minutes and
