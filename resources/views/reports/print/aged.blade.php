@@ -16,56 +16,55 @@
     @if($report['rows']->isEmpty())
         <p class="text-center py-4">{{ __('Nobody owes anything.') }}</p>
     @else
-        <table class="table table-sm">
-            <thead>
-            <tr>
-                <th>{{ $nameLabel }}</th>
-                @foreach(App\Services\AgedDebtService::labels() as $label)
-                    <th class="money">{{ $label }}</th>
-                @endforeach
-                <th class="money">{{ __('Aged total') }}</th>
-                <th class="money">{{ __('Not aged') }}</th>
-                <th class="money">{{ __('Balance') }}</th>
-            </tr>
-            </thead>
-
-            <tbody>
-            @foreach($report['rows'] as $row)
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
                 <tr>
-                    <td>
-                        {{ $row->person->name }}
-                        @if($row->person->phone)
-                            <div class="small" dir="ltr">{{ $row->person->phone }}</div>
-                        @endif
-                    </td>
-
-                    @foreach($row->buckets as $index => $amount)
-                        {{-- The oldest column is the one the eye should find
-                             first: it is the money least likely to arrive. --}}
-                        <td class="money {{ $index === count($row->buckets) - 1 && $amount > 0 ? 'fw-semibold' : '' }}">
-                            {{ $amount === 0 ? '—' : money($amount, false) }}
-                        </td>
+                    <th>{{ $nameLabel }}</th>
+                    @foreach(App\Services\AgedDebtService::labels() as $label)
+                        <th class="money">{{ $label }}</th>
                     @endforeach
-
-                    <td class="money fw-semibold">{{ money($row->outstanding, false) }}</td>
-                    <td class="money">{{ $row->unaged === 0 ? '—' : money($row->unaged, false) }}</td>
-                    <td class="money">{{ money($row->balance, false) }}</td>
+                    <th class="money">{{ __('Not aged') }}</th>
+                    <th class="money">{{ __('Balance') }}</th>
                 </tr>
-            @endforeach
-            </tbody>
+                </thead>
 
-            <tfoot>
-            <tr>
-                <th>{{ __('Total') }}</th>
-                @foreach($report['totals'] as $amount)
-                    <th class="money">{{ money($amount, false) }}</th>
+                <tbody>
+                @foreach($report['rows'] as $row)
+                    <tr>
+                        <td>
+                            {{ $row->person->name }}
+                            @if($row->person->phone)
+                                <div class="small" dir="ltr">{{ $row->person->phone }}</div>
+                            @endif
+                        </td>
+
+                        @foreach($row->buckets as $index => $amount)
+                            {{-- The oldest column is the one the eye should find
+                                 first: it is the money least likely to arrive. --}}
+                            <td class="money {{ $index === count($row->buckets) - 1 && $amount > 0 ? 'fw-semibold' : '' }}">
+                                {{ $amount === 0 ? '—' : money($amount, false) }}
+                            </td>
+                        @endforeach
+
+                            <td class="money">{{ $row->unaged === 0 ? '—' : money($row->unaged, false) }}</td>
+                        <td class="money fw-semibold">{{ money($row->balance, false) }}</td>
+                    </tr>
                 @endforeach
-                <th class="money">{{ money($report['outstanding'], false) }}</th>
-                <th class="money">{{ $report['unaged'] === 0 ? '—' : money($report['unaged'], false) }}</th>
-                <th class="money">{{ money($report['balances'], false) }}</th>
-            </tr>
-            </tfoot>
-        </table>
+                </tbody>
+
+                <tfoot>
+                <tr>
+                    <th>{{ __('Total') }}</th>
+                    @foreach($report['totals'] as $amount)
+                        <th class="money">{{ money($amount, false) }}</th>
+                    @endforeach
+                    <th class="money">{{ $report['unaged'] === 0 ? '—' : money($report['unaged'], false) }}</th>
+                    <th class="money">{{ money($report['balances'], false) }}</th>
+                </tr>
+                </tfoot>
+            </table>
+        </div>
 
         {{-- ⚠️ Worth reading rather than worth hiding. An opening balance
              legitimately sits outside the columns; anything else in this figure
