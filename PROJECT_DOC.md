@@ -1298,6 +1298,18 @@ Rules:
 - [x] **Help on the screen you are on** — a `?` in the topbar opening the help for that route and no other, and nothing where there is nothing to say. Also no permission of its own.
 - [x] **First-week checklist** (dashboard, admin) — five steps in the order the system needs them, read from the shop's own data, dismissible, gone once finished.
 
+### Aged debt — Soran, 2026-09-20
+
+**Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*
+
+⚠️ **A BALANCE CANNOT BE AGED.** `customers.balance` is a running total — the latest `balance_after` — and a running total has no dates in it. There is no way to ask it how old the money is. So ageing is built from **documents**: each sale that is not settled carries its own `sale_date`, and its own `amountDue()`, and that is what goes in a bucket. Buckets are counted from the document's date, not from the last payment against it, because the question is how long the shop has been waiting.
+
+**`amountDue()` is reused, never re-expressed in SQL.** It is `total_amount − amountPaid() − creditedByReturns()`, and the third term is the *applied* credit rather than the return's total — a distinction Soran found a bug in once already. Re-deriving that in a raw aggregate would be a second implementation of the subtlest arithmetic in the system, free to drift from the first. The report therefore works over open documents only, which is a small set by nature: an open document is one somebody is chasing.
+
+⚠️ **The buckets need not add up to the balance, and the report must say so rather than hide it.** A customer's balance also carries `opening_balance` entries, which belong to no document and so cannot be aged. Showing only buckets would quietly under-report what is owed. The report shows the balance, the buckets, and the difference as its own line — which makes it a ledger check as well as a debt report: any *other* difference means the documents and the ledger disagree, and that is worth knowing on its own.
+
+**Both directions, one mechanism.** Receivable is customers and sales; payable is suppliers and purchases. Same buckets, same reconciling line.
+
 ### Cart behaviour (Purchase and Sale — one shared component)
 
 | | Purchase cart | Sale cart |

@@ -15,6 +15,7 @@ use App\Models\SaleReturn;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Services\AgedDebtService;
 use App\Services\DailyTotals;
 use App\Support\TradeProfit;
 use Illuminate\Http\Request;
@@ -159,6 +160,34 @@ class ReportController extends Controller
             'owedLabel' => __('The shop owes'),
             'tradeLabel' => __('Bought'),
             'people' => $this->people(Supplier::query(), $from, $to, 'supplier'),
+        ]);
+    }
+
+    /**
+     * Who owes the shop, and how long they have owed it.
+     *
+     * ⚠️ Not a period report, and the one control is a single date rather than
+     * a range. Debt does not happen between two dates — it stands as at one,
+     * and the question is how old it is on that day. Passing a range here would
+     * invite "what was owed in March", which is not a thing a balance can
+     * answer.
+     */
+    public function receivable(Request $request, AgedDebtService $aged): View
+    {
+        return view('reports.print.aged', [
+            'title' => __('Who owes the shop'),
+            'nameLabel' => __('Customer'),
+            'report' => $aged->receivable($request->date('as_at') ?: null),
+        ]);
+    }
+
+    /** And what the shop owes, aged the same way. */
+    public function payable(Request $request, AgedDebtService $aged): View
+    {
+        return view('reports.print.aged', [
+            'title' => __('What the shop owes'),
+            'nameLabel' => __('Supplier'),
+            'report' => $aged->payable($request->date('as_at') ?: null),
         ]);
     }
 
