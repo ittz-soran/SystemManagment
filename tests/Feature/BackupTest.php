@@ -516,6 +516,163 @@ class BackupTest extends TestCase
         $this->assertStringContainsString(__('Every night at :time', ['time' => '02:15']), $check['detail']);
     }
 
+    // =====================================================================
+    // A backup that was cut short — Soran, 2026-09-20
+    // =====================================================================
+
+    /**
+     * ⚠️ THE FAILURE A BACKUP CANNOT BE ALLOWED TO HAVE.
+     *
+     * A truncated gzip is indistinguishable from a whole one. Measured, not
+     * assumed: an 11,422-byte archive cut to 6,853 bytes still opens, still
+     * reads back 217,598 bytes, raises no warning, and `gzeof()` still returns
+     * TRUE — a clean end of file reported in the middle of a row.
+     *
+     * So a quota reached mid-dump on shared hosting — which this codebase
+     * already carries `EnforceStorageQuota` for — left a plausibly sized file
+     * that was recorded as a successful backup, promoted to the month's keeper,
+     * shipped off the machine as the good copy, and counted when older, whole
+     * backups were pruned to make room for it. Four kinds of wrong from one
+     * unchecked write, and nothing anywhere said so.
+     *
+     * The file has to state its own end. These hold that it does, and that
+     * nothing without one is treated as a backup.
+     */
+    public function test_a_finished_backup_says_where_it_ends(): void
+    {
+        $result = app(BackupService::class)->run();
+
+        $this->assertTrue(
+            app(BackupService::class)->isWhole($result['path']),
+            'a backup that just ran must read back whole',
+        );
+
+        $this->assertStringEndsWith(
+            BackupService::END_MARKER,
+            rtrim((string) gzdecode((string) file_get_contents($result['path']))),
+        );
+    }
+
+    /** And a file cut off partway through is not one, however healthy it looks. */
+    public function test_a_backup_cut_short_is_not_mistaken_for_a_whole_one(): void
+    {
+        $path = app(BackupService::class)->run()['path'];
+
+        $whole = (string) file_get_contents($path);
+
+        $this->assertTrue(app(BackupService::class)->isWhole($path));
+
+        // Exactly what a full disk leaves behind: the first part of the file,
+        // and nothing to say the rest is missing.
+        file_put_contents($path, substr($whole, 0, (int) (strlen($whole) * 0.6)));
+
+        $this->assertFalse(
+            app(BackupService::class)->isWhole($path),
+            'a backup cut off partway through was accepted as a whole one',
+        );
+
+        // The thing that makes it dangerous, stated as an assertion: every
+        // cheaper check still passes on it.
+        $this->assertGreaterThan(0, filesize($path), 'it is not empty, which is why size cannot be the test');
+
+        $handle = gzopen($path, 'rb');
+        while (! gzeof($handle)) {
+            gzread($handle, 262144);
+        }
+        $this->assertTrue(gzeof($handle), 'gzeof reports a clean end of a file that was cut in half');
+        gzclose($handle);
+    }
+
+    /**
+     * A part-backup is discarded, not kept — and takes nothing whole with it.
+     *
+     * The damage is not only the bad file. Before this, a cut-short dump was
+     * promoted to the month's keeper, shipped off the machine as the good
+     * copy, and counted as a daily — so it could be the reason an older WHOLE
+     * backup was pruned to make room. A shop could lose a real backup to a
+     * fake one.
+     *
+     * `dump()` is protected for exactly this: a full disk cannot be arranged
+     * here, and it is the one failure worth arranging.
+     */
+    public function test_a_backup_cut_short_is_discarded_and_costs_nothing_whole(): void
+    {
+        $service = app(BackupService::class);
+
+        // One real backup first, so there is something to lose.
+        $good = $service->run()['path'];
+
+        $before = array_map(fn ($f) => $f->getFilename(), $service->copies('daily'));
+
+        $cut = new class extends BackupService
+        {
+            protected function dump(string $path): void
+            {
+                // What a quota reached mid-dump leaves: a plausible file with
+                // no end to it.
+                $handle = gzopen($path, 'wb6');
+                gzwrite($handle, "INSERT INTO products VALUES (1, 'half a datab");
+                gzclose($handle);
+            }
+        };
+
+        try {
+            $cut->run();
+            $this->fail('a backup that was cut short was accepted');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('cut short', $e->getMessage());
+        }
+
+        $after = array_map(fn ($f) => $f->getFilename(), $service->copies('daily'));
+
+        $this->assertSame($before, $after, 'the part-backup was kept, or cost a whole one');
+        $this->assertFileExists($good, 'the whole backup is still there');
+        $this->assertTrue($service->isWhole($good));
+
+        // And it never left the machine as the good copy.
+        foreach ((glob($this->remote.'/*') ?: []) as $copy) {
+            $this->assertTrue(
+                $service->isWhole($copy),
+                'a part-backup was shipped off the machine: '.basename($copy),
+            );
+        }
+    }
+
+    /** `backup:check` reads the newest copy back rather than trusting its name. */
+    public function test_the_check_reads_the_newest_backup_back(): void
+    {
+        $service = app(BackupService::class);
+        $path = $service->run()['path'];
+
+        $passing = collect($service->diagnose())->firstWhere('name', __('Newest backup'));
+
+        $this->assertTrue($passing['ok'], json_encode($passing));
+        $this->assertStringContainsString(__('reads back whole'), $passing['detail']);
+
+        // Now spoil it on the disk, the way a bad sector or a full quota would.
+        $whole = (string) file_get_contents($path);
+        file_put_contents($path, substr($whole, 0, (int) (strlen($whole) * 0.5)));
+
+        $failing = collect($service->diagnose())->firstWhere('name', __('Newest backup'));
+
+        $this->assertFalse($failing['ok'], 'the check passed on a backup that was cut in half');
+        $this->assertStringContainsString(basename($path), $failing['detail']);
+    }
+
+    /** And the restore says so before it is allowed to overwrite anything. */
+    public function test_restoring_a_cut_short_backup_warns_before_the_prompt(): void
+    {
+        $path = app(BackupService::class)->run()['path'];
+
+        $whole = (string) file_get_contents($path);
+        file_put_contents($path, substr($whole, 0, (int) (strlen($whole) * 0.6)));
+
+        $this->artisan('backup:restore', ['file' => $path])
+            ->expectsOutputToContain(__('⚠ This file does not end the way a finished backup does.'))
+            ->expectsConfirmation(__('Restore it?'), 'no')
+            ->assertSuccessful();
+    }
+
     public function test_the_command_exits_non_zero_when_something_is_wrong(): void
     {
         config(['backup.remote' => null]);

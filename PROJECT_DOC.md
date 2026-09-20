@@ -1147,6 +1147,18 @@ Financial records are the shop's only proof of who owes what.
 - **Test a restore before go-live and every few months after.** An untested backup is not a backup.
 - Consider `spatie/laravel-backup`, which handles scheduling, compression, and remote upload.
 
+### ⚠️ A backup that was cut short — Soran, 2026-09-20
+
+**A truncated gzip is indistinguishable from a whole one.** Measured rather than assumed: an 11,422-byte archive cut to 6,853 bytes still opens, still reads back 217,598 bytes, raises no warning, and **`gzeof()` still returns `true`** — it reports a clean end of file in the middle of a row. Nothing in PHP will tell you, and the file's size and name both look right.
+
+That is not a hypothetical on the hosting these shops run on. A shared plan has a quota — this codebase already carries `EnforceStorageQuota` for it — and a quota reached mid-dump stops the *writing* without stopping `mysqldump`, which goes on filling a pipe and exits 0. `gzwrite()`'s return was never read, so a short write was silence. The result was a plausibly sized file that `run()` **recorded as a successful backup, promoted to the month's keeper, shipped off the machine as the good copy, and counted as a daily — so it could be the reason an older whole backup was pruned to make room for it.** Four kinds of wrong from one unchecked return.
+
+So **every backup ends with `-- end of backup`**, and `isWhole()` reads the finished file back and checks it gets there. A file that does not is deleted and the run fails loudly, *before* the promotion, the off-machine copy, the pruning and the log row. `gzwrite` and `gzclose` are both checked at the source as well, so the usual cause is named ("the disk is probably full") rather than inferred. `backup:check` reads the newest copy back the same way, which is the one check in it that asks about a real backup rather than about the machinery.
+
+⚠️ **And two backups in the same second had the same name**, because the name is the clock to the second. The second run wrote over the first — so a shop that took two had one — and when the second failed, the `@unlink()` that tidies the bad file away **deleted the good one already sitting there. A failed backup destroyed the backup before it.** Names are now taken with `freeName()`, which suffixes rather than overwrites.
+
+**The three checks are not interchangeable.** Not empty catches a dump that never started; whole catches one that stopped partway; a restore drill catches one that is complete and still wrong. Only the last needs a real server, and `docs/BACKUP.md` has the five steps.
+
 ---
 
 ## 8c. Settings & Appearance
