@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\Product;
 use App\Models\Repair;
 use App\Models\Sale;
+use App\Models\Technician;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -40,10 +42,11 @@ class RepairService
         ?int $estimate = null,
         ?string $note = null,
         array $lines = [],
+        ?Technician $technician = null,
     ): Repair {
         return DB::transaction(function () use (
             $customer, $device, $fault, $user, $receivedAt, $identifier,
-            $conditionNote, $promisedFor, $estimate, $note, $lines
+            $conditionNote, $promisedFor, $estimate, $note, $lines, $technician
         ) {
             $repair = new Repair([
                 'customer_id' => $customer->id,
@@ -56,6 +59,7 @@ class RepairService
                 'estimate' => $estimate,
                 'status' => Repair::STATUS_RECEIVED,
                 'note' => $note,
+                'technician_id' => $technician?->id,
             ]);
 
             $repair->document_no = $this->numbers->next(DocumentNumberService::PREFIX_REPAIR);
@@ -90,14 +94,68 @@ class RepairService
                     continue;
                 }
 
+                /*
+                 * ⚠️ The warranty is COPIED from the product, not read through
+                 * a relation. A screen carries 5 days and a battery 30 — and
+                 * what was promised on a ticket must not change because
+                 * somebody edited the product next month. Same reasoning as
+                 * the price beside it.
+                 */
+                $product = Product::find((int) $line['product_id']);
+
                 $repair->items()->create([
                     'product_id' => (int) $line['product_id'],
                     'quantity' => (int) $line['quantity'],
                     'unit_price' => (int) ($line['unit_price'] ?? 0),
+                    'warranty_days' => array_key_exists('warranty_days', $line)
+                        ? $line['warranty_days']
+                        : $product?->warranty_days,
                 ]);
             }
 
             return $repair->fresh('items');
+        });
+    }
+
+    /**
+     * The customer says yes, and the ticket becomes real.
+     *
+     * ⚠️ **This is the event the printed ticket comes from** — Soran:
+     * *"after customer accept about parts and cost of repairing → system save
+     * job as on Working and print an Ticket"*. What is frozen here is what the
+     * customer walks out holding: the total they agreed to, and the warranty
+     * offered on each line.
+     *
+     * The job's live total may move afterwards, and that is allowed — prices do
+     * change mid-repair. What may not happen is the agreed figure being
+     * quietly overwritten, because the paper in their hand still says it.
+     */
+    public function accept(Repair $repair, User $user, ?Technician $technician = null): Repair
+    {
+        $this->assertModifiable($repair);
+
+        $repair->loadMissing('items');
+
+        if ($repair->items->isEmpty()) {
+            throw new RuntimeException(__('Decide what the job needs before the customer can accept it.'));
+        }
+
+        if ($repair->isAccepted()) {
+            throw new RuntimeException(__('This job has already been accepted.'));
+        }
+
+        return DB::transaction(function () use ($repair, $technician) {
+            $repair->status = Repair::STATUS_WORKING;
+            $repair->accepted_at = now();
+            $repair->accepted_total = $repair->total();
+
+            if ($technician !== null) {
+                $repair->technician_id = $technician->id;
+            }
+
+            $repair->save();
+
+            return $repair->fresh('items', 'technician');
         });
     }
 
@@ -117,6 +175,17 @@ class RepairService
          */
         if ($status === Repair::STATUS_COLLECTED) {
             throw new RuntimeException(__('A repair is collected by taking payment for it, not by changing its status.'));
+        }
+
+        /*
+         * ⚠️ And `working` is reached by the customer accepting, not by a flip.
+         *
+         * Going straight there would leave a job being worked on with no agreed
+         * total and no ticket — so nothing to hold the shop to, and nothing for
+         * the customer to bring back.
+         */
+        if ($status === Repair::STATUS_WORKING && ! $repair->isAccepted()) {
+            throw new RuntimeException(__('The customer has to accept the parts and the price first.'));
         }
 
         $this->assertModifiable($repair);

@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * collected: a price agreed with a customer on Monday must not change because
  * somebody edited the product on Tuesday.
  */
-#[Fillable(['product_id', 'quantity', 'unit_price'])]
+#[Fillable(['product_id', 'quantity', 'unit_price', 'warranty_days'])]
 class RepairItem extends Model
 {
     protected function casts(): array
@@ -21,6 +21,7 @@ class RepairItem extends Model
         return [
             'quantity' => 'integer',
             'unit_price' => 'integer',
+            'warranty_days' => 'integer',
         ];
     }
 

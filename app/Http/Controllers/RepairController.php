@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Repair;
+use App\Models\Technician;
 use App\Rules\Amount;
 use App\Services\ActivityLogger;
 use App\Services\RepairService;
@@ -69,6 +70,7 @@ class RepairController extends Controller
     {
         return view('repairs.form', [
             'lens' => $request->user()->lens(),
+            'technicians' => Technician::active()->orderBy('name')->get(),
             'repair' => null,
             'customers' => Customer::orderBy('name')->get(),
             'products' => $this->sellable(),
@@ -92,6 +94,7 @@ class RepairController extends Controller
                 estimate: $data['estimate'],
                 note: $data['note'] ?? null,
                 lines: $data['lines'],
+                technician: ($data['technician_id'] ?? null) === null ? null : Technician::find($data['technician_id']),
             );
         } catch (Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -107,10 +110,11 @@ class RepairController extends Controller
 
     public function show(Request $request, Repair $repair): View
     {
-        $repair->load('customer', 'items.product', 'sale', 'user');
+        $repair->load('customer', 'items.product', 'sale', 'user', 'technician');
 
         return view('repairs.show', [
             'lens' => $request->user()->lens(),
+            'technicians' => Technician::active()->orderBy('name')->get(),
             'repair' => $repair,
         ]);
     }
@@ -119,6 +123,7 @@ class RepairController extends Controller
     {
         return view('repairs.form', [
             'lens' => $request->user()->lens(),
+            'technicians' => Technician::active()->orderBy('name')->get(),
             'repair' => $repair->load('items.product'),
             'customers' => Customer::orderBy('name')->get(),
             'products' => $this->sellable(),
@@ -140,6 +145,7 @@ class RepairController extends Controller
 
             $repair->fill([
                 'customer_id' => $data['customer_id'],
+                'technician_id' => $data['technician_id'] ?? null,
                 'device' => $data['device'],
                 'identifier' => $data['identifier'] ?? null,
                 'fault' => $data['fault'],
@@ -158,6 +164,32 @@ class RepairController extends Controller
         }
 
         return redirect()->route('repairs.show', $repair)->with('success', __('Repair saved'));
+    }
+
+    /**
+     * The customer says yes, and the ticket becomes real.
+     *
+     * ⚠️ Its own action rather than a status, because it is what freezes the
+     * price they agreed to and the warranty offered on each line.
+     */
+    public function accept(Request $request, Repair $repair): RedirectResponse
+    {
+        $request->validate(['technician_id' => ['nullable', 'exists:technicians,id']]);
+
+        try {
+            $this->repairs->accept(
+                repair: $repair,
+                user: $request->user(),
+                technician: $request->filled('technician_id') ? Technician::find($request->input('technician_id')) : null,
+            );
+        } catch (Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $this->log->log('update', 'repairs', $repair->id,
+            __('Customer accepted repair :number', ['number' => $repair->document_no]), user: $request->user());
+
+        return redirect()->route('repairs.ticket', $repair);
     }
 
     /** Along the bench: received → in progress → ready. */
@@ -243,7 +275,7 @@ class RepairController extends Controller
     public function ticket(Request $request, Repair $repair): View
     {
         return view('repairs.print.ticket', [
-            'repair' => $repair->load('customer', 'items.product'),
+            'repair' => $repair->load('customer', 'items.product', 'technician'),
         ]);
     }
 
@@ -254,6 +286,7 @@ class RepairController extends Controller
 
         $data = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
+            'technician_id' => ['nullable', 'exists:technicians,id'],
             'device' => ['required', 'string', 'max:160'],
             'identifier' => ['nullable', 'string', 'max:80'],
             'fault' => ['required', 'string', 'max:1000'],
@@ -292,7 +325,7 @@ class RepairController extends Controller
             ->whereIn('kind', [Product::KIND_STOCK, Product::KIND_SERVICE])
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'sku', 'kind', 'sale_price', 'quantity']);
+            ->get(['id', 'name', 'sku', 'kind', 'sale_price', 'quantity', 'warranty_days']);
     }
 
     /** @return array<string, int> */

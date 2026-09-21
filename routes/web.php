@@ -471,6 +471,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:repairs.edit')->name('repairs.edit');
     Route::put('repairs/{repair}', [RepairController::class, 'update'])
         ->middleware('permission:repairs.edit')->name('repairs.update');
+    Route::post('repairs/{repair}/accept', [RepairController::class, 'accept'])
+        ->middleware('permission:repairs.edit')->name('repairs.accept');
     Route::patch('repairs/{repair}/status', [RepairController::class, 'status'])
         ->middleware('permission:repairs.edit')->name('repairs.status');
     Route::patch('repairs/{repair}/hand-back', [RepairController::class, 'handBack'])

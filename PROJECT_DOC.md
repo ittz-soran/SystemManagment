@@ -1313,7 +1313,16 @@ Rules:
 | **On arrival** | ⚠️ the condition it came in with. This is the field that stops an argument: a screen already cracked, a missing back cover, a phone that would not power on. Without it the shop carries every mark the customer notices later |
 | Promised | when they were told to come back |
 | Estimate | what it was quoted at, which is not what it ends up costing |
-| Status | received → in progress → ready → collected, plus **returned unrepaired**, which is a real outcome and not a failure to record |
+| Who does it | ⚠️ the **technician**, by name and phone. Sometimes a member of staff, often somebody who fixes boards for the shop and has no login — so they are their own small list, not users |
+| Status | received → **quoted** → **working** → ready → collected, plus **returned unrepaired**, which is a real outcome and not a failure to record |
+
+**The shop quotes; the customer accepts; then the work starts.** *Soran, 2026-09-21: "this part shop decided which needed → after customer accept about parts and cost of repairing → system save job as on Working and print an Ticket"*. So `quoted` is a real state, and **acceptance is the event that prints the ticket** — the customer walks out holding the list of parts, the price and the warranty they agreed to.
+
+⚠️ **PRICES MAY CHANGE AFTER THAT, AND THE TICKET IN THEIR HAND MAY NOT.** *"prices may changeable while customer and person are do this repair both accepted on job"*. So the total agreed is **frozen at acceptance** as `accepted_total`, and the job's live total is allowed to move away from it. Neither figure overwrites the other: the job screen shows both, and the difference, because the paper the customer is holding says the first one and the argument at the counter is about the second. A system that silently replaced it would be right about the money and useless about the conversation.
+
+**Warranty is set up once and offered per line.** Each product carries `warranty_days` — a screen 5, a battery 30 — and ⚠️ **the number is COPIED onto the repair line at acceptance**, for the same reason the price is: what was promised on that ticket must not change because somebody edited the product afterwards.
+
+⚠️ **Warranty runs from COLLECTION, not from when the work finished.** The phone is in the shop until the customer takes it, and a warranty that expired while the shop still had the device would be worth nothing.
 
 **⚠️ THE MONEY AND THE STOCK HAPPEN ONCE, AT COLLECTION, THROUGH AN ORDINARY SALE.**
 
@@ -1326,6 +1335,8 @@ The cost of that choice, stated rather than hidden: **a screen fitted into a cus
 **Deposits are not in this first version.** A customer leaving 20,000 to order a part is ordinary, and there is nowhere honest to put that money before a sale exists: `payments` is polymorphic over sale, purchase and the two returns, and adding a fifth payable is a ledger change rather than a screen. Left out deliberately, and worth doing next rather than never.
 
 **A ticket prints**, on the same letterhead as every other document, because the customer walks away with half of this record.
+
+**⚠️ FIFO was questioned and kept — Soran, 2026-09-21: *"why fifo make wrong in system, i want every item saled user real cost"*.** It is not wrong, and it is not an average: Section 5 is explicit, and measured on his own data three screens bought at 20,000 are charged 20,000, 20,000, 20,000 and the fourth 24,000 — each the real price actually paid for that unit. The only case it cannot answer is *"which physical screen did I fit"*, when a newer one is taken while older ones are still on the shelf; that is **specific identification** and needs per-unit serials, which is a separate and much larger change. Nothing in Section 5 was touched.
 
 **Numbering** follows Section 7b: `REP-00001`, its own counter.
 

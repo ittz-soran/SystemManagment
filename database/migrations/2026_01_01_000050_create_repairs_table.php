@@ -27,6 +27,24 @@ return new class extends Migration
 {
     public function up(): void
     {
+        /*
+         * ⚠️ Their own list, not users — Soran, 2026-09-21: "some times have
+         * some person are repairing with name and phone". A freelancer who
+         * fixes boards for the shop is not a member of staff and must not need
+         * an account he would never otherwise log into.
+         */
+        Schema::create('technicians', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('phone')->nullable();
+            $table->string('note')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+            $table->softDeletes();
+
+            $table->index('is_active');
+        });
+
         Schema::create('repairs', function (Blueprint $table) {
             $table->id();
 
@@ -62,6 +80,23 @@ return new class extends Migration
 
             $table->string('status')->default('received');
 
+            // Who is doing it. Nullable: a job is taken in before it is given
+            // to anybody.
+            $table->foreignId('technician_id')->nullable()->constrained()->nullOnDelete();
+
+            /*
+             * ⚠️ What the customer agreed to, frozen — Soran, 2026-09-21:
+             * "prices may changeable while customer and person are do this
+             * repair both accepted on job".
+             *
+             * The job's live total may move after acceptance; this may not. The
+             * customer is holding a printed ticket that says this number, and a
+             * system that silently replaced it would be right about the money
+             * and useless about the conversation at the counter.
+             */
+            $table->timestamp('accepted_at', 6)->nullable();
+            $table->unsignedBigInteger('accepted_total')->nullable();
+
             // Written when the job is collected and a sale is made from it.
             // Nullable for every job that has not got there yet.
             $table->foreignId('sale_id')->nullable()->constrained()->nullOnDelete();
@@ -93,6 +128,14 @@ return new class extends Migration
             // must not change because somebody edited the product on Tuesday.
             $table->unsignedBigInteger('unit_price');
 
+            /*
+             * ⚠️ Copied from the product when the customer accepts, for exactly
+             * the reason the price is: a screen carries 5 days and a battery 30,
+             * and what was promised on that ticket must not change because
+             * somebody edited the product next month.
+             */
+            $table->unsignedSmallInteger('warranty_days')->nullable();
+
             $table->timestamps();
 
             $table->index('repair_id');
@@ -104,5 +147,6 @@ return new class extends Migration
     {
         Schema::dropIfExists('repair_items');
         Schema::dropIfExists('repairs');
+        Schema::dropIfExists('technicians');
     }
 };
