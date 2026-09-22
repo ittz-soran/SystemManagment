@@ -7,14 +7,16 @@ use App\Support\Money;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 
-#[Fillable(['name', 'email', 'password', 'role', 'cost_visibility', 'cost_markup_percent', 'is_active', 'language', 'date_language', 'clock_24_hour', 'theme', 'items_per_page', 'display_currency'])]
+#[Fillable(['name', 'email', 'phone', 'password', 'role', 'cost_visibility', 'cost_markup_percent', 'is_active', 'language', 'date_language', 'clock_24_hour', 'theme', 'items_per_page', 'display_currency'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable
 {
@@ -210,6 +212,34 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
+    }
+
+    /**
+     * The people a repair job may be given to — Soran, 2026-09-22.
+     *
+     * ⚠️ **Asked as a query, and it has to match `hasPermission()` exactly.**
+     * An admin holds every key without a row in `user_permissions`, so a list
+     * built from that table alone would leave the owner unable to give himself
+     * a job in his own shop — and he is very often the person mending the
+     * thing.
+     *
+     * No `repairs.technician` key was invented for this. `repairs.edit` already
+     * means *work on a repair*, and a second key saying nearly the same thing
+     * is a second key to forget to tick.
+     */
+    public function scopeCanRepair(Builder $query): Builder
+    {
+        return $query->where('is_active', true)
+            ->where(fn (Builder $q) => $q
+                ->where('role', self::ROLE_ADMIN)
+                ->orWhereHas('permissions', fn (Builder $p) => $p->where('key', 'repairs.edit'))
+            );
+    }
+
+    /** Jobs on this person's bench, which is not the same as jobs they took in. */
+    public function repairs(): HasMany
+    {
+        return $this->hasMany(Repair::class, 'technician_id');
     }
 
     /**

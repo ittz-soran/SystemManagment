@@ -5,15 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Repair;
-use App\Models\Technician;
+use App\Models\User;
 use App\Rules\Amount;
 use App\Services\ActivityLogger;
 use App\Services\LabelService;
 use App\Services\RepairService;
 use App\Support\MoneyInput;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
 use Throwable;
@@ -71,7 +73,7 @@ class RepairController extends Controller
     {
         return view('repairs.form', [
             'lens' => $request->user()->lens(),
-            'technicians' => Technician::active()->orderBy('name')->get(),
+            'technicians' => $this->technicians(),
             'repair' => null,
             'customers' => Customer::orderBy('name')->get(),
             'products' => $this->sellable(),
@@ -95,7 +97,7 @@ class RepairController extends Controller
                 estimate: $data['estimate'],
                 note: $data['note'] ?? null,
                 lines: $data['lines'],
-                technician: ($data['technician_id'] ?? null) === null ? null : Technician::find($data['technician_id']),
+                technician: ($data['technician_id'] ?? null) === null ? null : User::find($data['technician_id']),
             );
         } catch (Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -115,8 +117,12 @@ class RepairController extends Controller
 
         return view('repairs.show', [
             'lens' => $request->user()->lens(),
-            'technicians' => Technician::active()->orderBy('name')->get(),
+            'technicians' => $this->technicians(),
             'repair' => $repair,
+
+            // Raw figures. What this reader is allowed to see of them is
+            // `cost_seen()`'s answer, asked in the view beside the price.
+            'cost' => $this->repairs->costOf($repair),
         ]);
     }
 
@@ -124,7 +130,7 @@ class RepairController extends Controller
     {
         return view('repairs.form', [
             'lens' => $request->user()->lens(),
-            'technicians' => Technician::active()->orderBy('name')->get(),
+            'technicians' => $this->technicians(),
             'repair' => $repair->load('items.product'),
             'customers' => Customer::orderBy('name')->get(),
             'products' => $this->sellable(),
@@ -176,7 +182,7 @@ class RepairController extends Controller
     public function accept(Request $request, Repair $repair): RedirectResponse
     {
         $request->validate([
-            'technician_id' => ['nullable', 'exists:technicians,id'],
+            'technician_id' => ['nullable', Rule::in($this->technicians()->modelKeys())],
             'channel' => ['required', 'in:counter,phone'],
             'note' => ['nullable', 'string', 'max:500'],
         ]);
@@ -185,7 +191,7 @@ class RepairController extends Controller
             $this->repairs->accept(
                 repair: $repair,
                 user: $request->user(),
-                technician: $request->filled('technician_id') ? Technician::find($request->input('technician_id')) : null,
+                technician: $request->filled('technician_id') ? User::find($request->input('technician_id')) : null,
                 channel: $request->string('channel')->toString(),
                 note: $request->string('note')->toString() ?: null,
             );
@@ -302,7 +308,7 @@ class RepairController extends Controller
 
         $data = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
-            'technician_id' => ['nullable', 'exists:technicians,id'],
+            'technician_id' => ['nullable', Rule::in($this->technicians()->modelKeys())],
             'device' => ['required', 'string', 'max:160'],
             'identifier' => ['nullable', 'string', 'max:80'],
             'fault' => ['required', 'string', 'max:1000'],
@@ -342,6 +348,22 @@ class RepairController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'kind', 'sale_price', 'quantity', 'warranty_days']);
+    }
+
+    /**
+     * The people a job may be given to — Soran, 2026-09-22.
+     *
+     * ⚠️ **Also what the form is validated against.** `exists:users,id` would
+     * let anybody who can edit the HTML put the shop's accountant on a
+     * television repair, and the list on screen would have said nothing about
+     * it. The same query answers both questions, so what is offered and what is
+     * accepted cannot drift apart.
+     *
+     * @return Collection<int, User>
+     */
+    private function technicians(): Collection
+    {
+        return User::canRepair()->orderBy('name')->get(['id', 'name', 'phone']);
     }
 
     /** @return array<string, int> */

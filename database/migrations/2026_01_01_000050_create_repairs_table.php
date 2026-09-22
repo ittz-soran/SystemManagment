@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * The workshop book — Soran, 2026-09-20.
  *
- * A phone comes in broken and leaves mended, and everything about that week is
+ * A device comes in broken and leaves mended, and everything about that week is
  * on paper today. *Services* is often mistaken for this: it is a price line
  * added to a sale and records the money, never the job.
  *
@@ -27,24 +27,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        /*
-         * ⚠️ Their own list, not users — Soran, 2026-09-21: "some times have
-         * some person are repairing with name and phone". A freelancer who
-         * fixes boards for the shop is not a member of staff and must not need
-         * an account he would never otherwise log into.
-         */
-        Schema::create('technicians', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('phone')->nullable();
-            $table->string('note')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-            $table->softDeletes();
-
-            $table->index('is_active');
-        });
-
         Schema::create('repairs', function (Blueprint $table) {
             $table->id();
 
@@ -80,9 +62,23 @@ return new class extends Migration
 
             $table->string('status')->default('received');
 
-            // Who is doing it. Nullable: a job is taken in before it is given
-            // to anybody.
-            $table->foreignId('technician_id')->nullable()->constrained()->nullOnDelete();
+            /*
+             * Who is doing it — a USER, and nullable because a job is taken in
+             * before it is given to anybody.
+             *
+             * ⚠️ Soran, 2026-09-22: "every technician or repair person should
+             * have acc, because monthly or weekly show data statistics and how
+             * many tacked jobs and profits". This replaced a `technicians`
+             * table of names and phone numbers, and the reason it had to: a
+             * name in a box cannot sign in, cannot take a job in itself, and
+             * cannot be reported on beside the staff who can.
+             *
+             * Constrained to `users` explicitly, because the column is not
+             * named after the table it points at. Who may be given a job is
+             * decided by the `repairs.edit` permission, not by this column.
+             */
+            $table->foreignId('technician_id')->nullable()
+                ->constrained('users')->nullOnDelete();
 
             /*
              * ⚠️ What the customer agreed to, frozen — Soran, 2026-09-21:
@@ -147,6 +143,5 @@ return new class extends Migration
     {
         Schema::dropIfExists('repair_items');
         Schema::dropIfExists('repairs');
-        Schema::dropIfExists('technicians');
     }
 };

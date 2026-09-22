@@ -423,6 +423,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('customers', [ReportController::class, 'customers'])->name('customers');
         Route::get('suppliers', [ReportController::class, 'suppliers'])->name('suppliers');
+
+        // Who mended what, and what the shop made on it — Soran, 2026-09-22.
+        Route::get('technicians', [ReportController::class, 'technicians'])
+            ->middleware('permission:repairs.view')->name('technicians');
         Route::get('receivable', [ReportController::class, 'receivable'])->name('receivable');
         Route::get('payable', [ReportController::class, 'payable'])->name('payable');
     });

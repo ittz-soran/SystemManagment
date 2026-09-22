@@ -152,6 +152,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user)->withoutTrashed()],
+            'phone' => ['nullable', 'string', 'max:40'],
             'password' => [$user ? 'nullable' : 'required', 'confirmed', Password::defaults()],
             'role' => ['required', Rule::in([User::ROLE_ADMIN, User::ROLE_USER])],
             // Absent means the real cost, which is what everybody had before

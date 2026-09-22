@@ -7,7 +7,8 @@ use App\Models\Product;
 use App\Models\Repair;
 use App\Models\RepairApproval;
 use App\Models\Sale;
-use App\Models\Technician;
+use App\Models\SaleItem;
+use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ class RepairService
         ?int $estimate = null,
         ?string $note = null,
         array $lines = [],
-        ?Technician $technician = null,
+        ?User $technician = null,
     ): Repair {
         return DB::transaction(function () use (
             $customer, $device, $fault, $user, $receivedAt, $identifier,
@@ -134,7 +135,7 @@ class RepairService
     public function accept(
         Repair $repair,
         User $user,
-        ?Technician $technician = null,
+        ?User $technician = null,
         string $channel = RepairApproval::CHANNEL_COUNTER,
         ?string $note = null,
     ): Repair {
@@ -327,6 +328,149 @@ class RepairService
         ]);
 
         return $repair->fresh();
+    }
+
+    /**
+     * What this job costs the shop, in total and line by line — Soran, 2026-09-22.
+     *
+     * *"see both sale price and cost of same batch by permission"*. Not the
+     * product's list cost: the cost of the **batches FIFO actually takes**,
+     * which for three screens bought at 20,000 and a fourth at 24,000 is a
+     * different number depending on which one goes out.
+     *
+     * ⚠️ **Two sources, and which one is right depends on whether the job has
+     * been collected.**
+     *
+     * Collected, it is read from the `stock_movements` the sale wrote — the
+     * same rows Profit & Loss adds up, so a job's profit and the shop's profit
+     * cannot disagree. Not collected, nothing has moved yet, so it is a
+     * forecast off the queue as it stands today: honest, and labelled as a
+     * forecast rather than passed off as fact.
+     *
+     * Returns raw figures. ⚠️ Masking belongs to `cost_seen()` where they are
+     * displayed, and every figure derived from one — the profit beside it —
+     * must be derived from the MASKED number, or the real cost is a single
+     * subtraction away from a marked-up one.
+     *
+     * @return array{cost: int, real: bool, short: int, lines: array<int, int>}
+     */
+    public function costOf(Repair $repair): array
+    {
+        $repair->loadMissing('items.product');
+
+        return $repair->sale_id === null
+            ? $this->forecastCost($repair)
+            : $this->settledCost($repair);
+    }
+
+    /**
+     * What the job actually cost, off the sale that collected it.
+     *
+     * ⚠️ Lines are matched by POSITION, not by product. `collect()` hands
+     * `SaleService` the repair's lines in order and it numbers them `sequence`
+     * 1, 2, 3 — so position is exact, where matching on product would have to
+     * guess which of two lines for the same screen took the older batch.
+     *
+     * @return array{cost: int, real: bool, short: int, lines: array<int, int>}
+     */
+    private function settledCost(Repair $repair): array
+    {
+        $bySaleItem = StockMovement::where('reference_type', StockMovement::REF_SALE)
+            ->where('reference_id', $repair->sale_id)
+            ->groupBy('reference_item_id')
+            ->selectRaw('reference_item_id, SUM(-'.StockMovement::VALUE.') as cost')
+            ->pluck('cost', 'reference_item_id');
+
+        $saleItemBySequence = SaleItem::where('sale_id', $repair->sale_id)
+            ->pluck('id', 'sequence');
+
+        $lines = [];
+        $total = 0;
+
+        foreach ($repair->items->values() as $index => $item) {
+            $saleItemId = $saleItemBySequence[$index + 1] ?? null;
+            $cost = (int) ($bySaleItem[$saleItemId] ?? 0);
+
+            $lines[$item->id] = $cost;
+            $total += $cost;
+        }
+
+        return ['cost' => $total, 'real' => true, 'short' => 0, 'lines' => $lines];
+    }
+
+    /**
+     * What the job would cost if it were collected now.
+     *
+     * @return array{cost: int, real: bool, short: int, lines: array<int, int>}
+     */
+    private function forecastCost(Repair $repair): array
+    {
+        $lines = [];
+        $total = 0;
+        $short = 0;
+
+        /*
+         * ⚠️ Claimed across the whole job, not per line.
+         *
+         * Two lines for the same screen must not both be priced from the oldest
+         * batch — FIFO would give the first one that batch and the second the
+         * next. Without this the forecast for a job needing two of something is
+         * quietly too low, and it is lowest exactly when the shop is about to
+         * run out.
+         */
+        $taken = [];
+
+        foreach ($repair->items as $item) {
+            /*
+             * A service has no stock and never will. Walking the batch queue
+             * for one answers zero and then reports the whole quantity as
+             * missing, so labour would show on the screen as a part on order.
+             */
+            if (! $item->product->tracksStock()) {
+                $lines[$item->id] = 0;
+
+                continue;
+            }
+
+            $wanted = (int) $item->quantity;
+            $cost = 0;
+
+            $batches = $item->product->stockBatches()->withStock()->fifoOrder()
+                ->get(['id', 'quantity_remaining', 'unit_cost']);
+
+            foreach ($batches as $batch) {
+                if ($wanted < 1) {
+                    break;
+                }
+
+                $left = (int) $batch->quantity_remaining - ($taken[$batch->id] ?? 0);
+
+                if ($left < 1) {
+                    continue;
+                }
+
+                $take = min($wanted, $left);
+                $cost += $take * (int) $batch->unit_cost;
+                $taken[$batch->id] = ($taken[$batch->id] ?? 0) + $take;
+                $wanted -= $take;
+            }
+
+            /*
+             * Not on the shelf yet — the part is on order, which is an ordinary
+             * state for a job waiting on a screen. Valued at what the product
+             * last cost, and counted, so the screen can say the figure is
+             * incomplete rather than present a guess as a fact.
+             */
+            if ($wanted > 0) {
+                $cost += $wanted * (int) $item->product->purchase_price;
+                $short += $wanted;
+            }
+
+            $lines[$item->id] = $cost;
+            $total += $cost;
+        }
+
+        return ['cost' => $total, 'real' => false, 'short' => $short, 'lines' => $lines];
     }
 
     /** ⚠️ A collected job owns a sale, and the two must not describe different work. */

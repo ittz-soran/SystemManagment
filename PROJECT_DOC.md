@@ -1313,8 +1313,32 @@ Rules:
 | **On arrival** | ⚠️ the condition it came in with. This is the field that stops an argument: a screen already cracked, a missing back cover, a phone that would not power on. Without it the shop carries every mark the customer notices later |
 | Promised | when they were told to come back |
 | Estimate | what it was quoted at, which is not what it ends up costing |
-| Who does it | ⚠️ the **technician**, by name and phone. Sometimes a member of staff, often somebody who fixes boards for the shop and has no login — so they are their own small list, not users |
+| Who does it | ⚠️ the **repair person**, who is a **user with a login** and the `repairs.edit` permission. Named on the ticket, with their phone |
 | Status | received → **quoted** → **working** → ready → collected, plus **returned unrepaired**, which is a real outcome and not a failure to record |
+
+**⚠️ A REPAIR PERSON IS A USER — Soran, 2026-09-22, reversing his own earlier choice.**
+
+On 2026-09-21 this was *"some person are repairing with name and phone"*, and technicians were their own small table with no login. That is now wrong, and the reason given is the one that settles it: *"every technician or repair person should have acc, because monthly or weekly show data statistics and how many tacked jobs and profits"*. A name in a box cannot sign in, cannot take a job in itself, and cannot be reported on beside the staff who can. So the `technicians` table is gone and `repairs.technician_id` points at `users`.
+
+**Who may be given a job**: any active user holding `repairs.edit` — the permission that already means *work on a repair*. No new permission was invented for it, because the question "may this person work on repairs" was already asked and answered.
+
+Two consequences, both wanted:
+
+- **They take the job in themselves.** `repairs.create` is the counter half and `repairs.edit` the bench half; a person holding both does the whole thing without an owner in the middle.
+- **`users.phone`** is new, and nullable. The ticket has always printed the repair person's number so the customer can ask about their own device, and losing it to make this change would be paying for statistics with the thing the ticket was for.
+
+- **A fourth staff preset, *Mends things*.** Section 4's presets were the counter, the stock and the manager; the bench is now a job the shop has. It holds `repairs.view/create/edit`, `products.view`, `customers.view/create` and `stock_rooms.view` — ⚠️ and **no `sales.*`**, because collecting a repair *is* a sale and is the one moment in the module when stock and money move. Taking the money stays at the counter.
+
+**⚠️ WHAT A REPAIR PERSON SEES OF COST IS THE SETTING THEY ALREADY HAVE — Soran, 2026-09-22: *"see both sale price and cost of same batch by permission like other system users are can see real cost or increase price by percentage"*.**
+
+`users.cost_visibility` is `real`, `markup` or `hidden`, with `cost_markup_percent` beside it, and `cost_seen()` is the one door every cost figure in this system comes through. Repairs use it unchanged: no second rule, no `repairs.cost.view` key, nothing to keep in step. A person set to `markup 20` sees every repair cost 20% above the real one, exactly as they do on the products page, and the profit shown beside it is worked out from **that** number rather than the true one — otherwise the real cost is one subtraction away from a masked one, which is the whole reason `cost_seen()` exists.
+
+**The cost shown is the cost of the batches FIFO would actually take**, not the product's list cost:
+
+- **Before collection** it is a forecast, read off the FIFO queue as it stands today, and labelled as one. A part not yet in stock is valued at what the product last cost, and the screen says so rather than quietly guessing.
+- **After collection** it is the real thing, read from the `stock_movements` the sale wrote — the same rows the P&L adds up. So a job's profit and the shop's profit can never disagree.
+
+**Per-person statistics** are a report, `reports/technicians`, over the period already chosen at the top of every report: jobs taken in, still on the bench, collected, what was charged, what it cost, and the profit. The money columns come from the collected jobs' sales, so they reconcile with Profit & Loss by construction, and every cost figure passes through `cost_seen()` like any other.
 
 **⚠️ ANY DEVICE, NOT ONLY PHONES — Soran, 2026-09-22: *"I want work with all repairing cases, such as mobile, console, laptop, electronics devices"*.**
 

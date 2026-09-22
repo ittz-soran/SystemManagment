@@ -114,6 +114,17 @@
                 </div>
             </div>
 
+            @php
+                /* ⚠️ Whether cost is shown at all is `cost_seen()`'s answer and
+                   nothing else — Section 4's one door for every cost figure in
+                   this system. A reader set to `markup 20` sees every number
+                   here 20% above the real one, and the profit below is worked
+                   out from THAT, or the true cost would be one subtraction
+                   away from a masked one. */
+                $costTotal = cost_seen($cost['cost']);
+                $showCost = $costTotal !== null;
+            @endphp
+
             <div class="card">
                 <div class="card-header">{{ __('What the job needs') }}</div>
                 <div class="table-responsive">
@@ -124,6 +135,19 @@
                             <th>{{ __('Warranty') }}</th>
                             <th class="money">{{ __('Qty') }}</th>
                             <th class="money">{{ __('Price') }}</th>
+                            {{-- ⚠️ `d-none d-md-table-cell`, and measured before it
+                                 was written: six columns are 65px wider than a
+                                 390px phone, so adding this one pushed the Total
+                                 clean off the screen and took the footer figures
+                                 with it. The cost PER LINE is a bench question
+                                 asked at a desk; the cost of the job is the one
+                                 asked anywhere, and it is under the table where
+                                 no column can hide it. --}}
+                            @if($showCost)
+                                <th class="money d-none d-md-table-cell">
+                                    {{ $cost['real'] ? __('Cost') : __('Cost now') }}
+                                </th>
+                            @endif
                             <th class="money">{{ __('Total') }}</th>
                         </tr>
                         </thead>
@@ -151,6 +175,11 @@
                                 </td>
                                 <td class="money">{{ number_format($item->quantity) }}</td>
                                 <td class="money">{{ money($item->unit_price, false, $lens) }}</td>
+                                @if($showCost)
+                                    <td class="money text-secondary d-none d-md-table-cell">
+                                        {{ money((int) cost_seen($cost['lines'][$item->id] ?? 0), false, $lens) }}
+                                    </td>
+                                @endif
                                 <td class="money">{{ money($item->lineTotal(), false, $lens) }}</td>
                             </tr>
                         @endforeach
@@ -158,11 +187,55 @@
                         <tfoot>
                         <tr>
                             <th colspan="4">{{ __('The job comes to') }}</th>
+                            @if($showCost)
+                                <th class="d-none d-md-table-cell"></th>
+                            @endif
                             <th class="money">{{ money($repair->total(), false, $lens) }}</th>
                         </tr>
                         </tfoot>
                     </table>
                 </div>
+
+                {{-- ⚠️ Cost and profit live UNDER the table, not in it.
+                     In the table they needed a colspan, and a colspan is what
+                     put them in a column a phone cannot reach. Here they are two
+                     plain lines that are read the same on any screen.
+
+                     Before collection this is a forecast off the FIFO queue as
+                     it stands today; after collection it is the cost the sale
+                     actually consumed, which is the figure Profit & Loss uses.
+                     The wording says which, rather than leaving the shop to
+                     guess how firm the number is. --}}
+                @if($showCost)
+                    <div class="card-body border-top py-2">
+                        <div class="d-flex justify-content-between gap-2 small">
+                            <span class="text-secondary">
+                                {{ $cost['real']
+                                    ? __('What it cost the shop')
+                                    : __('What it would cost the shop today') }}
+                                @unless($cost['real'])
+                                    · {{ __('nothing has left the shelf yet') }}
+                                @endunless
+                            </span>
+                            <span class="money text-secondary">{{ money($costTotal, false, $lens) }}</span>
+                        </div>
+
+                        @if($cost['short'] > 0)
+                            <div class="small text-warning-emphasis mt-1">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                {{ trans_choice(
+                                    '{1}:count part is not in stock yet, and is counted at what it last cost.'
+                                    .'|[2,*]:count parts are not in stock yet, and are counted at what they last cost.',
+                                    $cost['short'], ['count' => number_format($cost['short'])]) }}
+                            </div>
+                        @endif
+
+                        <div class="d-flex justify-content-between gap-2 fw-semibold mt-1">
+                            <span>{{ __('Profit on this job') }}</span>
+                            <span class="money">{{ money($repair->total() - $costTotal, false, $lens) }}</span>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
 

@@ -4,11 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Repair;
 use App\Models\StockMovement;
 use App\Models\Supplier;
-use App\Models\Technician;
 use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\RepairService;
@@ -94,6 +94,25 @@ class RepairTest extends TestCase
     private function user(): User
     {
         return User::first();
+    }
+
+    /** Somebody who mends things: a user, with the permission that says so. */
+    private function technician(): User
+    {
+        $user = User::create([
+            'name' => 'Rebin Aziz',
+            'email' => 'rebin@example.com',
+            'phone' => '0751 220 4411',
+            'password' => 'x',
+            'role' => User::ROLE_USER,
+            'is_active' => true,
+        ]);
+
+        $user->permissions()->attach(
+            Permission::whereIn('key', ['auth.login', 'repairs.view', 'repairs.create', 'repairs.edit'])->pluck('id')
+        );
+
+        return $user;
     }
 
     private function takeIn(array $lines = []): Repair
@@ -534,7 +553,7 @@ class RepairTest extends TestCase
     /** The ticket names whoever is doing the work, so a customer can ask for them. */
     public function test_a_job_records_who_is_doing_it(): void
     {
-        $technician = Technician::create(['name' => 'Rebin Aziz', 'phone' => '0751 220 4411']);
+        $technician = $this->technician();
 
         $repair = $this->takeIn();
 
@@ -542,6 +561,30 @@ class RepairTest extends TestCase
 
         $this->assertSame($technician->id, $repair->fresh()->technician_id);
         $this->assertSame('Rebin Aziz', $repair->fresh('technician')->technician->name);
+    }
+
+    /**
+     * ⚠️ A repair person is a user, and may be given a job because of the
+     * permission that already says they work on repairs — Soran, 2026-09-22.
+     */
+    public function test_only_somebody_who_may_work_on_repairs_can_be_given_a_job(): void
+    {
+        $bench = $this->technician();
+
+        $counter = User::create([
+            'name' => 'Hawkar at the till', 'email' => 'hawkar@example.com',
+            'password' => 'x', 'role' => User::ROLE_USER, 'is_active' => true,
+        ]);
+        $counter->permissions()->attach(Permission::where('key', 'sales.create')->value('id'));
+
+        $offered = User::canRepair()->pluck('id');
+
+        $this->assertTrue($offered->contains($bench->id), 'the bench is not on the list');
+        $this->assertFalse($offered->contains($counter->id), 'the till is on the list');
+
+        // ⚠️ And the owner, who holds every key without a row in
+        // user_permissions and is very often the person mending the thing.
+        $this->assertTrue($offered->contains($this->user()->id), 'the owner cannot give himself a job');
     }
 
     /** Overdue is promised, not done, and in the past — a collected job is never late. */

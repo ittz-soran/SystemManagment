@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
- * One phone, in broken and out mended — Soran, 2026-09-20.
+ * One device, in broken and out mended — Soran, 2026-09-20.
  *
  * ⚠️ **A job holds its parts; it does not own any stock.** Nothing here moves a
  * unit or a dinar. Collecting the job makes an ordinary `Sale` from these lines,
@@ -90,9 +90,18 @@ class Repair extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    /**
+     * The person mending it.
+     *
+     * ⚠️ A `User`, on a column that is not named after its table — Soran,
+     * 2026-09-22: *"every technician or repair person should have acc"*. There
+     * was a `technicians` table of names and phone numbers here until the day
+     * he asked for weekly and monthly figures per person, which a name in a box
+     * cannot be part of.
+     */
     public function technician(): BelongsTo
     {
-        return $this->belongsTo(Technician::class);
+        return $this->belongsTo(User::class, 'technician_id');
     }
 
     public function items(): HasMany

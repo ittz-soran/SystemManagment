@@ -9,12 +9,14 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
+use App\Models\Repair;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Services\AgedDebtService;
 use App\Services\DailyTotals;
 use App\Support\TradeProfit;
@@ -161,6 +163,133 @@ class ReportController extends Controller
             'tradeLabel' => __('Bought'),
             'people' => $this->people(Supplier::query(), $from, $to, 'supplier'),
         ]);
+    }
+
+    /**
+     * What each repair person took in, finished and earned — Soran, 2026-09-22.
+     *
+     * *"monthly or weekly show data statistics and how many tacked jobs and
+     * profits"*. This is the reason repair people stopped being a list of names
+     * and became users: a name in a box cannot appear on a page beside the
+     * staff who sign in.
+     */
+    public function technicians(Request $request): View
+    {
+        [$from, $to] = $this->range($request);
+
+        return view('reports.print.technicians', [
+            'from' => $from,
+            'to' => $to,
+            'title' => __('Repair people'),
+            'people' => $this->repairPeople($from, $to),
+
+            // Not a person, so not a row — but the number the shop most wants
+            // on this page is how much work nobody has picked up.
+            'unassigned' => Repair::whereNull('technician_id')->open()->count(),
+        ]);
+    }
+
+    /**
+     * One row per person who has a job in the period.
+     *
+     * ⚠️ **Two different periods are being counted here, on purpose.**
+     *
+     * *Taken in* counts jobs that ARRIVED in the period. *Collected* and every
+     * money column count jobs that were COLLECTED in it — because that is when
+     * the sale happens, and a job that came in on the 28th and was collected on
+     * the 3rd belongs to March for the work and April for the money. Reporting
+     * both against one date would make one of the two wrong, and the page says
+     * which column is which.
+     *
+     * ⚠️ **On the bench is not a period figure at all.** It is what is open
+     * today. A count of "jobs unfinished during March" is not a thing anybody
+     * can act on; what is unfinished now is.
+     *
+     * The money comes from the collected jobs' sales, so it reconciles with the
+     * sales report and with Profit & Loss over the same dates. A job handed
+     * back and refunded is netted off, whenever the refund happened: a person's
+     * profit must never include money the shop has given back.
+     *
+     * @return Collection<int, object>
+     */
+    private function repairPeople(Carbon $from, Carbon $to)
+    {
+        $takenIn = Repair::whereNotNull('technician_id')
+            ->whereBetween('received_at', [$from, $to])
+            ->groupBy('technician_id')
+            ->selectRaw('technician_id as id, COUNT(*) as jobs')
+            ->pluck('jobs', 'id');
+
+        $onBench = Repair::whereNotNull('technician_id')
+            ->open()
+            ->groupBy('technician_id')
+            ->selectRaw('technician_id as id, COUNT(*) as jobs')
+            ->pluck('jobs', 'id');
+
+        /*
+         * The collected jobs, by way of their sales — which is where the money
+         * is. Joined rather than looked up per row: a shop with two hundred
+         * jobs in a month would otherwise ask two hundred questions to draw one
+         * page.
+         */
+        $collected = Repair::query()
+            ->whereNotNull('technician_id')
+            ->join('sales', 'sales.id', '=', 'repairs.sale_id')
+            ->whereBetween('sales.sale_date', [$from, $to])
+            ->get(['repairs.id', 'repairs.technician_id', 'repairs.sale_id', 'sales.total_amount']);
+
+        $saleIds = $collected->pluck('sale_id');
+        $costs = $this->costPerDocument(StockMovement::REF_SALE, $saleIds);
+        $costBack = $this->costReturnedPerSale($saleIds);
+
+        $refunded = $saleIds->isEmpty() ? collect() : SaleReturn::whereIn('sale_id', $saleIds)
+            ->groupBy('sale_id')
+            ->selectRaw('sale_id, SUM(total_amount) as total')
+            ->pluck('total', 'sale_id');
+
+        $money = [];
+
+        foreach ($collected as $job) {
+            $id = (int) $job->technician_id;
+
+            $money[$id] ??= ['jobs' => 0, 'charged' => 0, 'cost' => 0];
+            $money[$id]['jobs']++;
+            $money[$id]['charged'] += (int) $job->total_amount - (int) ($refunded[$job->sale_id] ?? 0);
+            $money[$id]['cost'] += ($costs[$job->sale_id] ?? 0) - ($costBack[$job->sale_id] ?? 0);
+        }
+
+        $ids = collect($takenIn->keys())
+            ->merge($onBench->keys())
+            ->merge(array_keys($money))
+            ->map(fn ($id) => (int) $id)
+            ->unique();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return User::whereIn('id', $ids)->orderBy('name')->get()
+            ->map(function (User $person) use ($takenIn, $onBench, $money) {
+                $earned = $money[$person->id] ?? ['jobs' => 0, 'charged' => 0, 'cost' => 0];
+
+                /*
+                 * ⚠️ Masked here, and the profit built from the MASKED cost.
+                 * A reader on `markup 20` who saw a true profit beside a
+                 * marked-up cost could work the real one out by subtracting,
+                 * which is the whole thing `cost_seen()` exists to prevent.
+                 */
+                $cost = cost_seen($earned['cost']);
+
+                return (object) [
+                    'person' => $person,
+                    'takenIn' => (int) ($takenIn[$person->id] ?? 0),
+                    'onBench' => (int) ($onBench[$person->id] ?? 0),
+                    'collected' => $earned['jobs'],
+                    'charged' => $earned['charged'],
+                    'cost' => $cost,
+                    'profit' => $cost === null ? null : $earned['charged'] - $cost,
+                ];
+            });
     }
 
     /**
