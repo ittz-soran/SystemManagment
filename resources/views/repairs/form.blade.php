@@ -21,20 +21,20 @@
         <div class="row g-3">
             <div class="col-lg-7">
                 <div class="card mb-3">
-                    <div class="card-header">{{ __('The phone') }}</div>
+                    <div class="card-header">{{ __('The device') }}</div>
                     <div class="card-body">
                         <div class="mb-3">
                             <label for="device" class="form-label">{{ __('What is it') }}</label>
                             <input id="device" name="device" required autofocus maxlength="160"
                                    value="{{ old('device', $repair?->device) }}"
                                    class="form-control @error('device') is-invalid @enderror"
-                                   placeholder="{{ __('iPhone 13 Pro, blue') }}">
+                                   placeholder="{{ __('iPhone 13, PlayStation 4, laptop, TV') }}">
                             @error('device')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div class="row g-3 mb-3">
                             <div class="col-12 col-sm-6">
-                                <label for="identifier" class="form-label">{{ __('IMEI or serial') }}</label>
+                                <label for="identifier" class="form-label">{{ __('Serial or IMEI') }}</label>
                                 <input id="identifier" name="identifier" dir="ltr" maxlength="80"
                                        value="{{ old('identifier', $repair?->identifier) }}"
                                        class="form-control @error('identifier') is-invalid @enderror">
@@ -73,7 +73,7 @@
                             <label for="condition_note" class="form-label">{{ __('How it looks now') }}</label>
                             <textarea id="condition_note" name="condition_note" rows="2" maxlength="1000"
                                       class="form-control @error('condition_note') is-invalid @enderror"
-                                      placeholder="{{ __('Back glass already cracked, no charger, small dent on the corner') }}">{{ old('condition_note', $repair?->condition_note) }}</textarea>
+                                      placeholder="{{ __('Already scratched, no charger, small dent on the corner') }}">{{ old('condition_note', $repair?->condition_note) }}</textarea>
                             <div class="form-text">
                                 {{ __('Write down every mark before it goes on the bench. This is what settles a disagreement later.') }}
                             </div>

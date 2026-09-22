@@ -65,14 +65,14 @@
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card mb-3">
-                <div class="card-header">{{ __('The phone') }}</div>
+                <div class="card-header">{{ __('The device') }}</div>
                 <div class="card-body">
                     <dl class="row mb-0 g-2">
                         <dt class="col-sm-4 text-secondary fw-normal">{{ __('What is wrong') }}</dt>
                         <dd class="col-sm-8 mb-0">{{ $repair->fault }}</dd>
 
                         @if($repair->identifier)
-                            <dt class="col-sm-4 text-secondary fw-normal">{{ __('IMEI or serial') }}</dt>
+                            <dt class="col-sm-4 text-secondary fw-normal">{{ __('Serial or IMEI') }}</dt>
                             <dd class="col-sm-8 mb-0"><span class="app-code" dir="ltr">{{ $repair->identifier }}</span></dd>
                         @endif
 

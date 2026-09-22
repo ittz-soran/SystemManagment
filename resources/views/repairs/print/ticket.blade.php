@@ -30,14 +30,14 @@
     <div class="row"><span class="muted">{{ __('Customer') }}</span>
         <span>{{ $repair->customer->name }}</span></div>
     @if($repair->customer->phone)
-        <div class="row"><span class="muted">{{ __('Phone') }}</span>
+        <div class="row"><span class="muted">{{ __('Customer phone') }}</span>
             <span dir="ltr">{{ $repair->customer->phone }}</span></div>
     @endif
 
     <div class="row"><span class="muted">{{ __('Device') }}</span>
         <span>{{ $repair->device }}</span></div>
     @if($repair->identifier)
-        <div class="row"><span class="muted">{{ __('IMEI or serial') }}</span>
+        <div class="row"><span class="muted">{{ __('Serial or IMEI') }}</span>
             <span dir="ltr">{{ $repair->identifier }}</span></div>
     @endif
 

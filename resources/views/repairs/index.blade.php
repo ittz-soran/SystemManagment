@@ -23,7 +23,7 @@
                 <label for="search" class="form-label small">{{ __('Find') }}</label>
                 <input id="search" type="search" name="search" value="{{ request('search') }}"
                        class="form-control form-control-sm"
-                       placeholder="{{ __('Ticket, device, IMEI, fault or customer') }}">
+                       placeholder="{{ __('Ticket, device, serial, fault or customer') }}">
             </div>
 
             <div class="col-6 col-md-3">

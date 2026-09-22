@@ -1308,13 +1308,21 @@ Rules:
 | | |
 |---|---|
 | Who | a customer, or a walk-in the same way a sale takes one |
-| What | the device as words — *iPhone 12 Pro, blue* — and an identifier, IMEI or serial, typed rather than tracked |
+| What | the device as words — *iPhone 12 Pro, blue*, *PlayStation 4*, *Dell Latitude 5490* — and an identifier, a serial or an IMEI, typed rather than tracked |
 | The fault | what the customer says is wrong, in their words |
 | **On arrival** | ⚠️ the condition it came in with. This is the field that stops an argument: a screen already cracked, a missing back cover, a phone that would not power on. Without it the shop carries every mark the customer notices later |
 | Promised | when they were told to come back |
 | Estimate | what it was quoted at, which is not what it ends up costing |
 | Who does it | ⚠️ the **technician**, by name and phone. Sometimes a member of staff, often somebody who fixes boards for the shop and has no login — so they are their own small list, not users |
 | Status | received → **quoted** → **working** → ready → collected, plus **returned unrepaired**, which is a real outcome and not a failure to record |
+
+**⚠️ ANY DEVICE, NOT ONLY PHONES — Soran, 2026-09-22: *"I want work with all repairing cases, such as mobile, console, laptop, electronics devices"*.**
+
+Nothing in the module is specific to a phone and nothing needs to be added for the rest. `device` and `identifier` are free text, the fault is the customer's own words, and the parts are ordinary products off the same shelf — so a PlayStation with no parts at all, a laptop with a keyboard and an SSD, and a television with a power board all run the flow already described, unchanged, and reach the P&L at their real FIFO cost by the same sale.
+
+What **was** wrong was the wording. Three labels had been written for a phone shop and would have read as nonsense on a television ticket, so they are now device-neutral: *The device* rather than *The phone*, *Customer phone* rather than *Phone* for the number to ring, and *Serial or IMEI* rather than *IMEI or serial* — a serial is what every device has, an IMEI only a mobile.
+
+**No device-type field**, deliberately. A drop-down of *mobile / console / laptop / other* would buy a filter and a report breakdown, and cost a required choice at the counter on every job plus a list that is wrong the first time somebody brings in a drone. The words the shop already types are searchable, and that is the same bargain `device` was chosen on in the first place. Worth revisiting only if a breakdown by type is actually asked for.
 
 **The shop quotes; the customer accepts; then the work starts.** *Soran, 2026-09-21: "this part shop decided which needed → after customer accept about parts and cost of repairing → system save job as on Working and print an Ticket"*. So `quoted` is a real state, and **acceptance is the event that prints the ticket** — the customer walks out holding the list of parts, the price and the warranty they agreed to.
 
