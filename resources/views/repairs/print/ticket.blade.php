@@ -1,119 +1,139 @@
-@extends('layouts.print')
+@extends('layouts.roll')
 
-@section('title', __('Repair ticket'))
-@section('doc-title', __('Repair ticket').' · '.$repair->document_no)
-@section('doc-date', $repair->received_at->format(setting('date_format', 'Y-m-d')))
+@section('title', __('Repair ticket').' '.$repair->document_no)
 
 @section('content')
-    {{-- ⚠️ This is the half of the record the customer walks away with, and
-         brings back to collect the phone. Everything they agreed to is on it:
-         what was wrong, what it will cost, who is doing it, and what is
-         guaranteed for how long. --}}
+    <h1>{{ setting('shop_name', config('app.name')) }}</h1>
 
-    <div class="row mb-3">
-        <div class="col-6">
-            <div class="small text-uppercase">{{ __('Customer') }}</div>
-            <div class="fw-semibold">{{ $repair->customer->name }}</div>
-            @if($repair->customer->phone)
-                <div dir="ltr">{{ $repair->customer->phone }}</div>
-            @endif
-        </div>
+    @if(setting('shop_phone'))
+        <div class="center small muted" dir="ltr">{{ setting('shop_phone') }}</div>
+    @endif
+    @if(setting('shop_address'))
+        <div class="center small muted">{{ setting('shop_address') }}</div>
+    @endif
 
-        <div class="col-6">
-            <div class="small text-uppercase">{{ __('Who is doing it') }}</div>
-            @if($repair->technician)
-                <div class="fw-semibold">{{ $repair->technician->name }}</div>
-                @if($repair->technician->phone)
-                    <div dir="ltr">{{ $repair->technician->phone }}</div>
-                @endif
-            @else
-                <div>—</div>
-            @endif
-        </div>
+    <hr>
+
+    {{-- ⚠️ The barcode, high up where a thumb will not cover it and a photo
+         will catch it — Soran: "have an barcode on customer ticket to scan it
+         easy when came back to collect his device". It carries the ticket
+         number and nothing else, so scanning it into the search box on the
+         repairs list finds this job. --}}
+    <div class="barcode">{!! $barcode !!}</div>
+    <div class="center big" dir="ltr">{{ $repair->document_no }}</div>
+    <div class="center small muted" dir="ltr">
+        {{ $repair->received_at->format(setting('date_format', 'Y-m-d')) }}
     </div>
 
-    <table class="table table-sm mb-3">
-        <tbody>
-        <tr>
-            <th style="width: 10rem">{{ __('Device') }}</th>
-            <td>{{ $repair->device }}</td>
-        </tr>
-        @if($repair->identifier)
-            <tr>
-                <th>{{ __('IMEI or serial') }}</th>
-                <td dir="ltr">{{ $repair->identifier }}</td>
-            </tr>
-        @endif
-        <tr>
-            <th>{{ __('What is wrong') }}</th>
-            <td>{{ $repair->fault }}</td>
-        </tr>
-        @if($repair->condition_note)
-            <tr>
-                <th>{{ __('How it looked when it came in') }}</th>
-                <td>{{ $repair->condition_note }}</td>
-            </tr>
-        @endif
-        @if($repair->promised_for)
-            <tr>
-                <th>{{ __('Ready by') }}</th>
-                <td dir="ltr">{{ $repair->promised_for->format(setting('date_format', 'Y-m-d')) }}</td>
-            </tr>
-        @endif
-        </tbody>
-    </table>
+    <hr>
 
-    <div class="small text-uppercase mb-1">{{ __('What was agreed') }}</div>
+    <div class="row"><span class="muted">{{ __('Customer') }}</span>
+        <span>{{ $repair->customer->name }}</span></div>
+    @if($repair->customer->phone)
+        <div class="row"><span class="muted">{{ __('Phone') }}</span>
+            <span dir="ltr">{{ $repair->customer->phone }}</span></div>
+    @endif
 
-    <table class="table table-sm">
+    <div class="row"><span class="muted">{{ __('Device') }}</span>
+        <span>{{ $repair->device }}</span></div>
+    @if($repair->identifier)
+        <div class="row"><span class="muted">{{ __('IMEI or serial') }}</span>
+            <span dir="ltr">{{ $repair->identifier }}</span></div>
+    @endif
+
+    @if($repair->technician)
+        <div class="row"><span class="muted">{{ __('Repaired by') }}</span>
+            <span>{{ $repair->technician->name }}</span></div>
+        @if($repair->technician->phone)
+            <div class="row"><span class="muted"></span>
+                <span dir="ltr" class="small">{{ $repair->technician->phone }}</span></div>
+        @endif
+    @endif
+
+    @if($repair->promised_for)
+        <div class="row"><span class="muted">{{ __('Ready by') }}</span>
+            <span dir="ltr">{{ $repair->promised_for->format(setting('date_format', 'Y-m-d')) }}</span></div>
+    @endif
+
+    <hr>
+
+    <div class="muted small">{{ __('What is wrong') }}</div>
+    <div>{{ $repair->fault }}</div>
+
+    @if($repair->condition_note)
+        <div class="muted small" style="margin-top: 1.5mm">{{ __('How it looked when it came in') }}</div>
+        <div class="small">{{ $repair->condition_note }}</div>
+    @endif
+
+    <hr>
+
+    <table>
         <thead>
         <tr>
-            <th>{{ __('Part or work') }}</th>
-            <th>{{ __('Warranty') }}</th>
-            <th class="money">{{ __('Qty') }}</th>
-            <th class="money">{{ __('Price') }}</th>
-            <th class="money">{{ __('Total') }}</th>
+            <th class="small muted">{{ __('Part or work') }}</th>
+            <th class="small muted num">{{ __('Total') }}</th>
         </tr>
         </thead>
-
         <tbody>
         @foreach($repair->items as $item)
             <tr>
-                <td>{{ $item->product->name }}</td>
                 <td>
-                    @if($item->warranty_days === null)
-                        —
-                    @else
-                        {{ trans_choice('{0}Same day|{1}:count day|[2,*]:count days', $item->warranty_days, ['count' => $item->warranty_days]) }}
-                    @endif
+                    {{ $item->product->name }}
+                    <div class="small muted">
+                        @if($item->quantity > 1)
+                            <span dir="ltr">{{ $item->quantity }} × {{ money($item->unit_price, false) }}</span>
+                        @endif
+                        @if($item->warranty_days !== null)
+                            @if($item->quantity > 1) · @endif
+                            {{ __('Warranty') }}
+                            {{ trans_choice('{0}Same day|{1}:count day|[2,*]:count days', $item->warranty_days, ['count' => $item->warranty_days]) }}
+                        @endif
+                    </div>
                 </td>
-                <td class="money">{{ number_format($item->quantity) }}</td>
-                <td class="money">{{ money($item->unit_price, false) }}</td>
-                <td class="money">{{ money($item->lineTotal(), false) }}</td>
+                <td class="num">{{ money($item->lineTotal(), false) }}</td>
             </tr>
         @endforeach
         </tbody>
-
-        <tfoot>
-        <tr>
-            <th colspan="4">{{ __('Agreed total') }}</th>
-            <th class="money">{{ money($repair->accepted_total ?? $repair->total(), false) }}</th>
-        </tr>
-        </tfoot>
     </table>
 
-    {{-- ⚠️ Warranty runs from the day the phone is collected, not from today.
-         Printed on the ticket so the promise is the customer's to hold, and
-         cannot be argued about later. --}}
-    @if($repair->items->contains(fn ($item) => $item->warranty_days !== null))
-        <p class="small mt-3 mb-0">
-            <strong>{{ __('Warranty') }}:</strong>
-            {{ __('counted from the day you collect the phone, and covers only the work and parts listed above.') }}
-        </p>
+    <hr>
+
+    <div class="row big">
+        <span>{{ __('Agreed total') }}</span>
+        <span class="num">{{ money($repair->lastApproval()?->total ?? $repair->total()) }}</span>
+    </div>
+
+    {{-- ⚠️ Every yes, not only the last one. The customer may be holding a
+         ticket printed at the first figure — Soran's PS4 went 8,000 at the
+         counter and 43,000 by telephone — so a reprint shows both, and says
+         which was agreed how. --}}
+    @if($repair->approvals->count() > 1)
+        <div class="small muted" style="margin-top: 2mm">{{ __('Agreed') }}:</div>
+        @foreach($repair->approvals as $approval)
+            <div class="row small">
+                <span>
+                    {{ $approval->approved_at->format(setting('date_format', 'Y-m-d')) }} ·
+                    {{ $approval->channel === App\Models\RepairApproval::CHANNEL_PHONE ? __('by phone') : __('at the shop') }}
+                </span>
+                <span class="num">{{ money($approval->total, false) }}</span>
+            </div>
+        @endforeach
     @endif
 
-    <p class="small mt-3 mb-0">
-        {{ __('Please bring this ticket back to collect the phone.') }}
-        {{ __('If the price has to change, we will tell you before any further work.') }}
-    </p>
+    @if($repair->items->contains(fn ($item) => $item->warranty_days !== null))
+        <hr>
+        <div class="small">
+            <strong>{{ __('Warranty') }}:</strong>
+            {{ __('counted from the day you collect the device, and covers only the work and parts listed above.') }}
+        </div>
+    @endif
+
+    <hr>
+
+    <div class="center small">
+        {{ __('Please bring this ticket to collect your device.') }}
+    </div>
+    <div class="center small muted">
+        {{ __('A photo of it is fine — the barcode is what we scan.') }}
+    </div>
 @endsection

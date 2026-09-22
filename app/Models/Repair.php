@@ -100,6 +100,12 @@ class Repair extends Model
         return $this->hasMany(RepairItem::class);
     }
 
+    /** Every time the customer said yes, oldest first. */
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(RepairApproval::class)->orderBy('approved_at');
+    }
+
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
@@ -139,6 +145,31 @@ class Repair extends Model
         return $this->accepted_at !== null;
     }
 
+    /** What the customer last agreed to, and when. */
+    public function lastApproval(): ?RepairApproval
+    {
+        return $this->approvals->last();
+    }
+
+    /**
+     * ⚠️ THE JOB HAS CHANGED AND THE CUSTOMER HAS NOT AGREED TO IT YET.
+     *
+     * Soran's PS4: agreed at 8,000, then the drive turned out to be failing.
+     * *"before I replace hard drive should call to customer to describe it
+     * again"* — so the moment the lines stop matching the last thing the
+     * customer said yes to, the job is waiting on a telephone call, not on a
+     * screwdriver.
+     *
+     * This is what stops it being collected: charging somebody for work they
+     * never agreed to is the failure this whole module exists to prevent.
+     */
+    public function needsApproval(): bool
+    {
+        $last = $this->lastApproval();
+
+        return $last === null || $last->total !== $this->total();
+    }
+
     /**
      * ⚠️ What the customer's printed ticket says, against what it now costs.
      *
@@ -149,7 +180,9 @@ class Repair extends Model
      */
     public function priceDrift(): int
     {
-        return $this->accepted_total === null ? 0 : $this->total() - $this->accepted_total;
+        $last = $this->lastApproval();
+
+        return $last === null ? 0 : $this->total() - $last->total;
     }
 
     /**

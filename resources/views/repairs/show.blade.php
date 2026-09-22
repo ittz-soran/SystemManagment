@@ -41,11 +41,13 @@
         </div>
     @endif
 
-    {{-- ⚠️ The price the customer is holding, against the price it now is.
-         Neither replaces the other — the paper in their hand says the first. --}}
-    @if($repair->priceDrift() !== 0)
+    {{-- ⚠️ Not "the price moved" — "the customer has not agreed to this".
+         Soran's PS4: agreed at 8,000, then the drive turned out to be failing,
+         and the rule in his shop is to telephone before touching it. So this
+         says what to do, and collection is refused until it is done. --}}
+    @if($repair->lastApproval() && $repair->needsApproval())
         <div class="alert alert-warning">
-            <div class="fw-semibold mb-1">{{ __('The price has moved since it was agreed') }}</div>
+            <div class="fw-semibold mb-1">{{ __('The customer has not agreed to this yet') }}</div>
             <div class="d-flex flex-wrap gap-4">
                 <span>{{ __('On their ticket') }}: <span class="money fw-semibold">{{ money($repair->accepted_total, false, $lens) }}</span></span>
                 <span>{{ __('Now') }}: <span class="money fw-semibold">{{ money($repair->total(), false, $lens) }}</span></span>
@@ -56,7 +58,7 @@
                     </span>
                 </span>
             </div>
-            <div class="small mt-1">{{ __('Tell the customer before they collect.') }}</div>
+            <div class="small mt-1">{{ __('Call them, then record below that they accepted. It cannot be collected until you do.') }}</div>
         </div>
     @endif
 
@@ -181,12 +183,25 @@
 
                     <div class="mb-3">
                         <span class="badge text-bg-{{ $tone }} fs-6">{{ __(Str::headline($repair->status)) }}</span>
-                        @if($repair->isAccepted())
-                            <div class="small text-secondary mt-2">
-                                {{ __('Customer accepted :amount on :date', [
-                                    'amount' => money($repair->accepted_total, in: $lens),
-                                    'date' => $repair->accepted_at->format(setting('date_format', 'Y-m-d')),
-                                ]) }}
+                        @if($repair->approvals->isNotEmpty())
+                            {{-- Every yes, in order. A job agreed twice is the
+                                 ordinary case, not an exception. --}}
+                            <div class="small mt-2">
+                                <div class="text-secondary">{{ __('What the customer agreed to') }}</div>
+                                @foreach($repair->approvals as $approval)
+                                    <div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                                        <span>
+                                            <span dir="ltr">{{ $approval->approved_at->format(setting('date_format', 'Y-m-d')) }}</span>
+                                            <span class="text-secondary">
+                                                · {{ $approval->channel === App\Models\RepairApproval::CHANNEL_PHONE ? __('on the phone') : __('at the shop') }}
+                                            </span>
+                                            @if($approval->note)
+                                                <div class="text-secondary">{{ $approval->note }}</div>
+                                            @endif
+                                        </span>
+                                        <span class="money fw-semibold">{{ money($approval->total, false, $lens) }}</span>
+                                    </div>
+                                @endforeach
                             </div>
                         @endif
                     </div>
@@ -197,7 +212,7 @@
                             {{-- ⚠️ Acceptance is its own action, not a status. It is
                                  what freezes the agreed price and the warranty, and
                                  it is what the printed ticket comes from. --}}
-                            @if(! $repair->isAccepted())
+                            @if($repair->needsApproval())
                                 <form method="POST" action="{{ route('repairs.accept', $repair) }}" class="mb-3" data-guard-submit>
                                     @csrf
                                     <label for="accept-technician" class="form-label small">{{ __('Who will do it') }}</label>
@@ -210,11 +225,24 @@
                                         @endforeach
                                     </select>
 
+                                    {{-- ⚠️ How they were told is the evidence. The first yes is
+                                         across the counter; a second, after a fault is found
+                                         mid-repair, is a telephone call — and that call is what
+                                         settles it when the customer is holding an older ticket. --}}
+                                    <label for="channel" class="form-label small">{{ __('How did they agree?') }}</label>
+                                    <select id="channel" name="channel" class="form-select form-select-sm mb-2">
+                                        <option value="counter">{{ __('Here at the shop') }}</option>
+                                        <option value="phone" @selected($repair->lastApproval() !== null)>{{ __('On the phone') }}</option>
+                                    </select>
+
+                                    <input name="note" class="form-control form-control-sm mb-2" maxlength="500"
+                                           placeholder="{{ __('Hard drive failing, needs replacing') }}">
+
                                     <button class="btn btn-primary w-100" data-submitting-text="{{ __('Saving…') }}">
                                         <i class="bi bi-check2-circle me-1"></i>{{ __('Customer accepts — print the ticket') }}
                                     </button>
                                     <div class="form-text">
-                                        {{ __('Fixes the price and the warranty on their ticket, and starts the work.') }}
+                                        {{ __('Records what they agreed to and fixes the warranty on their ticket.') }}
                                     </div>
                                 </form>
                             @else
@@ -234,7 +262,7 @@
                                 </form>
                             @endif
 
-                            @if($repair->isAccepted())
+                            @if($repair->isAccepted() && ! $repair->needsApproval())
                                 <hr>
 
                                 <form method="POST" action="{{ route('repairs.collect', $repair) }}" data-guard-submit>

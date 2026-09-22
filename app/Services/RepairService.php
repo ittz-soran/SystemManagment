@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Repair;
+use App\Models\RepairApproval;
 use App\Models\Sale;
 use App\Models\Technician;
 use App\Models\User;
@@ -130,8 +131,13 @@ class RepairService
      * change mid-repair. What may not happen is the agreed figure being
      * quietly overwritten, because the paper in their hand still says it.
      */
-    public function accept(Repair $repair, User $user, ?Technician $technician = null): Repair
-    {
+    public function accept(
+        Repair $repair,
+        User $user,
+        ?Technician $technician = null,
+        string $channel = RepairApproval::CHANNEL_COUNTER,
+        ?string $note = null,
+    ): Repair {
         $this->assertModifiable($repair);
 
         $repair->loadMissing('items');
@@ -140,13 +146,42 @@ class RepairService
             throw new RuntimeException(__('Decide what the job needs before the customer can accept it.'));
         }
 
-        if ($repair->isAccepted()) {
-            throw new RuntimeException(__('This job has already been accepted.'));
+        /*
+         * ⚠️ Agreeing AGAIN is the normal case, not an error.
+         *
+         * Soran's PS4 was agreed at 8,000 across the counter and again at
+         * 43,000 on the telephone when the drive turned out to be failing. What
+         * is refused is a pointless second yes to the same figure.
+         */
+        if (! $repair->needsApproval()) {
+            throw new RuntimeException(__('Nothing has changed since the customer last agreed.'));
         }
 
-        return DB::transaction(function () use ($repair, $technician) {
+        if (! in_array($channel, RepairApproval::CHANNELS, true)) {
+            throw new RuntimeException(__('Say how the customer was told.'));
+        }
+
+        return DB::transaction(function () use ($repair, $technician, $channel, $note, $user) {
+            /*
+             * ⚠️ Built and saved once, not created then patched. `user_id` is
+             * not fillable — who recorded the agreement is the system's to
+             * know, never a form's — so `create()` inserts without it and the
+             * NOT NULL constraint refuses the row. The fourth thing today that
+             * mass assignment dropped without a word.
+             */
+            $approval = new RepairApproval([
+                'total' => $repair->total(),
+                'channel' => $channel,
+                'note' => $note,
+                'approved_at' => now(),
+            ]);
+
+            $approval->user_id = $user->id;
+
+            $repair->approvals()->save($approval);
+
             $repair->status = Repair::STATUS_WORKING;
-            $repair->accepted_at = now();
+            $repair->accepted_at ??= now();
             $repair->accepted_total = $repair->total();
 
             if ($technician !== null) {
@@ -155,7 +190,11 @@ class RepairService
 
             $repair->save();
 
-            return $repair->fresh('items', 'technician');
+            // Reloaded rather than left as it was: `needsApproval()` above
+            // loaded this relation while it was still empty.
+            $repair->load('approvals', 'items', 'technician');
+
+            return $repair;
         });
     }
 
@@ -222,6 +261,24 @@ class RepairService
 
         if ($repair->items->isEmpty()) {
             throw new RuntimeException(__('Add what the customer is paying for — the parts, the labour, or both.'));
+        }
+
+        /*
+         * ⚠️ NOBODY IS CHARGED FOR WORK THEY DID NOT AGREE TO.
+         *
+         * Either the job was never agreed at all, or it has changed since — the
+         * failing drive found mid-repair. Soran's own practice is to telephone
+         * before touching it; this is that practice made into a rule, and the
+         * message says what to do rather than only refusing.
+         */
+        $repair->load('approvals');
+
+        if ($repair->needsApproval()) {
+            throw new RuntimeException($repair->lastApproval() === null
+                ? __('The customer has not agreed to this job yet.')
+                : __('The job has changed since the customer agreed to :amount. Call them, then record that they accepted.', [
+                    'amount' => money($repair->lastApproval()->total),
+                ]));
         }
 
         return DB::transaction(function () use ($repair, $user, $amountPaid, $paymentMethod, $collectedAt) {

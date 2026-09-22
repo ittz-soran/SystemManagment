@@ -8,10 +8,12 @@ use App\Models\Product;
 use App\Models\Repair;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Models\Technician;
 use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\RepairService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -60,6 +62,8 @@ class RepairTest extends TestCase
             'purchase_price' => 20_000,
             'sale_price' => 35_000,
             'quantity' => 0,
+            // A screen carries five days, set up once on the product.
+            'warranty_days' => 5,
         ]);
 
         $this->labour = Product::create([
@@ -72,6 +76,7 @@ class RepairTest extends TestCase
             'purchase_price' => 0,
             'sale_price' => 25_000,
             'quantity' => 0,
+            'warranty_days' => 5,
         ]);
 
         // Two batches at different costs, so FIFO has something to prove.
@@ -110,6 +115,19 @@ class RepairTest extends TestCase
     }
 
     /**
+     * The customer says yes.
+     *
+     * ⚠️ Every test that collects has to do this first, and that is the point
+     * rather than an inconvenience: nobody is charged for work they did not
+     * agree to. Soran's PS4 — agreed at 8,000, then a failing drive found
+     * mid-repair — is why.
+     */
+    private function agree(Repair $repair, string $channel = 'counter'): Repair
+    {
+        return app(RepairService::class)->accept($repair, $this->user(), channel: $channel);
+    }
+
+    /**
      * ⚠️ THE ONE THAT DEFINES THE MODULE.
      *
      * A job on the bench has moved nothing: not the counted quantity, not a
@@ -137,6 +155,7 @@ class RepairTest extends TestCase
     public function test_collecting_makes_one_ordinary_sale_at_the_fifo_cost(): void
     {
         $repair = $this->takeIn();
+        $this->agree($repair);
         $quantityBefore = $this->part->fresh()->quantity;
 
         $sale = app(RepairService::class)->collect($repair, $this->user(), amountPaid: 60_000);
@@ -149,7 +168,7 @@ class RepairTest extends TestCase
         // product's purchase_price.
         $cost = (int) StockMovement::where('reference_type', StockMovement::REF_SALE)
             ->where('reference_id', $sale->id)
-            ->sum(\Illuminate\Support\Facades\DB::raw('-'.StockMovement::VALUE));
+            ->sum(DB::raw('-'.StockMovement::VALUE));
 
         $this->assertSame(20_000, $cost, 'the repair was costed at something other than the oldest batch');
 
@@ -169,6 +188,7 @@ class RepairTest extends TestCase
     public function test_a_collected_job_knows_which_invoice_paid_for_it(): void
     {
         $repair = $this->takeIn();
+        $this->agree($repair);
 
         $sale = app(RepairService::class)->collect($repair, $this->user(), amountPaid: 60_000);
 
@@ -222,6 +242,7 @@ class RepairTest extends TestCase
     public function test_a_job_cannot_be_collected_twice(): void
     {
         $repair = $this->takeIn();
+        $this->agree($repair);
 
         app(RepairService::class)->collect($repair, $this->user(), amountPaid: 60_000);
 
@@ -241,6 +262,7 @@ class RepairTest extends TestCase
     public function test_a_collected_job_is_locked_and_says_which_invoice_holds_it(): void
     {
         $repair = $this->takeIn();
+        $this->agree($repair);
         $sale = app(RepairService::class)->collect($repair, $this->user(), amountPaid: 60_000);
 
         $repair = $repair->fresh();
@@ -324,6 +346,8 @@ class RepairTest extends TestCase
             lines: [['product_id' => $this->labour->id, 'quantity' => 1, 'unit_price' => 15_000]],
         );
 
+        $this->agree($repair);
+
         try {
             app(RepairService::class)->collect($repair, $this->user(), amountPaid: 5_000);
             $this->fail('a walk-in took the phone away owing money');
@@ -332,6 +356,192 @@ class RepairTest extends TestCase
         }
 
         $this->assertNull($repair->fresh()->sale_id);
+    }
+
+    // =====================================================================
+    // Agreed more than once — Soran's PS4, 2026-09-21
+    // =====================================================================
+
+    /**
+     * ⚠️ THE CASE THAT BROKE THE FIRST DESIGN, TOLD AS HE TOLD IT.
+     *
+     * A PS4 comes in dead. Diagnosis: reinstall the system software, no parts,
+     * quoted 10,000, **haggled down to 8,000**. Agreed at the counter, ticket
+     * printed, customer goes home holding it. Mid-job the drive turns out to be
+     * failing — *"before I replace hard drive should call to customer to
+     * describe it again"*. He telephones, they agree a new drive at 35,000 on
+     * top, and only then does the work go ahead.
+     *
+     * *"now customer have old ticket at 8000 but REP is updated and customer
+     * are has been informed by call."*
+     *
+     * So acceptance is not one frozen figure. It is a list, and what each entry
+     * has to carry is **how the customer was told** — because the paper in
+     * their hand says the old number and the telephone call is the only thing
+     * that says they knew.
+     */
+    public function test_a_job_can_be_agreed_twice_and_remembers_both(): void
+    {
+        $repair = $this->takeIn([
+            ['product_id' => $this->labour->id, 'quantity' => 1, 'unit_price' => 8_000],
+        ]);
+
+        // Haggled: the price is what was agreed, not what the product says.
+        $this->assertSame(8_000, $repair->total(), 'the negotiated price was overwritten');
+
+        $this->agree($repair, 'counter');
+
+        // Mid-repair: the drive is failing, so the job grows.
+        app(RepairService::class)->setLines($repair, [
+            ['product_id' => $this->labour->id, 'quantity' => 1, 'unit_price' => 8_000],
+            ['product_id' => $this->part->id, 'quantity' => 1, 'unit_price' => 35_000],
+        ]);
+
+        $repair = $repair->fresh(['items', 'approvals']);
+
+        $this->assertSame(43_000, $repair->total());
+        $this->assertTrue($repair->needsApproval(), 'a job that grew still read as agreed');
+
+        // He telephones. Only now may the work be charged for.
+        $this->agree($repair, 'phone');
+
+        $repair = $repair->fresh('approvals');
+
+        $this->assertFalse($repair->needsApproval());
+        $this->assertCount(2, $repair->approvals, 'only one agreement was kept');
+
+        $this->assertSame(8_000, $repair->approvals[0]->total);
+        $this->assertSame('counter', $repair->approvals[0]->channel);
+
+        $this->assertSame(43_000, $repair->approvals[1]->total);
+        $this->assertSame('phone', $repair->approvals[1]->channel,
+            'the record does not say the customer was telephoned');
+    }
+
+    /**
+     * ⚠️ NOBODY IS CHARGED FOR WORK THEY DID NOT AGREE TO.
+     *
+     * The rule that makes the history worth keeping. A job that has grown since
+     * the customer's last yes cannot be collected — which is Soran's own
+     * practice ("should call to customer") made into something the system
+     * holds, rather than something he has to remember on a busy afternoon.
+     */
+    public function test_a_job_that_changed_cannot_be_collected_until_the_customer_agrees_again(): void
+    {
+        $repair = $this->takeIn([
+            ['product_id' => $this->labour->id, 'quantity' => 1, 'unit_price' => 8_000],
+        ]);
+
+        $this->agree($repair);
+
+        app(RepairService::class)->setLines($repair, [
+            ['product_id' => $this->labour->id, 'quantity' => 1, 'unit_price' => 8_000],
+            ['product_id' => $this->part->id, 'quantity' => 1, 'unit_price' => 35_000],
+        ]);
+
+        $quantityBefore = $this->part->fresh()->quantity;
+
+        try {
+            app(RepairService::class)->collect($repair->fresh(), $this->user(), amountPaid: 43_000);
+            $this->fail('a job was collected that the customer had not agreed to');
+        } catch (RuntimeException $e) {
+            // And the refusal says what they DID agree to, so the person at the
+            // counter knows what to say on the telephone.
+            $this->assertStringContainsString('8,000', $e->getMessage());
+        }
+
+        $this->assertSame($quantityBefore, $this->part->fresh()->quantity, 'the drive left the shelf anyway');
+        $this->assertNull($repair->fresh()->sale_id);
+    }
+
+    /** A job nobody ever agreed to cannot be collected either. */
+    public function test_a_job_never_agreed_cannot_be_collected(): void
+    {
+        $repair = $this->takeIn();
+
+        try {
+            app(RepairService::class)->collect($repair, $this->user(), amountPaid: 60_000);
+            $this->fail('an unagreed job was collected');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('not agreed', $e->getMessage());
+        }
+    }
+
+    /** Saying yes twice to the same figure is not a second agreement. */
+    public function test_agreeing_again_to_an_unchanged_job_is_refused(): void
+    {
+        $repair = $this->takeIn();
+        $this->agree($repair);
+
+        try {
+            $this->agree($repair->fresh());
+            $this->fail('the same figure was agreed twice');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Nothing has changed', $e->getMessage());
+        }
+
+        $this->assertCount(1, $repair->fresh('approvals')->approvals);
+    }
+
+    /**
+     * ⚠️ The warranty promised on the ticket, frozen at the moment it was
+     * promised.
+     *
+     * A screen carries 5 days and a battery 30, set up once on the product. If
+     * somebody edits the product next month, a ticket printed today must not
+     * change with it — the customer is holding the old number.
+     */
+    public function test_the_warranty_on_a_ticket_does_not_follow_the_product_afterwards(): void
+    {
+        $repair = $this->takeIn();
+        $this->agree($repair);
+
+        $this->assertSame(5, $repair->fresh('items')->items->firstWhere('product_id', $this->part->id)->warranty_days);
+
+        // Somebody changes the product's warranty later.
+        $this->part->update(['warranty_days' => 90]);
+
+        $this->assertSame(
+            5,
+            $repair->fresh('items')->items->firstWhere('product_id', $this->part->id)->warranty_days,
+            'a promise already made changed under the customer',
+        );
+    }
+
+    /** ⚠️ And it runs from collection, because the phone is in the shop until then. */
+    public function test_warranty_is_counted_from_the_day_the_customer_collects(): void
+    {
+        $repair = $this->takeIn();
+        $this->agree($repair);
+
+        $item = $repair->fresh('items')->items->firstWhere('product_id', $this->part->id);
+
+        // Nothing to count from while it is still on the bench.
+        $this->assertNull($repair->fresh()->warrantyEndsOn($item), 'a warranty started before the phone was collected');
+
+        $sale = app(RepairService::class)->collect($repair, $this->user(), amountPaid: 60_000);
+
+        $ends = $repair->fresh('sale')->warrantyEndsOn($item);
+
+        $this->assertNotNull($ends);
+        $this->assertSame(
+            $sale->sale_date->copy()->addDays(5)->toDateString(),
+            $ends->toDateString(),
+            'the warranty is not five days from the day it was collected',
+        );
+    }
+
+    /** The ticket names whoever is doing the work, so a customer can ask for them. */
+    public function test_a_job_records_who_is_doing_it(): void
+    {
+        $technician = Technician::create(['name' => 'Rebin Aziz', 'phone' => '0751 220 4411']);
+
+        $repair = $this->takeIn();
+
+        app(RepairService::class)->accept($repair, $this->user(), technician: $technician);
+
+        $this->assertSame($technician->id, $repair->fresh()->technician_id);
+        $this->assertSame('Rebin Aziz', $repair->fresh('technician')->technician->name);
     }
 
     /** Overdue is promised, not done, and in the past — a collected job is never late. */
@@ -348,6 +558,7 @@ class RepairTest extends TestCase
 
         $this->assertTrue($late->isOverdue());
 
+        $this->agree($late);
         app(RepairService::class)->collect($late, $this->user(), amountPaid: 10_000);
 
         $this->assertFalse($late->fresh()->isOverdue(), 'a finished job was still counted as late');

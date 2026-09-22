@@ -8,6 +8,7 @@ use App\Models\Repair;
 use App\Models\Technician;
 use App\Rules\Amount;
 use App\Services\ActivityLogger;
+use App\Services\LabelService;
 use App\Services\RepairService;
 use App\Support\MoneyInput;
 use Illuminate\Http\RedirectResponse;
@@ -110,7 +111,7 @@ class RepairController extends Controller
 
     public function show(Request $request, Repair $repair): View
     {
-        $repair->load('customer', 'items.product', 'sale', 'user', 'technician');
+        $repair->load('customer', 'items.product', 'sale', 'user', 'technician', 'approvals');
 
         return view('repairs.show', [
             'lens' => $request->user()->lens(),
@@ -174,13 +175,19 @@ class RepairController extends Controller
      */
     public function accept(Request $request, Repair $repair): RedirectResponse
     {
-        $request->validate(['technician_id' => ['nullable', 'exists:technicians,id']]);
+        $request->validate([
+            'technician_id' => ['nullable', 'exists:technicians,id'],
+            'channel' => ['required', 'in:counter,phone'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
 
         try {
             $this->repairs->accept(
                 repair: $repair,
                 user: $request->user(),
                 technician: $request->filled('technician_id') ? Technician::find($request->input('technician_id')) : null,
+                channel: $request->string('channel')->toString(),
+                note: $request->string('note')->toString() ?: null,
             );
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
@@ -274,8 +281,17 @@ class RepairController extends Controller
     /** The ticket the customer walks away with. */
     public function ticket(Request $request, Repair $repair): View
     {
+        $repair->load('customer', 'items.product', 'technician', 'approvals');
+
         return view('repairs.print.ticket', [
-            'repair' => $repair->load('customer', 'items.product', 'technician'),
+            'repair' => $repair,
+            /*
+             * ⚠️ Sized for a thumb and a phone camera, not for a shelf label.
+             * The customer photographs this ticket and brings the photo back,
+             * so the bars have to survive a screen, a camera and a scanner —
+             * 60mm wide and 12mm tall, roughly half the printable width.
+             */
+            'barcode' => app(LabelService::class)->svg($repair->document_no, 60, 12),
         ]);
     }
 
