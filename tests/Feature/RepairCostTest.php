@@ -257,6 +257,76 @@ class RepairCostTest extends TestCase
     }
 
     /**
+     * ⚠️ A job whose parts came back must not go on claiming the profit.
+     *
+     * Soran, 2026-09-22, asking what happens when there is *"return from
+     * customer"*: the board comes off the television and onto the shelf, the
+     * money goes back over the counter, and what the shop actually kept is the
+     * labour. A screen still reading "made 40,000" about that afternoon would
+     * disagree with the per-person report, which nets refunds off — and one
+     * afternoon cannot have two answers in one system.
+     */
+    public function test_a_refunded_part_comes_off_the_job_cost_and_the_job_profit(): void
+    {
+        $repair = $this->takeIn([
+            ['product_id' => $this->part->id, 'quantity' => 1, 'unit_price' => 35_000],
+            ['product_id' => $this->labour->id, 'quantity' => 1, 'unit_price' => 25_000],
+        ]);
+
+        app(RepairService::class)->accept($repair, $this->user());
+        $sale = app(RepairService::class)->collect($repair->fresh('items'), $this->user());
+
+        $before = app(RepairService::class)->costOf($repair->fresh());
+        $this->assertSame(20_000, $before['cost']);
+        $this->assertSame(0, $before['refunded']);
+
+        // The screen comes back out and the customer takes his money for it.
+        app(SaleReturnService::class)->create(
+            sale: Sale::find($sale->id),
+            lines: [['sale_item_id' => $sale->items->firstWhere('product_id', $this->part->id)->id, 'quantity' => 1]],
+            user: $this->user(),
+            returnDate: now(),
+        );
+
+        $after = app(RepairService::class)->costOf($repair->fresh());
+
+        $this->assertSame(0, $after['cost'], 'the returned screen still counts against the job');
+        $this->assertSame(35_000, $after['refunded']);
+
+        // 60,000 agreed, 35,000 handed back, nothing left against the shelf:
+        // the shop kept the 25,000 of labour and that is the whole profit.
+        $page = $this->actingAs($this->user())->get(route('repairs.show', $repair));
+
+        $page->assertOk();
+        $page->assertSee(__('Given back to the customer'));
+
+        /*
+         * ⚠️ Read off the profit line itself, not with `assertSee`.
+         *
+         * Every figure in this case — 25,000 the labour price, 60,000 the job
+         * total — is already somewhere on the page, so a loose `assertSee` on
+         * the number passes whether or not the refund was taken off. It was
+         * written that way first, and a screen wired to ignore the refund went
+         * straight through it.
+         */
+        $this->assertSame('25,000', $this->profitOn($page->getContent()));
+    }
+
+    /** The figure printed against "Profit on this job", and nothing else. */
+    private function profitOn(string $html): string
+    {
+        $found = preg_match(
+            '/'.preg_quote(__('Profit on this job'), '/').'<\/span>\s*<span class="money">\s*([^<]+)/s',
+            $html,
+            $matches
+        );
+
+        $this->assertSame(1, $found, 'the profit line is not on the page at all');
+
+        return trim($matches[1]);
+    }
+
+    /**
      * ⚠️ What a repair person sees of cost is the setting they already have.
      *
      * Soran: *"by permission like other system users are can see real cost or

@@ -206,7 +206,16 @@
                      actually consumed, which is the figure Profit & Loss uses.
                      The wording says which, rather than leaving the shop to
                      guess how firm the number is. --}}
-                @if($showCost)
+                {{-- ⚠️ A job handed back unrepaired earns nothing, and must not
+                     be shown as though it might. The lines are still listed —
+                     they are what the shop had set aside — but they were never
+                     charged and never will be, and a "Profit on this job" line
+                     against them is a number that will never arrive. --}}
+                @if($repair->status === App\Models\Repair::STATUS_RETURNED)
+                    <div class="card-body border-top py-2 small text-secondary">
+                        {{ __('Handed back unrepaired. Nothing was charged, and the parts never left the shelf.') }}
+                    </div>
+                @elseif($showCost)
                     <div class="card-body border-top py-2">
                         <div class="d-flex justify-content-between gap-2 small">
                             <span class="text-secondary">
@@ -230,9 +239,27 @@
                             </div>
                         @endif
 
+                        {{-- ⚠️ What came back comes off, or this line claims a
+                             profit the shop never made. A customer who brings the
+                             television back and takes his money is an ordinary
+                             afternoon: the board is on the shelf again with its
+                             cost reversed, and what the shop kept is the labour.
+                             The per-person report nets refunds off too — one
+                             afternoon must not have two answers in one system. --}}
+                        @if($cost['refunded'] > 0)
+                            <div class="d-flex justify-content-between gap-2 small">
+                                <span class="text-secondary">{{ __('Given back to the customer') }}</span>
+                                <span class="money text-secondary">
+                                    − {{ money($cost['refunded'], false, $lens) }}
+                                </span>
+                            </div>
+                        @endif
+
                         <div class="d-flex justify-content-between gap-2 fw-semibold mt-1">
                             <span>{{ __('Profit on this job') }}</span>
-                            <span class="money">{{ money($repair->total() - $costTotal, false, $lens) }}</span>
+                            <span class="money">
+                                {{ money($repair->total() - $cost['refunded'] - $costTotal, false, $lens) }}
+                            </span>
                         </div>
                     </div>
                 @endif

@@ -8,6 +8,8 @@ use App\Models\Repair;
 use App\Models\RepairApproval;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -352,7 +354,7 @@ class RepairService
      * must be derived from the MASKED number, or the real cost is a single
      * subtraction away from a marked-up one.
      *
-     * @return array{cost: int, real: bool, short: int, lines: array<int, int>}
+     * @return array{cost: int, real: bool, short: int, refunded: int, lines: array<int, int>}
      */
     public function costOf(Repair $repair): array
     {
@@ -371,7 +373,7 @@ class RepairService
      * 1, 2, 3 — so position is exact, where matching on product would have to
      * guess which of two lines for the same screen took the older batch.
      *
-     * @return array{cost: int, real: bool, short: int, lines: array<int, int>}
+     * @return array{cost: int, real: bool, short: int, refunded: int, lines: array<int, int>}
      */
     private function settledCost(Repair $repair): array
     {
@@ -384,24 +386,63 @@ class RepairService
         $saleItemBySequence = SaleItem::where('sale_id', $repair->sale_id)
             ->pluck('id', 'sequence');
 
+        /*
+         * ⚠️ WHAT CAME BACK COMES OFF, OR THE JOB CLAIMS A PROFIT THE SHOP
+         * NEVER MADE.
+         *
+         * A customer who brings the television back and takes his money is an
+         * ordinary afternoon, and the board goes onto the shelf with its cost
+         * reversed. Reading only the sale's movements would leave the job
+         * saying "charged 70,000, cost 30,000, made 40,000" about a board the
+         * shop is holding and money it has handed over. The per-person report
+         * already nets refunds off; a job screen that did not would put two
+         * different answers about one afternoon on two screens of one system.
+         *
+         * `quantity_returned` on the sale item is what ties the money back to
+         * the line, and the return's own movements carry the cost back.
+         */
+        $returns = SaleReturn::where('sale_id', $repair->sale_id)->pluck('id');
+
+        $costBack = $returns->isEmpty() ? collect() : StockMovement::where('reference_type', StockMovement::REF_SALE_RETURN)
+            ->whereIn('reference_id', $returns)
+            ->groupBy('reference_item_id')
+            ->selectRaw('reference_item_id, SUM('.StockMovement::VALUE.') as cost')
+            ->pluck('cost', 'reference_item_id');
+
+        /*
+         * The return's items point at the sale item they undo, so the cost that
+         * came back is put against the same line the cost went out on.
+         */
+        $backBySaleItem = [];
+
+        if ($returns->isNotEmpty()) {
+            foreach (SaleReturnItem::whereIn('sale_return_id', $returns)->get() as $returnItem) {
+                $saleItemId = $returnItem->sale_item_id;
+                $backBySaleItem[$saleItemId] = ($backBySaleItem[$saleItemId] ?? 0)
+                    + (int) ($costBack[$returnItem->id] ?? 0);
+            }
+        }
+
+        $refunded = (int) SaleReturn::where('sale_id', $repair->sale_id)->sum('total_amount');
+
         $lines = [];
         $total = 0;
 
         foreach ($repair->items->values() as $index => $item) {
             $saleItemId = $saleItemBySequence[$index + 1] ?? null;
-            $cost = (int) ($bySaleItem[$saleItemId] ?? 0);
+            $cost = (int) ($bySaleItem[$saleItemId] ?? 0) - (int) ($backBySaleItem[$saleItemId] ?? 0);
 
             $lines[$item->id] = $cost;
             $total += $cost;
         }
 
-        return ['cost' => $total, 'real' => true, 'short' => 0, 'lines' => $lines];
+        return ['cost' => $total, 'real' => true, 'short' => 0, 'refunded' => $refunded, 'lines' => $lines];
     }
 
     /**
      * What the job would cost if it were collected now.
      *
-     * @return array{cost: int, real: bool, short: int, lines: array<int, int>}
+     * @return array{cost: int, real: bool, short: int, refunded: int, lines: array<int, int>}
      */
     private function forecastCost(Repair $repair): array
     {
@@ -470,7 +511,7 @@ class RepairService
             $total += $cost;
         }
 
-        return ['cost' => $total, 'real' => false, 'short' => $short, 'lines' => $lines];
+        return ['cost' => $total, 'real' => false, 'short' => $short, 'refunded' => 0, 'lines' => $lines];
     }
 
     /** ⚠️ A collected job owns a sale, and the two must not describe different work. */

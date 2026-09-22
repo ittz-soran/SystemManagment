@@ -14,6 +14,7 @@ use App\Services\PurchaseService;
 use App\Services\RepairService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -585,6 +586,39 @@ class RepairTest extends TestCase
         // ⚠️ And the owner, who holds every key without a row in
         // user_permissions and is very often the person mending the thing.
         $this->assertTrue($offered->contains($this->user()->id), 'the owner cannot give himself a job');
+    }
+
+    /**
+     * ⚠️ The list must render with a job of EVERY status on it.
+     *
+     * It did not. The badge colour was a `match` naming
+     * `Repair::STATUS_IN_PROGRESS`, a constant renamed to `STATUS_WORKING`
+     * when this module was rebuilt — and `match` evaluates its arms in order
+     * and stops at the first hit, so the missing constant only threw when a
+     * row actually reached that arm. Until the shop had repairs in it no row
+     * ever did, and the page that fell over was the first screen anybody opens.
+     *
+     * Driven off `Repair::STATUSES` rather than a typed-out list, so a status
+     * added later is covered the day it is added.
+     */
+    public function test_the_list_renders_with_a_job_in_every_status(): void
+    {
+        foreach (Repair::STATUSES as $status) {
+            $repair = $this->takeIn();
+            $repair->forceFill(['status' => $status])->save();
+        }
+
+        $this->actingAs($this->user())
+            ->get(route('repairs.index', ['status' => 'all']))
+            ->assertOk()
+            ->assertSee(__(Str::headline(Repair::STATUS_WORKING)));
+
+        // And one page per filter, which is how the shop actually reaches them.
+        foreach (Repair::STATUSES as $status) {
+            $this->actingAs($this->user())
+                ->get(route('repairs.index', ['status' => $status]))
+                ->assertOk();
+        }
     }
 
     /** Overdue is promised, not done, and in the past — a collected job is never late. */

@@ -104,9 +104,21 @@
 
                             <td data-label="{{ __('Status') }}">
                                 @php
+                                    /* ⚠️ The same six the job screen uses, and it
+                                       has to stay that way: this said
+                                       STATUS_IN_PROGRESS, a constant renamed to
+                                       STATUS_WORKING when the module was rebuilt
+                                       around how the shop really works. `match`
+                                       evaluates its arms in order and stops at the
+                                       first hit, so the missing constant only threw
+                                       once a row reached it — and until repairs had
+                                       any jobs in them, no row ever did. The list
+                                       fell over the first time it had something to
+                                       list. */
                                     $tone = match ($repair->status) {
                                         App\Models\Repair::STATUS_READY => 'success',
-                                        App\Models\Repair::STATUS_IN_PROGRESS => 'warning',
+                                        App\Models\Repair::STATUS_WORKING => 'warning',
+                                        App\Models\Repair::STATUS_QUOTED => 'info',
                                         App\Models\Repair::STATUS_COLLECTED => 'secondary',
                                         App\Models\Repair::STATUS_RETURNED => 'danger',
                                         default => 'light',
