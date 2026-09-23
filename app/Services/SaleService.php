@@ -328,11 +328,30 @@ class SaleService
 
         $items = [];
 
+        /*
+         * ⚠️ The warranties, read once for the whole sale rather than per line.
+         *
+         * A till ringing up twenty items would otherwise ask the database
+         * twenty extra times for a number that does not change while the sale
+         * is being made.
+         */
+        $warranties = Product::whereIn('id', array_column($lines, 'product_id'))
+            ->pluck('warranty_days', 'id');
+
         foreach (array_values($lines) as $index => $line) {
             $items[] = SaleItem::create([
                 'sale_id' => $sale->id,
                 'product_id' => $line['product_id'],
                 'quantity' => $line['quantity'],
+
+                /*
+                 * ⚠️ COPIED, not read through the product later — Soran,
+                 * 2026-09-23. The same rule a repair line follows, for the same
+                 * reason: a warranty is a promise made on a particular day, and
+                 * somebody editing the product next month must not change what
+                 * the invoice in the customer's hand says.
+                 */
+                'warranty_days' => $warranties[$line['product_id']] ?? null,
 
                 // ⚠️ Base-currency integers, always. The two columns below are
                 // a record of what somebody TYPED; this is what the books use.

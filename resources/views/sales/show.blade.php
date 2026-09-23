@@ -73,6 +73,24 @@
                                         {{ $item->product->name }}
                                     </a>
                                     <div class="small text-secondary app-code">{{ $item->product->sku }}</div>
+
+                                    {{-- ⚠️ Soran, 2026-09-23: "i sell this 1 month ago
+                                         PD-17-UK now not working customer back it to
+                                         change on warenty". This is the line that
+                                         answers him, and it answers from the SALE
+                                         line rather than the product, because the
+                                         product may have been edited since. --}}
+                                    @if($item->warranty_days !== null)
+                                        @php($ends = $item->warrantyEndsOn())
+                                        <div class="small {{ $item->underWarranty() ? 'text-success' : 'text-secondary' }}">
+                                            <i class="bi bi-shield-check me-1"></i>
+                                            @if($item->underWarranty())
+                                                <span dir="ltr">{{ __('Under warranty until :date', ['date' => $ends->format(setting('date_format', 'Y-m-d'))]) }}</span>
+                                            @else
+                                                <span dir="ltr">{{ __('Warranty ran out :date', ['date' => $ends->format(setting('date_format', 'Y-m-d'))]) }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
                                 <td class="money {{ $item->quantity_returned > 0 ? 'text-warning' : 'text-secondary' }}">
