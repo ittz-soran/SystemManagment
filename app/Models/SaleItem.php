@@ -17,6 +17,7 @@ class SaleItem extends Model
             'quantity' => 'integer',
             'unit_price' => 'integer',
             'quantity_returned' => 'integer',
+            'quantity_swapped' => 'integer',
             'sequence' => 'integer',
         ];
     }
@@ -46,9 +47,18 @@ class SaleItem extends Model
         return $this->quantity * $this->unit_price;
     }
 
+    /**
+     * How many of this line can still come back.
+     *
+     * ⚠️ Swapped units are gone from here too — Soran, 2026-09-23. A unit
+     * already handed back over the counter and replaced must not ALSO be
+     * returnable, or a second unit that never existed would go onto the shelf.
+     * The invoice line itself is untouched; this counter is a fact about
+     * handling, not about what was sold.
+     */
     public function returnableQuantity(): int
     {
-        return $this->quantity - $this->quantity_returned;
+        return $this->quantity - $this->quantity_returned - $this->quantity_swapped;
     }
 
     /**

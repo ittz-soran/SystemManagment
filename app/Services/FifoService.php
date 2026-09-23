@@ -230,6 +230,14 @@ class FifoService
         int $saleReturnItemId,
         Carbon $occurredAt,
         User $user,
+        /*
+         * ⚠️ What is putting these units back. A sale return by default,
+         * because that is what has always called this — but a SWAP puts the
+         * faulty unit back into its own batch the same way, and the movements
+         * must say which document did it. Defaulted rather than required so
+         * every existing caller means exactly what it has always meant.
+         */
+        string $referenceType = StockMovement::REF_SALE_RETURN,
     ): Collection {
         $this->assertInTransaction();
 
@@ -253,7 +261,7 @@ class FifoService
 
         $remaining = $quantity;
         $created = collect();
-        $sequence = $this->nextSequence(StockMovement::REF_SALE_RETURN, $saleReturnId);
+        $sequence = $this->nextSequence($referenceType, $saleReturnId);
 
         foreach ($movements as $movement) {
             if ($remaining === 0) {
@@ -279,7 +287,7 @@ class FifoService
             $created->push(StockMovement::create([
                 'product_id' => $product->id,
                 'stock_batch_id' => $movement->stock_batch_id,
-                'reference_type' => StockMovement::REF_SALE_RETURN,
+                'reference_type' => $referenceType,
                 'reference_id' => $saleReturnId,
                 'reference_item_id' => $saleReturnItemId,
                 // The link that makes this exact.

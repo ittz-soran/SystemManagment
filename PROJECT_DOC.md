@@ -1437,6 +1437,38 @@ What it deliberately does not do:
 
 **⚠️ AND THE INVOICE HAD TO BE FINDABLE.** *"shoud i found same inv??"* — yes, and the sales list searched **document numbers only**, as did the global search. A customer arriving with a power bank and no paper could not be served. The sales search now also matches the **product name, the SKU, and the customer's name or phone**, so the question a shop actually asks — *who bought one of these* — has an answer.
 
+### Swapping a faulty item — Soran, 2026-09-23
+
+*"1- if I have same product I change for him and back this faulty PD-17-UK to supplier and refund, not change inv lines, 2- if not have same product on stock should I refund money or I change to other product but if I change to other deference product should same price if not should make refund or pay more from customer"*.
+
+**One page, three outcomes, and the system reads the stock to say which are open.** *"just select product and do swap and system read stock and let user as option swap same if available or change to other or refund"*.
+
+| the customer walks out with | the invoice | what it is made of |
+|---|---|---|
+| **the same product** | ⚠️ untouched | a **swap** — new |
+| **a different product** | the faulty line is returned | sale return + a new sale, difference settled |
+| **their money** | the faulty line is returned | sale return, which already exists |
+
+Two of the three were already built. Only the first needed anything new, and only because of one fact:
+
+**⚠️ THE FAULTY UNIT IS ALREADY OUT OF STOCK.** It left when it was sold. It comes back over the counter physically, but the shop's count never saw it again — so a swap moves stock **once**, not twice, and the shop is out only the difference between what the replacement cost and what the faulty one did. On a 44,000 replacement for a 40,000 original that is 4,000, and the screen says so rather than hiding it.
+
+**Why it cannot be built from the documents that exist.** Every one was tried:
+
+- a **purchase return** alone refuses — it deducts from the batch the unit came from, and that unit is not in it;
+- a **stock adjustment** moves the replacement but books its cost as the shop's own loss, with nowhere to record the supplier's credit against it;
+- a **sale return** works and **changes the invoice**, which is the one thing that must not happen here.
+
+**So `swaps` is a document of its own, `SWP-00001`.** What it does, in one transaction:
+
+1. puts the faulty unit back into **its own batch**, the way a sale return does;
+2. raises a **purchase return** for it against the purchase it came from, so the supplier carries the cost — the same document the faulty sale return already uses;
+3. consumes a **replacement** from stock, FIFO, and hands it to the customer.
+
+⚠️ **`sale_items.quantity_swapped` exists to stop the same unit being given back twice.** The invoice line is not changed — same quantity, same price, same printed paper — but a line whose unit has already been swapped must not also be returnable, or a second unit that never existed would be put back on the shelf. `returnableQuantity()` subtracts it. That counter is a fact about handling, not about what was sold.
+
+**What is deliberately not in it:** no store credit (the ledger refuses a negative customer balance, so a dearer replacement is refund-then-sell and the money moves twice), no quarantine shelf, and no supplier warranty limit.
+
 ### Aged debt — Soran, 2026-09-20
 
 **Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*
