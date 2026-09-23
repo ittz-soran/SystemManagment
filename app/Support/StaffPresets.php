@@ -7,7 +7,7 @@ namespace App\Support;
  *
  * The permissions page is sixty-odd checkboxes with no order of importance, and
  * the shop hires a person at the counter far more often than it invents a new
- * kind of job. So the three jobs it actually has are written down, and the
+ * kind of job. So the four jobs it actually has are written down, and the
  * admin starts from the nearest one and adjusts — rather than reading every
  * line and hoping they remembered the one that matters.
  *
@@ -47,6 +47,48 @@ final class StaffPresets
                      * question it answers — "have you got one out the back" —
                      * is asked at the counter more than anywhere else.
                      */
+                    'stock_rooms.view',
+                ],
+            ],
+
+            /*
+             * ⚠️ Soran, 2026-09-22: "every technician or repair person should
+             * have acc with repairing permissions and take jobs from
+             * customers".
+             *
+             * Both halves of that sentence are in here. `repairs.create` is the
+             * counter half — taking the device in — and `repairs.edit` the
+             * bench half, so one person does the whole job without an owner in
+             * the middle. `repairs.edit` is also the key that decides who may
+             * be GIVEN a job, so a person without it is invisible on the "who
+             * will do it" list however many other keys they hold.
+             *
+             * ⚠️ No `sales.*`, and the job still gets paid for: collecting is a
+             * sale, and it is taken at the counter by somebody who sells. A
+             * bench that could sell could also collect its own work, which is
+             * the one place in this module the money moves.
+             */
+            'bench' => [
+                'label' => __('Mends things'),
+                'note' => __('Takes repairs in and works on them. Does not sell, and does not take the money.'),
+                'keys' => [
+                    'auth.login', 'dashboard.view',
+                    'repairs.view', 'repairs.create', 'repairs.edit',
+
+                    // ⚠️ The person who buys the screen is the person mending
+                    // the phone. Its own key, so an owner can take it back.
+                    'repairs.buy_part',
+
+                    // The parts a job needs are products, and a job cannot be
+                    // quoted by somebody who cannot look one up.
+                    'products.view',
+
+                    // Whose device it is, and how to telephone them when the
+                    // drive turns out to be failing.
+                    'customers.view', 'customers.create',
+
+                    // "Have we got one out the back" is asked at the bench as
+                    // often as at the counter.
                     'stock_rooms.view',
                 ],
             ],

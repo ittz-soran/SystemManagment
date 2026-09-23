@@ -811,6 +811,7 @@ Every document has a human-readable number in one shared format: **`PREFIX-NNNNN
 | Purchase return | `PRT` | `PRT-00092` |
 | Expense | `EXP` | `EXP-00451` |
 | Stock adjustment | `ADJ` | `ADJ-00037` |
+| Repair job | `REP` | `REP-00012` |
 
 **Schema:** add `document_no` (unique, indexed) to each of those tables.
 
@@ -1298,6 +1299,115 @@ Rules:
 - [x] **Help on the screen you are on** — a `?` in the topbar opening the help for that route and no other, and nothing where there is nothing to say. Also no permission of its own.
 - [x] **First-week checklist** (dashboard, admin) — five steps in the order the system needs them, read from the shop's own data, dismissible, gone once finished.
 
+### Repair jobs — Soran, 2026-09-20
+
+**Asked for as "a useful section that is not in my system", and it is the biggest gap a phone shop has.** *Services* already exists and is often mistaken for this: it is a price line — *Screen replacement, 25,000* — added to a sale. It records the money and nothing about the job. Whose phone it is, what is wrong with it, what it looked like when it came in, which stage it is at, and what went into it are all on paper today.
+
+**What a job holds**
+
+| | |
+|---|---|
+| Who | a customer, or a walk-in the same way a sale takes one |
+| What | the device as words — *iPhone 12 Pro, blue*, *PlayStation 4*, *Dell Latitude 5490* — and an identifier, a serial or an IMEI, typed rather than tracked |
+| The fault | what the customer says is wrong, in their words |
+| **On arrival** | ⚠️ the condition it came in with. This is the field that stops an argument: a screen already cracked, a missing back cover, a phone that would not power on. Without it the shop carries every mark the customer notices later |
+| Promised | when they were told to come back |
+| Estimate | what it was quoted at, which is not what it ends up costing |
+| Who does it | ⚠️ the **repair person**, who is a **user with a login** and the `repairs.edit` permission. Named on the ticket, with their phone |
+| Status | received → **quoted** → **working** → ready → collected, plus **returned unrepaired**, which is a real outcome and not a failure to record |
+
+**⚠️ A REPAIR PERSON IS A USER — Soran, 2026-09-22, reversing his own earlier choice.**
+
+On 2026-09-21 this was *"some person are repairing with name and phone"*, and technicians were their own small table with no login. That is now wrong, and the reason given is the one that settles it: *"every technician or repair person should have acc, because monthly or weekly show data statistics and how many tacked jobs and profits"*. A name in a box cannot sign in, cannot take a job in itself, and cannot be reported on beside the staff who can. So the `technicians` table is gone and `repairs.technician_id` points at `users`.
+
+**Who may be given a job**: any active user holding `repairs.edit` — the permission that already means *work on a repair*. No new permission was invented for it, because the question "may this person work on repairs" was already asked and answered.
+
+Two consequences, both wanted:
+
+- **They take the job in themselves.** `repairs.create` is the counter half and `repairs.edit` the bench half; a person holding both does the whole thing without an owner in the middle.
+- **`users.phone`** is new, and nullable. The ticket has always printed the repair person's number so the customer can ask about their own device, and losing it to make this change would be paying for statistics with the thing the ticket was for.
+
+- **A fourth staff preset, *Mends things*.** Section 4's presets were the counter, the stock and the manager; the bench is now a job the shop has. It holds `repairs.view/create/edit`, `products.view`, `customers.view/create` and `stock_rooms.view` — ⚠️ and **no `sales.*`**, because collecting a repair *is* a sale and is the one moment in the module when stock and money move. Taking the money stays at the counter.
+
+**⚠️ WHAT A REPAIR PERSON SEES OF COST IS THE SETTING THEY ALREADY HAVE — Soran, 2026-09-22: *"see both sale price and cost of same batch by permission like other system users are can see real cost or increase price by percentage"*.**
+
+`users.cost_visibility` is `real`, `markup` or `hidden`, with `cost_markup_percent` beside it, and `cost_seen()` is the one door every cost figure in this system comes through. Repairs use it unchanged: no second rule, no `repairs.cost.view` key, nothing to keep in step. A person set to `markup 20` sees every repair cost 20% above the real one, exactly as they do on the products page, and the profit shown beside it is worked out from **that** number rather than the true one — otherwise the real cost is one subtraction away from a masked one, which is the whole reason `cost_seen()` exists.
+
+**The cost shown is the cost of the batches FIFO would actually take**, not the product's list cost:
+
+- **Before collection** it is a forecast, read off the FIFO queue as it stands today, and labelled as one. A part not yet in stock is valued at what the product last cost, and the screen says so rather than quietly guessing.
+- **After collection** it is the real thing, read from the `stock_movements` the sale wrote — the same rows the P&L adds up. So a job's profit and the shop's profit can never disagree.
+
+**Per-person statistics** are a report, `reports/technicians`, over the period already chosen at the top of every report: jobs taken in, still on the bench, collected, what was charged, what it cost, and the profit. The money columns come from the collected jobs' sales, so they reconcile with Profit & Loss by construction, and every cost figure passes through `cost_seen()` like any other.
+
+**⚠️ ANY DEVICE, NOT ONLY PHONES — Soran, 2026-09-22: *"I want work with all repairing cases, such as mobile, console, laptop, electronics devices"*.**
+
+Nothing in the module is specific to a phone and nothing needs to be added for the rest. `device` and `identifier` are free text, the fault is the customer's own words, and the parts are ordinary products off the same shelf — so a PlayStation with no parts at all, a laptop with a keyboard and an SSD, and a television with a power board all run the flow already described, unchanged, and reach the P&L at their real FIFO cost by the same sale.
+
+What **was** wrong was the wording. Three labels had been written for a phone shop and would have read as nonsense on a television ticket, so they are now device-neutral: *The device* rather than *The phone*, *Customer phone* rather than *Phone* for the number to ring, and *Serial or IMEI* rather than *IMEI or serial* — a serial is what every device has, an IMEI only a mobile.
+
+**No device-type field**, deliberately. A drop-down of *mobile / console / laptop / other* would buy a filter and a report breakdown, and cost a required choice at the counter on every job plus a list that is wrong the first time somebody brings in a drone. The words the shop already types are searchable, and that is the same bargain `device` was chosen on in the first place. Worth revisiting only if a breakdown by type is actually asked for.
+
+**The shop quotes; the customer accepts; then the work starts.** *Soran, 2026-09-21: "this part shop decided which needed → after customer accept about parts and cost of repairing → system save job as on Working and print an Ticket"*. So `quoted` is a real state, and **acceptance is the event that prints the ticket** — the customer walks out holding the list of parts, the price and the warranty they agreed to.
+
+⚠️ **PRICES MAY CHANGE AFTER THAT, AND THE TICKET IN THEIR HAND MAY NOT.** *"prices may changeable while customer and person are do this repair both accepted on job"*. So the total agreed is **frozen at acceptance** as `accepted_total`, and the job's live total is allowed to move away from it. Neither figure overwrites the other: the job screen shows both, and the difference, because the paper the customer is holding says the first one and the argument at the counter is about the second. A system that silently replaced it would be right about the money and useless about the conversation.
+
+**Warranty is set up once and offered per line.** Each product carries `warranty_days` — a screen 5, a battery 30 — and ⚠️ **the number is COPIED onto the repair line at acceptance**, for the same reason the price is: what was promised on that ticket must not change because somebody edited the product afterwards.
+
+⚠️ **Warranty runs from COLLECTION, not from when the work finished.** The phone is in the shop until the customer takes it, and a warranty that expired while the shop still had the device would be worth nothing.
+
+**⚠️ THE MONEY AND THE STOCK HAPPEN ONCE, AT COLLECTION, THROUGH AN ORDINARY SALE.**
+
+The parts a job needs are held on the job as lines. They are not taken out of stock when they are fitted. Collecting the job creates a normal `Sale` carrying those parts plus the labour, and **that** consumes FIFO, posts to the ledger, takes payment, prints an invoice, appears in the P&L at its true cost, and can be returned — all through machinery that already exists and is already tested.
+
+The alternative — moving stock when a part is fitted, then billing separately — would be **a second implementation of FIFO**, and Section 5 is the part of this system least able to afford one. It has been the source of the worst bugs here.
+
+The cost of that choice, stated rather than hidden: **a screen fitted into a customer's phone still counts as on the shelf until the job is collected.** For jobs turned round in days that is invisible. For a job waiting weeks on a part it is a number that is briefly wrong in the shop's favour, and the repairs list — which shows exactly which parts are committed — is where the truth is.
+
+**⚠️ A PART THE SHOP HAS NOT GOT, BOUGHT FOR THE JOB — Soran, 2026-09-23: *"some times repair person change screen for customer but new screen is not in stock or rooms, just when start the job buy new screen somewhere… while creating an job can add items without in stock such as cost, price, warranty"*.**
+
+What happened before this was worse than not being able to add the part. The line went on, the customer accepted, the ticket printed — and **collection was refused**, `Not enough stock: 0 available`, with the mended phone on the counter and the customer's hand out. The job sat at `working` for ever.
+
+**It is recorded as a purchase, because that is what it is.** The shop really did buy a screen. `SecondHandService` set the precedent and the reasoning is the same: *it invents no costing, writes no batch and touches no ledger of its own* — it hands the thing to `PurchaseService`, which opens the batch, posts what is owed and records what was paid. So does this. ⚠️ A cost carried on the repair line alone would be Section 5's second costing path, and the repair would show a profit the books never saw.
+
+**Done from the repair screen, not the purchase screen** — *"do purchase directly on repair page… without going to purchase page"*. One panel: the part's name, which supplier it came from, how many, what it cost, what the customer is charged, and the warranty. One button, and the part is on the shelf and on the job.
+
+- **The supplier is picked from the ones already in the shop's list.** Not invented per purchase, because a supplier nobody set up is a supplier nobody can be paid or reconciled with.
+- **⚠️ Cash and paid in full**, always. The repair person paid at the counter of the shop down the street; a debt to record would be a lie, and a choice at the counter nobody wants to make with a customer waiting.
+- **The part becomes a normal product.** Next time that screen comes in it is already there with its price and its warranty, so the catalogue builds itself out of real work. The picker offers what exists before it will create anything, which is what keeps *iPhone 12 screen* from becoming four products.
+- **Price and warranty typed here are the product's**, and the warranty is copied onto the line at acceptance exactly as any other part's is.
+
+**⚠️ ITS OWN PERMISSION, `repairs.buy_part`, AND NOT FOR A MASKED READER.**
+
+Spending the shop's money is not the same power as working on a repair, so it is not `repairs.edit`. It is in the bench preset, because the person who buys the screen is the person mending the phone — and an owner who does not want the Thursday man creating purchases can take it away.
+
+It joins the keys Section 4 refuses to anybody shown a masked cost, for a reason that only appears here: they **type** 20,000 and the job screen then shows them 24,000 through `cost_seen()`. From those two numbers the markup is arithmetic, and once the markup is known every masked cost in the system divides back to the real one. The one screen where a reader supplies a true cost is the one screen that cannot also show them the mask.
+
+**⚠️ THE DEVICE HAS BEEN HERE BEFORE — Soran, 2026-09-23: *"add warranty warning when device come back"*.**
+
+The warranty was already *printed* — on the ticket and on the job — and that was the whole of it. Nothing said a word when the device came back through the door. The shop had to remember, or search the IMEI with the status filter set to *Collected* and read the dates itself. A shop that forgets charges a customer twice for the same screen, which is the argument this module exists to prevent.
+
+**The identifier is the key**, because it is the one thing about a device that does not change: an IMEI, a serial, the number already typed on every ticket. Matched trimmed and without case, against **collected** jobs only — a job still on the bench is the same visit, not a previous one.
+
+Two places, and deliberately both:
+
+- **On the take-in form, as the identifier is typed.** This is where the decision is made — before a price is quoted, while the customer is still at the counter. It asks the server as the field is filled in.
+- **On the job screen.** ⚠️ The one that survives: a browser with the script blocked, a job taken in before the part was known, a second person opening the ticket later. A warning that exists only in JavaScript is a warning the shop cannot rely on.
+
+**What it says is what the shop needs to decide:** which earlier ticket, what was fitted, and the day each line's cover runs out. A device whose cover has all expired still says so — *"here before, nothing still covered"* — because *"his screen ran out on the 20th"* ends an argument just as well as *"it is covered until the 26th"* does.
+
+**No new warranty state, and nothing is charged differently.** The system says what it knows and the shop decides; a job done under warranty is a line at nothing, which is already how it was recorded and already lands the part's real cost in the P&L. Making the system decide would mean guessing whether the same fault came back or the customer dropped it again, which no system can know and the person at the counter can.
+
+**Deposits are not in this first version.** A customer leaving 20,000 to order a part is ordinary, and there is nowhere honest to put that money before a sale exists: `payments` is polymorphic over sale, purchase and the two returns, and adding a fifth payable is a ledger change rather than a screen. Left out deliberately, and worth doing next rather than never.
+
+**A ticket prints**, on the same letterhead as every other document, because the customer walks away with half of this record.
+
+**⚠️ FIFO was questioned and kept — Soran, 2026-09-21: *"why fifo make wrong in system, i want every item saled user real cost"*.** It is not wrong, and it is not an average: Section 5 is explicit, and measured on his own data three screens bought at 20,000 are charged 20,000, 20,000, 20,000 and the fourth 24,000 — each the real price actually paid for that unit. The only case it cannot answer is *"which physical screen did I fit"*, when a newer one is taken while older ones are still on the shelf; that is **specific identification** and needs per-unit serials, which is a separate and much larger change. Nothing in Section 5 was touched.
+
+**Numbering** follows Section 7b: `REP-00001`, its own counter.
+
+**Locks** follow Section 8: a job is freely editable until it is collected, and a collected job owns a sale, so it locks for the same reason a sale does.
+
 ### Aged debt — Soran, 2026-09-20
 
 **Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*
@@ -1458,6 +1568,18 @@ Type-to-confirm (typing the document number) only for deleting a document that m
 - Icons with direction — arrows, chevrons, back buttons — must **mirror**. Clocks, logos, and product images must not.
 - **Numbers and currency stay left-to-right** even inside RTL text.
 - Test every screen in Sorani before calling it finished; RTL bugs are invisible in English.
+
+### ⚠️ Blade traps that fail in silence
+
+Three now, all in the same family, all found the hard way. None throws where the mistake is; two throw nowhere at all.
+
+1. **`@php(...)` with a nested expression.** The shorthand cannot cope with the parentheses of an arrow function or a nested call: it compiles to an unterminated `<?php`, swallows the rest of the file, and reports the error at the **last line** — where it reads as an unclosed `@if`. Use `@php … @endphp`.
+2. **`@json(...)` with a nested `[`** inside an arrow function breaks the same way. Compute into a variable in a `@php` block first.
+3. **A Blade COMMENT that names `@php`.** Blade pairs the `@php` inside the comment with the real `@endphp` below it and stores the span as a raw block — which eats the comment's own `--}}`. The comment then runs on to the *next* `--}}` in the file, deleting every line between. ⚠️ **The page renders empty and throws nothing.** Escape it as `@@php` when writing about it.
+
+⚠️ **`php artisan view:cache` does not catch any of them.** It compiles without running, so a view that will fall over — or silently render nothing — caches "successfully".
+
+⚠️ **Nor does inspecting `Blade::compileString()`.** Blade restores a stored raw block into the compiled output, so every string is still present, merely in the wrong place. Only **rendering the page in a test** tells the difference: `$page->assertOk()` answers 500, or the `assertSee` finds nothing. Every screen in this system should be opened by at least one test for exactly this reason — the one that is not is the one that breaks.
 
 ### Print views
 

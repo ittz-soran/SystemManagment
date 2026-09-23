@@ -47,6 +47,30 @@ class StaffSetupTest extends TestCase
         }
     }
 
+    /**
+     * ⚠️ The bench takes jobs in and works on them, and does not touch money.
+     *
+     * Soran, 2026-09-22: *"every repair person should have acc with repairing
+     * permissions and take jobs from customers"*. `repairs.edit` is also what
+     * decides who may be given a job, so a preset without it would produce
+     * accounts that cannot appear on their own "who will do it" list.
+     *
+     * No `sales.*`: collecting a repair IS a sale, and it is the one moment in
+     * the module when stock and money move.
+     */
+    public function test_the_bench_preset_can_take_a_job_in_and_work_on_it_but_not_sell(): void
+    {
+        $bench = StaffPresets::resolved(Permission::pluck('key')->all())['bench']['keys'];
+
+        foreach (['repairs.view', 'repairs.create', 'repairs.edit', 'products.view', 'customers.create'] as $needed) {
+            $this->assertContains($needed, $bench);
+        }
+
+        foreach (['sales.create', 'purchases.view', 'reports.view', 'settings.manage'] as $withheld) {
+            $this->assertNotContains($withheld, $bench);
+        }
+    }
+
     /** The counter sells and looks things up, and buys nothing. */
     public function test_the_counter_preset_keeps_the_purchase_side_out(): void
     {

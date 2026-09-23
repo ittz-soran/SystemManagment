@@ -40,6 +40,21 @@ class PermissionSeeder extends Seeder
             'suppliers.edit' => 'Edit suppliers',
             'suppliers.delete' => 'Delete suppliers',
         ],
+        'repairs' => [
+            'repairs.view' => 'View repair jobs',
+            'repairs.create' => 'Take in a repair',
+            'repairs.edit' => 'Work on a repair',
+            'repairs.delete' => 'Delete a repair',
+
+            /*
+             * ⚠️ Spending the shop's money is not the same power as working on
+             * a repair — Soran, 2026-09-23. A screen bought from the shop down
+             * the street is a real purchase, made from the repair screen, and
+             * an owner who does not want every bench hand creating purchases
+             * takes this one key away and leaves the rest.
+             */
+            'repairs.buy_part' => 'Buy a part for a job',
+        ],
         'customers' => [
             'customers.view' => 'View customers',
             'customers.create' => 'Create customers',

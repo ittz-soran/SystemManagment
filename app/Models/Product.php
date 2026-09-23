@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 #[Fillable([
     'name', 'kind', 'sku', 'barcode', 'category_id', 'unit', 'condition_note',
     'acquired_from_id', 'purchase_price', 'sale_price', 'quantity',
-    'reorder_level', 'is_active',
+    'reorder_level', 'is_active', 'warranty_days',
 ])]
 class Product extends Model
 {
@@ -41,6 +41,7 @@ class Product extends Model
             'sale_price' => 'integer',
             'quantity' => 'integer',
             'reorder_level' => 'integer',
+            'warranty_days' => 'integer',
             'is_active' => 'boolean',
         ];
     }

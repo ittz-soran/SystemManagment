@@ -33,6 +33,7 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockRoomController;
+use App\Http\Controllers\RepairController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
@@ -422,6 +423,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('customers', [ReportController::class, 'customers'])->name('customers');
         Route::get('suppliers', [ReportController::class, 'suppliers'])->name('suppliers');
+
+        // Who mended what, and what the shop made on it — Soran, 2026-09-22.
+        Route::get('technicians', [ReportController::class, 'technicians'])
+            ->middleware('permission:repairs.view')->name('technicians');
         Route::get('receivable', [ReportController::class, 'receivable'])->name('receivable');
         Route::get('payable', [ReportController::class, 'payable'])->name('payable');
     });
@@ -453,6 +458,57 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_rooms.manage')->name('stock-rooms.update');
     Route::delete('stock-rooms/{stockRoom}', [StockRoomController::class, 'destroy'])
         ->middleware('permission:stock_rooms.manage')->name('stock-rooms.destroy');
+
+    /*
+     * The workshop book — Soran, 2026-09-20. Nothing here moves stock or money
+     * except `collect`, which does it by making an ordinary sale.
+     */
+    Route::get('repairs', [RepairController::class, 'index'])
+        ->middleware('permission:repairs.view')->name('repairs.index');
+    Route::get('repairs/create', [RepairController::class, 'create'])
+        ->middleware('permission:repairs.create')->name('repairs.create');
+    /*
+     * Has this device been here before, and is it still under warranty —
+     * Soran, 2026-09-23. Read-only, and it answers only what the repairs list
+     * would answer to the same reader searching the same number by hand.
+     *
+     * ⚠️ ABOVE `repairs/{repair}`, like `repairs/create` above it. Routes match
+     * in the order they are declared, so a literal path declared after the
+     * wildcard is never reached — "history" would be read as a repair id and
+     * answer 404.
+     */
+    Route::get('repairs/history', [RepairController::class, 'history'])
+        ->middleware('permission:repairs.view')->name('repairs.history');
+
+    Route::post('repairs', [RepairController::class, 'store'])
+        ->middleware('permission:repairs.create')->name('repairs.store');
+    Route::get('repairs/{repair}', [RepairController::class, 'show'])
+        ->middleware('permission:repairs.view')->name('repairs.show');
+    Route::get('repairs/{repair}/edit', [RepairController::class, 'edit'])
+        ->middleware('permission:repairs.edit')->name('repairs.edit');
+    Route::put('repairs/{repair}', [RepairController::class, 'update'])
+        ->middleware('permission:repairs.edit')->name('repairs.update');
+    Route::post('repairs/{repair}/accept', [RepairController::class, 'accept'])
+        ->middleware('permission:repairs.edit')->name('repairs.accept');
+    Route::patch('repairs/{repair}/status', [RepairController::class, 'status'])
+        ->middleware('permission:repairs.edit')->name('repairs.status');
+    Route::patch('repairs/{repair}/hand-back', [RepairController::class, 'handBack'])
+        ->middleware('permission:repairs.edit')->name('repairs.hand-back');
+    /* ⚠️ Collecting creates a sale, so it takes the sale permission too. */
+    Route::post('repairs/{repair}/collect', [RepairController::class, 'collect'])
+        ->middleware('permission:repairs.edit', 'permission:sales.create')->name('repairs.collect');
+    Route::delete('repairs/{repair}', [RepairController::class, 'destroy'])
+        ->middleware('permission:repairs.delete')->name('repairs.destroy');
+    Route::get('repairs/{repair}/ticket', [RepairController::class, 'ticket'])
+        ->middleware('permission:repairs.view')->name('repairs.ticket');
+
+    /*
+     * A part the shop has not got, bought for the job without leaving this
+     * screen — Soran, 2026-09-23. ⚠️ Its own permission: spending the shop's
+     * money is not the same power as working on a repair.
+     */
+    Route::post('repairs/parts', [RepairController::class, 'buyPart'])
+        ->middleware('permission:repairs.buy_part')->name('repairs.buy-part');
 
     Route::get('stock-transfers', [StockTransferController::class, 'index'])
         ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');

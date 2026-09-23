@@ -17,6 +17,18 @@
                     @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
+                {{-- Printed on a repair ticket so a customer can ask the
+                     person who mended their device about it, which is the only
+                     reason the shop needs it. Nobody else's business, so
+                     optional. --}}
+                <div class="mb-3">
+                    <label for="phone" class="form-label">{{ __('Phone') }}</label>
+                    <input id="phone" name="phone" value="{{ old('phone', $user->phone) }}" dir="ltr"
+                           maxlength="40" class="form-control @error('phone') is-invalid @enderror">
+                    <div class="form-text">{{ __('Shown on repair tickets they are named on.') }}</div>
+                    @error('phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
                 <div class="mb-3">
                     <label for="password" class="form-label">{{ __('Password') }}</label>
                     <input id="password" type="password" name="password" autocomplete="new-password"

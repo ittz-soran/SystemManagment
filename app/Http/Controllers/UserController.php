@@ -152,6 +152,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user)->withoutTrashed()],
+            'phone' => ['nullable', 'string', 'max:40'],
             'password' => [$user ? 'nullable' : 'required', 'confirmed', Password::defaults()],
             'role' => ['required', Rule::in([User::ROLE_ADMIN, User::ROLE_USER])],
             // Absent means the real cost, which is what everybody had before
@@ -211,6 +212,17 @@ class UserController extends Controller
 
             // Opens filled in with the cost that is already stored.
             'stock_adjustments.edit',
+
+            /*
+             * ⚠️ The one key that leaks the mask rather than merely showing it.
+             *
+             * Buying a part for a repair is the single screen where a reader
+             * TYPES a true cost — and the job screen then shows that same cost
+             * back through `cost_seen()`. A person who paid 20,000 and is then
+             * shown 24,000 has the markup, and with the markup every masked
+             * cost in the system divides back to the real one.
+             */
+            'repairs.buy_part',
 
             // The shop's own accounts, and not masked.
             'reports.view',

@@ -79,6 +79,17 @@
                 </a>
             @endforeach
 
+            {{-- ⚠️ Its own permission. Somebody who may read the shop's reports
+                 is not automatically somebody who may see what each member of
+                 staff earned the shop, and `repairs.view` is the key that
+                 already means "the workshop is your business". --}}
+            @can('repairs.view')
+                <a href="{{ route('reports.technicians', $period) }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-tools me-1"></i>{{ __('Repair people') }}
+                </a>
+            @endcan
+
             {{-- A month of sales with every line on it is a lot of paper, and
                  sometimes the totals are the whole question. --}}
             <div class="form-check form-check-inline ms-auto small">
