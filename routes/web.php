@@ -467,6 +467,19 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:repairs.view')->name('repairs.index');
     Route::get('repairs/create', [RepairController::class, 'create'])
         ->middleware('permission:repairs.create')->name('repairs.create');
+    /*
+     * Has this device been here before, and is it still under warranty —
+     * Soran, 2026-09-23. Read-only, and it answers only what the repairs list
+     * would answer to the same reader searching the same number by hand.
+     *
+     * ⚠️ ABOVE `repairs/{repair}`, like `repairs/create` above it. Routes match
+     * in the order they are declared, so a literal path declared after the
+     * wildcard is never reached — "history" would be read as a repair id and
+     * answer 404.
+     */
+    Route::get('repairs/history', [RepairController::class, 'history'])
+        ->middleware('permission:repairs.view')->name('repairs.history');
+
     Route::post('repairs', [RepairController::class, 'store'])
         ->middleware('permission:repairs.create')->name('repairs.store');
     Route::get('repairs/{repair}', [RepairController::class, 'show'])

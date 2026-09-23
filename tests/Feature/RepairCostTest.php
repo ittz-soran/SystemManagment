@@ -221,9 +221,18 @@ class RepairCostTest extends TestCase
 
         $cost = app(RepairService::class)->costOf($repair->fresh());
 
+        /*
+         * ⚠️ `StockMovement::VALUE`, never `quantity * unit_cost` written out.
+         *
+         * `quantity` is signed and negative on the way out; `unit_cost` is an
+         * unsigned BIGINT. MariaDB promotes the pair to unsigned and the
+         * multiplication underflows — `BIGINT UNSIGNED value is out of range`.
+         * SQLite does not care, so this passed here and failed in CI, which is
+         * the exact failure the constant's own comment warns about.
+         */
         $fromTheBooks = (int) -StockMovement::where('reference_type', StockMovement::REF_SALE)
             ->where('reference_id', $sale->id)
-            ->selectRaw('SUM(quantity * unit_cost) as c')
+            ->selectRaw('SUM('.StockMovement::VALUE.') as c')
             ->value('c');
 
         $this->assertTrue($cost['real'], 'a collected job is still being forecast');

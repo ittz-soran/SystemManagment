@@ -146,8 +146,10 @@ class RepairBuyPartTest extends TestCase
         $cost = app(RepairService::class)->costOf($repair->fresh());
 
         $this->assertSame(38_000, $cost['cost']);
+        // ⚠️ `StockMovement::VALUE`: an outgoing quantity is negative and
+        // `unit_cost` is unsigned, so MariaDB underflows the bare product.
         $this->assertSame(38_000, (int) -StockMovement::where('reference_type', StockMovement::REF_SALE)
-            ->where('reference_id', $sale->id)->sum(DB::raw('quantity * unit_cost')));
+            ->where('reference_id', $sale->id)->sum(DB::raw(StockMovement::VALUE)));
 
         // Net effect on the shelf: bought one, fitted one, holding none.
         $this->assertSame(0, $part->fresh()->quantity);

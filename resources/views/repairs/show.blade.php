@@ -41,6 +41,83 @@
         </div>
     @endif
 
+    {{-- ⚠️ This device has been here before — Soran, 2026-09-23.
+         The warranty was printed on the ticket and on the job and nothing ever
+         said a word when the device came back through the door. A shop that
+         forgets charges a customer twice for the same screen.
+
+         Rendered on the server, so it is still here when the script is blocked
+         and when somebody else opens this ticket an hour later. The take-in
+         form asks the same question as the identifier is typed, which is
+         timelier but not something the shop can rely on. --}}
+    @if($history->isNotEmpty())
+        {{-- ⚠️ Block form, NOT the @@php(...) shorthand: it cannot cope with
+             the nested parentheses of an arrow function and compiles to an
+             unterminated `<?php` that swallows the rest of the file.
+
+             ⚠️ And note the @@ above. A Blade COMMENT naming that directive is
+             itself a trap: Blade pairs the @@php inside the comment with the
+             real @@endphp below, replaces the span with a placeholder — which
+             eats this comment's own closing marker — and the comment then runs
+             on to the next one, taking the whole warning block with it. The
+             page renders empty and says nothing. `view:cache` compiles without
+             running, so it passes too. --}}
+        @php
+            $covered = $history->contains(fn ($visit) => $visit->covered);
+        @endphp
+
+        <div class="alert alert-{{ $covered ? 'warning' : 'secondary' }}">
+            <div class="fw-semibold mb-2">
+                <i class="bi bi-{{ $covered ? 'shield-check' : 'clock-history' }} me-1"></i>
+                {{ $covered
+                    ? __('This device is still under warranty from an earlier repair')
+                    : __('This device has been here before') }}
+            </div>
+
+            @foreach($history as $visit)
+                <div class="small {{ ! $loop->last ? 'mb-2' : '' }}">
+                    <a href="{{ $visit->url ?? route('repairs.show', $visit->repair) }}" class="fw-semibold">
+                        {{ $visit->repair->document_no }}</a>
+                    @if($visit->repair->sale?->sale_date)
+                        <span class="text-secondary" dir="ltr">
+                            · {{ __('collected :date', ['date' => $visit->repair->sale->sale_date->format(setting('date_format', 'Y-m-d'))]) }}
+                        </span>
+                    @endif
+
+                    <ul class="mb-0 ps-3">
+                        @foreach($visit->lines as $line)
+                            <li>
+                                {{ $line->name }}
+                                @if($line->until === null)
+                                    <span class="text-secondary">· {{ __('no warranty') }}</span>
+                                @elseif($line->covered)
+                                    <span class="fw-semibold" dir="ltr">
+                                        · {{ __('covered until :date', ['date' => $line->until->format(setting('date_format', 'Y-m-d'))]) }}
+                                    </span>
+                                @else
+                                    <span class="text-secondary" dir="ltr">
+                                        · {{ __('ran out :date', ['date' => $line->until->format(setting('date_format', 'Y-m-d'))]) }}
+                                    </span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endforeach
+
+            {{-- ⚠️ The system says what it knows; the shop decides. Whether the
+                 same fault came back or the customer dropped it again is not
+                 something any system can know, and the person at the counter
+                 can. A job done under warranty is a line at nothing, which
+                 still puts the part's real cost in the books. --}}
+            @if($covered)
+                <div class="small mt-2">
+                    {{ __('If this is the same fault, put the part on at nothing — the shop still carries what it cost.') }}
+                </div>
+            @endif
+        </div>
+    @endif
+
     {{-- ⚠️ Not "the price moved" — "the customer has not agreed to this".
          Soran's PS4: agreed at 8,000, then the drive turned out to be failing,
          and the rule in his shop is to telephone before touching it. So this

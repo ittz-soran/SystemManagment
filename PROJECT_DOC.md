@@ -1383,6 +1383,21 @@ Spending the shop's money is not the same power as working on a repair, so it is
 
 It joins the keys Section 4 refuses to anybody shown a masked cost, for a reason that only appears here: they **type** 20,000 and the job screen then shows them 24,000 through `cost_seen()`. From those two numbers the markup is arithmetic, and once the markup is known every masked cost in the system divides back to the real one. The one screen where a reader supplies a true cost is the one screen that cannot also show them the mask.
 
+**⚠️ THE DEVICE HAS BEEN HERE BEFORE — Soran, 2026-09-23: *"add warranty warning when device come back"*.**
+
+The warranty was already *printed* — on the ticket and on the job — and that was the whole of it. Nothing said a word when the device came back through the door. The shop had to remember, or search the IMEI with the status filter set to *Collected* and read the dates itself. A shop that forgets charges a customer twice for the same screen, which is the argument this module exists to prevent.
+
+**The identifier is the key**, because it is the one thing about a device that does not change: an IMEI, a serial, the number already typed on every ticket. Matched trimmed and without case, against **collected** jobs only — a job still on the bench is the same visit, not a previous one.
+
+Two places, and deliberately both:
+
+- **On the take-in form, as the identifier is typed.** This is where the decision is made — before a price is quoted, while the customer is still at the counter. It asks the server as the field is filled in.
+- **On the job screen.** ⚠️ The one that survives: a browser with the script blocked, a job taken in before the part was known, a second person opening the ticket later. A warning that exists only in JavaScript is a warning the shop cannot rely on.
+
+**What it says is what the shop needs to decide:** which earlier ticket, what was fitted, and the day each line's cover runs out. A device whose cover has all expired still says so — *"here before, nothing still covered"* — because *"his screen ran out on the 20th"* ends an argument just as well as *"it is covered until the 26th"* does.
+
+**No new warranty state, and nothing is charged differently.** The system says what it knows and the shop decides; a job done under warranty is a line at nothing, which is already how it was recorded and already lands the part's real cost in the P&L. Making the system decide would mean guessing whether the same fault came back or the customer dropped it again, which no system can know and the person at the counter can.
+
 **Deposits are not in this first version.** A customer leaving 20,000 to order a part is ordinary, and there is nowhere honest to put that money before a sale exists: `payments` is polymorphic over sale, purchase and the two returns, and adding a fifth payable is a ledger change rather than a screen. Left out deliberately, and worth doing next rather than never.
 
 **A ticket prints**, on the same letterhead as every other document, because the customer walks away with half of this record.
@@ -1553,6 +1568,18 @@ Type-to-confirm (typing the document number) only for deleting a document that m
 - Icons with direction — arrows, chevrons, back buttons — must **mirror**. Clocks, logos, and product images must not.
 - **Numbers and currency stay left-to-right** even inside RTL text.
 - Test every screen in Sorani before calling it finished; RTL bugs are invisible in English.
+
+### ⚠️ Blade traps that fail in silence
+
+Three now, all in the same family, all found the hard way. None throws where the mistake is; two throw nowhere at all.
+
+1. **`@php(...)` with a nested expression.** The shorthand cannot cope with the parentheses of an arrow function or a nested call: it compiles to an unterminated `<?php`, swallows the rest of the file, and reports the error at the **last line** — where it reads as an unclosed `@if`. Use `@php … @endphp`.
+2. **`@json(...)` with a nested `[`** inside an arrow function breaks the same way. Compute into a variable in a `@php` block first.
+3. **A Blade COMMENT that names `@php`.** Blade pairs the `@php` inside the comment with the real `@endphp` below it and stores the span as a raw block — which eats the comment's own `--}}`. The comment then runs on to the *next* `--}}` in the file, deleting every line between. ⚠️ **The page renders empty and throws nothing.** Escape it as `@@php` when writing about it.
+
+⚠️ **`php artisan view:cache` does not catch any of them.** It compiles without running, so a view that will fall over — or silently render nothing — caches "successfully".
+
+⚠️ **Nor does inspecting `Blade::compileString()`.** Blade restores a stored raw block into the compiled output, so every string is still present, merely in the wrong place. Only **rendering the page in a test** tells the difference: `$page->assertOk()` answers 500, or the `assertSee` finds nothing. Every screen in this system should be opened by at least one test for exactly this reason — the one that is not is the one that breaks.
 
 ### Print views
 

@@ -37,8 +37,17 @@
                                 <label for="identifier" class="form-label">{{ __('Serial or IMEI') }}</label>
                                 <input id="identifier" name="identifier" dir="ltr" maxlength="80"
                                        value="{{ old('identifier', $repair?->identifier) }}"
+                                       data-history="{{ route('repairs.history') }}"
                                        class="form-control @error('identifier') is-invalid @enderror">
                                 @error('identifier')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+                                {{-- ⚠️ Filled in as the number is typed — this is
+                                     the moment the shop decides what to charge,
+                                     with the customer still at the counter. The
+                                     job screen asks the same question on the
+                                     server, so a blocked script loses the timing
+                                     and not the warning. --}}
+                                <div id="been-here" class="small mt-2"></div>
                             </div>
 
                             <div class="col-6 col-sm-3">
@@ -346,6 +355,121 @@
             document.getElementById('add-line').addEventListener('click', () => addRow());
 
             existing.length ? existing.forEach(addRow) : addRow();
+
+            /*
+             * ⚠️ Has this device been here before?
+             *
+             * Soran, 2026-09-23: *"add warranty warning when device come
+             * back"*. Asked as the identifier is typed, because that is when
+             * the price is being decided and the customer is still standing
+             * there. The job screen asks the same thing on the server, so this
+             * is the timing rather than the warning itself.
+             */
+            const serial = document.getElementById('identifier');
+            const beenHere = document.getElementById('been-here');
+
+            if (serial && beenHere) {
+                let asked = null;
+                let timer = null;
+
+                const look = async () => {
+                    const typed = serial.value.trim();
+
+                    // Nothing typed, or the same thing as last time: say
+                    // nothing rather than ask again.
+                    if (typed === '' ) {
+                        beenHere.textContent = '';
+                        asked = '';
+                        return;
+                    }
+
+                    if (typed === asked) {
+                        return;
+                    }
+
+                    asked = typed;
+
+                    try {
+                        const response = await fetch(
+                            `${serial.dataset.history}?identifier=${encodeURIComponent(typed)}`,
+                            { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } },
+                        );
+
+                        if (! response.ok) {
+                            return;
+                        }
+
+                        const answer = await response.json();
+
+                        // ⚠️ A slow answer to an older number must not land on
+                        // a newer one — the same rule the search panel follows.
+                        if (serial.value.trim() !== asked) {
+                            return;
+                        }
+
+                        beenHere.replaceChildren();
+
+                        if (! answer.visits.length) {
+                            return;
+                        }
+
+                        const box = document.createElement('div');
+                        box.className = 'alert py-2 px-3 mb-0 alert-'
+                            + (answer.covered ? 'warning' : 'secondary');
+
+                        const head = document.createElement('div');
+                        head.className = 'fw-semibold';
+                        head.textContent = answer.covered
+                            ? @json(__('This device is still under warranty from an earlier repair'))
+                            : @json(__('This device has been here before'));
+                        box.appendChild(head);
+
+                        answer.visits.forEach((visit) => {
+                            const line = document.createElement('div');
+
+                            const link = document.createElement('a');
+                            link.href = visit.url;
+                            link.target = '_blank';
+                            link.rel = 'noopener';
+                            link.className = 'fw-semibold';
+                            link.textContent = visit.number;
+                            line.appendChild(link);
+
+                            visit.lines.forEach((part) => {
+                                const one = document.createElement('div');
+                                one.className = part.covered ? 'fw-semibold' : 'text-secondary';
+                                one.textContent = part.until === null
+                                    ? `${part.name} · ` + @json(__('no warranty'))
+                                    : `${part.name} · ` + (part.covered
+                                        ? @json(__('covered until :date')).replace(':date', part.until)
+                                        : @json(__('ran out :date')).replace(':date', part.until));
+                                line.appendChild(one);
+                            });
+
+                            box.appendChild(line);
+                        });
+
+                        beenHere.appendChild(box);
+                    } catch (e) {
+                        // A lookup that cannot be made is a warning the shop
+                        // does not get, not a form it cannot use.
+                    }
+                };
+
+                // Waits for the typing to stop: an IMEI is fifteen digits and
+                // nobody needs fifteen questions asked about it.
+                serial.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(look, 400);
+                });
+
+                serial.addEventListener('change', look);
+
+                // An edit form arrives with the number already in the box.
+                if (serial.value.trim() !== '') {
+                    look();
+                }
+            }
 
             /*
              * ⚠️ Buying a part the shop has not got, without leaving the form.

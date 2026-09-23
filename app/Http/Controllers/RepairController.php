@@ -126,6 +126,15 @@ class RepairController extends Controller
             // Raw figures. What this reader is allowed to see of them is
             // `cost_seen()`'s answer, asked in the view beside the price.
             'cost' => $this->repairs->costOf($repair),
+
+            /*
+             * ⚠️ Asked on the server, so the warning does not depend on a
+             * script having run. The form asks the same question as the
+             * identifier is typed, which is timelier; this is the one that is
+             * still there when the script is blocked, or when somebody else
+             * opens the ticket an hour later.
+             */
+            'history' => $this->repairs->historyFor($repair->identifier, $repair->id),
         ]);
     }
 
@@ -352,6 +361,36 @@ class RepairController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'kind', 'sale_price', 'quantity', 'warranty_days']);
+    }
+
+    /**
+     * Has this device been here before? — Soran, 2026-09-23.
+     *
+     * Asked as the identifier is typed on the take-in form, which is the
+     * moment the shop decides what to charge. ⚠️ Read-only and behind
+     * `repairs.view`: it answers what the repairs list would answer to the
+     * same person searching the same number by hand.
+     */
+    public function history(Request $request): JsonResponse
+    {
+        $request->validate(['identifier' => ['nullable', 'string', 'max:80']]);
+
+        $history = $this->repairs->historyFor($request->string('identifier')->toString());
+
+        return response()->json([
+            'covered' => $this->repairs->stillCovered($history),
+            'visits' => $history->map(fn ($visit) => [
+                'number' => $visit->repair->document_no,
+                'url' => route('repairs.show', $visit->repair),
+                'collected_on' => $visit->repair->sale?->sale_date?->format(setting('date_format', 'Y-m-d')),
+                'covered' => $visit->covered,
+                'lines' => $visit->lines->map(fn ($line) => [
+                    'name' => $line->name,
+                    'covered' => $line->covered,
+                    'until' => $line->until?->format(setting('date_format', 'Y-m-d')),
+                ])->values(),
+            ])->values(),
+        ]);
     }
 
     /**

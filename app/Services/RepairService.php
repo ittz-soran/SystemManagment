@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Repair;
 use App\Models\RepairApproval;
+use App\Models\RepairItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
@@ -17,6 +18,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Support\Units;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -338,6 +340,74 @@ class RepairService
         ]);
 
         return $repair->fresh();
+    }
+
+    /**
+     * Has this device been here before, and is any of it still under warranty?
+     *
+     * Soran, 2026-09-23: *"add warranty warning when device come back"*. The
+     * warranty was printed on the ticket and on the job and nothing ever said a
+     * word when the device came back through the door — the shop had to
+     * remember, or search the IMEI itself. A shop that forgets charges a
+     * customer twice for the same screen.
+     *
+     * ⚠️ **Collected jobs only.** A job still on the bench is this visit, not a
+     * previous one, and warning somebody about the ticket in front of them
+     * would train them to ignore the warning.
+     *
+     * ⚠️ **An empty identifier matches nothing.** Most jobs carry none — a
+     * television with the label worn off, a console nobody wrote the serial of
+     * — and an empty match would report every one of them as the same device.
+     *
+     * ⚠️ Plain objects, not models carrying extra attributes. An attribute set
+     * on an Eloquent model makes it dirty, and a dirty model that something
+     * later saves would try to write a column that does not exist. The same
+     * shape the reports use for a row that is worked out rather than stored.
+     *
+     * @return Collection<int, object> newest visit first
+     */
+    public function historyFor(?string $identifier, ?int $exceptRepairId = null): Collection
+    {
+        $identifier = trim((string) $identifier);
+
+        if ($identifier === '') {
+            return collect();
+        }
+
+        $earlier = Repair::query()
+            ->where('status', Repair::STATUS_COLLECTED)
+            ->whereRaw('LOWER(TRIM(identifier)) = ?', [mb_strtolower($identifier)])
+            ->when($exceptRepairId !== null, fn ($q) => $q->whereKeyNot($exceptRepairId))
+            ->with('items.product', 'sale', 'customer')
+            ->orderByDesc('received_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $today = today();
+
+        return $earlier->map(function (Repair $repair) use ($today) {
+            $lines = $repair->items->map(function (RepairItem $item) use ($repair, $today) {
+                $ends = $repair->warrantyEndsOn($item);
+
+                return (object) [
+                    'name' => $item->product->name,
+                    'until' => $ends,
+                    'covered' => $ends !== null && $ends->gte($today),
+                ];
+            });
+
+            return (object) [
+                'repair' => $repair,
+                'lines' => $lines,
+                'covered' => $lines->contains(fn ($line) => $line->covered),
+            ];
+        });
+    }
+
+    /** Is anything from an earlier visit still covered today? */
+    public function stillCovered(Collection $history): bool
+    {
+        return $history->contains(fn ($visit) => $visit->covered);
     }
 
     /**
