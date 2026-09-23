@@ -1408,6 +1408,35 @@ Two places, and deliberately both:
 
 **Locks** follow Section 8: a job is freely editable until it is collected, and a collected job owns a sale, so it locks for the same reason a sale does.
 
+### A faulty item goes back to the supplier — Soran, 2026-09-23
+
+*"when return an item and this item dont add to shelf or stok, just i hold it, and supplier refund as cash to me, and should refound cash to customer or sell new item on same price are can refound"*.
+
+**⚠️ THE MONEY ALREADY WORKED. What was missing was that nobody was told which document to use.**
+
+A faulty unit is **not** a damage write-off. It goes back where it came from, and the purchase return does both jobs at once — takes it out of stock and brings the supplier's cash in:
+
+| | stock | cash |
+|---|---|---|
+| customer brings it back — sale return | +1 | −60,000 |
+| sent back — purchase return on the original purchase | 0 | +40,000 |
+
+Net zero. ⚠️ Measured, and so was the wrong way: adjusting it out as `damage` books the 40,000 as the shop's own loss **and then makes the purchase return impossible**, because the batch is empty — so the supplier's money has no document to arrive on. The shop takes the loss twice over.
+
+⚠️ **A hold room cannot work, and was tried.** Transferring the unit to a "faulty" room severs its link to the purchase (`purchase_item_id` becomes null on the carried batch) and the purchase return then refuses: *"Not enough stock from this purchase: 0 available."*
+
+**So the shop is handed the right document instead.** On the sale return, each line can be ticked **faulty — going back to the supplier**. The screen already shows which purchase and which supplier that unit came from, traced through its own stock movements, so the decision is made with the answer on the page. Saving writes **both documents in one transaction**: either the customer is refunded and the supplier billed, or neither happens.
+
+⚠️ **The units are chosen in the same order the restore uses — last consumed, first returned.** A line filled from two purchases must send back the units it actually took, to the suppliers it actually took them from; picking a different order would refund the wrong supplier at the wrong cost.
+
+What it deliberately does not do:
+
+- **No quarantine.** Untick it and the unit is ordinary sellable stock again. There is still no "not fit to sell" shelf, for the reason above.
+- **Nothing for stock that has no purchase behind it.** Opening stock and transferred units carry no `purchase_item_id`; there is no supplier to send them to, the screen says so, and a `damage` adjustment is then the correct tool.
+- **No supplier warranty.** Whether that supplier still accepts returns is the shop's knowledge, not the system's. It offers; the shop decides.
+
+**⚠️ AND THE INVOICE HAD TO BE FINDABLE.** *"shoud i found same inv??"* — yes, and the sales list searched **document numbers only**, as did the global search. A customer arriving with a power bank and no paper could not be served. The sales search now also matches the **product name, the SKU, and the customer's name or phone**, so the question a shop actually asks — *who bought one of these* — has an answer.
+
 ### Aged debt — Soran, 2026-09-20
 
 **Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*

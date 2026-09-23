@@ -19,9 +19,9 @@
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
-                <label for="search" class="form-label small">{{ __('Invoice number') }}</label>
+                <label for="search" class="form-label small">{{ __('Find') }}</label>
                 <input id="search" type="search" name="search" value="{{ request('search') }}"
-                       class="form-control form-control-sm" placeholder="INV-">
+                       class="form-control form-control-sm" placeholder="{{ __('Invoice, product, SKU or customer') }}">
             </div>
             <div class="col-md-3">
                 <label for="customer_id" class="form-label small">{{ __('Customer') }}</label>

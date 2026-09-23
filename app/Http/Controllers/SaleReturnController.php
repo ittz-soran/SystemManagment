@@ -8,6 +8,7 @@ use App\Services\SaleReturnService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
 
@@ -46,10 +47,25 @@ class SaleReturnController extends Controller
     /** The return screen for one sale. */
     public function create(Request $request, Sale $sale): View
     {
+        $sale->load('customer', 'items.product');
+
+        /*
+         * Where each line's units came from, so the shop decides with the
+         * answer already on the page rather than after a second screen —
+         * Soran, 2026-09-23. Keyed by sale item, and worked out for the whole
+         * returnable quantity because that is the most the form can send.
+         */
+        $origins = $sale->items->mapWithKeys(fn ($item) => [
+            $item->id => $this->returns->originsFor($item, $item->returnableQuantity()),
+        ]);
+
         return view('sale-returns.create', [
             // Section 2b — the refund figures are read in this currency.
             'lens' => $request->user()->lens(),
-            'sale' => $sale->load('customer', 'items.product'),
+            'sale' => $sale,
+            'origins' => $origins,
+            // Sending it back writes a purchase return, which is its own key.
+            'maySendBack' => $request->user()->hasPermission('purchase_returns.create'),
         ]);
     }
 
@@ -62,7 +78,23 @@ class SaleReturnController extends Controller
             'lines' => ['required', 'array'],
             'lines.*.sale_item_id' => ['required', 'exists:sale_items,id'],
             'lines.*.quantity' => ['required', 'integer', 'min:0'],
+
+            // Which lines are going back to the supplier. Sale item ids, and
+            // they must belong to this sale.
+            'faulty' => ['array'],
+            'faulty.*' => ['integer', Rule::exists('sale_items', 'id')->where('sale_id', $sale->id)],
         ]);
+
+        /*
+         * ⚠️ Writing a purchase return is `purchase_returns.create`, not
+         * `sale_returns.create`. Somebody at the counter who may take a return
+         * is not thereby somebody who may bill a supplier, and the screen does
+         * not offer it to them — this is the same rule enforced again where it
+         * counts, because a form can be edited.
+         */
+        $faulty = $request->user()->hasPermission('purchase_returns.create')
+            ? ($data['faulty'] ?? [])
+            : [];
 
         try {
             $return = $this->returns->create(
@@ -72,6 +104,7 @@ class SaleReturnController extends Controller
                 returnDate: Carbon::parse($data['return_date']),
                 reason: $data['reason'] ?? null,
                 paymentMethod: $data['payment_method'],
+                faultyLines: $faulty,
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());

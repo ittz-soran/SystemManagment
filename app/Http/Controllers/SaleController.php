@@ -33,7 +33,25 @@ class SaleController extends Controller
             ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->input('customer_id')))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('sale_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('sale_date', '<=', $request->date('to')))
-            ->when($request->filled('search'), fn ($q) => $q->where('document_no', 'like', '%'.$request->input('search').'%'))
+            /*
+             * ⚠️ Not just the document number — Soran, 2026-09-23: *"shoud i
+             * found same inv??"*.
+             *
+             * A customer walks in with a faulty power bank and no paper. Until
+             * this, the only way to find the sale was to know its number, so
+             * the question a shop actually asks — WHO BOUGHT ONE OF THESE —
+             * had no answer but scrolling. The product name, the SKU and the
+             * customer now match too.
+             */
+            ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
+                ->where('document_no', 'like', '%'.$request->input('search').'%')
+                ->orWhereHas('customer', fn ($c) => $c
+                    ->where('name', 'like', '%'.$request->input('search').'%')
+                    ->orWhere('phone', 'like', '%'.$request->input('search').'%'))
+                ->orWhereHas('items.product', fn ($p) => $p
+                    ->where('name', 'like', '%'.$request->input('search').'%')
+                    ->orWhere('sku', 'like', '%'.$request->input('search').'%')
+                    ->orWhere('barcode', 'like', '%'.$request->input('search').'%'))))
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 

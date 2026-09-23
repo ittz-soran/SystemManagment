@@ -62,6 +62,54 @@
                                         <td>
                                             <div class="fw-medium">{{ $item->product->name }}</div>
                                             <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
+
+                                            {{-- ⚠️ Where these units came from, shown BEFORE the
+                                                 decision — Soran, 2026-09-23: "supllier get me cost
+                                                 of it". Traced through the movements this line
+                                                 wrote, in the order the return puts them back. --}}
+                                            @if($maySendBack && $canReturn > 0)
+                                                @php
+                                                    $from = ($origins[$item->id] ?? collect())
+                                                        ->filter(fn ($o) => $o->purchase !== null);
+                                                    $orphans = ($origins[$item->id] ?? collect())
+                                                        ->filter(fn ($o) => $o->purchase === null);
+                                                @endphp
+
+                                                @if($from->isNotEmpty())
+                                                    <div class="form-check mt-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                               id="faulty-{{ $item->id }}"
+                                                               name="faulty[]" value="{{ $item->id }}"
+                                                               @checked(in_array($item->id, old("faulty", [])))>
+                                                        <label class="form-check-label small" for="faulty-{{ $item->id }}">
+                                                            {{ __('Faulty — send back to the supplier') }}
+                                                        </label>
+                                                    </div>
+
+                                                    <div class="small text-secondary ms-4">
+                                                        @foreach($from as $origin)
+                                                            <div>
+                                                                {{ trans_choice('{1}:count from|[2,*]:count from', $origin->quantity, ['count' => $origin->quantity]) }}
+                                                                <a href="{{ route('purchases.show', $origin->purchase) }}">{{ $origin->purchase->document_no }}</a>
+                                                                · {{ $origin->supplier->name }}
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+
+                                                {{-- Opening stock, or something carried in from
+                                                     another room: no purchase, so no supplier. --}}
+                                                @if($orphans->isNotEmpty())
+                                                    <div class="small text-secondary mt-1">
+                                                        <i class="bi bi-info-circle me-1"></i>
+                                                        {{ trans_choice(
+                                                            '{1}:count unit did not come from a purchase, so there is no supplier to send it back to.'
+                                                            .'|[2,*]:count units did not come from a purchase, so there is no supplier to send them back to.',
+                                                            $orphans->sum('quantity'), ['count' => $orphans->sum('quantity')]) }}
+                                                    </div>
+                                                @endif
+                                            @endif
+
                                             <input type="hidden" name="lines[{{ $index }}][sale_item_id]" value="{{ $item->id }}">
                                         </td>
                                         <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>

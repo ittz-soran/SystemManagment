@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AccountTransaction;
 use App\Models\Payment;
+use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
@@ -11,6 +12,7 @@ use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -27,7 +29,67 @@ class SaleReturnService
         private FifoService $fifo,
         private LedgerService $ledger,
         private PaymentService $payments,
+        private PurchaseReturnService $purchaseReturns,
     ) {}
+
+    /**
+     * Which purchase each returned unit came from — Soran, 2026-09-23.
+     *
+     * *"supllier get me cost of it"*. A faulty unit goes back to the supplier
+     * it was bought from, and the shop cannot be expected to remember which
+     * that was: the stock movements already know, because every unit sold
+     * carries the batch it left, and every purchased batch carries its
+     * purchase item.
+     *
+     * ⚠️ **THE ORDER MATTERS AND IT IS NOT FIFO.** The units are taken in the
+     * same order `restoreForSaleItem()` puts them back — `sequence` DESCENDING,
+     * last consumed first returned. A line filled from two purchases must send
+     * back the units the return actually restored; walking them oldest-first
+     * would refund the wrong supplier at the wrong cost while the stock went
+     * back to a different batch.
+     *
+     * ⚠️ A batch with no `purchase_item_id` has no supplier to go back to —
+     * opening stock entered by adjustment, or anything carried in from another
+     * room. Reported as such rather than skipped silently, so the screen can
+     * say why it is offering nothing.
+     *
+     * @return Collection<int, object> one row per batch drawn on, in return order
+     */
+    public function originsFor(SaleItem $saleItem, int $quantity): Collection
+    {
+        $movements = StockMovement::where('reference_type', StockMovement::REF_SALE)
+            ->where('reference_item_id', $saleItem->id)
+            ->outbound()
+            ->orderByDesc('sequence')
+            ->with('batch.purchaseItem.purchase.supplier')
+            ->get();
+
+        $remaining = $quantity;
+        $origins = collect();
+
+        foreach ($movements as $movement) {
+            if ($remaining < 1) {
+                break;
+            }
+
+            // Stored negative on the way out; what is available to send back is
+            // however many of them this return is taking.
+            $take = min($remaining, abs((int) $movement->quantity));
+            $remaining -= $take;
+
+            $purchaseItem = $movement->batch?->purchaseItem;
+
+            $origins->push((object) [
+                'quantity' => $take,
+                'unit_cost' => (int) $movement->unit_cost,
+                'purchase_item' => $purchaseItem,
+                'purchase' => $purchaseItem?->purchase,
+                'supplier' => $purchaseItem?->purchase?->supplier,
+            ]);
+        }
+
+        return $origins;
+    }
 
     /**
      * @param  array<int, array{sale_item_id: int, quantity: int}>  $lines
@@ -39,6 +101,7 @@ class SaleReturnService
         Carbon $returnDate,
         ?string $reason = null,
         string $paymentMethod = 'cash',
+        array $faultyLines = [],
     ): SaleReturn {
         $lines = array_values(array_filter($lines, fn (array $l) => ($l['quantity'] ?? 0) > 0));
 
@@ -50,7 +113,7 @@ class SaleReturnService
             throw new RuntimeException(__('Locked: this date is in a closed period.'));
         }
 
-        return DB::transaction(function () use ($sale, $lines, $user, $returnDate, $reason, $paymentMethod) {
+        return DB::transaction(function () use ($sale, $lines, $user, $returnDate, $reason, $paymentMethod, $faultyLines) {
             /*
              * The same claim a sale makes, in the same order, before anything is
              * written — FifoService::claim(). This is the other half of the pair
@@ -149,8 +212,86 @@ class SaleReturnService
             // Section 4: recompute inside the same transaction as the return.
             $sale->refresh()->recalculateStatus();
 
+            /*
+             * ⚠️ **BOTH DOCUMENTS OR NEITHER.** Inside the same transaction as
+             * the sale return, so the shop can never end up having refunded a
+             * customer with no supplier document to recover the cost on.
+             *
+             * After the restore, deliberately: the purchase return consumes the
+             * very units the sale return has just put back into their batches.
+             */
+            $this->sendBackToSuppliers($return, $lines, $faultyLines, $user, $returnDate);
+
             return $return->refresh();
         });
+    }
+
+    /**
+     * Send the faulty units back to the suppliers they came from.
+     *
+     * Soran, 2026-09-23: *"supllier get me cost of it"*. One purchase return
+     * per purchase drawn on — ⚠️ a single sale line filled from two purchases
+     * goes back to two different suppliers, at the two different costs they
+     * were each bought at.
+     *
+     * @param  array<int, array{sale_item_id: int, quantity: int}>  $lines
+     * @param  list<int>  $faultyLines  sale_item_ids the shop ticked
+     */
+    private function sendBackToSuppliers(
+        SaleReturn $return,
+        array $lines,
+        array $faultyLines,
+        User $user,
+        Carbon $returnDate,
+    ): void {
+        if ($faultyLines === []) {
+            return;
+        }
+
+        /** @var array<int, array<int, int>> $byPurchase  purchase id => [purchase item id => quantity] */
+        $byPurchase = [];
+
+        foreach ($lines as $line) {
+            if (! in_array((int) $line['sale_item_id'], array_map('intval', $faultyLines), true)) {
+                continue;
+            }
+
+            $saleItem = SaleItem::findOrFail($line['sale_item_id']);
+
+            foreach ($this->originsFor($saleItem, (int) $line['quantity']) as $origin) {
+                /*
+                 * ⚠️ Nothing to send back. Opening stock and anything carried
+                 * in from another room has no purchase behind it. Skipped
+                 * rather than refused: the customer's return is still valid,
+                 * and the screen has already said no supplier was found.
+                 */
+                if ($origin->purchase_item === null) {
+                    continue;
+                }
+
+                $purchaseId = $origin->purchase_item->purchase_id;
+                $itemId = $origin->purchase_item->id;
+
+                $byPurchase[$purchaseId][$itemId] =
+                    ($byPurchase[$purchaseId][$itemId] ?? 0) + $origin->quantity;
+            }
+        }
+
+        foreach ($byPurchase as $purchaseId => $quantities) {
+            $this->purchaseReturns->create(
+                purchase: Purchase::findOrFail($purchaseId),
+                lines: collect($quantities)
+                    ->map(fn (int $quantity, int $itemId) => [
+                        'purchase_item_id' => $itemId,
+                        'quantity' => $quantity,
+                    ])->values()->all(),
+                user: $user,
+                returnDate: $returnDate,
+                reason: __('Faulty, returned by the customer on :document', [
+                    'document' => $return->document_no,
+                ]),
+            );
+        }
     }
 
     /**
