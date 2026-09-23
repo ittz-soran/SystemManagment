@@ -213,6 +213,17 @@ class UserController extends Controller
             // Opens filled in with the cost that is already stored.
             'stock_adjustments.edit',
 
+            /*
+             * ⚠️ The one key that leaks the mask rather than merely showing it.
+             *
+             * Buying a part for a repair is the single screen where a reader
+             * TYPES a true cost — and the job screen then shows that same cost
+             * back through `cost_seen()`. A person who paid 20,000 and is then
+             * shown 24,000 has the markup, and with the markup every masked
+             * cost in the system divides back to the real one.
+             */
+            'repairs.buy_part',
+
             // The shop's own accounts, and not masked.
             'reports.view',
         ]);

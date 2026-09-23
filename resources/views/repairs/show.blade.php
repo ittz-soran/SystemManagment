@@ -362,9 +362,24 @@
                                 </form>
                             @endif
 
+                            {{-- ⚠️ Collecting is a SALE, and the route has always
+                                 demanded `sales.create` for it. The button did not:
+                                 a bench hand was shown the green "make the invoice"
+                                 button, pressed it, and got a 403 with the customer
+                                 standing there. The books were never at risk; the
+                                 screen was a trap that looked like it was working,
+                                 which Section 4 refuses everywhere else. --}}
                             @if($repair->isAccepted() && ! $repair->needsApproval())
                                 <hr>
 
+                                @cannot('sales.create')
+                                    <div class="small text-secondary mb-3">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        {{ __('Ready for the customer. Collecting it is a sale, so somebody at the counter takes the money and makes the invoice.') }}
+                                    </div>
+                                @endcannot
+
+                                @can('sales.create')
                                 <form method="POST" action="{{ route('repairs.collect', $repair) }}" data-guard-submit>
                                     @csrf
                                     <div class="mb-2">
@@ -390,6 +405,7 @@
                                         {{ __('Takes the parts out of stock at their real cost and makes an ordinary invoice.') }}
                                     </div>
                                 </form>
+                                @endcan
 
                                 <hr>
                             @endif

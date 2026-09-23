@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Purchase;
 use App\Models\Repair;
 use App\Models\RepairApproval;
 use App\Models\Sale;
@@ -11,7 +13,9 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
+use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Units;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -31,7 +35,11 @@ use RuntimeException;
  */
 class RepairService
 {
-    public function __construct(private DocumentNumberService $numbers) {}
+    public function __construct(
+        private DocumentNumberService $numbers,
+        private PurchaseService $purchases,
+        private ProductCodeService $codes,
+    ) {}
 
     /** @param  array<int, array{product_id: int, quantity: int, unit_price: int}>  $lines */
     public function create(
@@ -330,6 +338,130 @@ class RepairService
         ]);
 
         return $repair->fresh();
+    }
+
+    /**
+     * A part the shop has not got, bought for this job — Soran, 2026-09-23.
+     *
+     * *"some times repair person change screen for customer but new screen is
+     * not in stock or rooms, just when start the job buy new screen somewhere
+     * and start replacement"*.
+     *
+     * ⚠️ **What happened before this was worse than being unable to add the
+     * part.** The line went on, the customer accepted, the ticket printed —
+     * and collection was refused, `Not enough stock: 0 available`, with the
+     * mended phone on the counter and the customer's hand out.
+     *
+     * ⚠️ **It is a purchase, because that is what it is**, and this method
+     * invents no costing and writes no batch of its own: it makes the product
+     * and hands it to `PurchaseService`, which opens the batch, posts what is
+     * owed and records what was paid — exactly as `SecondHandService` does for
+     * a phone bought over the counter. A cost carried on the repair line alone
+     * would be Section 5's second costing path, and the job would show a profit
+     * the books never saw.
+     *
+     * Cash and paid in full, always: the repair person paid at the counter of
+     * the shop down the street, and a debt to record would be a lie.
+     *
+     * @return array{product: Product, purchase: Purchase}
+     */
+    public function buyPart(
+        string $name,
+        Supplier $supplier,
+        int $quantity,
+        int $unitCost,
+        int $salePrice,
+        ?int $warrantyDays,
+        User $user,
+        ?Carbon $boughtAt = null,
+    ): array {
+        $name = trim($name);
+
+        if ($name === '') {
+            throw new RuntimeException(__('Say what the part is.'));
+        }
+
+        if ($quantity < 1) {
+            throw new RuntimeException(__('Buy at least one.'));
+        }
+
+        if ($unitCost < 0 || $salePrice < 0) {
+            throw new RuntimeException(__('A price cannot be negative.'));
+        }
+
+        return DB::transaction(function () use (
+            $name, $supplier, $quantity, $unitCost, $salePrice, $warrantyDays, $user, $boughtAt
+        ) {
+            /*
+             * ⚠️ Matched on the name before anything is created, so that
+             * "iPhone 12 screen" bought three times is one product with three
+             * batches rather than three products with one batch each — which
+             * is also what keeps FIFO meaning anything for it.
+             *
+             * Only a stocked product matches. A service of the same name is a
+             * different thing entirely and has no batches to add to.
+             */
+            $product = Product::where('kind', Product::KIND_STOCK)
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+                ->first();
+
+            if ($product === null) {
+                $codes = $this->codes->resolve([]);
+
+                /*
+                 * ⚠️ Built and saved, not mass-assigned in one go. `quantity`
+                 * is a cache of the batches and is the purchase's to write;
+                 * setting it here would put a number on the shelf that no
+                 * batch backs.
+                 */
+                $product = new Product([
+                    'name' => $name,
+                    'kind' => Product::KIND_STOCK,
+                    'sku' => $codes['sku'],
+                    'barcode' => $codes['barcode'],
+                    'category_id' => Category::query()->orderBy('id')->value('id'),
+                    'unit' => Units::default(),
+                    'purchase_price' => $unitCost,
+                    'sale_price' => $salePrice,
+                    'is_active' => true,
+                ]);
+
+                /*
+                 * ⚠️ Assigned, not filled. `warranty_days` has been dropped
+                 * silently by mass assignment on this model once already, and
+                 * a warranty that vanishes is one the customer was promised
+                 * on a printed ticket and the shop cannot see.
+                 */
+                $product->warranty_days = $warrantyDays;
+                $product->quantity = 0;
+                $product->save();
+            } else {
+                /*
+                 * An existing part, bought again at today's price. The sale
+                 * price and the warranty are what the shop says they are now;
+                 * the COST is not written back, because the batch carries it
+                 * and every older batch keeps its own.
+                 */
+                $product->sale_price = $salePrice;
+                $product->warranty_days = $warrantyDays;
+                $product->save();
+            }
+
+            $purchase = $this->purchases->create(
+                supplier: $supplier,
+                lines: [[
+                    'product_id' => $product->id,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitCost,
+                ]],
+                user: $user,
+                purchaseDate: $boughtAt ?? now(),
+                amountPaid: $quantity * $unitCost,
+                paymentMethod: 'cash',
+            );
+
+            return ['product' => $product->refresh(), 'purchase' => $purchase];
+        });
     }
 
     /**

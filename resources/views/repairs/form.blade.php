@@ -110,6 +110,86 @@
                         <div class="form-text mt-2">
                             {{ __('Warranty comes from each part’s own setting — a screen 5 days, a battery 30 — and is fixed when the customer accepts.') }}
                         </div>
+
+                        {{-- ⚠️ A part the shop has not got — Soran, 2026-09-23.
+                             Bought here rather than on the purchase screen,
+                             because this form is half filled in with a broken
+                             device described in it and leaving would throw that
+                             away. It is a real purchase all the same: cash, paid,
+                             against a supplier the shop set up, and it opens a
+                             batch the collection consumes like any other.
+
+                             ⚠️ No `name` attributes anywhere in here. These boxes
+                             sit inside the repair's own form, and a named field
+                             would be posted along with the job. --}}
+                        @can('repairs.buy_part')
+                            <div class="border-top mt-3 pt-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="collapse" data-bs-target="#buy-part">
+                                    <i class="bi bi-cart-plus me-1"></i>{{ __('Buy a part for this job') }}
+                                </button>
+                                <div class="form-text">
+                                    {{ __('For a part you do not stock and went out to buy. It is recorded as a cash purchase and goes on the shelf.') }}
+                                </div>
+
+                                <div class="collapse mt-3" id="buy-part">
+                                    <div class="row g-2">
+                                        <div class="col-12 col-md-6">
+                                            <label for="buy-name" class="form-label small">{{ __('What is it') }}</label>
+                                            <input id="buy-name" maxlength="255" class="form-control form-control-sm"
+                                                   list="buy-known" placeholder="{{ __('Xiaomi 13 screen') }}">
+                                            {{-- Offers what the shop already has before it will make anything
+                                                 new, which is what keeps one screen from becoming four products. --}}
+                                            <datalist id="buy-known">
+                                                @foreach($products as $known)
+                                                    <option value="{{ $known->name }}"></option>
+                                                @endforeach
+                                            </datalist>
+                                        </div>
+
+                                        <div class="col-12 col-md-6">
+                                            <label for="buy-supplier" class="form-label small">{{ __('Bought from') }}</label>
+                                            <select id="buy-supplier" class="form-select form-select-sm">
+                                                @foreach($suppliers as $supplier)
+                                                    <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+
+                                        <div class="col-4 col-md-2">
+                                            <label for="buy-qty" class="form-label small">{{ __('Qty') }}</label>
+                                            <input id="buy-qty" type="number" min="1" value="1" dir="ltr"
+                                                   class="form-control form-control-sm text-end">
+                                        </div>
+
+                                        <div class="col-8 col-md-3">
+                                            <label for="buy-cost" class="form-label small">{{ __('What you paid') }}</label>
+                                            <input id="buy-cost" dir="ltr" class="form-control form-control-sm text-end money">
+                                        </div>
+
+                                        <div class="col-6 col-md-3">
+                                            <label for="buy-price" class="form-label small">{{ __('What you charge') }}</label>
+                                            <input id="buy-price" dir="ltr" class="form-control form-control-sm text-end money">
+                                        </div>
+
+                                        <div class="col-6 col-md-4">
+                                            <label for="buy-warranty" class="form-label small">{{ __('Warranty days') }}</label>
+                                            <input id="buy-warranty" type="number" min="0" max="3650" dir="ltr"
+                                                   class="form-control form-control-sm text-end"
+                                                   placeholder="{{ __('None') }}">
+                                        </div>
+
+                                        <div class="col-12">
+                                            <button type="button" id="buy-go" class="btn btn-sm btn-primary"
+                                                    data-url="{{ route('repairs.buy-part') }}">
+                                                <i class="bi bi-bag-check me-1"></i>{{ __('Buy it and add to the job') }}
+                                            </button>
+                                            <span id="buy-said" class="small ms-2"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endcan
                     </div>
                 </div>
             </div>
@@ -266,6 +346,101 @@
             document.getElementById('add-line').addEventListener('click', () => addRow());
 
             existing.length ? existing.forEach(addRow) : addRow();
+
+            /*
+             * ⚠️ Buying a part the shop has not got, without leaving the form.
+             *
+             * The whole reason this is here rather than on the purchase screen
+             * is that this page is half filled in with a broken device
+             * described in it. So the purchase goes over `fetch`, and what
+             * comes back is added to the list in place — nothing typed is lost,
+             * and the part is on the shelf before the customer is quoted.
+             */
+            const buy = document.getElementById('buy-go');
+
+            if (buy) {
+                const said = document.getElementById('buy-said');
+                const field = (id) => document.getElementById(id);
+                const plain = (id) => String(field(id).value || '').replace(/,/g, '').trim();
+
+                const say = (text, ok) => {
+                    said.textContent = text;
+                    said.className = 'small ms-2 ' + (ok ? 'text-success' : 'text-danger');
+                };
+
+                buy.addEventListener('click', async () => {
+                    if (! field('buy-name').value.trim()) {
+                        say(@json(__('Say what the part is.')), false);
+                        return;
+                    }
+
+                    // ⚠️ Disabled for the round trip. A second click is a second
+                    // purchase, and the shop would have bought two screens.
+                    buy.disabled = true;
+                    say(@json(__('Buying…')), true);
+
+                    try {
+                        const response = await fetch(buy.dataset.url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            },
+                            body: JSON.stringify({
+                                name: field('buy-name').value.trim(),
+                                supplier_id: field('buy-supplier').value,
+                                quantity: Number(field('buy-qty').value || 1),
+                                unit_cost: plain('buy-cost'),
+                                sale_price: plain('buy-price'),
+                                warranty_days: field('buy-warranty').value === ''
+                                    ? null
+                                    : Number(field('buy-warranty').value),
+                            }),
+                        });
+
+                        const answer = await response.json();
+
+                        if (! response.ok) {
+                            // Laravel returns its field errors under `errors`;
+                            // the service returns one sentence under `message`.
+                            const first = answer.errors
+                                ? Object.values(answer.errors)[0][0]
+                                : answer.message;
+
+                            say(first || @json(__('That did not work.')), false);
+                            return;
+                        }
+
+                        /*
+                         * ⚠️ Added to the shared list as well as to this row.
+                         * Every row is built from `products`, so a part missing
+                         * from it would vanish out of the next row's dropdown —
+                         * a part the shop has just paid for.
+                         */
+                        products.push(answer.product);
+
+                        addRow({
+                            product_id: answer.product.id,
+                            quantity: Number(field('buy-qty').value || 1),
+                            unit_price: answer.product.sale_price,
+                        });
+
+                        say(answer.message, true);
+
+                        field('buy-name').value = '';
+                        field('buy-cost').value = '';
+                        field('buy-price').value = '';
+                        field('buy-warranty').value = '';
+                        field('buy-qty').value = 1;
+                    } catch (e) {
+                        say(@json(__('That did not work.')), false);
+                    } finally {
+                        buy.disabled = false;
+                    }
+                });
+            }
         })();
     </script>
 @endpush

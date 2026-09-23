@@ -1364,6 +1364,25 @@ The alternative — moving stock when a part is fitted, then billing separately 
 
 The cost of that choice, stated rather than hidden: **a screen fitted into a customer's phone still counts as on the shelf until the job is collected.** For jobs turned round in days that is invisible. For a job waiting weeks on a part it is a number that is briefly wrong in the shop's favour, and the repairs list — which shows exactly which parts are committed — is where the truth is.
 
+**⚠️ A PART THE SHOP HAS NOT GOT, BOUGHT FOR THE JOB — Soran, 2026-09-23: *"some times repair person change screen for customer but new screen is not in stock or rooms, just when start the job buy new screen somewhere… while creating an job can add items without in stock such as cost, price, warranty"*.**
+
+What happened before this was worse than not being able to add the part. The line went on, the customer accepted, the ticket printed — and **collection was refused**, `Not enough stock: 0 available`, with the mended phone on the counter and the customer's hand out. The job sat at `working` for ever.
+
+**It is recorded as a purchase, because that is what it is.** The shop really did buy a screen. `SecondHandService` set the precedent and the reasoning is the same: *it invents no costing, writes no batch and touches no ledger of its own* — it hands the thing to `PurchaseService`, which opens the batch, posts what is owed and records what was paid. So does this. ⚠️ A cost carried on the repair line alone would be Section 5's second costing path, and the repair would show a profit the books never saw.
+
+**Done from the repair screen, not the purchase screen** — *"do purchase directly on repair page… without going to purchase page"*. One panel: the part's name, which supplier it came from, how many, what it cost, what the customer is charged, and the warranty. One button, and the part is on the shelf and on the job.
+
+- **The supplier is picked from the ones already in the shop's list.** Not invented per purchase, because a supplier nobody set up is a supplier nobody can be paid or reconciled with.
+- **⚠️ Cash and paid in full**, always. The repair person paid at the counter of the shop down the street; a debt to record would be a lie, and a choice at the counter nobody wants to make with a customer waiting.
+- **The part becomes a normal product.** Next time that screen comes in it is already there with its price and its warranty, so the catalogue builds itself out of real work. The picker offers what exists before it will create anything, which is what keeps *iPhone 12 screen* from becoming four products.
+- **Price and warranty typed here are the product's**, and the warranty is copied onto the line at acceptance exactly as any other part's is.
+
+**⚠️ ITS OWN PERMISSION, `repairs.buy_part`, AND NOT FOR A MASKED READER.**
+
+Spending the shop's money is not the same power as working on a repair, so it is not `repairs.edit`. It is in the bench preset, because the person who buys the screen is the person mending the phone — and an owner who does not want the Thursday man creating purchases can take it away.
+
+It joins the keys Section 4 refuses to anybody shown a masked cost, for a reason that only appears here: they **type** 20,000 and the job screen then shows them 24,000 through `cost_seen()`. From those two numbers the markup is arithmetic, and once the markup is known every masked cost in the system divides back to the real one. The one screen where a reader supplies a true cost is the one screen that cannot also show them the mask.
+
 **Deposits are not in this first version.** A customer leaving 20,000 to order a part is ordinary, and there is nowhere honest to put that money before a sale exists: `payments` is polymorphic over sale, purchase and the two returns, and adding a fifth payable is a ledger change rather than a screen. Left out deliberately, and worth doing next rather than never.
 
 **A ticket prints**, on the same letterhead as every other document, because the customer walks away with half of this record.

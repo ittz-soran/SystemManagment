@@ -75,6 +75,10 @@ final class StaffPresets
                     'auth.login', 'dashboard.view',
                     'repairs.view', 'repairs.create', 'repairs.edit',
 
+                    // ⚠️ The person who buys the screen is the person mending
+                    // the phone. Its own key, so an owner can take it back.
+                    'repairs.buy_part',
+
                     // The parts a job needs are products, and a job cannot be
                     // quoted by somebody who cannot look one up.
                     'products.view',

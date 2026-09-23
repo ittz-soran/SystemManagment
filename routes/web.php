@@ -489,6 +489,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('repairs/{repair}/ticket', [RepairController::class, 'ticket'])
         ->middleware('permission:repairs.view')->name('repairs.ticket');
 
+    /*
+     * A part the shop has not got, bought for the job without leaving this
+     * screen — Soran, 2026-09-23. ⚠️ Its own permission: spending the shop's
+     * money is not the same power as working on a repair.
+     */
+    Route::post('repairs/parts', [RepairController::class, 'buyPart'])
+        ->middleware('permission:repairs.buy_part')->name('repairs.buy-part');
+
     Route::get('stock-transfers', [StockTransferController::class, 'index'])
         ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');
     Route::get('stock-transfers/create', [StockTransferController::class, 'create'])
