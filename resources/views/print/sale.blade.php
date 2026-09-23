@@ -50,20 +50,6 @@
                 <td>
                     {{ $item->product->name }}
                     <div class="small" dir="ltr">{{ $item->product->sku }}</div>
-
-                    {{-- ⚠️ Read off the LINE, not the product: this is what was
-                         promised on the day, and the product may have been
-                         edited since. --}}
-                    @if($item->warranty_days !== null)
-                        <div class="small">
-                            {{ __('Warranty') }}
-                            {{ trans_choice('{0}Same day|{1}:count day|[2,*]:count days', $item->warranty_days, ['count' => $item->warranty_days]) }}
-                            @php($ends = $item->warrantyEndsOn())
-                            @if($ends)
-                                <span dir="ltr">· {{ __('until :date', ['date' => $ends->format(setting('date_format', 'Y-m-d'))]) }}</span>
-                            @endif
-                        </div>
-                    @endif
                 </td>
                 <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
                 <td class="money">{{ $say($item->unit_price, false) }}</td>

@@ -42,32 +42,6 @@
                             </button>
                         </div>
 
-                        @php
-                            $anyCovered = $sale->items->contains(fn ($line) => $line->underWarranty());
-                        @endphp
-
-                        {{-- ⚠️ THE FAULTY UNIT GOES BACK TO THE SUPPLIER, NOT ONTO
-                             THE SHELF — Soran, 2026-09-23: *"supllier get me cost
-                             of it"*.
-
-                             This return puts the unit back into stock as ordinary
-                             sellable goods, and the till will sell it to the next
-                             customer. Returning it to the supplier against the
-                             original purchase takes it off the shelf again AND
-                             puts the cost back where it came from. Writing it off
-                             as damage instead would make the shop pay for the
-                             supplier's fault. --}}
-                        @if($anyCovered)
-                            <div class="alert alert-info">
-                                <div class="fw-semibold mb-1">
-                                    <i class="bi bi-shield-check me-1"></i>{{ __('Still under warranty') }}
-                                </div>
-                                <div class="small">
-                                    {{ __('This return puts the item back into stock as if it were good. If it came back faulty, send it to the supplier with a purchase return against the purchase it came from — that takes it off the shelf and puts the cost back on them.') }}
-                                </div>
-                            </div>
-                        @endif
-
                         <div class="table-responsive">
                             <table class="table align-middle mb-0" id="return-table">
                                 <thead>
@@ -88,23 +62,6 @@
                                         <td>
                                             <div class="fw-medium">{{ $item->product->name }}</div>
                                             <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
-
-                                            {{-- ⚠️ The moment the shop decides — Soran,
-                                                 2026-09-23. This is the screen he is on
-                                                 when the customer is standing there with
-                                                 the faulty thing. --}}
-                                            @if($item->warranty_days !== null)
-                                                @php($ends = $item->warrantyEndsOn())
-                                                <div class="small {{ $item->underWarranty() ? 'text-success fw-semibold' : 'text-secondary' }}">
-                                                    <i class="bi bi-shield-check me-1"></i>
-                                                    @if($item->underWarranty())
-                                                        <span dir="ltr">{{ __('Under warranty until :date', ['date' => $ends->format(setting('date_format', 'Y-m-d'))]) }}</span>
-                                                    @else
-                                                        <span dir="ltr">{{ __('Warranty ran out :date', ['date' => $ends->format(setting('date_format', 'Y-m-d'))]) }}</span>
-                                                    @endif
-                                                </div>
-                                            @endif
-
                                             <input type="hidden" name="lines[{{ $index }}][sale_item_id]" value="{{ $item->id }}">
                                         </td>
                                         <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>

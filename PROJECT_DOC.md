@@ -1408,36 +1408,6 @@ Two places, and deliberately both:
 
 **Locks** follow Section 8: a job is freely editable until it is collected, and a collected job owns a sale, so it locks for the same reason a sale does.
 
-### Warranty on what the shop SELLS — Soran, 2026-09-23
-
-*"i sell this 1 month ago PD-17-UK now not working customer back it to change on warenty, but now i dont have stok same this"*.
-
-⚠️ **The warranty already existed and was wired to the wrong half of the system.** `products.warranty_days` was added for repairs — a screen 5 days, a battery 30 — and only repairs ever read it. It was not on the product form, so it could not be set; it was not on the invoice, so the customer was never told; and nothing looked at it when a sold item came back. A shop that sells a power bank with thirty days on it had no way to record that, print it, or be reminded of it.
-
-**⚠️ THE COST GOES BACK TO THE SUPPLIER, NOT INTO THE BIN — Soran: *"supllier get me cost of it"*.**
-
-This is the part that decides everything else, and it was nearly got wrong. A faulty unit is **not** a damage write-off: it goes back where it came from. The system already had the document for it, and the whole case runs on machinery that exists:
-
-| | stock | cash |
-|---|---|---|
-| bought from the supplier | 1 | −40,000 |
-| sold to the customer | 0 | +60,000 |
-| customer brings it back — **sale return** | 1 | −60,000 |
-| sent back — **purchase return** against the original purchase | 0 | +40,000 |
-
-**Net zero.** Nobody eats the cost. A supplier who sends a replacement rather than money is the same purchase return plus a new purchase at the same cost: still net zero, and the shelf back to one. ⚠️ Writing the unit off as `damage` instead would put the 40,000 in the shop's own Profit & Loss — the shop paying for the supplier's fault.
-
-**So nothing about the money needed building. What needed building is the shop being TOLD** — *"just should system read this cases"*:
-
-- **`warranty_days` on the product form**, where it can finally be set.
-- ⚠️ **Copied onto the sale line when the sale is made**, exactly as a repair copies it onto the job. A warranty is a promise made on a day, and editing the product next month must not change what the printed invoice says.
-- **Printed on the invoice**, so the customer holds the promise.
-- **Said out loud when the item comes back**: on the sale and on the return screen, whether each line is still inside its warranty and until when.
-
-**⚠️ One consequence, stated rather than hidden: between the sale return and the purchase return the faulty unit is ordinary sellable stock**, and the till will sell it to the next customer. The system does not quarantine it. Doing both documents the same day is the discipline; a "not fit to sell" shelf is a larger change and is not in this version.
-
-**The supplier's own warranty — how long *they* will take a unit back — is not recorded.** That is a different promise from the one made to the customer, and until it is asked for, the shop knows it and the system does not.
-
 ### Aged debt — Soran, 2026-09-20
 
 **Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*

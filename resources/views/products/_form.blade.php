@@ -119,23 +119,6 @@
                     @error('reorder_level')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                {{-- ⚠️ What the shop promises the customer, set once here and
-                     COPIED onto the sale line when it sells — Soran, 2026-09-23.
-                     The column existed for repairs and could not be set from
-                     anywhere, so a power bank sold with thirty days on it had
-                     nowhere to record them. --}}
-                <div class="mb-3">
-                    <label for="warranty_days" class="form-label">{{ __('Warranty days') }}</label>
-                    <input id="warranty_days" type="number" step="1" min="0" max="3650" name="warranty_days"
-                           value="{{ old('warranty_days', $product->warranty_days) }}" dir="ltr"
-                           class="form-control text-end @error('warranty_days') is-invalid @enderror"
-                           placeholder="{{ __('None') }}">
-                    <div class="form-text">
-                        {{ __('Printed on the invoice and counted from the day it is sold. Blank means none is offered.') }}
-                    </div>
-                    @error('warranty_days')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-
                 <div class="form-check form-switch">
                     <input type="hidden" name="is_active" value="0">
                     <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1"

@@ -50,10 +50,6 @@ class ProductRequest extends FormRequest
             'purchase_price' => [$this->user()->seesRealCost() ? 'required' : 'nullable', new Amount($this->lens(), min: 0)],
             'sale_price' => ['required', new Amount($this->lens(), min: 0)],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
-
-            // Null is "none offered", which is not the same as zero days: a
-            // cable has none; a board guaranteed to the end of the day is 0.
-            'warranty_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
             'is_active' => ['boolean'],
 
             // Section 5: opening stock. A product already in the shop needs a
