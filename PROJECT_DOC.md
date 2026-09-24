@@ -1544,6 +1544,20 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 
 ⚠️ **Dates on this page are in `.app-code`, not interpolated into a sentence.** A bare `2026-09-04` dropped into right-to-left text is reordered by the bidi algorithm into `04-09-2026` — the right characters, the wrong date. Found by rendering the page in Kurdish and looking at it, which is the only way this is ever found. ⚠️ And the test that guards it had to be **anchored to its label**: the plain string is on the page anyway, in every row of both tables, so the first version passed with the two cards printing their dates bare. It failed a sabotage, and that is how it was caught.
 
+### Help for the bench and the swap screen — Soran, 2026-09-24
+
+Both modules shipped without either half of the help, which was noticed and left. *"ow make guide and help for repairs and swaps"*.
+
+**Three screens got a `?`,** chosen the way the first six were — where people get stuck, not where the code is complicated: **`repairs.create`** (taking a device in), **`repairs.show`** (the job itself) and **`swaps.create`** (the decision). The repair and swap lists did not: a list is not where anybody is stuck, and a button that opens a paragraph of nothing teaches the reader the `?` is not worth pressing.
+
+**Four guide topics, and a sixth heading.** Repairs is its own group — *the person reading it has a screwdriver in their hand and never opens the till* — holding "Somebody brings in a broken device", "Doing the job, and getting paid for it" and "A device you fixed comes back". The swap topic sits under **Selling**, beside the customer-return topic it is a cousin of.
+
+**And three "what's new" entries**, dated when each shipped: repairs, swaps, and the find page. That list had stopped at 2026-09-08 while three modules arrived.
+
+⚠️ **The help is written from the code, not from memory.** Every claim in it was read out of the model or the service first — that a job holds parts but moves no stock until collection, that the warranty counts from collection and not from when the work finished, that collecting is a sale and so needs `sales.create`, that a part added after acceptance sends the job back to waiting. Help that is confidently wrong is worse than no help, because it is believed once and then never again.
+
+⚠️ **A close button that sat on top of its own title, in three languages out of four.** Found by opening the new swap help in Sorani and looking at it. Bootstrap pushes `.offcanvas-header .btn-close` to the end with a physical `margin-right: -0.5rem` and `margin-left: auto`; flipped, that shoves it INTO the title rather than away from it. Measured at 390px: the button's right edge sat **8px inside** the title's left edge. It had been wrong for every help panel since the day the panel shipped, and only a long title made it visible. The fix is the logical pair, which is what the physical one meant all along — the same lesson as `.offcanvas-end` one line above it in the stylesheet. Guarded twice, in the source and in the **compiled** stylesheet, because a build that predates the rule passes the source test and is still wrong in the browser.
+
 ### Aged debt — Soran, 2026-09-20
 
 **Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*

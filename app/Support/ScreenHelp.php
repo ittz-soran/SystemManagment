@@ -15,11 +15,11 @@ namespace App\Support;
  * are the same thing, so help attached to a route cannot drift onto the wrong
  * page the way a URL pattern or a controller name eventually does.
  *
- * Six screens to begin with, chosen because they are where people get stuck
- * rather than where the code is complicated. Every string is written out as a
- * literal rather than built up, because `translations:check` tokenises the
- * source: a sentence assembled from variables ships in English while the
- * report still says 100%.
+ * Chosen because they are where people get stuck rather than where the code is
+ * complicated — six to begin with, and three more when the bench and the swap
+ * screen arrived. Every string is written out as a literal rather than built
+ * up, because `translations:check` tokenises the source: a sentence assembled
+ * from variables ships in English while the report still says 100%.
  *
  * The shape of an entry, all of it optional except the title:
  *
@@ -144,6 +144,66 @@ final class ScreenHelp
                     __('Stock going out is costed from the oldest batch first, exactly like a sale.'),
                     __('Stock coming in needs a cost. Leave it and the product’s own purchase price is used.'),
                     __('An adjustment can be corrected or undone, and both are recorded against your name.'),
+                ],
+            ],
+
+            'repairs.create' => [
+                'title' => __('Taking a device in'),
+                'intro' => __('Write down what came in and what is wrong with it. Nothing is charged and no stock moves yet.'),
+                'steps' => [
+                    [__('Say what it is'), __('A phone, a PlayStation, a laptop, a television — in your own words. The box is yours to write in.')],
+                    [__('Type the serial or IMEI'), __('It is what lets the shop tell you, months later, that this exact device has been here before.')],
+                    [__('Write how it looks now'), __('Scratches, dents, no charger. This is the line that settles an argument three weeks later.')],
+                    [__('Say who will do it'), __('Only somebody with the repair permission is on that list.')],
+                ],
+                'warning' => [
+                    __('The estimate is not what they will pay'),
+                    __('It is what you told them at the counter, kept so you can see later how close you were. What they pay comes from the parts and labour put on the job, and they have to agree to that separately.'),
+                ],
+                'notes' => [
+                    __('A job taken in holds no parts and moves no stock. That happens when the customer collects.'),
+                    __('Promised is optional. Fill it in and the list marks the job late once that day passes.'),
+                ],
+            ],
+
+            'repairs.show' => [
+                'title' => __('The job'),
+                'intro' => __('Parts and labour, the customer agreeing, and the invoice at the end.'),
+                'steps' => [
+                    [__('Add what the job needs'), __('Parts from your stock, labour as a service line. Change or remove them while the job is open.')],
+                    [__('Get the customer to agree'), __('Press accept when they say yes, at the counter or on the phone. That is what the printed ticket says.')],
+                    [__('Collect'), __('The green button makes an ordinary invoice, takes the parts out of stock at what they really cost, and takes the money.')],
+                ],
+                'warning' => [
+                    __('Add a part after they agreed, and they have to agree again'),
+                    __('The job goes straight back to waiting for them, and it cannot be collected until the new figure is accepted. Charging somebody for work they never agreed to is the one thing this screen exists to stop.'),
+                ],
+                'notes' => [
+                    __('Part not in stock? Buy it here. It is recorded as a real purchase, so the shelf and the books both know.'),
+                    __('Never put a line on the job for something you have not got — collection is refused, with the mended device on the counter.'),
+                    __('Collecting is a sale, so somebody who may not sell cannot collect. Fetch whoever is on the till.'),
+                    __('Hand back unmended is a real ending. Nothing is charged and no stock moves.'),
+                    __('The profit shown is from what the parts actually cost you, and anything refunded comes off it.'),
+                ],
+            ],
+
+            'swaps.create' => [
+                'title' => __('A faulty item comes back'),
+                'intro' => __('Replace it with the same thing, change it for something else, or give the money back — and send the broken one to your supplier.'),
+                'steps' => [
+                    [__('Scan the faulty item'), __('Or type part of its name. You do not need the invoice number.')],
+                    [__('Pick the invoice that sold it'), __('Newest first, because last week’s sale is far likelier than one from two years ago.')],
+                    [__('Choose what to do'), __('Hand over the same thing, or take it back on the invoice and sell something else or refund.')],
+                ],
+                'warning' => [
+                    __('A swap does not change the invoice'),
+                    __('The customer bought one and still has one, so their printed paper stays true. What changed is which piece they have. That line cannot then be returned as well, or you would put stock on the shelf that never existed.'),
+                ],
+                'notes' => [
+                    __('None left on the shelf? The swap is not offered. The other two ways out still are.'),
+                    __('The broken one goes back to the purchase it came from, and the screen names that supplier before you do anything.'),
+                    __('If it never came from a purchase, there is nobody to send it to and the shop carries it. The screen says so.'),
+                    __('It costs you something only when the replacement comes off a newer, dearer batch. That shows on the profit report as Faulty goods replaced.'),
                 ],
             ],
 
