@@ -1,8 +1,9 @@
 <?php
 
+use App\Console\Commands\StockRepairBatchDates;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -82,50 +83,21 @@ return new class extends Migration
     /**
      * Put back the dates MySQL overwrote, from the movements that kept them.
      *
-     * ⚠️ **The truth was never lost, only misfiled.** A batch is created with a
-     * movement in the same breath and from the same value, and movements are
-     * inserted and deleted but never updated — so the auto-update never touched
-     * them. Soran's own screenshots show it: batch #128 reading 2026-09-24
-     * 10:26 while its `+29 pcs` movement still reads 2026-08-24 14:46.
+     * ⚠️ The arithmetic lives in `stock:repair-batch-dates` rather than here,
+     * so it can be run again on a shop whose FIFO order is already wrong, read
+     * out loud with `--pretend`, and — the part that matters — tested. A
+     * migration runs once and is never looked at again.
      *
-     * ⚠️ **Transferred batches are left alone.** TransferService deliberately
-     * carries the SOURCE batch's `received_at` so that stock moved between
-     * rooms keeps its age — its own inbound movement is dated the transfer, and
-     * "repairing" from that would make old stock look new, which is the same
-     * bug pointing the other way.
+     * ⚠️ **And it is called SILENTLY.** A first version handed it a real
+     * console and printed what it had repaired, which read well by hand and
+     * broke six tests: `shop:update` runs migrations and prints JSON, and a
+     * migration writing to stdout corrupts it. The shopkeeper's own update
+     * would have failed on the deploy this migration exists for. Run the
+     * command by hand to see the detail.
      */
     private function repairBatchDates(): void
     {
-        $repaired = 0;
-
-        DB::table('stock_batches')
-            ->whereIn('source_type', ['purchase', 'adjustment'])
-            ->orderBy('id')
-            ->chunkById(500, function ($batches) use (&$repaired) {
-                foreach ($batches as $batch) {
-                    $born = DB::table('stock_movements')
-                        ->where('stock_batch_id', $batch->id)
-                        ->where('quantity', '>', 0)
-                        ->orderBy('occurred_at')
-                        ->orderBy('id')
-                        ->value('occurred_at');
-
-                    if ($born === null || $born === $batch->received_at) {
-                        continue;
-                    }
-
-                    DB::table('stock_batches')->where('id', $batch->id)
-                        ->update(['received_at' => $born]);
-
-                    $repaired++;
-                }
-            });
-
-        if ($repaired > 0) {
-            // Worth saying out loud during a deploy: it is the shop's FIFO
-            // order being put back, not a routine schema tidy.
-            echo "  Repaired {$repaired} batch date(s) that MySQL had overwritten.\n";
-        }
+        Artisan::call(StockRepairBatchDates::class);
     }
 
     public function down(): void
