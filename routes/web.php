@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AssemblyController;
 use App\Http\Controllers\AuthenticatorController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CategoryController;
@@ -546,6 +547,22 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::post('repairs/parts', [RepairController::class, 'buyPart'])
         ->middleware('permission:repairs.buy_part')->name('repairs.buy-part');
+
+    /*
+     * ---- Taking apart and building ---------------------------------------
+     * ⚠️ `assemblies/create` above `assemblies/{assembly}`, or the word
+     * "create" is read as a document id and the page 404s.
+     */
+    Route::get('assemblies', [AssemblyController::class, 'index'])
+        ->middleware('permission:assemblies.view')->name('assemblies.index');
+    Route::get('assemblies/create', [AssemblyController::class, 'create'])
+        ->middleware('permission:assemblies.create')->name('assemblies.create');
+    Route::post('assemblies', [AssemblyController::class, 'store'])
+        ->middleware('permission:assemblies.create')->name('assemblies.store');
+    Route::post('assemblies/share', [AssemblyController::class, 'share'])
+        ->middleware('permission:assemblies.create')->name('assemblies.share');
+    Route::get('assemblies/{assembly}', [AssemblyController::class, 'show'])
+        ->middleware('permission:assemblies.view')->name('assemblies.show');
 
     Route::get('stock-transfers', [StockTransferController::class, 'index'])
         ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');

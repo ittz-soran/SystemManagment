@@ -77,6 +77,10 @@ class AppServiceProvider extends ServiceProvider
              */
             'swap' => \App\Models\Swap::class,
 
+            // Same lesson again: a batch's SOURCE is the document that opened
+            // the box, and a movement's reference is too.
+            'assembly' => \App\Models\Assembly::class,
+
             // Not stored in any polymorphic column, but named here so the map
             // can be read the other way: DocumentLink resolves a model to its
             // alias through it, and an unmapped class silently loses its link.

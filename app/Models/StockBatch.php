@@ -45,6 +45,9 @@ class StockBatch extends Model
     /** A layer split off another one and carried into a different room. */
     public const SOURCE_TRANSFER = 'transfer';
 
+    /** A layer born of a thing being taken apart — Soran, 2026-09-24. */
+    public const SOURCE_ASSEMBLY = 'assembly';
+
     protected function casts(): array
     {
         return [
