@@ -14,10 +14,32 @@
         <div class="card-body">
             <form method="GET" action="{{ route('find') }}" class="row g-2">
                 <div class="col-12 col-md-9">
-                    <label for="q" class="visually-hidden">{{ __('Find anything') }}</label>
-                    <input id="q" type="search" name="q" value="{{ $term }}" autofocus
-                           class="form-control form-control-lg"
-                           placeholder="{{ __('Name, code, barcode, phone, address or a document number') }}">
+                    <label for="find-q" class="visually-hidden">{{ __('Find anything') }}</label>
+
+                    {{-- ⚠️ The panel hangs off THIS wrapper, not off the grid
+                         column. A column carries the row's gutter as padding,
+                         so a `w-100` panel inside one is a gutter wider than
+                         the box it belongs to and sits half a centimetre
+                         proud of it. Same structure as the topbar's. --}}
+                    <div class="position-relative">
+                        {{-- ⚠️ `data-english-digits` puts this box on app.js's
+                             list of fields a Kurdish or Arabic keyboard may be
+                             pointed at, so ٤٥٠٠ becomes 4500 as it is typed.
+                             The server translates them again on arrival — a
+                             scanner, a paste and a typed character do not all
+                             take the same road in. --}}
+                        <input id="find-q" type="search" name="q" value="{{ $term }}"
+                               class="form-control form-control-lg" data-english-digits
+                               autocomplete="off" role="combobox"
+                               aria-expanded="false" aria-controls="find-suggestions"
+                               placeholder="{{ __('Name, code, barcode, phone, address or a document number') }}">
+
+                        {{-- What the box thinks you might mean, while you type. --}}
+                        <div id="find-suggestions" class="app-search-results dropdown-menu w-100 p-0 overflow-auto"
+                             role="listbox" aria-label="{{ __('Find anything') }}"
+                             data-url="{{ route('find.suggest') }}"
+                             data-empty="{{ __('Nothing found.') }}"></div>
+                    </div>
                 </div>
                 <div class="col-12 col-md-3 d-grid">
                     <button class="btn btn-primary btn-lg">
@@ -27,7 +49,7 @@
             </form>
 
             @if($term === '')
-                <p class="text-secondary small mt-3 mb-0">
+                <p class="text-secondary small mt-3 mb-0" id="find-hint">
                     {{ __('Scan a barcode, type part of a name, a phone number, or the number printed on any document. Kurdish, Arabic and Persian digits are read as English ones.') }}
                 </p>
             @endif

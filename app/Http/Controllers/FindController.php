@@ -23,6 +23,7 @@ use App\Support\TradeProfit;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -54,6 +55,9 @@ class FindController extends Controller
     /** Enough to answer the question, few enough to read on a phone. */
     private const RECENT = 8;
 
+    /** A dropdown somebody reads while typing, not a list they work through. */
+    private const SUGGESTIONS = 6;
+
     /** More than this and the reader should narrow the term, not scroll. */
     private const CANDIDATES = 12;
 
@@ -79,6 +83,76 @@ class FindController extends Controller
 
             ...($product === null ? [] : $this->dossier($user, $product)),
         ]);
+    }
+
+    /**
+     * What the box thinks you might mean, while you are still typing.
+     *
+     * *"sugest some result may i dont now full name or sku"*. The same shape
+     * the topbar's box already draws, so one piece of JavaScript serves both —
+     * and the same permissions as the page it feeds, because a suggestion the
+     * reader may not open is still a fact they were not meant to have.
+     *
+     * ⚠️ A product suggestion leads to THIS page's dossier rather than to the
+     * product's own record. The reader is standing in the find page asking what
+     * they can do about the thing; landing them on the batch list is answering
+     * a question they did not ask. People and documents have no dossier here,
+     * so those lead to their own screens.
+     */
+    public function suggest(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $term = Digits::english($request->string('q')->trim()->toString());
+
+        if (mb_strlen($term) < 2) {
+            return response()->json(['groups' => []]);
+        }
+
+        $groups = [];
+
+        if ($user->hasPermission('products.view')) {
+            $products = $this->matching($term, wholeBarcode: true)
+                ->limit(self::SUGGESTIONS)->get()
+                ->map(fn (Product $p) => [
+                    'label' => $p->name,
+                    'note' => trim($p->sku.' · '.($p->tracksStock()
+                        ? trans_choice('{0}out of stock|{1}:count in stock|[2,*]:count in stock',
+                            $p->quantity, ['count' => number_format($p->quantity)])
+                        : __('Service'))),
+                    'url' => route('find', ['product' => $p->id]),
+                    'icon' => 'box-seam',
+                ]);
+
+            if ($products->isNotEmpty()) {
+                $groups[] = ['label' => __('Products'), 'items' => $products->values()];
+            }
+        }
+
+        $people = $this->people($user, $term)->take(self::SUGGESTIONS)
+            ->map(fn (array $person) => [
+                'label' => $person['name'],
+                'note' => trim($person['note'].($person['phone'] ? ' · '.$person['phone'] : '')),
+                'url' => $person['url'],
+                'icon' => $person['icon'],
+            ]);
+
+        if ($people->isNotEmpty()) {
+            $groups[] = ['label' => __('People'), 'items' => $people->values()];
+        }
+
+        $documents = $this->documents($user, $term)->take(self::SUGGESTIONS)
+            ->map(fn (array $document) => [
+                'label' => $document['number'],
+                'note' => $document['note'],
+                'url' => $document['url'],
+                'icon' => $document['icon'],
+            ]);
+
+        if ($documents->isNotEmpty()) {
+            $groups[] = ['label' => __('Documents'), 'items' => $documents->values()];
+        }
+
+        return response()->json(['groups' => $groups]);
     }
 
     /**
@@ -115,12 +189,24 @@ class FindController extends Controller
      * I pay 40,000 for" has handed the cost to anybody who can type a number.
      * The price a customer is charged is on the shelf edge already.
      */
-    private function matching(string $term): Builder
+    private function matching(string $term, bool $wholeBarcode = false): Builder
     {
-        $query = Product::query()->where(function (Builder $q) use ($term) {
+        $query = Product::query()->where(function (Builder $q) use ($term, $wholeBarcode) {
             $q->where('name', 'like', "%{$term}%")
-                ->orWhere('sku', 'like', "%{$term}%")
-                ->orWhere('barcode', 'like', "%{$term}%");
+                ->orWhere('sku', 'like', "%{$term}%");
+
+            /*
+             * ⚠️ Half a barcode is nobody's question — Soran, 2026-09-24:
+             * *"barcode shuld fully typed then search"*. A barcode is never
+             * half-known: it is scanned, and it arrives whole. While one is
+             * being typed, every prefix of it would drag unrelated products
+             * into the list the reader is reading, so suggestions wait for the
+             * whole code. A search the reader has actually asked for is
+             * generous and still matches part of one.
+             */
+            $wholeBarcode
+                ? $q->orWhere('barcode', $term)
+                : $q->orWhere('barcode', 'like', "%{$term}%");
 
             if (ctype_digit($term)) {
                 $q->orWhere('sale_price', (int) $term);

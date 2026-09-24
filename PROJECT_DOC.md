@@ -1520,6 +1520,24 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 
 **Every panel is behind the permission of the screen it summarises.** A reader without `purchases.view` gets no purchases, no best supplier and no spend — a page that says *"you bought 40 of these for 1,600,000"* has told them exactly what the purchases screen was keeping from them. ⚠️ **The route itself has no permission**: the page reveals nothing on its own, and guarding it would mean inventing a key for *"may look things up"*, which is every job in the shop.
 
+#### Suggestions while you type — Soran, 2026-09-24
+
+*"while type before click search sugest some result may i dont now full name or sku, and barcode shuld fully typed then search, every after click search or scaned barcode serach input ready for new search"*.
+
+⚠️ **One type-ahead, two boxes.** The topbar's box already had a good one — debounced, grouped, keyboard-first, with a stale answer never allowed to replace a newer one. It was bound to two element ids. It is now `attachSuggest(input, panel, options)`, and the find page's box is its second caller. Written twice, the day the two disagreed about what Enter does would be the day somebody at the till lost a scan.
+
+**What differs between them is passed in, and it is Enter.** The topbar has no form behind it, so Enter opens the first suggestion — the best guess at what was meant. The find page has a form, and Enter must run the search: **a scanner ends every read with Enter, milliseconds after the code lands and long before the suggestion request comes back.** A highlighted row still wins on both.
+
+⚠️ **A barcode is suggested only when it is whole.** A barcode is never half-known — it is scanned, and it arrives complete — so every prefix of one would drag unrelated products into a list somebody is reading mid-type. Name and SKU are matched on a part, because those are exactly what a shopkeeper half-remembers. **A search the reader has actually asked for stays generous** and still matches part of a barcode: that is a decision they made, not a guess made for them.
+
+⚠️ **This is deliberately not what the till does.** The till's product search matches part of a barcode, because Soran asked for that on 2026-09-12 — *"typing `BT208` out of `GD-BT208` returned nothing and the box looked broken"*. That is a submitted search, not a suggestion drawn while a scanner is still typing, so `SearchController` is untouched and the two boxes differ on purpose.
+
+**A product suggestion leads to this page's dossier, not to the product's record.** The reader is standing in the find page asking what they can *do* about the thing; landing them on the batch list answers a question they did not ask. People and documents have no dossier here, so those lead to their own screens.
+
+**The box comes back ready.** After a search the term is left in the box and **selected**, with the caret in it — the same idiom the product form already uses for a rescan, so the next scan replaces the old code rather than being typed onto the end of it. ⚠️ **Focused only where the pointer is fine.** `autofocus` on a phone throws the on-screen keyboard up over the results the reader just asked for, every single time; a scanner is a keyboard, and a keyboard means a pointer that is not a fingertip.
+
+**And the hint under the box hides itself on the first keystroke.** It explains what may be typed, which stops being useful the moment somebody types — and the suggestions open on top of it, so its lines showed around the panel like a page printed twice.
+
 **The best supplier is by units, not by money.** The supplier worth knowing is the one who keeps the shelf full; ranked by spend, a single expensive order would beat a year of steady ones.
 
 **And the faulty tab is on each invoice line.** *"I tab to return faulty item then system search all invoice are I sale this product and after select one open it"* — each line that still has one to come back carries a button straight to the swap page on that line, with the shelf already read.
