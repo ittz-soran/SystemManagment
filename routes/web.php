@@ -11,6 +11,7 @@ use App\Http\Controllers\DataCheckController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FindController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\InstallController;
@@ -79,6 +80,17 @@ Route::middleware(['auth'])->group(function () {
      * every group inside it is behind the permission of the screen it leads to.
      */
     Route::get('search', SearchController::class)->name('search');
+
+    /*
+     * The find page — one box, and everything the shop knows about the answer.
+     *
+     * ⚠️ No permission on the route. The page itself reveals nothing: every
+     * panel inside is behind the permission of the screen it summarises, and a
+     * reader with none of them gets a box and an empty answer. Guarding the
+     * route instead would mean inventing a key for "may look things up", which
+     * is every job in the shop.
+     */
+    Route::get('find', FindController::class)->name('find');
 
     Route::get('dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:dashboard.view')

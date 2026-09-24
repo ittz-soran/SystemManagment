@@ -126,11 +126,10 @@ final class Totp
      */
     private static function english(string $value): string
     {
-        return str_replace(
-            ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹', ' ', '-'],
-            ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '', ''],
-            $value,
-        );
+        // The digits are Digits::english's job, here and everywhere else; the
+        // spaces and dashes are this reader's own, because a secret is printed
+        // in groups of four and a typed code carries whatever the eye added.
+        return str_replace([' ', '-'], '', Digits::english($value));
     }
 
     private static function base32Encode(string $bytes): string

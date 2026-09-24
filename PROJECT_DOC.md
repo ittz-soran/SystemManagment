@@ -1487,7 +1487,7 @@ Two of the three were already built. Only the first needed anything new, and onl
 
 **The return screen arrives with the line marked.** *"after select one open it on sale return and marked as wanted product to return"*. `sales/{sale}/return?line=` fills that line's box with one and ticks its *faulty* box. ⚠️ The id is looked up among **that sale's own lines**, so a hand-typed number cannot mark a line belonging to somebody else's invoice; and it only fills a box in — the reader still presses the button.
 
-⚠️ **`swaps.view` and `swaps.create` are their own keys, and are in no staff preset.** A swap moves stock *and* bills a supplier, which is more than taking a return and more than selling — somebody trusted with one is not thereby trusted with this. It is also the reason the counter preset does not get it: that preset's promise is *"sees no cost and no purchase"*, and this page shows both, because what the supplier gives back is the whole point of showing it. The owner grants it to whoever they trust with it.
+⚠️ **`swaps.view` and `swaps.create` are their own keys, and are in no staff preset.** A swap moves stock *and* bills a supplier, which is more than taking a return and more than selling — somebody trusted with one is not thereby trusted with this. It is also why the counter preset does not get it: that preset holds no `purchases.*`, and this page names the purchase the faulty unit came from and the supplier who will be billed for it. (Correcting what this paragraph said on 2026-09-23: it also claimed the counter sees no cost. The counter holds `products.view`, and the product page has shown batch costs to that key for as long as it has existed — there is no separate cost permission in this system. The purchase half is the real reason; the cost half was wrong.) The owner grants it to whoever they trust with it.
 
 ⚠️ **`'swap' => Swap::class` had to go in the morph map**, exactly as `transfer` did before it. A swap writes movements whose `reference_type` reads `swap`, and the product page resolves that column as a relation: without the alias, the product page answers 500 — but only after a shop has actually swapped something. Found by a test that opens the product page after a swap, not by reading the file.
 
@@ -1497,6 +1497,34 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 
 **Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
 
+
+### Find anything — Soran, 2026-09-24
+
+*"create an new page are user just can search, and search by all data type like name, sku, barcode, prices, qty, phone, address, balance, inv, pur, srt, prt, pay… all of data have automated read Arabic or Persian numbers to English… for example I searched PD-17-UK auto show invoices, purchases, statistics, best supplier buy from and customer, and actions like sale or purchase or return"*.
+
+⚠️ **This is neither the product page nor the search dropdown, and the difference is the whole design.** The product page is the *record* — batches, movements, ninety days of trend. The dropdown is a *jump* — type a number, land on the document. `find` answers the question actually asked at the counter, with somebody standing there holding a thing: **what do I know about this, and what can I do about it right now.** Hence the statistics, the two people the shop deals with most over it, the invoices that sold it, and a row of buttons.
+
+**What the box understands.** A product by name, SKU or barcode; a person by name, phone or address; any document by its number, including the two the dropdown does not carry — repairs and swaps.
+
+| the reader gets | when |
+|---|---|
+| **the dossier**, straight away | exactly one product matches — a scanned barcode, a code only one product has |
+| **a list of candidates** | more than one thing matches, grouped as products, people and documents |
+| **"nothing matches"** | nothing they are allowed to see matches |
+
+⚠️ **The sale price is matched and the purchase price is not.** The ask says *"prices"*, and one of those two prices is what the shop paid: a box answering *"which of these did I pay 40,000 for"* has handed the cost to anybody who can type a number. The price a customer is charged is on the shelf edge already. **Quantity and balance are not matched either** — a bare number matches far too many rows to be an answer, and a phone number is how anybody actually looks up a person.
+
+⚠️ **Eastern digits are translated before anything is matched.** `app.js` already does it as they land in a number field; `Digits::english()` is the same rule for text that reaches the server, because `INV-٠٠٠٠٥` typed on a Kurdish keyboard is a `LIKE` that matches nothing at all. `Totp` had its own private copy of the table and now calls this one. Digits only — the letters on those layouts are a different problem, and a shopkeeper typing a Kurdish name means the Kurdish name.
+
+⚠️ **`INV-5` finds `INV-00005`.** Numbers are zero-padded to five on the paper and nobody types the zeros; a plain `LIKE '%INV-5%'` matches nothing, which reads as *"the system has lost my invoice"* rather than *"type it the long way"*.
+
+**Every panel is behind the permission of the screen it summarises.** A reader without `purchases.view` gets no purchases, no best supplier and no spend — a page that says *"you bought 40 of these for 1,600,000"* has told them exactly what the purchases screen was keeping from them. ⚠️ **The route itself has no permission**: the page reveals nothing on its own, and guarding it would mean inventing a key for *"may look things up"*, which is every job in the shop.
+
+**The best supplier is by units, not by money.** The supplier worth knowing is the one who keeps the shelf full; ranked by spend, a single expensive order would beat a year of steady ones.
+
+**And the faulty tab is on each invoice line.** *"I tab to return faulty item then system search all invoice are I sale this product and after select one open it"* — each line that still has one to come back carries a button straight to the swap page on that line, with the shelf already read.
+
+⚠️ **Dates on this page are in `.app-code`, not interpolated into a sentence.** A bare `2026-09-04` dropped into right-to-left text is reordered by the bidi algorithm into `04-09-2026` — the right characters, the wrong date. Found by rendering the page in Kurdish and looking at it, which is the only way this is ever found. ⚠️ And the test that guards it had to be **anchored to its label**: the plain string is on the page anyway, in every row of both tables, so the first version passed with the two cards printing their dates bare. It failed a sabotage, and that is how it was caught.
 
 ### Aged debt — Soran, 2026-09-20
 

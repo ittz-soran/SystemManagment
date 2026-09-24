@@ -25,6 +25,11 @@ final class Navigation
         return [
             '' => [
                 ['route' => 'dashboard', 'permission' => 'dashboard.view', 'icon' => 'speedometer2', 'label' => __('Dashboard')],
+
+                // No permission: the page shows a reader only what their own
+                // keys already let them open, and a box that finds nothing is
+                // not worth hiding. See the route.
+                ['route' => 'find', 'permission' => null, 'icon' => 'search', 'label' => __('Find anything')],
             ],
             __('Sell & buy') => [
                 ['route' => 'sales.create', 'permission' => 'sales.create', 'icon' => 'cart-plus', 'label' => __('New sale')],
