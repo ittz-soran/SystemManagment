@@ -1498,6 +1498,52 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 **Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
 
 
+### ⚠️ MySQL was rewriting the FIFO order — Soran, 2026-09-24
+
+**Found in his own shop, from the screen.** He swapped a cable and the replacement came off the **newer** batch while 29 units sat in the older one: *"this Sale INV-00054 #345 line must user old batch are 128 ... because have 29 remaining on old batch"*. Then the sentence that solved it: *"and this 2026-09-24 10:26 date times is wrong!!"* — both batches were showing the same timestamp, minutes old, while their own movements still read 2026-08-24 and 2026-09-06, and the adjustment documents behind them read August too.
+
+⚠️ **The first `TIMESTAMP` column in a MySQL or MariaDB table that is NOT NULL and carries no explicit default is silently given `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`.** The rule is decades old and on by default in MariaDB. `$table->timestamp('received_at', 6)` emits exactly such a column — checked by compiling the blueprint against the MySQL grammar rather than assumed:
+
+```
+create table `stock_batches` (… `received_at` timestamp(6) not null, `created_at` timestamp null, …)
+```
+
+So **every sale, return, swap and adjustment that changed a batch's `quantity_remaining` also reset its `received_at` to that moment.** `StockBatch::scopeFifoOrder` sorts by that column. FIFO had quietly become **"least recently touched first"** instead of "oldest first" — the wrong cost on the wrong sale, in the one calculation the shop is judged by, and the one thing Section 5 exists to get right.
+
+It is exactly reproducible from his data: batch #128 was last sold from on 14 September, so its date became the 14th; batch #345 arrived on the 6th and had not been touched since. On the 23rd, `6 Sep < 14 Sep`, so the till reached past 29 older units for the dearer layer.
+
+⚠️ **Not one test could see it, on either driver.** The suite runs on SQLite, where `timestamp` is a column like any other. The CI matrix *does* run MariaDB — and passed, because nothing had ever asked whether a date survives an update to its row.
+
+**The fix is the column type.** `DATETIME` has no auto-update behaviour, no timezone conversion in or out, and no 2038 limit; it is what a business date should always have been. All eight of the shop's business dates change, not only the one that bit — `repairs.received_at` is rewritten by every status change, `swaps.swapped_at` by the service's own second save, `payments.paid_at` and `stock_adjustments.adjusted_at` by any edit.
+
+**And the FIFO order is repaired on deploy.** The truth was never lost, only misfiled: a batch is created with a movement in the same breath and from the same value, and movements are inserted and deleted but never updated, so the auto-update never touched them. The migration reads each batch's creating movement and puts the date back, counting them out loud as it goes. ⚠️ **Transferred batches are left alone** — `TransferService` deliberately carries the source's `received_at` so moved stock keeps its age, and repairing those from their own inbound movement would make old stock look new, which is this same bug pointing the other way. ⚠️ **`repairs.received_at` cannot be repaired**: nothing else recorded it, so a job edited since it was taken in has lost its true take-in time. Adjustments and payments were spared in practice, because nothing updates those rows in the course of trading.
+
+**Two guards, because one was not enough.** A schema test asserts every one of the eight columns is `datetime`, and skips on SQLite where the question is meaningless. A behavioural test sells twice from a two-batch product and asserts the older batch is drawn on both times — the exact shape of what Soran saw. ⚠️ That one was **verified to discriminate rather than assumed to**: this container cannot run MariaDB, so the auto-update was reproduced with a throwaway SQLite trigger, under which the test fails on its first assertion.
+
+### Undoing a swap, and a faulty unit with nowhere to go — Soran, 2026-09-24
+
+*"add delete or edit options for swaps"*.
+
+**Delete undoes the whole thing, backwards through what making one did.** The supplier is un-billed, which puts the faulty unit back into its batch; then both swap movements come off, which takes that unit out again and puts the replacement back on the shelf; then the invoice line may be returned again.
+
+⚠️ **The order is the whole of it.** The movement removed second is the one that put the faulty unit into its batch, and it cannot come off a batch that has not got it — so the purchase return has to go first. Reversed, it refuses with "not enough in the batch" on a swap that is perfectly undoable, **but only when that batch has been emptied**, which is why an ordinary fixture cannot see the difference: the first sabotage of this passed and proved nothing. The test that guards it makes the faulty unit the last of its own batch and takes the replacement off another one.
+
+⚠️ **`swaps.edit` is the NOTE and nothing else.** A swap is a fact about a physical handover: a different quantity, or a different line, is a different swap, and pretending otherwise behind an Edit button would leave the stock saying one thing and the document another. Correcting what somebody typed is worth a key; rewriting what happened is delete and do it again.
+
+⚠️ **`swaps.delete` un-bills the supplier under its own key.** Making a swap bills one under `swaps.create` without anybody holding `purchase_returns.create`; undoing it un-bills them by the same rule. `PurchaseReturnService::delete()` gained `alreadyAuthorised` for that one caller — it narrows nothing else, and the batch and closed-period checks still run, twice.
+
+**A swap deleted is a swap that never happened, on the books.** The customer keeps whatever they walked out with; this is for a swap recorded in error. What comes back is the shelf, the supplier's balance, and the invoice line's right to be returned.
+
+#### And the bug the delete test found
+
+⚠️ **A faulty unit with nobody to send it to was being put back on the shelf and left there** — two days after swaps shipped, found by a fixture written for the delete button, not by reading the code.
+
+The restore exists so a purchase return has something to take. With no purchase behind the unit there is no return, so it stayed: **the shelf counted a broken power bank as sellable, and the document said the swap had cost nothing while the shop had given away a good one.** This paragraph previously claimed "the shop simply carries the cost, which the document then shows" — it did not.
+
+Now it is not restored at all. The sale already costed it, so the shelf stays right, `faulty_cost` stays zero, and `cost()` reads the whole replacement — which is the truth of what the shop is out of pocket. The P&L feels it through the same "Faulty goods replaced" line.
+
+⚠️ **And a line drawn from two kinds of stock is refused.** The purchased units must go back into their batch so the return can take them, and the rest must not. Restoring a chosen subset would need FIFO to put back particular units rather than a count of them — surgery on the one class in this system that must never be wrong — so a mixed line says so and points at the return screen instead. It needs one invoice line whose units came partly from a purchase and partly from opening stock or another room, which is rare enough to be worth a sentence rather than a second mechanism.
+
 ### Find anything — Soran, 2026-09-24
 
 *"create an new page are user just can search, and search by all data type like name, sku, barcode, prices, qty, phone, address, balance, inv, pur, srt, prt, pay… all of data have automated read Arabic or Persian numbers to English… for example I searched PD-17-UK auto show invoices, purchases, statistics, best supplier buy from and customer, and actions like sale or purchase or return"*.
@@ -1543,6 +1589,20 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 **And the faulty tab is on each invoice line.** *"I tab to return faulty item then system search all invoice are I sale this product and after select one open it"* — each line that still has one to come back carries a button straight to the swap page on that line, with the shelf already read.
 
 ⚠️ **Dates on this page are in `.app-code`, not interpolated into a sentence.** A bare `2026-09-04` dropped into right-to-left text is reordered by the bidi algorithm into `04-09-2026` — the right characters, the wrong date. Found by rendering the page in Kurdish and looking at it, which is the only way this is ever found. ⚠️ And the test that guards it had to be **anchored to its label**: the plain string is on the page anyway, in every row of both tables, so the first version passed with the two cards printing their dates bare. It failed a sabotage, and that is how it was caught.
+
+### Help for the bench and the swap screen — Soran, 2026-09-24
+
+Both modules shipped without either half of the help, which was noticed and left. *"ow make guide and help for repairs and swaps"*.
+
+**Three screens got a `?`,** chosen the way the first six were — where people get stuck, not where the code is complicated: **`repairs.create`** (taking a device in), **`repairs.show`** (the job itself) and **`swaps.create`** (the decision). The repair and swap lists did not: a list is not where anybody is stuck, and a button that opens a paragraph of nothing teaches the reader the `?` is not worth pressing.
+
+**Four guide topics, and a sixth heading.** Repairs is its own group — *the person reading it has a screwdriver in their hand and never opens the till* — holding "Somebody brings in a broken device", "Doing the job, and getting paid for it" and "A device you fixed comes back". The swap topic sits under **Selling**, beside the customer-return topic it is a cousin of.
+
+**And three "what's new" entries**, dated when each shipped: repairs, swaps, and the find page. That list had stopped at 2026-09-08 while three modules arrived.
+
+⚠️ **The help is written from the code, not from memory.** Every claim in it was read out of the model or the service first — that a job holds parts but moves no stock until collection, that the warranty counts from collection and not from when the work finished, that collecting is a sale and so needs `sales.create`, that a part added after acceptance sends the job back to waiting. Help that is confidently wrong is worse than no help, because it is believed once and then never again.
+
+⚠️ **A close button that sat on top of its own title, in three languages out of four.** Found by opening the new swap help in Sorani and looking at it. Bootstrap pushes `.offcanvas-header .btn-close` to the end with a physical `margin-right: -0.5rem` and `margin-left: auto`; flipped, that shoves it INTO the title rather than away from it. Measured at 390px: the button's right edge sat **8px inside** the title's left edge. It had been wrong for every help panel since the day the panel shipped, and only a long title made it visible. The fix is the logical pair, which is what the physical one meant all along — the same lesson as `.offcanvas-end` one line above it in the stylesheet. Guarded twice, in the source and in the **compiled** stylesheet, because a build that predates the rule passes the source test and is still wrong in the browser.
 
 ### Aged debt — Soran, 2026-09-20
 

@@ -92,6 +92,24 @@ class PermissionSeeder extends Seeder
         'swaps' => [
             'swaps.view' => 'View swaps',
             'swaps.create' => 'Swap a faulty item',
+
+            /*
+             * ⚠️ Edit is the NOTE and nothing else — Soran, 2026-09-24. A swap
+             * is a fact about a physical handover: a different quantity, or a
+             * different line, is a different swap, and pretending otherwise
+             * behind an Edit button would leave the stock saying one thing and
+             * the document another. Correcting what somebody typed is worth a
+             * key; rewriting what happened is not on offer.
+             */
+            'swaps.edit' => 'Correct the note on a swap',
+
+            /*
+             * ⚠️ And delete un-bills the supplier, because creating one billed
+             * them. Both sides of that power live under the swaps keys rather
+             * than borrowing `purchase_returns.*`, or a shop could hand
+             * somebody the right to make a swap and not the right to undo it.
+             */
+            'swaps.delete' => 'Delete a swap',
         ],
         'purchase_returns' => [
             'purchase_returns.view' => 'View purchase returns',

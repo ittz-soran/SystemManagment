@@ -116,7 +116,44 @@ class SwapController extends Controller
         return view('swaps.show', [
             'lens' => $request->user()->lens(),
             'swap' => $swap->load('sale.customer', 'saleItem', 'product', 'purchaseReturn.purchase.supplier', 'user'),
+
+            // Section 8: computed live and re-checked inside the transaction.
+            // The page disables the button and prints the reason rather than
+            // letting the attempt fail after the fact.
+            'deleteState' => $swap->canBeDeleted($request->user()),
         ]);
+    }
+
+    /**
+     * The note, and nothing else.
+     *
+     * ⚠️ A swap is a fact about a physical handover. A different quantity, or a
+     * different line, is a different swap — and pretending otherwise behind an
+     * Edit button would leave the stock saying one thing and the document
+     * another. Correcting what somebody typed is worth having; rewriting what
+     * happened is delete and do it again.
+     */
+    public function update(Request $request, Swap $swap): RedirectResponse
+    {
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $swap->update(['note' => $data['note'] ?? null]);
+
+        return redirect()->route('swaps.show', $swap)->with('success', __('Note saved'));
+    }
+
+    public function destroy(Request $request, Swap $swap): RedirectResponse
+    {
+        try {
+            $this->swaps->delete($swap, $request->user());
+        } catch (RuntimeException|Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('swaps.index')
+            ->with('success', __('Swap :number deleted', ['number' => $swap->document_no]));
     }
 
     /**

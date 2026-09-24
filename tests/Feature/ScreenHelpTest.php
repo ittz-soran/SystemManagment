@@ -45,7 +45,7 @@ class ScreenHelpTest extends TestCase
         }
     }
 
-    /** The six screens people get stuck on, named so the set cannot quietly shrink. */
+    /** The screens people get stuck on, named so the set cannot quietly shrink. */
     public function test_it_covers_the_screens_that_were_agreed(): void
     {
         $this->assertSame([
@@ -54,6 +54,13 @@ class ScreenHelpTest extends TestCase
             'sale-returns.create',
             'purchase-returns.create',
             'stock-adjustments.index',
+
+            // The bench and the swap screen, 2026-09-24. Both are new enough
+            // that nobody has a habit to fall back on.
+            'repairs.create',
+            'repairs.show',
+            'swaps.create',
+
             'reports.index',
         ], array_keys(ScreenHelp::all()));
     }
@@ -143,6 +150,23 @@ class ScreenHelpTest extends TestCase
             '/\[dir=.rtl.\]\s+\.offcanvas-end\s*\{[^}]*left:\s*0/s',
             $scss,
             'the help panel must open from the left in RTL, where the content is',
+        );
+
+        /*
+         * ⚠️ And the ✕ in its header, which is the same bug one line down.
+         *
+         * Bootstrap pushes that button to the end with a physical
+         * `margin-right: -0.5rem` and `margin-left: auto`. Flipped, that shoves
+         * it INTO the title rather than away from it: measured at 390px in
+         * Sorani, the button's right edge sat 8px inside the title's left edge,
+         * so a long help title ran under the ✕. Found by opening the new swap
+         * help in Sorani and looking at it — it had been wrong for every help
+         * panel in three of the four languages since the day the panel shipped.
+         */
+        $this->assertMatchesRegularExpression(
+            '/\[dir=.rtl.\]\s+\.offcanvas-header\s+\.btn-close\s*\{[^}]*margin-right:\s*auto/s',
+            $scss,
+            'the close button must sit at the end of the header in RTL, not on top of the title',
         );
     }
 

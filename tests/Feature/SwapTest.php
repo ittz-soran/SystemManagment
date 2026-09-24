@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
+use App\Services\StockAdjustmentService;
 use App\Services\SwapService;
 use App\Support\TradeProfit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -293,6 +294,96 @@ class SwapTest extends TestCase
             $profit['net'],
             'the page can no longer be added up down the column',
         );
+    }
+
+    /**
+     * ⚠️ **A faulty unit with nobody to send it to is not put back on the
+     * shelf** — found 2026-09-24, two days after this shipped, by a test
+     * written for the delete button.
+     *
+     * It used to be restored into its batch and left there, because the restore
+     * exists to make a purchase return possible. With no purchase behind it
+     * there is no return, so the shelf counted a broken power bank as sellable
+     * and the document said the swap had cost nothing while the shop had given
+     * away a good one.
+     */
+    public function test_a_faulty_unit_with_no_supplier_never_comes_back_to_the_shelf(): void
+    {
+        app(StockAdjustmentService::class)->recordOpeningStock(
+            product: $this->pd, quantity: 3, unitCost: 40_000, user: $this->user(),
+        );
+
+        $sale = $this->sell(1);
+
+        $this->assertSame(2, $this->pd->fresh()->quantity);
+
+        $swap = app(SwapService::class)->create($sale->items->first(), 1, $this->user());
+
+        $this->assertSame(1, $this->pd->fresh()->quantity, 'a broken unit is being counted as sellable');
+        $this->assertNull($swap->purchase_return_id, 'there was nobody to bill');
+        $this->assertSame(0, $swap->faulty_cost, 'nothing came back, so nothing came back in value');
+        $this->assertSame(40_000, $swap->cost(), 'the shop gave away a good one and got nothing for it');
+
+        // One movement, out. Nothing came in.
+        $movements = StockMovement::where('reference_type', StockMovement::REF_SWAP)
+            ->where('reference_id', $swap->id)->get();
+
+        $this->assertCount(1, $movements);
+        $this->assertSame(-1, $movements->first()->quantity);
+    }
+
+    /** And the shop's profit figure feels that loss, like any other. */
+    public function test_the_profit_figure_feels_a_swap_nobody_pays_for(): void
+    {
+        app(StockAdjustmentService::class)->recordOpeningStock(
+            product: $this->pd, quantity: 3, unitCost: 40_000, user: $this->user(),
+        );
+
+        $sale = $this->sell(1);
+
+        $window = [now()->subYear(), now()->addDay()];
+        $before = TradeProfit::between(Product::whereKey($this->pd->id), ...$window);
+
+        app(SwapService::class)->create($sale->items->first(), 1, $this->user());
+
+        $after = TradeProfit::between(Product::whereKey($this->pd->id), ...$window);
+
+        $this->assertSame($before['cost'] + 40_000, $after['cost']);
+        $this->assertSame($before['profit'] - 40_000, $after['profit']);
+    }
+
+    /**
+     * ⚠️ All of them came from a purchase, or none of them did.
+     *
+     * A mixed line is the one case this document cannot tell the truth about:
+     * the purchased units must go back into their batch so the return can take
+     * them, and the rest must not, or they sit on the shelf as sellable stock
+     * while being broken.
+     */
+    public function test_a_line_drawn_from_both_kinds_of_stock_is_refused(): void
+    {
+        // ⚠️ Dated OLDER than the purchase, or FIFO takes both units off the
+        // purchase and the line is not mixed at all — which is how the first
+        // version of this test passed while proving nothing.
+        app(StockAdjustmentService::class)->recordOpeningStock(
+            product: $this->pd, quantity: 1, unitCost: 38_000, user: $this->user(),
+            adjustedAt: now()->subDays(90),
+        );
+        $this->buy($this->bazaar, 3, 40_000, daysAgo: 60);
+
+        // One line, two units: one off the opening batch and one off the purchase.
+        $sale = $this->sell(2);
+
+        try {
+            app(SwapService::class)->create($sale->items->first(), 2, $this->user());
+            $this->fail('a mixed line was swapped');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('came from a purchase and some did not', $e->getMessage());
+        }
+
+        $this->assertSame(0, Swap::count());
+        $this->assertSame(0, PurchaseReturn::count(), 'a supplier was billed for a swap that did not happen');
+        $this->assertSame(2, $this->pd->fresh()->quantity, 'stock moved for a swap that did not happen');
     }
 
     /** A service has nothing to hand over. */

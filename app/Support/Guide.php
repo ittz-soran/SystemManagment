@@ -47,6 +47,10 @@ final class Guide
         return [
             'start' => __('Getting started'),
             'selling' => __('Selling'),
+            // A sixth heading, 2026-09-24. The bench is a job in this shop, not
+            // a corner of selling: the person reading these has a screwdriver
+            // in their hand and never opens the till.
+            'repairs' => __('Repairs'),
             'stock' => __('Stock'),
             'money' => __('Money and reports'),
             'care' => __('Looking after it'),
@@ -104,6 +108,21 @@ final class Guide
     public static function whatsNew(): array
     {
         return [
+            [
+                'date' => '2026-09-24',
+                'title' => __('One box that finds anything'),
+                'body' => __('Find anything, at the top of the menu. Scan a barcode or type part of a name and it shows what you sold, what you bought, who you buy it from, who buys it most, and what it has earned you — with the buttons to sell one, buy more or take a faulty one back.'),
+            ],
+            [
+                'date' => '2026-09-23',
+                'title' => __('A faulty item comes back'),
+                'body' => __('Swaps. Scan the broken thing, pick the invoice that sold it, and hand over the same item again — the customer’s invoice is left alone, and the broken one goes back to the supplier who sold it to you.'),
+            ],
+            [
+                'date' => '2026-09-22',
+                'title' => __('Repairs, for anything with a fault'),
+                'body' => __('Phones, consoles, laptops, televisions. Take the device in, put parts and labour on the job, get the customer to agree, and collect — which makes an ordinary invoice. The shop warns you if a device it fixed comes back while the work is still covered.'),
+            ],
             [
                 'date' => '2026-09-08',
                 'title' => __('A guide, and help on the screens where people get stuck'),
@@ -300,6 +319,37 @@ final class Guide
                 ],
             ],
 
+            'faulty-swap' => [
+                'group' => 'selling',
+                'icon' => 'arrow-left-right',
+                'title' => __('A faulty item comes back'),
+                'blurb' => __('Hand over the same thing again, change it for something else, or give the money back — and send the broken one to the supplier.'),
+                'minutes' => 3,
+                'route' => 'swaps.create',
+                'permission' => 'swaps.create',
+                'sections' => [
+                    [__('Start with the thing in your hand'), [
+                        __('Scan it or type part of its name. The screen then shows which invoices sold it, newest first, because last week’s sale is far likelier than one from two years ago.'),
+                        __('You do not need the invoice number. Finding the sale from the product is the whole point of this screen.'),
+                    ]],
+                    [__('Three ways out, and the shelf decides which are open'), [
+                        __('Handing over the same product again is a swap. Giving something different, or the money back, is a return — the screen sends you there, because that is a screen you already have.'),
+                        __('If there is none left on the shelf, the swap is not offered at all. The other two still are.'),
+                    ]],
+                    [__('A swap does not change the invoice'), [
+                        __('The customer bought one and still has one, so the paper they are holding stays true. What changed is which piece they have, and what is on your shelf.'),
+                        __('The line cannot then be returned as well. A piece already handed back and replaced must not come back a second time, or you would be putting stock on the shelf that never existed.'),
+                    ]],
+                    [__('The broken one goes back to whoever sold it to you'), [
+                        __('The screen names the purchase it came from and the supplier before you do anything, so you know who carries the cost while the customer is still standing there.'),
+                        __('A purchase return is raised for you. If the piece never came from a purchase — opening stock, or carried in from another room — there is nobody to send it to, and the shop carries it. The screen says so rather than pretending.'),
+                    ]],
+                    [__('What it costs you'), [
+                        __('Usually nothing. It costs something when the replacement comes off a newer, dearer batch than the broken one did — the supplier only gives back what they were paid. The document shows that difference, and it appears on your profit report as “Faulty goods replaced”.'),
+                    ]],
+                ],
+            ],
+
             'two-customers' => [
                 'group' => 'selling',
                 'icon' => 'pause-circle',
@@ -317,6 +367,90 @@ final class Guide
                     ]],
                     [__('They are yours, not the till’s'), [
                         __('A cart you held is waiting for you, not for whoever is on the till next. Two people on two machines never see each other’s half-finished sales.'),
+                    ]],
+                ],
+            ],
+
+            /* ---- Repairs ---------------------------------------------- */
+
+            'repair-taking-in' => [
+                'group' => 'repairs',
+                'icon' => 'tools',
+                'title' => __('Somebody brings in a broken device'),
+                'blurb' => __('Write down what came in and what is wrong with it, before anybody picks up a screwdriver.'),
+                'minutes' => 3,
+                'route' => 'repairs.create',
+                'permission' => 'repairs.create',
+                'sections' => [
+                    [__('Anything with a fault, not only phones'), [
+                        __('A PlayStation, a laptop, a television, a phone. Type what it is in your own words — the box is yours to write in, not a list to choose from.'),
+                    ]],
+                    [__('Write down how it looks now'), [
+                        __('Already scratched, small dent on the corner, no charger. This is the line that settles an argument three weeks later about a mark nobody remembers. Take thirty seconds over it.'),
+                    ]],
+                    [__('The serial or IMEI is worth typing'), [
+                        __('It is what lets the system tell you, months later, that this exact device has been in before and may still be under your warranty. Without it that warning cannot appear.'),
+                    ]],
+                    [__('The estimate is not a promise'), [
+                        __('It is what you told them at the counter, kept so you can see later how close you were. What they actually pay comes from the parts and labour added to the job, and they have to agree to that separately.'),
+                    ]],
+                    [__('Say who will do it'), [
+                        __('Only somebody with the repair permission appears in that list. It is how the shop sees later who took how many jobs and what they earned.'),
+                    ]],
+                ],
+            ],
+
+            'repair-doing-the-job' => [
+                'group' => 'repairs',
+                'icon' => 'clipboard-check',
+                'title' => __('Doing the job, and getting paid for it'),
+                'blurb' => __('Parts and labour, the customer saying yes, and the invoice at the end.'),
+                'minutes' => 4,
+                'route' => 'repairs.index',
+                'permission' => 'repairs.view',
+                'sections' => [
+                    [__('Put on what the job needs'), [
+                        __('Parts come out of your own stock, and labour is a service line. Both can be added, changed and taken off while the job is open.'),
+                        __('Nothing has moved yet. A job holds the parts it needs; it does not take them off the shelf until the customer collects.'),
+                    ]],
+                    [__('The part is not in stock'), [
+                        __('Buy it from the screen. It is recorded as a real purchase from whoever you bought it from, cash and paid in full, so the shelf and the books both know about it.'),
+                        __('Do not put a line on the job for something you have not got. The job would be accepted, the ticket printed, and collection refused with the mended phone on the counter.'),
+                    ]],
+                    [__('The customer has to say yes'), [
+                        __('Press the accept button when they agree, and that is what the printed ticket says. Add a part afterwards and the job goes back to waiting for them — the screen will not let it be collected until they have agreed to the new figure.'),
+                        __('That is the whole point of this module. Nobody is charged for work they never agreed to.'),
+                    ]],
+                    [__('Collecting is a sale'), [
+                        __('The collect button makes an ordinary invoice, takes the parts out of stock at what they really cost you, and takes the money. That is why somebody who may not sell cannot collect: the screen tells them to fetch whoever is on the till.'),
+                    ]],
+                    [__('Or hand it back unmended'), [
+                        __('A board that is water damaged, or an owner who will not pay what it would cost. Hand it back with a line saying why, and it stops sitting on the bench. Nothing is charged and no stock moves.'),
+                    ]],
+                    [__('What the job earned'), [
+                        __('The job shows its profit from what the parts actually cost, not from a price on a product form. Money given back to the customer comes off it, so a refunded job does not leave a profit behind that the shop never had.'),
+                    ]],
+                ],
+            ],
+
+            'repair-comes-back' => [
+                'group' => 'repairs',
+                'icon' => 'shield-check',
+                'title' => __('A device you fixed comes back'),
+                'blurb' => __('How the shop knows it has seen this one before, and whether the work is still covered.'),
+                'minutes' => 2,
+                'route' => 'repairs.create',
+                'permission' => 'repairs.create',
+                'sections' => [
+                    [__('It tells you, if the serial was typed'), [
+                        __('Take the device in as usual. If that serial or IMEI has been here before, the job screen says so and shows what was done, when it was collected, and whether the warranty on that work has run out.'),
+                        __('A shop that forgets charges somebody twice for the same screen. That is the argument this exists to prevent.'),
+                    ]],
+                    [__('The warranty counts from collection'), [
+                        __('Not from the day the work finished. The device is in the shop until its owner takes it, and a warranty that ran down on the bench would be worth nothing.'),
+                    ]],
+                    [__('It warns, it does not decide'), [
+                        __('Whether to charge is yours to judge. A screen that fell off a table is not the same as a screen that failed on its own, and no system can tell the difference. This one puts the facts in front of you and leaves the decision where it belongs.'),
                     ]],
                 ],
             ],

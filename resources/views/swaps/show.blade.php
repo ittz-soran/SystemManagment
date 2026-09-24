@@ -13,6 +13,30 @@
 @endsection
 
 @section('actions')
+    @can('swaps.delete')
+        {{-- ⚠️ Undoing a swap un-bills the supplier and puts the replacement
+             back on the shelf. That only works while the units are still where
+             the swap left them, so the button says why when they are not
+             rather than failing after it is pressed. --}}
+        @if(! $deleteState['allowed'])
+            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $deleteState['reason'] }}">
+                <button class="btn btn-outline-danger" disabled>
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete swap') }}
+                </button>
+            </span>
+        @else
+            <form action="{{ route('swaps.destroy', $swap) }}" method="POST"
+                  onsubmit="return confirm(@js(__('Delete :document? The replacement goes back on the shelf, the supplier is billed no more, and the invoice line can be returned again.', [
+                      'document' => $swap->document_no,
+                  ])))">
+                @csrf
+                @method('DELETE')
+                <button class="btn btn-outline-danger">
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete swap') }}
+                </button>
+            </form>
+        @endif
+    @endcan
 @endsection
 
 @section('content')
@@ -49,11 +73,30 @@
                     {{ __('The invoice was not changed. The customer bought it and still owns it — what changed is which unit they have.') }}
                 </div>
 
-                @if($swap->note)
+                @can('swaps.edit')
+                    {{-- ⚠️ The note, and nothing else on this document, is
+                         editable. A different quantity or a different line is a
+                         different swap — see SwapController::update. --}}
+                    <div class="card-footer">
+                        <form action="{{ route('swaps.update', $swap) }}" method="POST" class="row g-2 align-items-end">
+                            @csrf
+                            @method('PATCH')
+                            <div class="col-12 col-sm">
+                                <label for="note" class="form-label small text-secondary mb-1">{{ __('Note') }}</label>
+                                <input id="note" name="note" class="form-control form-control-sm" maxlength="500"
+                                       value="{{ old('note', $swap->note) }}"
+                                       placeholder="{{ __('Not charging, screen dead, dead on arrival…') }}">
+                            </div>
+                            <div class="col-12 col-sm-auto">
+                                <button class="btn btn-sm btn-outline-primary">{{ __('Save note') }}</button>
+                            </div>
+                        </form>
+                    </div>
+                @elseif($swap->note)
                     <div class="card-footer small">
                         <span class="text-secondary">{{ __('Note') }}:</span> {{ $swap->note }}
                     </div>
-                @endif
+                @endcan
             </div>
 
             <div class="card">

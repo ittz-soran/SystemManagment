@@ -128,6 +128,12 @@ class AssetBuildTest extends TestCase
             'the RTL help-panel fix is not in the committed stylesheet',
         );
 
+        $this->assertMatchesRegularExpression(
+            '/\[dir=["\']?rtl["\']?\][^{]*\.offcanvas-header[^{]*\.btn-close/',
+            $css,
+            'the RTL close-button fix is not in the committed stylesheet',
+        );
+
         $this->assertStringContainsString(
             'guide-body',
             $css,

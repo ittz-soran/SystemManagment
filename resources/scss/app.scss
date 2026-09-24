@@ -605,6 +605,19 @@ th.money {
   transform: none;
 }
 
+// And the close button in its header, for the same reason one line up.
+//
+// Bootstrap pushes it to the end with a physical `margin-right: -0.5rem` and
+// `margin-left: auto`. Flipped, that shoves it INTO the title instead of away
+// from it: measured at 390px in Sorani, the button's right edge sat 8px inside
+// the title's left edge, so a long help title ran under the ✕.
+//
+// Logical properties, which is what the physical pair meant all along.
+[dir='rtl'] .offcanvas-header .btn-close {
+  margin-right: auto;
+  margin-left: -0.5rem;
+}
+
 // ---------------------------------------------------------------------------
 // Print — Section 9b: a separate minimal layout, black on white.
 // ---------------------------------------------------------------------------
