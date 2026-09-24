@@ -105,6 +105,50 @@ class AssemblyTest extends TestCase
         $this->assertSame(75_000, (int) $pad->stockBatches()->value('unit_cost'));
     }
 
+    /**
+     * ⚠️ **Every movement says it was an assembly, on both sides.**
+     *
+     * Found 2026-09-24, hours after this shipped, by a fixture written for the
+     * delete button. `FifoService::createBatch` labelled every non-purchase
+     * batch's movement `adjustment` — a two-way choice made before a batch
+     * could be born of anything else — so the pieces a take-apart created were
+     * written as adjustments pointing at an assembly id. The product page
+     * looked up an adjustment that was not there, and undoing the document
+     * could not find its own movements to reverse.
+     *
+     * The tests that existed could not see it: they counted the OUT side, which
+     * was always right, and read the created side's document number off the
+     * BATCH, which was also right.
+     */
+    public function test_both_sides_are_written_as_assembly_movements(): void
+    {
+        $this->buyBundle();
+
+        $assembly = app(AssemblyService::class)->takeApart(
+            whole: ['product_id' => $this->bundle->id, 'quantity' => 1],
+            pieces: [
+                ['name' => 'Console', 'quantity' => 1, 'unit_cost' => 600_000],
+                ['name' => 'Controller', 'quantity' => 2, 'unit_cost' => 75_000],
+            ],
+            user: $this->user(),
+        );
+
+        $movements = StockMovement::where('reference_id', $assembly->id)
+            ->whereIn('reference_type', [StockMovement::REF_ASSEMBLY, StockMovement::REF_ADJUSTMENT])
+            ->get();
+
+        // One out for the bundle, one in for each piece.
+        $this->assertCount(3, $movements);
+
+        foreach ($movements as $movement) {
+            $this->assertSame(StockMovement::REF_ASSEMBLY, $movement->reference_type,
+                'a movement this document wrote claims to be something else');
+        }
+
+        $this->assertSame(1, $movements->where('quantity', '<', 0)->count());
+        $this->assertSame(2, $movements->where('quantity', '>', 0)->count());
+    }
+
     /** ⚠️ The check the whole document exists for. */
     public function test_the_pieces_must_be_worth_exactly_what_went_in(): void
     {

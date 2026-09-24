@@ -92,15 +92,7 @@ class AssemblyService
             throw new RuntimeException(__('Locked: this date is in a closed period.'));
         }
 
-        if ($sources === [] || $results === []) {
-            throw new RuntimeException(__('Say what goes in and what comes out.'));
-        }
-
-        foreach ([...$sources, ...$results] as $line) {
-            if ((int) ($line['quantity'] ?? 0) < 1) {
-                throw new RuntimeException(__('Every line needs a quantity above zero.'));
-            }
-        }
+        $this->assertLinesAreSane($sources, $results);
 
         return DB::transaction(function () use ($direction, $sources, $results, $user, $at, $note) {
             $assembly = new Assembly([
@@ -114,135 +106,275 @@ class AssemblyService
             $assembly->total_cost = 0;
             $assembly->save();
 
-            // 1. What goes in comes off the shelf, at whatever it really cost.
-            $consumed = 0;
+            return $this->apply($assembly, $sources, $results, $user);
+        });
+    }
 
-            foreach ($sources as $index => $line) {
-                $product = Product::whereKey($line['product_id'])->firstOrFail();
+    /**
+     * Put an assembly's figures onto the shelf.
+     *
+     * ⚠️ Shared by create and update so the two can never drift: whatever a
+     * document does to the batches, it does here and nowhere else. Word for
+     * word the arrangement `StockAdjustmentService` uses, for the same reason.
+     *
+     * @param  list<array<string, mixed>>  $sources
+     * @param  list<array<string, mixed>>  $results
+     */
+    private function apply(Assembly $assembly, array $sources, array $results, User $user): Assembly
+    {
+        $direction = $assembly->direction;
+        $at = $assembly->assembled_at;
 
-                if (! $product->tracksStock()) {
-                    throw new RuntimeException(__('A service holds no stock, so it cannot go into this.'));
-                }
+        // 1. What goes in comes off the shelf, at whatever it really cost.
+        $consumed = 0;
 
-                $movements = $this->fifo->consume(
-                    product: $product,
-                    quantity: (int) $line['quantity'],
-                    referenceType: StockMovement::REF_ASSEMBLY,
-                    referenceId: $assembly->id,
-                    referenceItemId: null,
-                    occurredAt: $at,
-                    user: $user,
-                );
+        foreach ($sources as $index => $line) {
+            $product = Product::whereKey($line['product_id'])->firstOrFail();
 
-                $cost = (int) $movements->sum(fn ($movement) => -$movement->quantity * $movement->unit_cost);
-                $consumed += $cost;
-
-                AssemblyItem::create([
-                    'assembly_id' => $assembly->id,
-                    'product_id' => $product->id,
-                    'role' => AssemblyItem::SOURCE,
-                    'quantity' => (int) $line['quantity'],
-
-                    /*
-                     * ⚠️ What FIFO charged, per unit — and when a line spans
-                     * two batches at different costs, that really is an
-                     * average, so it can be a dinar out from the exact total.
-                     * It is a figure to READ; the arithmetic below uses
-                     * `$consumed`, which is the sum the movements actually
-                     * wrote and is exact.
-                     */
-                    'unit_cost' => intdiv($cost, max(1, (int) $line['quantity'])),
-                    'sequence' => $index + 1,
-                ]);
+            if (! $product->tracksStock()) {
+                throw new RuntimeException(__('A service holds no stock, so it cannot go into this.'));
             }
 
-            // 2. What comes out goes on the shelf, at what the shop says each
-            //    piece is worth — or, putting together, at the whole lot.
-            $created = 0;
+            $movements = $this->fifo->consume(
+                product: $product,
+                quantity: (int) $line['quantity'],
+                referenceType: StockMovement::REF_ASSEMBLY,
+                referenceId: $assembly->id,
+                referenceItemId: null,
+                occurredAt: $at,
+                user: $user,
+            );
 
-            foreach ($results as $index => $line) {
-                $product = $this->resultProduct($line, $sources);
+            $cost = (int) $movements->sum(fn ($movement) => -$movement->quantity * $movement->unit_cost);
+            $consumed += $cost;
 
-                $quantity = (int) $line['quantity'];
+            AssemblyItem::create([
+                'assembly_id' => $assembly->id,
+                'product_id' => $product->id,
+                'role' => AssemblyItem::SOURCE,
+                'quantity' => (int) $line['quantity'],
 
                 /*
-                 * ⚠️ Putting together types no cost: the result is worth what
-                 * its parts cost, and a shopkeeper able to type it could invent
-                 * value out of nothing. Taking apart types every cost, and the
-                 * check below is what stops the same thing happening there.
+                 * ⚠️ What FIFO charged, per unit — and when a line spans
+                 * two batches at different costs, that really is an
+                 * average, so it can be a dinar out from the exact total.
+                 * It is a figure to READ; the arithmetic below uses
+                 * `$consumed`, which is the sum the movements actually
+                 * wrote and is exact.
                  */
-                if ($direction === Assembly::TOGETHER && $consumed % $quantity !== 0) {
-                    /*
-                     * ⚠️ A batch carries ONE cost for all its units, so a total
-                     * that does not divide evenly cannot be put on the shelf
-                     * without losing the remainder — and losing it would break
-                     * the balance check below on a document that is perfectly
-                     * honest. Refused with the arithmetic in the message, since
-                     * the way out is to build them one at a time.
-                     */
-                    throw new RuntimeException(__('The parts come to :total, which does not divide evenly between :count. Build them one at a time, or change a quantity.', [
-                        'total' => money($consumed, false),
-                        'count' => number_format($quantity),
-                    ]));
-                }
+                'unit_cost' => intdiv($cost, max(1, (int) $line['quantity'])),
+                'sequence' => $index + 1,
+            ]);
+        }
 
-                $unitCost = $direction === Assembly::TOGETHER
-                    ? intdiv($consumed, $quantity)
-                    : (int) $line['unit_cost'];
+        // 2. What comes out goes on the shelf, at what the shop says each
+        //    piece is worth — or, putting together, at the whole lot.
+        $created = 0;
 
-                if ($unitCost < 0) {
-                    throw new RuntimeException(__('A cost cannot be negative.'));
-                }
+        foreach ($results as $index => $line) {
+            $product = $this->resultProduct($line, $sources);
 
-                $this->fifo->createBatch(
-                    product: $product,
-                    sourceType: StockBatch::SOURCE_ASSEMBLY,
-                    sourceId: $assembly->id,
-                    unitCost: $unitCost,
-                    quantity: $quantity,
-                    receivedAt: $at,
-                    sequence: $index + 1,
-                    user: $user,
-                );
-
-                $created += $unitCost * $quantity;
-
-                AssemblyItem::create([
-                    'assembly_id' => $assembly->id,
-                    'product_id' => $product->id,
-                    'role' => AssemblyItem::RESULT,
-                    'quantity' => $quantity,
-                    'unit_cost' => $unitCost,
-                    'sequence' => $index + 1,
-                ]);
-            }
+            $quantity = (int) $line['quantity'];
 
             /*
-             * ⚠️ **THE CHECK THE WHOLE DOCUMENT EXISTS FOR.**
-             *
-             * Out to the last dinar. A penny of difference is a penny of profit
-             * or loss invented by a shopkeeper typing numbers into a box, and
-             * it would sit in the stock value forever with nothing to explain
-             * it. Checked after the fact rather than before, so it is the
-             * figures actually written that are compared — a check on the input
-             * could still be defeated by a rounding done later.
-             *
-             * ⚠️ Putting together cannot fail this: its result's cost IS the
-             * total, and a total that would not divide evenly between several
-             * results is refused above rather than rounded away.
+             * ⚠️ Putting together types no cost: the result is worth what
+             * its parts cost, and a shopkeeper able to type it could invent
+             * value out of nothing. Taking apart types every cost, and the
+             * check below is what stops the same thing happening there.
              */
-            if ($created !== $consumed) {
-                throw new RuntimeException(__('What comes out must be worth exactly what went in: :in in, :out out.', [
-                    'in' => money($consumed, false),
-                    'out' => money($created, false),
+            if ($direction === Assembly::TOGETHER && $consumed % $quantity !== 0) {
+                /*
+                 * ⚠️ A batch carries ONE cost for all its units, so a total
+                 * that does not divide evenly cannot be put on the shelf
+                 * without losing the remainder — and losing it would break
+                 * the balance check below on a document that is perfectly
+                 * honest. Refused with the arithmetic in the message, since
+                 * the way out is to build them one at a time.
+                 */
+                throw new RuntimeException(__('The parts come to :total, which does not divide evenly between :count. Build them one at a time, or change a quantity.', [
+                    'total' => money($consumed, false),
+                    'count' => number_format($quantity),
                 ]));
             }
 
-            $assembly->total_cost = $consumed;
-            $assembly->save();
+            $unitCost = $direction === Assembly::TOGETHER
+                ? intdiv($consumed, $quantity)
+                : (int) $line['unit_cost'];
 
-            return $assembly->refresh();
+            if ($unitCost < 0) {
+                throw new RuntimeException(__('A cost cannot be negative.'));
+            }
+
+            $this->fifo->createBatch(
+                product: $product,
+                sourceType: StockBatch::SOURCE_ASSEMBLY,
+                sourceId: $assembly->id,
+                unitCost: $unitCost,
+                quantity: $quantity,
+                receivedAt: $at,
+                sequence: $index + 1,
+                user: $user,
+            );
+
+            $created += $unitCost * $quantity;
+
+            AssemblyItem::create([
+                'assembly_id' => $assembly->id,
+                'product_id' => $product->id,
+                'role' => AssemblyItem::RESULT,
+                'quantity' => $quantity,
+                'unit_cost' => $unitCost,
+                'sequence' => $index + 1,
+            ]);
+        }
+
+        /*
+         * ⚠️ **THE CHECK THE WHOLE DOCUMENT EXISTS FOR.**
+         *
+         * Out to the last dinar. A penny of difference is a penny of profit
+         * or loss invented by a shopkeeper typing numbers into a box, and
+         * it would sit in the stock value forever with nothing to explain
+         * it. Checked after the fact rather than before, so it is the
+         * figures actually written that are compared — a check on the input
+         * could still be defeated by a rounding done later.
+         *
+         * ⚠️ Putting together cannot fail this: its result's cost IS the
+         * total, and a total that would not divide evenly between several
+         * results is refused above rather than rounded away.
+         */
+        if ($created !== $consumed) {
+            throw new RuntimeException(__('What comes out must be worth exactly what went in: :in in, :out out.', [
+                'in' => money($consumed, false),
+                'out' => money($created, false),
+            ]));
+        }
+
+        $assembly->total_cost = $consumed;
+        $assembly->save();
+
+        return $assembly->refresh();
+
+    }
+
+    /**
+     * Take an assembly's figures back off the shelf, exactly.
+     *
+     * The movements say which batches the units came from and how many, so
+     * nothing is recomputed and nothing is guessed. ⚠️ Shared by delete and
+     * update: an edit begins by undoing the original as completely as a delete
+     * would, which is the only way the two can be trusted to agree.
+     */
+    private function unwind(Assembly $assembly): void
+    {
+        $movements = StockMovement::where('reference_type', StockMovement::REF_ASSEMBLY)
+            ->where('reference_id', $assembly->id)
+            ->lockForUpdate()
+            ->get();
+
+        $this->fifo->reverseMovements($movements);
+
+        $assembly->items()->delete();
+    }
+
+    /**
+     * Undo the whole thing.
+     *
+     * ⚠️ **What came out has to still be there.** Reversing puts the pieces
+     * back into the batches they were made from and takes them off the shelf —
+     * which cannot happen once somebody has sold one. The check is asked up
+     * front so the screen can say why, and asked again inside the transaction
+     * because the answer can change between a page loading and a button being
+     * pressed.
+     */
+    public function delete(Assembly $assembly, User $user): void
+    {
+        $state = $assembly->canBeDeleted($user);
+
+        if (! $state['allowed']) {
+            throw new RuntimeException($state['reason']);
+        }
+
+        DB::transaction(function () use ($assembly, $user) {
+            $state = $assembly->fresh()->canBeDeleted($user);
+
+            if (! $state['allowed']) {
+                throw new RuntimeException($state['reason']);
+            }
+
+            $this->unwind($assembly);
+
+            $assembly->delete();
         });
+    }
+
+    /**
+     * Do it again with different figures — Soran, 2026-09-24.
+     *
+     * Costs, pieces, quantities and the date. ⚠️ It is a full undo and redo,
+     * not a patch: the shelf is put back exactly as it was and the new figures
+     * are applied from scratch, so an edit can never leave half of the old
+     * document behind. The document number and the row survive, so whatever
+     * points at it still points at it.
+     *
+     * ⚠️ **Both dates are checked against the closed period** — the day it was
+     * on and the day it is moving to. Editing a document out of closed books is
+     * as much a change to them as editing one in.
+     *
+     * @param  list<array<string, mixed>>  $sources
+     * @param  list<array<string, mixed>>  $results
+     */
+    public function update(
+        Assembly $assembly,
+        array $sources,
+        array $results,
+        User $user,
+        ?Carbon $at = null,
+        ?string $note = null,
+    ): Assembly {
+        $at ??= $assembly->assembled_at;
+
+        foreach ([$assembly->assembled_at, $at] as $date) {
+            if (books_closed_on($date)) {
+                throw new RuntimeException(__('Locked: this date is in a closed period.'));
+            }
+        }
+
+        $state = $assembly->canBeDeleted($user, 'assemblies.create');
+
+        if (! $state['allowed']) {
+            throw new RuntimeException($state['reason']);
+        }
+
+        $this->assertLinesAreSane($sources, $results);
+
+        return DB::transaction(function () use ($assembly, $sources, $results, $user, $at, $note) {
+            $this->unwind($assembly);
+
+            $assembly->forceFill([
+                'assembled_at' => $at,
+                'note' => $note,
+                'total_cost' => 0,
+            ])->save();
+
+            return $this->apply($assembly->refresh(), $sources, $results, $user);
+        });
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $sources
+     * @param  list<array<string, mixed>>  $results
+     */
+    private function assertLinesAreSane(array $sources, array $results): void
+    {
+        if ($sources === [] || $results === []) {
+            throw new RuntimeException(__('Say what goes in and what comes out.'));
+        }
+
+        foreach ([...$sources, ...$results] as $line) {
+            if ((int) ($line['quantity'] ?? 0) < 1) {
+                throw new RuntimeException(__('Every line needs a quantity above zero.'));
+            }
+        }
     }
 
     /**

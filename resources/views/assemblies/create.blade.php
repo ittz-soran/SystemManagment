@@ -1,6 +1,10 @@
 @extends('layouts.app')
 
-@section('title', $direction === 'apart' ? __('Take something apart') : __('Build from parts'))
+@php $editing = isset($assembly) && $assembly !== null; @endphp
+
+@section('title', $editing
+    ? $assembly->document_no
+    : ($direction === 'apart' ? __('Take something apart') : __('Build from parts')))
 
 @section('back')
     <x-back-link :to="route('assemblies.index')" :label="__('Take apart & build')" remember="assemblies" permission="assemblies.view" />
@@ -13,8 +17,12 @@
     <x-lens-note :lens="$lens" />
 
     {{-- The two directions are one document read from different ends, so this
-         is one form with the sides swapped rather than two screens. --}}
-    <ul class="nav nav-pills mb-3">
+         is one form with the sides swapped rather than two screens.
+
+         ⚠️ Hidden while editing. A document IS one direction or the other, and
+         offering to flip it would be offering to delete this one and write a
+         different one behind the same number. --}}
+    <ul class="nav nav-pills mb-3 @if($editing) d-none @endif">
         <li class="nav-item">
             <a class="nav-link {{ $direction === 'apart' ? 'active' : '' }}"
                href="{{ route('assemblies.create', ['direction' => 'apart']) }}">
@@ -29,9 +37,31 @@
         </li>
     </ul>
 
-    <form action="{{ route('assemblies.store') }}" method="POST" id="assembly-form" data-guard-submit>
+    <form action="{{ $editing ? route('assemblies.update', $assembly) : route('assemblies.store') }}"
+          method="POST" id="assembly-form" data-guard-submit>
         @csrf
+        @if($editing)
+            @method('PUT')
+        @endif
         <input type="hidden" name="direction" value="{{ $direction }}">
+
+        @if($editing)
+            {{-- ⚠️ An edit is a full undo and redo, so the date can move — and
+                 moving it moves which month this stock value lands in, which is
+                 why a closed period refuses it. --}}
+            <div class="card mb-3">
+                <div class="card-body row g-2 align-items-end">
+                    <div class="col-12 col-sm-6">
+                        <label for="assembled_at" class="form-label">{{ __('Date') }}</label>
+                        <input id="assembled_at" type="date" name="assembled_at" class="form-control"
+                               value="{{ old('assembled_at', $assembly->assembled_at->toDateString()) }}" required>
+                    </div>
+                    <div class="col-12 col-sm-6 small text-secondary">
+                        {{ __('Everything below is written again from scratch. The shelf goes back to how it was first.') }}
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <div class="row g-3">
             <div class="col-lg-5">
@@ -46,7 +76,8 @@
                                 <select id="whole-product" name="whole[product_id]" class="form-select" required data-role="source">
                                     <option value="">{{ __('Choose…') }}</option>
                                     @foreach($available as $item)
-                                        <option value="{{ $item['id'] }}" data-batches="{{ json_encode($item['batches']) }}">
+                                        <option value="{{ $item['id'] }}" data-batches="{{ json_encode($item['batches']) }}"
+                                                @selected($editing && $assembly->whole()?->product_id === $item['id'])>
                                             {{ $item['name'] }} — {{ $item['quantity'] }} {{ $item['unit'] }}
                                         </option>
                                     @endforeach
@@ -61,7 +92,8 @@
                             <div class="mb-3">
                                 <label for="whole-quantity" class="form-label">{{ __('How many') }}</label>
                                 <input id="whole-quantity" type="number" name="whole[quantity]" dir="ltr"
-                                       class="form-control text-end" min="1" step="1" value="1" required
+                                       class="form-control text-end" min="1" step="1" required
+                                       value="{{ old('whole.quantity', $editing ? $assembly->whole()?->quantity : 1) }}"
                                        data-role="source-qty">
                             </div>
 
@@ -78,7 +110,8 @@
                             <div class="mb-3">
                                 <label for="whole-name" class="form-label">{{ __('What you are building') }}</label>
                                 <input id="whole-name" name="whole[name]" class="form-control" maxlength="255"
-                                       value="{{ old('whole.name') }}" list="known-products"
+                                       value="{{ old('whole.name', $editing ? $assembly->whole()?->product?->name : '') }}"
+                                       list="known-products"
                                        placeholder="{{ __('Gaming PC build #3') }}" required>
                                 <datalist id="known-products">
                                     @foreach($products as $product)
@@ -91,7 +124,8 @@
                                 <div class="col-6">
                                     <label for="whole-quantity" class="form-label">{{ __('How many') }}</label>
                                     <input id="whole-quantity" type="number" name="whole[quantity]" dir="ltr"
-                                           class="form-control text-end" min="1" step="1" value="1" required>
+                                           class="form-control text-end" min="1" step="1" required
+                                           value="{{ old('whole.quantity', $editing ? $assembly->whole()?->quantity : 1) }}">
                                 </div>
                                 <div class="col-6">
                                     <label for="whole-price" class="form-label">{{ __('Sell it for') }}</label>
@@ -179,7 +213,7 @@
                 <div class="d-grid gap-2 mt-3">
                     <button type="submit" class="btn btn-primary btn-lg" id="save"
                             data-submitting-text="{{ __('Saving…') }}">
-                        {{ $direction === 'apart' ? __('Take it apart') : __('Build it') }}
+                        {{ $editing ? __('Save the changes') : ($direction === 'apart' ? __('Take it apart') : __('Build it')) }}
                     </button>
                 </div>
             </div>
@@ -201,6 +235,17 @@
             'available' => $available,
             'products' => $products,
             'shareUrl' => route('assemblies.share'),
+
+            // The lines this document already holds, so an edit opens on what
+            // it says rather than on an empty row.
+            'existing' => $editing
+                ? $assembly->pieces()->map(fn ($piece) => [
+                    'product_id' => $piece->product_id,
+                    'quantity' => $piece->quantity,
+                    'unit_cost' => $piece->unit_cost,
+                    'sale_price' => $piece->product?->sale_price,
+                ])->values()
+                : [],
             'labels' => [
                 'choose' => __('Choose…'),
                 'orType' => __('or type a new name'),
@@ -432,7 +477,31 @@
                 });
             }
 
-            add();
+            /*
+             * An edit opens on the lines the document already holds. Each row
+             * is drawn the same way a new one is, then filled — so there is one
+             * row template and an edit cannot drift from a create.
+             */
+            if ((data.existing ?? []).length) {
+                for (const line of data.existing) {
+                    add();
+
+                    const tr = body.lastElementChild;
+                    tr.querySelector('[data-role="piece-qty"]').value = line.quantity;
+
+                    const cost = tr.querySelector('[data-role="piece-cost"]');
+                    if (cost) cost.value = line.unit_cost;
+
+                    const price = tr.querySelector('[data-role="piece-price"]');
+                    if (price && line.sale_price !== null) price.value = line.sale_price;
+
+                    const select = tr.querySelector('select[name$="[product_id]"]');
+                    if (select) select.value = line.product_id ?? '';
+                }
+            } else {
+                add();
+            }
+
             recalculate();
         })();
     </script>

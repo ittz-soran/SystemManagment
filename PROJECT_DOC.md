@@ -1521,6 +1521,24 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 
 **The balance check is the point of the whole document.** Out to the last dinar, checked on the figures actually written rather than on the input, because a check on the input can still be defeated by a rounding done afterwards. A penny of difference is a penny of profit invented by typing, and it would sit in the stock value forever with nothing to explain it.
 
+#### Editing and deleting one
+
+**Delete** puts everything back: the pieces come off the shelf and what they were made of goes back on. ⚠️ **What came out has to still be there** — once a piece is sold there is nothing left to take back, and the button says so rather than failing when pressed.
+
+**Edit is a full undo and redo**, not a patch — Soran chose *"everything, including the date"*. The shelf goes back exactly as it was and the new figures are applied from scratch, so an edit can never leave half the old document behind; the document number and the row survive, so whatever points at it still points at it. `apply()` and `unwind()` are shared by create, update and delete, the arrangement `StockAdjustmentService` already uses, so the three can never drift.
+
+⚠️ **Both dates are checked against the closed period** — the day it was on and the day it is moving to. The books close *before* a date, so a document can only move INTO them by moving earlier; a test that closes the wrong side proves nothing, which is what the first version of it did.
+
+⚠️ **The edit form has to be able to price the thing it took apart.** That bundle's batch is empty — this very document emptied it — so the form opened with its source reading no cost at all, the remainder never reached zero and the save button never lit. The units this document consumed are added back into the list it offers, read off the movements that say exactly which batches gave up how many. Found by editing one in a browser; every test passed without it.
+
+⚠️ **Undoing empties a batch rather than removing it**, the same as every other reversal in this shop. So an edited document leaves an empty husk at the old cost behind it — harmless, since stock value counts what remains — but a test that sums `unit_cost` across a product's batches counts it, and should ask the batch that still holds something.
+
+#### The bug that shipped with it
+
+⚠️ **The pieces a take-apart made said they were adjustments.** `FifoService::createBatch` chose between two words — a purchase, or else an adjustment — which was true for as long as a batch could only be born of those two. The day take-apart shipped, "else" became a lie in the one table whose whole job is to say truthfully what moved a unit: every created piece was an `adjustment` row pointing at an assembly id, so the product page looked up an adjustment that was not there, and **undoing the document could not find its own movements to reverse**.
+
+The tests that existed could not see it. They counted the OUT side, which was always right, and read the created side's document number off the **batch**, which was also right. It took a fixture written for the delete button to find it. Every source now names itself, a test asserts both sides of a document say `assembly`, and a migration puts right the rows written in the hours before the fix — an adjustment movement sitting on a batch whose source is an assembly can be nothing else.
+
 #### Sharing the cost out
 
 Soran asked for both: *"type costs, with a button to fill them"*. The button shares the total by what each piece will **sell** for, and he corrects it by hand afterwards.

@@ -80,9 +80,22 @@ class FifoService
         // Section 4: creating the batch is not enough. With purchase rows present,
         // stock_movements alone reconstructs the full history of a product, and
         // SUM(quantity) per product must equal current stock.
-        $referenceType = $sourceType === StockBatch::SOURCE_PURCHASE
-            ? StockMovement::REF_PURCHASE
-            : StockMovement::REF_ADJUSTMENT;
+        /*
+         * ⚠️ **Every source names itself.** This was a two-way choice —
+         * purchase, or else adjustment — and the day a batch could be born of
+         * something else, that "else" became a lie in the one table whose whole
+         * job is to say truthfully what moved a unit.
+         *
+         * Found 2026-09-24, hours after take-apart shipped: the pieces it
+         * created were written as `adjustment` rows pointing at an assembly id,
+         * so the product page looked up an adjustment that was not there, and
+         * undoing the document could not find its own movements to reverse.
+         */
+        $referenceType = match ($sourceType) {
+            StockBatch::SOURCE_PURCHASE => StockMovement::REF_PURCHASE,
+            StockBatch::SOURCE_ASSEMBLY => StockMovement::REF_ASSEMBLY,
+            default => StockMovement::REF_ADJUSTMENT,
+        };
 
         StockMovement::create([
             'product_id' => $product->id,
