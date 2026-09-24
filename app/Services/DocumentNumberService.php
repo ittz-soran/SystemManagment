@@ -36,6 +36,9 @@ class DocumentNumberService
     /** A repair job — Section 9, 2026-09-20. The ticket the customer walks away with. */
     public const PREFIX_REPAIR = 'REP';
 
+    /** A faulty item swapped for the same thing — Soran, 2026-09-23. */
+    public const PREFIX_SWAP = 'SWP';
+
     /**
      * Section 4: the SKU counter, whose visible prefix is configurable via
      * settings, and the barcode serial counter. Neither produces a document
@@ -56,6 +59,7 @@ class DocumentNumberService
         self::PREFIX_ADJUSTMENT,
         self::PREFIX_TRANSFER,
         self::PREFIX_REPAIR,
+        self::PREFIX_SWAP,
         self::PREFIX_SKU,
         self::PREFIX_BARCODE,
     ];

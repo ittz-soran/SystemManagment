@@ -56,12 +56,69 @@
                                 </thead>
                                 <tbody>
                                 @foreach($sale->items as $index => $item)
-                                    @php $canReturn = $item->returnableQuantity(); @endphp
+                                    @php
+                                        $canReturn = $item->returnableQuantity();
 
-                                    <tr class="{{ $canReturn === 0 ? 'opacity-50' : '' }}">
+                                        // Arrived from the swap page with this line
+                                        // in mind: its box starts at one and its
+                                        // faulty tick starts on.
+                                        $wanted = $preselected === $item->id && $canReturn > 0;
+                                        $startAt = $wanted ? 1 : 0;
+                                        $startFaulty = $wanted ? [$item->id] : [];
+                                    @endphp
+
+                                    <tr class="{{ $canReturn === 0 ? 'opacity-50' : '' }} {{ $wanted ? 'table-primary' : '' }}">
                                         <td>
                                             <div class="fw-medium">{{ $item->product->name }}</div>
                                             <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
+
+                                            {{-- ⚠️ Where these units came from, shown BEFORE the
+                                                 decision — Soran, 2026-09-23: "supllier get me cost
+                                                 of it". Traced through the movements this line
+                                                 wrote, in the order the return puts them back. --}}
+                                            @if($maySendBack && $canReturn > 0)
+                                                @php
+                                                    $from = ($origins[$item->id] ?? collect())
+                                                        ->filter(fn ($o) => $o->purchase !== null);
+                                                    $orphans = ($origins[$item->id] ?? collect())
+                                                        ->filter(fn ($o) => $o->purchase === null);
+                                                @endphp
+
+                                                @if($from->isNotEmpty())
+                                                    <div class="form-check mt-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                               id="faulty-{{ $item->id }}"
+                                                               name="faulty[]" value="{{ $item->id }}"
+                                                               @checked(in_array($item->id, old("faulty", $startFaulty)))>
+                                                        <label class="form-check-label small" for="faulty-{{ $item->id }}">
+                                                            {{ __('Faulty — send back to the supplier') }}
+                                                        </label>
+                                                    </div>
+
+                                                    <div class="small text-secondary ms-4">
+                                                        @foreach($from as $origin)
+                                                            <div>
+                                                                {{ trans_choice('{1}:count from|[2,*]:count from', $origin->quantity, ['count' => $origin->quantity]) }}
+                                                                <a href="{{ route('purchases.show', $origin->purchase) }}">{{ $origin->purchase->document_no }}</a>
+                                                                · {{ $origin->supplier->name }}
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+
+                                                {{-- Opening stock, or something carried in from
+                                                     another room: no purchase, so no supplier. --}}
+                                                @if($orphans->isNotEmpty())
+                                                    <div class="small text-secondary mt-1">
+                                                        <i class="bi bi-info-circle me-1"></i>
+                                                        {{ trans_choice(
+                                                            '{1}:count unit did not come from a purchase, so there is no supplier to send it back to.'
+                                                            .'|[2,*]:count units did not come from a purchase, so there is no supplier to send them back to.',
+                                                            $orphans->sum('quantity'), ['count' => $orphans->sum('quantity')]) }}
+                                                    </div>
+                                                @endif
+                                            @endif
+
                                             <input type="hidden" name="lines[{{ $index }}][sale_item_id]" value="{{ $item->id }}">
                                         </td>
                                         <td class="money">{{ qty($item->quantity, $item->product->unit) }}</td>
@@ -71,7 +128,7 @@
                                             <div class="input-group input-group-sm">
                                                 <input type="number" min="0" max="{{ $canReturn }}" step="1" dir="ltr"
                                                        class="form-control text-end"
-                                                       name="lines[{{ $index }}][quantity]" value="0"
+                                                       name="lines[{{ $index }}][quantity]" value="{{ $startAt }}"
                                                        data-role="qty"
                                                        data-price="{{ $item->unit_price }}"
                                                        data-max="{{ $canReturn }}"

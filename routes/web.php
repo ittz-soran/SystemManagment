@@ -11,6 +11,7 @@ use App\Http\Controllers\DataCheckController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FindController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\InstallController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\StockRoomController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SwapController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -78,6 +80,17 @@ Route::middleware(['auth'])->group(function () {
      * every group inside it is behind the permission of the screen it leads to.
      */
     Route::get('search', SearchController::class)->name('search');
+
+    /*
+     * The find page — one box, and everything the shop knows about the answer.
+     *
+     * ⚠️ No permission on the route. The page itself reveals nothing: every
+     * panel inside is behind the permission of the screen it summarises, and a
+     * reader with none of them gets a box and an empty answer. Guarding the
+     * route instead would mean inventing a key for "may look things up", which
+     * is every job in the shop.
+     */
+    Route::get('find', FindController::class)->name('find');
 
     Route::get('dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:dashboard.view')
@@ -310,6 +323,24 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:sale_returns.view')->name('sale-returns.show');
     Route::delete('sale-returns/{saleReturn}', [SaleReturnController::class, 'destroy'])
         ->middleware('permission:sale_returns.delete')->name('sale-returns.destroy');
+
+    /*
+     * ---- Swaps ----------------------------------------------------------
+     * A faulty item handed back and replaced with the same thing. Its own
+     * permission: a swap moves stock AND bills a supplier, which is more than
+     * taking a return and more than selling.
+     *
+     * ⚠️ `swaps/create` is declared above `swaps/{swap}`, or the word "create"
+     * is read as a swap id and the page 404s.
+     */
+    Route::get('swaps', [SwapController::class, 'index'])
+        ->middleware('permission:swaps.view')->name('swaps.index');
+    Route::get('swaps/create', [SwapController::class, 'create'])
+        ->middleware('permission:swaps.create')->name('swaps.create');
+    Route::post('swaps', [SwapController::class, 'store'])
+        ->middleware('permission:swaps.create')->name('swaps.store');
+    Route::get('swaps/{swap}', [SwapController::class, 'show'])
+        ->middleware('permission:swaps.view')->name('swaps.show');
 
     Route::get('purchase-returns', [PurchaseReturnController::class, 'index'])
         ->middleware('permission:purchase_returns.view')->name('purchase-returns.index');

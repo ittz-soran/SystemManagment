@@ -25,6 +25,11 @@ final class Navigation
         return [
             '' => [
                 ['route' => 'dashboard', 'permission' => 'dashboard.view', 'icon' => 'speedometer2', 'label' => __('Dashboard')],
+
+                // No permission: the page shows a reader only what their own
+                // keys already let them open, and a box that finds nothing is
+                // not worth hiding. See the route.
+                ['route' => 'find', 'permission' => null, 'icon' => 'search', 'label' => __('Find anything')],
             ],
             __('Sell & buy') => [
                 ['route' => 'sales.create', 'permission' => 'sales.create', 'icon' => 'cart-plus', 'label' => __('New sale')],
@@ -33,6 +38,7 @@ final class Navigation
                 ['route' => 'purchases.index', 'permission' => 'purchases.view', 'icon' => 'journal-text', 'label' => __('Purchase history')],
                 ['route' => 'sale-returns.index', 'permission' => 'sale_returns.view', 'icon' => 'arrow-return-left', 'label' => __('Sale returns')],
                 ['route' => 'purchase-returns.index', 'permission' => 'purchase_returns.view', 'icon' => 'arrow-return-right', 'label' => __('Purchase returns')],
+                ['route' => 'swaps.index', 'permission' => 'swaps.view', 'icon' => 'arrow-left-right', 'label' => __('Swaps')],
             ],
             __('Catalogue') => [
                 ['route' => 'products.index', 'permission' => 'products.view', 'icon' => 'box-seam', 'label' => __('Products')],

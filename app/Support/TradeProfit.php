@@ -48,7 +48,25 @@ final class TradeProfit
             ->whereBetween('occurred_at', [$from, $to])
             ->sum(DB::raw($sign.StockMovement::VALUE));
 
-        $cost = $moved(StockMovement::REF_SALE, '-') - $moved(StockMovement::REF_SALE_RETURN, '');
+        /*
+         * ⚠️ A swap belongs in the cost of what was sold — Soran, 2026-09-24.
+         *
+         * The invoice is untouched by one, so revenue does not move; but the
+         * shop handed over a second unit and got back a faulty one, and the
+         * difference is real money. Its two movements say exactly how much:
+         * the replacement leaves at what IT cost and the faulty one returns at
+         * what IT cost, so their values net to the swap's own `cost()` — the
+         * purchase return that follows takes the faulty unit out again at the
+         * price the supplier refunds, which nets to nothing for the shop and
+         * so is rightly not counted here.
+         *
+         * Without this line a swap off a dearer layer was profit the shop
+         * never made: sold at 60,000 against a 40,000 cost, while a 44,000
+         * replacement had walked out of the door.
+         */
+        $cost = $moved(StockMovement::REF_SALE, '-')
+            - $moved(StockMovement::REF_SALE_RETURN, '')
+            + $moved(StockMovement::REF_SWAP, '-');
 
         return [
             'units' => $units,

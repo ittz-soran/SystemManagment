@@ -68,6 +68,15 @@ class AppServiceProvider extends ServiceProvider
             'transfer' => \App\Models\StockTransfer::class,
             'expense' => Expense::class,
 
+            /*
+             * ⚠️ Swaps, 2026-09-23. A swap writes its own movements —
+             * `reference_type` reads 'swap' — so the alias has to be here or
+             * the product page's FIFO trail dies resolving `reference` the
+             * first time a shop swaps anything. The transfer note above is the
+             * same lesson, learnt the same way.
+             */
+            'swap' => \App\Models\Swap::class,
+
             // Not stored in any polymorphic column, but named here so the map
             // can be read the other way: DocumentLink resolves a model to its
             // alias through it, and an unmapped class silently loses its link.

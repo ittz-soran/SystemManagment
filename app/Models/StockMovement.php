@@ -62,6 +62,15 @@ class StockMovement extends Model
      */
     public const REF_TRANSFER = 'transfer';
 
+    /**
+     * A faulty item swapped for the same thing — Soran, 2026-09-23.
+     *
+     * Two movements wear this: the faulty unit going back into its own batch,
+     * and the replacement leaving the shelf. The invoice is untouched either
+     * way — what changed is which physical unit the customer has.
+     */
+    public const REF_SWAP = 'swap';
+
     protected function casts(): array
     {
         return [
