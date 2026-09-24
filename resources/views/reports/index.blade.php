@@ -220,6 +220,7 @@
                             ['=', __('Gross profit'), $profit['gross_profit'], true],
                             ['+', __('Discounts received'), $profit['discounts_received'], false],
                             ['−', __('Stock written off'), $profit['write_offs'], false],
+                            ['−', __('Faulty goods replaced'), $profit['swaps'], false],
                             ['−', __('Expenses'), $profit['expenses'], false],
                             ['=', __('Net'), $profit['net'], true],
                         ] as [$sign, $label, $value, $strong])

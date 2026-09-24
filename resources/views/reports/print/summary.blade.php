@@ -20,6 +20,7 @@
             ['Gross profit', $profit['gross_profit'], true],
             ['Discounts received', $profit['discounts_received'], false],
             ['Written off', -$profit['write_offs'], false],
+            ['Faulty goods replaced', -$profit['swaps'], false],
             ['Expenses', -$profit['expenses'], false],
             ['Net profit', $profit['net'], true],
         ] as [$label, $amount, $strong])

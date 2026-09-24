@@ -1491,6 +1491,10 @@ Two of the three were already built. Only the first needed anything new, and onl
 
 ⚠️ **`'swap' => Swap::class` had to go in the morph map**, exactly as `transfer` did before it. A swap writes movements whose `reference_type` reads `swap`, and the product page resolves that column as a relation: without the alias, the product page answers 500 — but only after a shop has actually swapped something. Found by a test that opens the product page after a swap, not by reading the file.
 
+⚠️ **A swap is a cost, and the profit figure did not feel it — found 2026-09-24, a day after the swap shipped.** The invoice is untouched by a swap, so revenue does not move; the replacement that walked out of the door was therefore profit the shop never made. Sold at 60,000 against a 40,000 cost while a 44,000 replacement was handed over, and the P&L still read 20,000.
+
+The two swap movements say exactly what it cost: the replacement leaves at what **it** cost, the faulty one returns at what **it** cost, and their values net to `Swap::cost()`. The purchase return that follows nets to nothing, because the supplier refunds what they were paid — so it is rightly not counted. `TradeProfit` adds that term to cost of sales, and the shop-wide P&L carries it as **its own line, "Faulty goods replaced"**, between the write-offs and the expenses. Its own line rather than folded into cost of sales because it is neither: the goods were sold and costed already, and nothing was written off. It is also worth reading on its own — a figure that climbs is a supplier selling the shop junk, which no other line on that page says.
+
 **Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
 
 

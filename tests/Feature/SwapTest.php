@@ -16,6 +16,7 @@ use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
 use App\Services\SwapService;
+use App\Support\TradeProfit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
@@ -234,6 +235,64 @@ class SwapTest extends TestCase
         $this->assertSame(0, Swap::count());
         $this->assertSame(0, PurchaseReturn::count(), 'a supplier was billed for a swap that did not happen');
         $this->assertSame(0, Sale::first()->items->first()->quantity_swapped);
+    }
+
+    /**
+     * ⚠️ **A swap is a cost, and the profit figure has to feel it.**
+     *
+     * The invoice is untouched, so revenue does not move — which is exactly
+     * how a swap off a dearer layer became profit the shop never made: sold at
+     * 60,000 against a 40,000 cost, while a 44,000 replacement walked out of
+     * the door. The two swap movements net to the difference, and the purchase
+     * return that follows nets to nothing because the supplier refunds what
+     * they were paid.
+     */
+    public function test_a_swap_costs_the_shop_in_the_profit_figure(): void
+    {
+        $this->buy($this->bazaar, 1, 40_000, daysAgo: 60);
+        $this->buy($this->bazaar, 1, 44_000, daysAgo: 30);
+        $sale = $this->sell(1);
+
+        $window = [now()->subYear(), now()->addDay()];
+        $before = TradeProfit::between(Product::whereKey($this->pd->id), ...$window);
+
+        $this->assertSame(40_000, $before['cost']);
+        $this->assertSame(20_000, $before['profit']);
+
+        $swap = app(SwapService::class)->create($sale->items->first(), 1, $this->user());
+
+        $after = TradeProfit::between(Product::whereKey($this->pd->id), ...$window);
+
+        $this->assertSame(4_000, $swap->cost());
+        $this->assertSame(44_000, $after['cost'], 'the replacement that left is not in the cost');
+        $this->assertSame(16_000, $after['profit'], 'the swap was profit the shop never made');
+
+        // Revenue and units are untouched: the customer bought one and has one.
+        $this->assertSame($before['revenue'], $after['revenue']);
+        $this->assertSame($before['units'], $after['units']);
+    }
+
+    /** The same figure, on the shop-wide profit and loss. */
+    public function test_the_profit_report_shows_what_replacing_faulty_goods_cost(): void
+    {
+        $this->buy($this->bazaar, 1, 40_000, daysAgo: 60);
+        $this->buy($this->bazaar, 1, 44_000, daysAgo: 30);
+        $sale = $this->sell(1);
+
+        app(SwapService::class)->create($sale->items->first(), 1, $this->user());
+
+        $profit = $this->actingAs($this->user())->get(route('reports.index', [
+            'from' => today()->subYear()->toDateString(),
+            'to' => today()->addDay()->toDateString(),
+        ]))->assertOk()->viewData('profit');
+
+        $this->assertSame(4_000, $profit['swaps']);
+        $this->assertSame(
+            $profit['gross_profit'] + $profit['discounts_received']
+                - $profit['write_offs'] - $profit['swaps'] - $profit['expenses'],
+            $profit['net'],
+            'the page can no longer be added up down the column',
+        );
     }
 
     /** A service has nothing to hand over. */

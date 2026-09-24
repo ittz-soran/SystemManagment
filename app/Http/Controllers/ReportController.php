@@ -481,6 +481,23 @@ class ReportController extends Controller
             ->whereBetween('occurred_at', [$from, $to])
             ->sum(DB::raw('-'.StockMovement::VALUE));
 
+        /*
+         * ⚠️ What replacing faulty goods cost — Soran, 2026-09-24.
+         *
+         * Its own line rather than folded into the cost of sales, because it
+         * is neither: the goods were sold and costed already, and nothing was
+         * written off. The shop handed over a second unit and got a faulty one
+         * back, and the two swap movements net to exactly that difference —
+         * the purchase return that follows nets to nothing, because the
+         * supplier refunds what they were paid.
+         *
+         * It is also worth its own number on the page: a figure that climbs is
+         * a supplier selling the shop junk, which no other line here says.
+         */
+        $swaps = (int) StockMovement::where('reference_type', StockMovement::REF_SWAP)
+            ->whereBetween('occurred_at', [$from, $to])
+            ->sum(DB::raw('-'.StockMovement::VALUE));
+
         $expenses = (int) Expense::whereBetween('expense_date', [$from, $to])->sum('amount');
 
         return [
@@ -492,8 +509,9 @@ class ReportController extends Controller
             'gross_profit' => $grossProfit,
             'discounts_received' => $discountsReceived,
             'write_offs' => $writeOffs,
+            'swaps' => $swaps,
             'expenses' => $expenses,
-            'net' => $grossProfit + $discountsReceived - $writeOffs - $expenses,
+            'net' => $grossProfit + $discountsReceived - $writeOffs - $swaps - $expenses,
             'purchases' => (int) Purchase::whereBetween('purchase_date', [$from, $to])->sum('grand_total'),
             'purchase_returns' => (int) PurchaseReturn::whereBetween('return_date', [$from, $to])->sum('total_amount'),
         ];
