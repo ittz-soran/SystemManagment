@@ -52,6 +52,7 @@ final class DocumentLink
         // "Document TRF-00001" on the product page — the one badge on that
         // screen that said nothing about what had happened and led nowhere.
         'transfer' => ['stock-transfers.show', 'stock_rooms.view'],
+        'swap' => ['swaps.show', 'swaps.view'],
     ];
 
     /**
@@ -70,6 +71,7 @@ final class DocumentLink
             'purchase_return' => __('Purchase return'),
             'adjustment' => __('Adjustment'),
             'transfer' => __('Stock move'),
+            'swap' => __('Swap'),
             'payment' => __('Payment'),
             'expense' => __('Expense'),
             'customer' => __('Customer'),

@@ -56,9 +56,18 @@
                                 </thead>
                                 <tbody>
                                 @foreach($sale->items as $index => $item)
-                                    @php $canReturn = $item->returnableQuantity(); @endphp
+                                    @php
+                                        $canReturn = $item->returnableQuantity();
 
-                                    <tr class="{{ $canReturn === 0 ? 'opacity-50' : '' }}">
+                                        // Arrived from the swap page with this line
+                                        // in mind: its box starts at one and its
+                                        // faulty tick starts on.
+                                        $wanted = $preselected === $item->id && $canReturn > 0;
+                                        $startAt = $wanted ? 1 : 0;
+                                        $startFaulty = $wanted ? [$item->id] : [];
+                                    @endphp
+
+                                    <tr class="{{ $canReturn === 0 ? 'opacity-50' : '' }} {{ $wanted ? 'table-primary' : '' }}">
                                         <td>
                                             <div class="fw-medium">{{ $item->product->name }}</div>
                                             <div class="small text-secondary" dir="ltr">{{ $item->product->sku }}</div>
@@ -80,7 +89,7 @@
                                                         <input class="form-check-input" type="checkbox"
                                                                id="faulty-{{ $item->id }}"
                                                                name="faulty[]" value="{{ $item->id }}"
-                                                               @checked(in_array($item->id, old("faulty", [])))>
+                                                               @checked(in_array($item->id, old("faulty", $startFaulty)))>
                                                         <label class="form-check-label small" for="faulty-{{ $item->id }}">
                                                             {{ __('Faulty — send back to the supplier') }}
                                                         </label>
@@ -119,7 +128,7 @@
                                             <div class="input-group input-group-sm">
                                                 <input type="number" min="0" max="{{ $canReturn }}" step="1" dir="ltr"
                                                        class="form-control text-end"
-                                                       name="lines[{{ $index }}][quantity]" value="0"
+                                                       name="lines[{{ $index }}][quantity]" value="{{ $startAt }}"
                                                        data-role="qty"
                                                        data-price="{{ $item->unit_price }}"
                                                        data-max="{{ $canReturn }}"

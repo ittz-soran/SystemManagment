@@ -33,6 +33,7 @@ final class Navigation
                 ['route' => 'purchases.index', 'permission' => 'purchases.view', 'icon' => 'journal-text', 'label' => __('Purchase history')],
                 ['route' => 'sale-returns.index', 'permission' => 'sale_returns.view', 'icon' => 'arrow-return-left', 'label' => __('Sale returns')],
                 ['route' => 'purchase-returns.index', 'permission' => 'purchase_returns.view', 'icon' => 'arrow-return-right', 'label' => __('Purchase returns')],
+                ['route' => 'swaps.index', 'permission' => 'swaps.view', 'icon' => 'arrow-left-right', 'label' => __('Swaps')],
             ],
             __('Catalogue') => [
                 ['route' => 'products.index', 'permission' => 'products.view', 'icon' => 'box-seam', 'label' => __('Products')],

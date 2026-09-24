@@ -84,6 +84,15 @@ class PermissionSeeder extends Seeder
             'sale_returns.create' => 'Create sale returns',
             'sale_returns.delete' => 'Delete sale returns',
         ],
+        /*
+         * ⚠️ Its own keys — Soran, 2026-09-23. A swap moves stock AND bills a
+         * supplier, which is more than taking a return and more than selling.
+         * Somebody trusted with one is not thereby trusted with this.
+         */
+        'swaps' => [
+            'swaps.view' => 'View swaps',
+            'swaps.create' => 'Swap a faulty item',
+        ],
         'purchase_returns' => [
             'purchase_returns.view' => 'View purchase returns',
             'purchase_returns.create' => 'Create purchase returns',

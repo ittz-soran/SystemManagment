@@ -59,11 +59,23 @@ class SaleReturnController extends Controller
             $item->id => $this->returns->originsFor($item, $item->returnableQuantity()),
         ]);
 
+        /*
+         * One line already in mind, because the reader came from the swap page
+         * — Soran, 2026-09-23: *"after select one open it on sale return and
+         * marked as wanted product to return"*.
+         *
+         * ⚠️ Looked up among THIS sale's own lines, so a hand-typed id cannot
+         * mark a line belonging to somebody else's invoice. It only fills a box
+         * in; the reader still presses the button.
+         */
+        $preselected = $sale->items->firstWhere('id', $request->integer('line'))?->id;
+
         return view('sale-returns.create', [
             // Section 2b — the refund figures are read in this currency.
             'lens' => $request->user()->lens(),
             'sale' => $sale,
             'origins' => $origins,
+            'preselected' => $preselected,
             // Sending it back writes a purchase return, which is its own key.
             'maySendBack' => $request->user()->hasPermission('purchase_returns.create'),
         ]);

@@ -1469,6 +1469,31 @@ Two of the three were already built. Only the first needed anything new, and onl
 
 **What is deliberately not in it:** no store credit (the ledger refuses a negative customer balance, so a dearer replacement is refund-then-sell and the money moves twice), no quarantine shelf, and no supplier warranty limit.
 
+#### The swap page
+
+**Three states, one URL.** `swaps/create` is the whole counter conversation, and which state it is in is read off the query string rather than kept in a session:
+
+| query | what the page asks |
+|---|---|
+| nothing | *find the product* — a single box matching name, SKU or barcode |
+| `?product=` | *which invoice sold it?* — the lines that still have one to give back, **newest first** |
+| `?sale_item=` | *what do you want to do?* — with the shelf already read |
+
+⚠️ **Only one of the three outcomes is a button on this page.** Handing over the same product is the swap. Giving something different, or the money back, is a **sale return** — already built, already sends the faulty unit to its supplier — so the page links there rather than growing a second copy of it. A page that offered all three as equals would be three implementations of taking an item back, two of them worse than the one that exists.
+
+⚠️ **The shelf is read above the buttons, not beside them.** It was in the side column first, which on a phone lands *below* the decision: the one number that decides which way out to take would have been the one below the fold. It is now a fact in the summary card, with what is left on the line next to it.
+
+**Where the faulty one came from is shown before anything is done** — the same `originsFor()` trace the faulty sale return uses — so the shop can see which supplier will carry the cost while the customer is still standing there. When there is no purchase behind the unit, the page says so, and the swap still happens: the customer is served either way and the shop carries it.
+
+**The return screen arrives with the line marked.** *"after select one open it on sale return and marked as wanted product to return"*. `sales/{sale}/return?line=` fills that line's box with one and ticks its *faulty* box. ⚠️ The id is looked up among **that sale's own lines**, so a hand-typed number cannot mark a line belonging to somebody else's invoice; and it only fills a box in — the reader still presses the button.
+
+⚠️ **`swaps.view` and `swaps.create` are their own keys, and are in no staff preset.** A swap moves stock *and* bills a supplier, which is more than taking a return and more than selling — somebody trusted with one is not thereby trusted with this. It is also the reason the counter preset does not get it: that preset's promise is *"sees no cost and no purchase"*, and this page shows both, because what the supplier gives back is the whole point of showing it. The owner grants it to whoever they trust with it.
+
+⚠️ **`'swap' => Swap::class` had to go in the morph map**, exactly as `transfer` did before it. A swap writes movements whose `reference_type` reads `swap`, and the product page resolves that column as a relation: without the alias, the product page answers 500 — but only after a shop has actually swapped something. Found by a test that opens the product page after a swap, not by reading the file.
+
+**Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
+
+
 ### Aged debt — Soran, 2026-09-20
 
 **Asked for as "Advanced Accounting".** Of the two halves, the **Profit & Loss already exists** and is not being rebuilt: the reports page renders Sales − returns = Revenue − FIFO cost + cost reversed = Gross profit + discounts received − stock written off − expenses = Net, costed from the movements rather than from an average. What was missing is the other question a shop actually asks: *who owes me, and how long have they owed it.*
