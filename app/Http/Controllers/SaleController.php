@@ -6,13 +6,17 @@ use App\Exceptions\InsufficientStockException;
 use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\HeldCart;
+use App\Models\Product;
 use App\Models\Sale;
+use App\Models\User;
+use App\Services\AssemblyService;
 use App\Services\BulkDeleteService;
 use App\Services\SaleService;
 use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -124,15 +128,31 @@ class SaleController extends Controller
         ]);
 
         try {
-            $sale = $this->sales->create(
-                customer: Customer::findOrFail($data['customer_id']),
-                lines: $data['lines'],
-                user: $request->user(),
-                saleDate: Carbon::parse($data['sale_date']),
-                amountPaid: (int) ($data['amount_paid'] ?? 0),
-                paymentMethod: $data['payment_method'],
-                exchangeRate: $data['exchange_rate'] ?? null,
-            );
+            /*
+             * ⚠️ **Anything short on the shelf that can be put back together,
+             * is** — Soran, 2026-09-24. A bundle taken apart reads zero, and
+             * the till would refuse to sell it with both its pieces sitting
+             * there untouched.
+             *
+             * Inside ONE transaction with the sale, so a sale that fails for
+             * any other reason does not leave a bundle rebuilt out of pieces
+             * the customer never bought. The screen has already asked before
+             * sending this; the rebuild is not a surprise, it is the answer to
+             * a question that was put.
+             */
+            $sale = DB::transaction(function () use ($data, $request) {
+                $this->rebuildWhatIsShort($data['lines'], $request->user(), Carbon::parse($data['sale_date']));
+
+                return $this->sales->create(
+                    customer: Customer::findOrFail($data['customer_id']),
+                    lines: $data['lines'],
+                    user: $request->user(),
+                    saleDate: Carbon::parse($data['sale_date']),
+                    amountPaid: (int) ($data['amount_paid'] ?? 0),
+                    paymentMethod: $data['payment_method'],
+                    exchangeRate: $data['exchange_rate'] ?? null,
+                );
+            });
         } catch (InsufficientStockException $e) {
             // Section 10b T8: nothing is written and no document number is
             // consumed, because the counter increments inside the same
@@ -152,6 +172,48 @@ class SaleController extends Controller
         return redirect()
             ->route('sales.show', $sale)
             ->with('success', __('Sale saved'));
+    }
+
+    /**
+     * Put back together whatever the cart is short of and the shelf can supply.
+     *
+     * ⚠️ **Only the shortfall.** One bundle in stock and two on the invoice
+     * rebuilds one, not two — the pieces are worth more use as pieces than
+     * sitting inside a bundle nobody asked for.
+     *
+     * ⚠️ **Quiet when it cannot.** A product with no recipe, or with pieces
+     * missing, is simply left alone: the sale then fails on stock the way it
+     * always has, with the message the till has always given. This is here to
+     * let a sale through that should have gone through, never to change what a
+     * refusal says.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function rebuildWhatIsShort(array $lines, User $user, Carbon $on): void
+    {
+        $assemblies = app(AssemblyService::class);
+
+        // Summed first: the same product may be on two lines at two prices,
+        // and each line asking on its own would rebuild too few.
+        $wanted = collect($lines)
+            ->groupBy('product_id')
+            ->map(fn ($group) => (int) collect($group)->sum('quantity'));
+
+        foreach ($wanted as $productId => $quantity) {
+            $product = Product::find($productId);
+
+            if ($product === null || ! $product->tracksStock()) {
+                continue;
+            }
+
+            $short = $quantity - (int) $product->quantity;
+
+            if ($short < 1 || $assemblies->rebuildableQuantity($product) < $short) {
+                continue;
+            }
+
+            $assemblies->rebuild($product, $short, $user, $on);
+        }
     }
 
     /**
