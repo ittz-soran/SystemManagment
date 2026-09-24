@@ -1498,6 +1498,47 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 **Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
 
 
+### Taking apart and building — Soran, 2026-09-24
+
+*"I purchased second hand ps5 slim digital have box and 2 controller -> I purchased all at 750,000 -> today I want sale it but customer say need 1 controller!! I don't know how sale just ps5 and 1 controller in system. And this cases repeat daily in gaming pc build or any product have some parts at purchase and I want sale one by one."*
+
+⚠️ **THE MONEY DOES NOT MOVE.** What comes out is worth exactly what went in. A shop has neither earned nor lost anything by opening a box, so the movements net to zero in value and the profit report never sees them. That one sentence is the whole design; everything else exists to keep it true.
+
+**Why not two stock adjustments.** An outgoing adjustment is a **write-off**, and the profit report counts it as one — so a shop that took a 750,000 console apart would read a 750,000 loss that day, with a matching pile of stock appearing from nowhere. The adjustment screen is for the shelf being *wrong*; here the shelf was right. Word for word the reason the faulty swap could not be an adjustment either.
+
+**One document, both directions, because they are the same arithmetic.**
+
+| | consumes | creates | the cost is |
+|---|---|---|---|
+| **Take apart** | one line, at FIFO | several | **typed**, and must sum to what was consumed |
+| **Build** | several, at FIFO | one line | **the sum of the parts** — never typed |
+
+⚠️ **Building types no cost, deliberately.** A machine is worth what its parts cost, and anybody able to type that figure could invent value out of nothing — a 1,300,000 pile of parts becoming a 5,000,000 asset, the difference surfacing as profit the first time it sold. A cost sent in that field is **ignored, not honoured**, and there is a test that sends one. The plain tests could not see it: they send no cost at all, and a fallback to the right answer looks identical.
+
+⚠️ **Both kinds of product, not only second-hand** — Soran, 2026-09-24: *"This is for both products in stock and second hand"*. The PS5 bundle is only the example that named the problem; a carton of ten chargers bought as one line and sold by the piece is the same thing. Ordinary stock in gives ordinary stock out, and nothing becomes second-hand by being opened. Both directions are guarded by tests for both kinds, and a sabotage forcing either kind fails them.
+
+⚠️ **A piece of a second-hand thing is second-hand too.** The kind is inherited from what went in, so a used console does not produce brand-new controllers on the shelf. A piece may also land in a product the shop already has, rather than always making a new one — a controller out of a PS5 box wants its own row, a stick of RAM out of a PC may not.
+
+**The balance check is the point of the whole document.** Out to the last dinar, checked on the figures actually written rather than on the input, because a check on the input can still be defeated by a rounding done afterwards. A penny of difference is a penny of profit invented by typing, and it would sit in the stock value forever with nothing to explain it.
+
+#### Sharing the cost out
+
+Soran asked for both: *"type costs, with a button to fill them"*. The button shares the total by what each piece will **sell** for, and he corrects it by hand afterwards.
+
+⚠️ **It returns a cost PER UNIT, and that is the whole difficulty.** A line of two controllers carries one cost for both, so a line total of 150,001 cannot be expressed. A first version shared out line totals and divided afterwards, stranding a dinar and handing the shopkeeper a form that **its own balance check would refuse**. The remainder is now walked back out in whole units, smallest quantity first — and with a single piece anywhere in the document, which there almost always is, it lands exactly. When it cannot, it stops short and the screen shows what is outstanding: a button that silently loses a dinar is worse than one that stops.
+
+⚠️ The order of that walk is **only a tie-breaker** about where a few dinars sit — the walk visits every line either way. A sabotage reversing it passed, which is how that was learnt; the comment says so now, and the guard is a property test over two hundred totals and four shapes rather than one example.
+
+**One implementation.** The share-out is a round trip to the server for a button press, because where the remainder lands is a real decision with a test behind it. A second copy in JavaScript would be the arithmetic about money written twice.
+
+#### Two traps this screen walked into
+
+⚠️ **`@json([...])` written inline broke the page.** Blade's paren matcher stops at the first nested `[`, and the compiled view dies with `Unclosed '['`. The array is assembled in a `@php` block and handed over as one variable. Exactly the trap already recorded under "Blade traps that fail in silence" — and caught here only because the page tests **render**.
+
+⚠️ **`$assembly->sources` was a second relation and a lazy load.** Under `preventLazyLoading` that is a 500 on a page whose controller eager-loaded `items.product` and had every right to think it was done. `sourceLines()` and `resultLines()` read the lines already in hand.
+
+**And the rows are a grid on a phone**, the same answer the cart row needed and for the same reason: the two figures being compared — what a piece cost and what it will sell for — cannot land on different lines. Every flexible track is `minmax(0, …)`, because a number input asks for about twenty characters and that is what cut `570654` to `57065` and pushed the remove button off a 390px screen. ⚠️ Each box also carries its own small label there, because the column header is clipped and three unlabelled number boxes is a guessing game between cost and price.
+
 ### ⚠️ MySQL was rewriting the FIFO order — Soran, 2026-09-24
 
 **Found in his own shop, from the screen.** He swapped a cable and the replacement came off the **newer** batch while 29 units sat in the older one: *"this Sale INV-00054 #345 line must user old batch are 128 ... because have 29 remaining on old batch"*. Then the sentence that solved it: *"and this 2026-09-24 10:26 date times is wrong!!"* — both batches were showing the same timestamp, minutes old, while their own movements still read 2026-08-24 and 2026-09-06, and the adjustment documents behind them read August too.

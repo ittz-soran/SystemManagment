@@ -71,6 +71,15 @@ class StockMovement extends Model
      */
     public const REF_SWAP = 'swap';
 
+    /**
+     * One thing taken apart, or several put together — Soran, 2026-09-24.
+     *
+     * ⚠️ Its movements net to nothing in value: what is consumed is worth
+     * exactly what is created. A profit report that counted them would read a
+     * loss on the day a shop opened a box.
+     */
+    public const REF_ASSEMBLY = 'assembly';
+
     protected function casts(): array
     {
         return [

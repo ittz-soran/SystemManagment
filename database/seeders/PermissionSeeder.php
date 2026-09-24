@@ -111,6 +111,18 @@ class PermissionSeeder extends Seeder
              */
             'swaps.delete' => 'Delete a swap',
         ],
+        /*
+         * ⚠️ Its own keys — Soran, 2026-09-24. Taking a thing apart decides
+         * what each piece cost, and the shop's profit on every later sale
+         * follows from that. It is nearer to setting a purchase price than to
+         * moving stock about, and somebody trusted to count the shelf is not
+         * thereby trusted with this.
+         */
+        'assemblies' => [
+            'assemblies.view' => 'View take-apart and build documents',
+            'assemblies.create' => 'Take apart, or build from parts',
+            'assemblies.delete' => 'Delete a take-apart or build',
+        ],
         'purchase_returns' => [
             'purchase_returns.view' => 'View purchase returns',
             'purchase_returns.create' => 'Create purchase returns',

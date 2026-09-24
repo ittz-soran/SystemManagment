@@ -39,6 +39,9 @@ class DocumentNumberService
     /** A faulty item swapped for the same thing — Soran, 2026-09-23. */
     public const PREFIX_SWAP = 'SWP';
 
+    /** One thing taken apart, or several put together — Soran, 2026-09-24. */
+    public const PREFIX_ASSEMBLY = 'ASM';
+
     /**
      * Section 4: the SKU counter, whose visible prefix is configurable via
      * settings, and the barcode serial counter. Neither produces a document
@@ -60,6 +63,7 @@ class DocumentNumberService
         self::PREFIX_TRANSFER,
         self::PREFIX_REPAIR,
         self::PREFIX_SWAP,
+        self::PREFIX_ASSEMBLY,
         self::PREFIX_SKU,
         self::PREFIX_BARCODE,
     ];

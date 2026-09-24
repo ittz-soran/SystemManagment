@@ -49,6 +49,7 @@ final class Navigation
                 ['route' => 'stock-adjustments.index', 'permission' => 'stock_adjustments.view', 'icon' => 'sliders', 'label' => __('Stock adjustments')],
                 ['route' => 'stock-rooms.index', 'permission' => 'stock_rooms.view', 'icon' => 'building', 'label' => __('Stock rooms')],
                 ['route' => 'stock-transfers.index', 'permission' => 'stock_rooms.view', 'icon' => 'box-arrow-right', 'label' => __('Stock moves')],
+                ['route' => 'assemblies.index', 'permission' => 'assemblies.view', 'icon' => 'boxes', 'label' => __('Take apart & build')],
             ],
             __('People') => [
                 ['route' => 'customers.index', 'permission' => 'customers.view', 'icon' => 'people', 'label' => __('Customers')],

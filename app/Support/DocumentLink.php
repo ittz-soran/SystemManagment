@@ -53,6 +53,7 @@ final class DocumentLink
         // screen that said nothing about what had happened and led nowhere.
         'transfer' => ['stock-transfers.show', 'stock_rooms.view'],
         'swap' => ['swaps.show', 'swaps.view'],
+        'assembly' => ['assemblies.show', 'assemblies.view'],
     ];
 
     /**
@@ -72,6 +73,7 @@ final class DocumentLink
             'adjustment' => __('Adjustment'),
             'transfer' => __('Stock move'),
             'swap' => __('Swap'),
+            'assembly' => __('Take apart or build'),
             'payment' => __('Payment'),
             'expense' => __('Expense'),
             'customer' => __('Customer'),

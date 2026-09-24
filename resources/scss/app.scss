@@ -618,6 +618,93 @@ th.money {
   margin-left: -0.5rem;
 }
 
+// The take-apart rows on a phone — Soran, 2026-09-24.
+//
+// The same problem the cart had and the same answer: a row of boxes somebody
+// types one after another cannot become a stack of labelled lines, because the
+// two numbers being compared — what a piece COST and what it will SELL for —
+// would land on different lines. So below `sm` each row is a small grid.
+//
+//     PS5 Slim Digital with box                              [x]
+//     [ Qty  1 ] [ Cost each 570,654 ] [ Sell for 700,000 ]
+//
+// ⚠️ Every flexible track is `minmax(0, …)`. A track sized `auto` takes its
+// content's max-content width, and a number input asks for about twenty
+// characters — which is what cut "570654" to "57065" and pushed the remove
+// button off the edge of a 390px screen.
+@include media-breakpoint-down(sm) {
+  .table-pieces {
+    thead {
+      // Clipped rather than removed, so a screen reader still has the header.
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    tbody,
+    tr {
+      display: block;
+      width: auto;
+    }
+
+    tr {
+      display: grid;
+      grid-template-columns: minmax(0, 4.5rem) minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas:
+        'product product actions'
+        'qty     cost    price';
+      align-items: end;
+      gap: 0.4rem 0.5rem;
+
+      padding: 0.6rem 0.75rem;
+      border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+    }
+
+    td {
+      display: block;
+      padding: 0;
+      border: 0;
+      background-color: transparent;
+      min-width: 0;
+    }
+
+    .piece-cell-product { grid-area: product; }
+    .piece-cell-qty     { grid-area: qty; }
+    .piece-cell-cost    { grid-area: cost; }
+    .piece-cell-price   { grid-area: price; }
+
+    .piece-cell-actions {
+      grid-area: actions;
+      // Level with the first line of the name, not the middle of a tall cell.
+      align-self: start;
+    }
+
+    .form-control {
+      min-width: 0;
+    }
+  }
+
+  // ⚠️ Things a finger has to hit, at the size a finger needs. These are `-sm`
+  // controls, which is right on a laptop and a 32px square on a phone.
+  .table-pieces .form-control,
+  .table-pieces .form-select,
+  .table-pieces .btn {
+    min-height: 2.75rem;
+  }
+}
+
+// The little word above each box on a phone, where the column header is gone.
+.table-pieces .piece-label {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.15rem;
+}
+
 // ---------------------------------------------------------------------------
 // Print — Section 9b: a separate minimal layout, black on white.
 // ---------------------------------------------------------------------------
