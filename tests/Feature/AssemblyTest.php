@@ -193,6 +193,125 @@ class AssemblyTest extends TestCase
         $this->assertSame(135_000, $figures['profit']);
     }
 
+    // ---- Both kinds of product ---------------------------------------------
+
+    /**
+     * ⚠️ **Ordinary stock, not only second-hand** — Soran, 2026-09-24: *"This
+     * is for both products in stock and second hand"*.
+     *
+     * A carton of chargers bought as one line and sold by the piece is the same
+     * problem as the PS5 bundle, and the PS5 is only the example that named it.
+     */
+    public function test_an_ordinary_stock_product_can_be_taken_apart(): void
+    {
+        $carton = Product::create([
+            'name' => 'Carton of 10 chargers', 'kind' => Product::KIND_STOCK,
+            'sku' => 'CHG-BOX', 'barcode' => 'CHG-BOX-B',
+            'category_id' => Category::first()->id, 'unit' => 'pcs',
+            'purchase_price' => 50_000, 'sale_price' => 80_000, 'quantity' => 0,
+        ]);
+
+        app(PurchaseService::class)->create(
+            supplier: $this->seller,
+            lines: [['product_id' => $carton->id, 'quantity' => 1, 'unit_price' => 50_000]],
+            user: $this->user(), purchaseDate: now()->subDay(), amountPaid: 50_000,
+        );
+
+        $assembly = app(AssemblyService::class)->takeApart(
+            whole: ['product_id' => $carton->id, 'quantity' => 1],
+            pieces: [['name' => 'Charger 20W', 'quantity' => 10, 'unit_cost' => 5_000, 'sale_price' => 9_000]],
+            user: $this->user(),
+        );
+
+        $charger = Product::where('name', 'Charger 20W')->firstOrFail();
+
+        $this->assertSame(50_000, $assembly->total_cost);
+        $this->assertSame(10, $charger->quantity);
+        $this->assertSame(0, $carton->fresh()->quantity);
+
+        // ⚠️ Ordinary stock in, ordinary stock out. Nothing became second-hand
+        // by being opened.
+        $this->assertSame(Product::KIND_STOCK, $charger->kind);
+        $this->assertFalse($charger->isUsed());
+    }
+
+    /** And the two kinds can be built from, the same way. */
+    public function test_a_second_hand_thing_can_be_built_from_second_hand_parts(): void
+    {
+        $parts = [];
+
+        foreach ([['Used PS5 board', 400_000], ['Used PS5 shell', 50_000]] as $i => [$name, $cost]) {
+            $part = Product::create([
+                'name' => $name, 'kind' => Product::KIND_USED,
+                'sku' => 'USED-'.$i, 'barcode' => 'USED-'.$i.'-B',
+                'category_id' => Category::first()->id, 'unit' => 'pcs',
+                'purchase_price' => $cost, 'sale_price' => $cost * 2, 'quantity' => 0,
+            ]);
+
+            app(PurchaseService::class)->create(
+                supplier: $this->seller,
+                lines: [['product_id' => $part->id, 'quantity' => 1, 'unit_price' => $cost]],
+                user: $this->user(), purchaseDate: now()->subDays(2), amountPaid: $cost,
+            );
+
+            $parts[] = ['product_id' => $part->id, 'quantity' => 1];
+        }
+
+        $assembly = app(AssemblyService::class)->putTogether(
+            pieces: $parts,
+            whole: ['name' => 'Rebuilt PS5', 'quantity' => 1, 'sale_price' => 800_000],
+            user: $this->user(),
+        );
+
+        $rebuilt = Product::where('name', 'Rebuilt PS5')->firstOrFail();
+
+        $this->assertSame(450_000, $assembly->total_cost);
+        $this->assertTrue($rebuilt->isUsed(), 'a machine built of second-hand parts is second-hand');
+        $this->assertSame(450_000, (int) $rebuilt->stockBatches()->value('unit_cost'));
+    }
+
+    /**
+     * ⚠️ A second-hand piece has no purchase behind it, and its pages must
+     * still open.
+     *
+     * The second-hand book and the product page both tell an item's life as
+     * "bought on one document, sold on another" — and a controller that came
+     * out of a bundle was never bought on any document. The batch says where it
+     * came from instead.
+     */
+    public function test_a_second_hand_piece_has_pages_that_still_open(): void
+    {
+        $this->buyBundle();
+
+        $assembly = app(AssemblyService::class)->takeApart(
+            whole: ['product_id' => $this->bundle->id, 'quantity' => 1],
+            pieces: [
+                ['name' => 'PS5 console only', 'quantity' => 1, 'unit_cost' => 600_000, 'sale_price' => 700_000],
+                ['name' => 'DualSense controller', 'quantity' => 2, 'unit_cost' => 75_000, 'sale_price' => 110_000],
+            ],
+            user: $this->user(),
+        );
+
+        $pad = Product::where('name', 'DualSense controller')->firstOrFail();
+
+        $this->assertTrue($pad->isUsed());
+
+        $this->actingAs($this->user())
+            ->get(route('products.show', $pad))
+            ->assertOk()
+            ->assertSee(__('Second-hand'))
+            // What it cost comes off the batch, which is the only place it is.
+            ->assertSee(money(75_000, false))
+            // And the batch names the document it came out of.
+            ->assertSee($assembly->document_no);
+
+        // The second-hand book lists it like any other used item.
+        $this->actingAs($this->user())
+            ->get(route('second-hand.index'))
+            ->assertOk()
+            ->assertSee('DualSense controller');
+    }
+
     // ---- Putting together --------------------------------------------------
 
     /** ⚠️ The result's cost is what the parts cost, never what somebody types. */

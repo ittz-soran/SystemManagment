@@ -1515,6 +1515,8 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 
 ⚠️ **Building types no cost, deliberately.** A machine is worth what its parts cost, and anybody able to type that figure could invent value out of nothing — a 1,300,000 pile of parts becoming a 5,000,000 asset, the difference surfacing as profit the first time it sold. A cost sent in that field is **ignored, not honoured**, and there is a test that sends one. The plain tests could not see it: they send no cost at all, and a fallback to the right answer looks identical.
 
+⚠️ **Both kinds of product, not only second-hand** — Soran, 2026-09-24: *"This is for both products in stock and second hand"*. The PS5 bundle is only the example that named the problem; a carton of ten chargers bought as one line and sold by the piece is the same thing. Ordinary stock in gives ordinary stock out, and nothing becomes second-hand by being opened. Both directions are guarded by tests for both kinds, and a sabotage forcing either kind fails them.
+
 ⚠️ **A piece of a second-hand thing is second-hand too.** The kind is inherited from what went in, so a used console does not produce brand-new controllers on the shelf. A piece may also land in a product the shop already has, rather than always making a new one — a controller out of a PS5 box wants its own row, a stick of RAM out of a PC may not.
 
 **The balance check is the point of the whole document.** Out to the last dinar, checked on the figures actually written rather than on the input, because a check on the input can still be defeated by a rounding done afterwards. A penny of difference is a penny of profit invented by typing, and it would sit in the stock value forever with nothing to explain it.
