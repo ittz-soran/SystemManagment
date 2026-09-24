@@ -1498,6 +1498,28 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 **Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
 
 
+### ⚠️ MySQL was rewriting the FIFO order — Soran, 2026-09-24
+
+**Found in his own shop, from the screen.** He swapped a cable and the replacement came off the **newer** batch while 29 units sat in the older one: *"this Sale INV-00054 #345 line must user old batch are 128 ... because have 29 remaining on old batch"*. Then the sentence that solved it: *"and this 2026-09-24 10:26 date times is wrong!!"* — both batches were showing the same timestamp, minutes old, while their own movements still read 2026-08-24 and 2026-09-06, and the adjustment documents behind them read August too.
+
+⚠️ **The first `TIMESTAMP` column in a MySQL or MariaDB table that is NOT NULL and carries no explicit default is silently given `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`.** The rule is decades old and on by default in MariaDB. `$table->timestamp('received_at', 6)` emits exactly such a column — checked by compiling the blueprint against the MySQL grammar rather than assumed:
+
+```
+create table `stock_batches` (… `received_at` timestamp(6) not null, `created_at` timestamp null, …)
+```
+
+So **every sale, return, swap and adjustment that changed a batch's `quantity_remaining` also reset its `received_at` to that moment.** `StockBatch::scopeFifoOrder` sorts by that column. FIFO had quietly become **"least recently touched first"** instead of "oldest first" — the wrong cost on the wrong sale, in the one calculation the shop is judged by, and the one thing Section 5 exists to get right.
+
+It is exactly reproducible from his data: batch #128 was last sold from on 14 September, so its date became the 14th; batch #345 arrived on the 6th and had not been touched since. On the 23rd, `6 Sep < 14 Sep`, so the till reached past 29 older units for the dearer layer.
+
+⚠️ **Not one test could see it, on either driver.** The suite runs on SQLite, where `timestamp` is a column like any other. The CI matrix *does* run MariaDB — and passed, because nothing had ever asked whether a date survives an update to its row.
+
+**The fix is the column type.** `DATETIME` has no auto-update behaviour, no timezone conversion in or out, and no 2038 limit; it is what a business date should always have been. All eight of the shop's business dates change, not only the one that bit — `repairs.received_at` is rewritten by every status change, `swaps.swapped_at` by the service's own second save, `payments.paid_at` and `stock_adjustments.adjusted_at` by any edit.
+
+**And the FIFO order is repaired on deploy.** The truth was never lost, only misfiled: a batch is created with a movement in the same breath and from the same value, and movements are inserted and deleted but never updated, so the auto-update never touched them. The migration reads each batch's creating movement and puts the date back, counting them out loud as it goes. ⚠️ **Transferred batches are left alone** — `TransferService` deliberately carries the source's `received_at` so moved stock keeps its age, and repairing those from their own inbound movement would make old stock look new, which is this same bug pointing the other way. ⚠️ **`repairs.received_at` cannot be repaired**: nothing else recorded it, so a job edited since it was taken in has lost its true take-in time. Adjustments and payments were spared in practice, because nothing updates those rows in the course of trading.
+
+**Two guards, because one was not enough.** A schema test asserts every one of the eight columns is `datetime`, and skips on SQLite where the question is meaningless. A behavioural test sells twice from a two-batch product and asserts the older batch is drawn on both times — the exact shape of what Soran saw. ⚠️ That one was **verified to discriminate rather than assumed to**: this container cannot run MariaDB, so the auto-update was reproduced with a throwaway SQLite trigger, under which the test fails on its first assertion.
+
 ### Undoing a swap, and a faulty unit with nowhere to go — Soran, 2026-09-24
 
 *"add delete or edit options for swaps"*.
