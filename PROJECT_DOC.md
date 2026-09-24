@@ -1498,6 +1498,30 @@ The two swap movements say exactly what it cost: the replacement leaves at what 
 **Still missing, and known:** the second half of case 2 — swapping for a *different* product with the price difference settled in one go. Today that is a return followed by a sale, which is two documents and correct, but it is two screens for one counter conversation.
 
 
+### Undoing a swap, and a faulty unit with nowhere to go — Soran, 2026-09-24
+
+*"add delete or edit options for swaps"*.
+
+**Delete undoes the whole thing, backwards through what making one did.** The supplier is un-billed, which puts the faulty unit back into its batch; then both swap movements come off, which takes that unit out again and puts the replacement back on the shelf; then the invoice line may be returned again.
+
+⚠️ **The order is the whole of it.** The movement removed second is the one that put the faulty unit into its batch, and it cannot come off a batch that has not got it — so the purchase return has to go first. Reversed, it refuses with "not enough in the batch" on a swap that is perfectly undoable, **but only when that batch has been emptied**, which is why an ordinary fixture cannot see the difference: the first sabotage of this passed and proved nothing. The test that guards it makes the faulty unit the last of its own batch and takes the replacement off another one.
+
+⚠️ **`swaps.edit` is the NOTE and nothing else.** A swap is a fact about a physical handover: a different quantity, or a different line, is a different swap, and pretending otherwise behind an Edit button would leave the stock saying one thing and the document another. Correcting what somebody typed is worth a key; rewriting what happened is delete and do it again.
+
+⚠️ **`swaps.delete` un-bills the supplier under its own key.** Making a swap bills one under `swaps.create` without anybody holding `purchase_returns.create`; undoing it un-bills them by the same rule. `PurchaseReturnService::delete()` gained `alreadyAuthorised` for that one caller — it narrows nothing else, and the batch and closed-period checks still run, twice.
+
+**A swap deleted is a swap that never happened, on the books.** The customer keeps whatever they walked out with; this is for a swap recorded in error. What comes back is the shelf, the supplier's balance, and the invoice line's right to be returned.
+
+#### And the bug the delete test found
+
+⚠️ **A faulty unit with nobody to send it to was being put back on the shelf and left there** — two days after swaps shipped, found by a fixture written for the delete button, not by reading the code.
+
+The restore exists so a purchase return has something to take. With no purchase behind the unit there is no return, so it stayed: **the shelf counted a broken power bank as sellable, and the document said the swap had cost nothing while the shop had given away a good one.** This paragraph previously claimed "the shop simply carries the cost, which the document then shows" — it did not.
+
+Now it is not restored at all. The sale already costed it, so the shelf stays right, `faulty_cost` stays zero, and `cost()` reads the whole replacement — which is the truth of what the shop is out of pocket. The P&L feels it through the same "Faulty goods replaced" line.
+
+⚠️ **And a line drawn from two kinds of stock is refused.** The purchased units must go back into their batch so the return can take them, and the rest must not. Restoring a chosen subset would need FIFO to put back particular units rather than a count of them — surgery on the one class in this system that must never be wrong — so a mixed line says so and points at the return screen instead. It needs one invoice line whose units came partly from a purchase and partly from opening stock or another room, which is rare enough to be worth a sentence rather than a second mechanism.
+
 ### Find anything — Soran, 2026-09-24
 
 *"create an new page are user just can search, and search by all data type like name, sku, barcode, prices, qty, phone, address, balance, inv, pur, srt, prt, pay… all of data have automated read Arabic or Persian numbers to English… for example I searched PD-17-UK auto show invoices, purchases, statistics, best supplier buy from and customer, and actions like sale or purchase or return"*.

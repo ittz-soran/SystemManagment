@@ -143,18 +143,33 @@ class PurchaseReturnService
      * A purchase return sends units away, so undoing it puts them back into the
      * batch they left, which nobody else can have touched.
      */
-    public function delete(PurchaseReturn $return, User $user): void
+    /**
+     * @param  bool  $alreadyAuthorised  the caller holds the right to do this
+     *                                   under a key of its own, so only the
+     *                                   mechanical checks apply
+     *
+     * ⚠️ `$alreadyAuthorised` exists for exactly one caller — Soran,
+     * 2026-09-24. Deleting a swap un-bills the supplier, because making one
+     * billed them, and both sides of that power live under the `swaps.*` keys:
+     * a shop can hand somebody the right to make a swap without also handing
+     * them `purchase_returns.*`, and it must be able to hand them the undoing
+     * too. It narrows nothing else — the batch checks and the closed-period
+     * check still run, here and again inside the transaction.
+     */
+    public function delete(PurchaseReturn $return, User $user, bool $alreadyAuthorised = false): void
     {
-        $state = $return->canBeDeleted($user);
+        $asked = $alreadyAuthorised ? null : $user;
+
+        $state = $return->canBeDeleted($asked);
 
         if (! $state['allowed']) {
             throw new RuntimeException($state['reason']);
         }
 
-        DB::transaction(function () use ($return, $user) {
+        DB::transaction(function () use ($return, $user, $asked) {
             // Section 8: re-checked inside the transaction. Between the page
             // loading and this running, someone else may have closed the books.
-            $state = $return->fresh()->canBeDeleted($user);
+            $state = $return->fresh()->canBeDeleted($asked);
 
             if (! $state['allowed']) {
                 throw new RuntimeException($state['reason']);

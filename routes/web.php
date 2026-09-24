@@ -342,6 +342,11 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:swaps.create')->name('swaps.store');
     Route::get('swaps/{swap}', [SwapController::class, 'show'])
         ->middleware('permission:swaps.view')->name('swaps.show');
+    // ⚠️ The note only. See SwapController::update for why nothing else is.
+    Route::patch('swaps/{swap}', [SwapController::class, 'update'])
+        ->middleware('permission:swaps.edit')->name('swaps.update');
+    Route::delete('swaps/{swap}', [SwapController::class, 'destroy'])
+        ->middleware('permission:swaps.delete')->name('swaps.destroy');
 
     Route::get('purchase-returns', [PurchaseReturnController::class, 'index'])
         ->middleware('permission:purchase_returns.view')->name('purchase-returns.index');
