@@ -563,6 +563,12 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:assemblies.create')->name('assemblies.share');
     Route::get('assemblies/{assembly}', [AssemblyController::class, 'show'])
         ->middleware('permission:assemblies.view')->name('assemblies.show');
+    Route::get('assemblies/{assembly}/edit', [AssemblyController::class, 'edit'])
+        ->middleware('permission:assemblies.create')->name('assemblies.edit');
+    Route::put('assemblies/{assembly}', [AssemblyController::class, 'update'])
+        ->middleware('permission:assemblies.create')->name('assemblies.update');
+    Route::delete('assemblies/{assembly}', [AssemblyController::class, 'destroy'])
+        ->middleware('permission:assemblies.delete')->name('assemblies.destroy');
 
     Route::get('stock-transfers', [StockTransferController::class, 'index'])
         ->middleware('permission:stock_rooms.view')->name('stock-transfers.index');

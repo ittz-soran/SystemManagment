@@ -11,6 +11,43 @@
 @endsection
 
 @section('actions')
+    @can('assemblies.create')
+        @if($deleteState['allowed'])
+            <a href="{{ route('assemblies.edit', $assembly) }}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+            </a>
+        @else
+            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $deleteState['reason'] }}">
+                <button class="btn btn-outline-primary" disabled>
+                    <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
+                </button>
+            </span>
+        @endif
+    @endcan
+
+    @can('assemblies.delete')
+        {{-- ⚠️ Undoing puts the pieces back into the batches they were made
+             from and takes them off the shelf, which cannot happen once one has
+             been sold. The button says why rather than failing when pressed. --}}
+        @if(! $deleteState['allowed'])
+            <span class="d-inline-block" data-bs-toggle="tooltip" title="{{ $deleteState['reason'] }}">
+                <button class="btn btn-outline-danger" disabled>
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete') }}
+                </button>
+            </span>
+        @else
+            <form action="{{ route('assemblies.destroy', $assembly) }}" method="POST"
+                  onsubmit="return confirm(@js(__('Delete :document? The pieces come off the shelf and what they were made of goes back on.', [
+                      'document' => $assembly->document_no,
+                  ])))">
+                @csrf
+                @method('DELETE')
+                <button class="btn btn-outline-danger">
+                    <i class="bi bi-trash me-1"></i>{{ __('Delete') }}
+                </button>
+            </form>
+        @endif
+    @endcan
 @endsection
 
 @section('content')
