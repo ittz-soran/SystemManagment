@@ -12,6 +12,7 @@ use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\StockRoom;
 use App\Services\ActivityLogger;
+use App\Services\AssemblyService;
 use App\Services\BackupService;
 use App\Services\DailyTotals;
 use App\Services\LabelPrinter;
@@ -23,6 +24,7 @@ use App\Support\Units;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -542,6 +544,21 @@ class ProductController extends Controller
                 ->limit(15)
                 ->get();
 
+        /*
+         * What each of these could be PUT BACK TOGETHER from — Soran,
+         * 2026-09-24: *"now when i ASM-00001 in sale show 0 pcs Bundle ...
+         * however not sale each splited lines"*.
+         *
+         * A bundle taken apart reads zero on the shelf, and the till would not
+         * sell it even with both its pieces sitting there untouched. Asked for
+         * by the sale screen and nobody else — a purchase, a label run or the
+         * find box is not putting anything back together, and should not pay
+         * for the answer.
+         */
+        $rebuildable = $request->boolean('rebuildable')
+            ? $this->rebuildable($products)
+            : collect();
+
         return response()->json([
             'exact' => (bool) $exact,
             'products' => $products->map(fn (Product $p) => [
@@ -569,7 +586,45 @@ class ProductController extends Controller
                 'next_batch_cost' => $p->tracksStock()
                     ? cost_seen($p->stockBatches()->withStock()->fifoOrder()->value('unit_cost'))
                     : null,
+
+                // How many more the till could offer by putting pieces back
+                // together, and what those pieces are — so the screen can name
+                // them in the question it asks before doing it.
+                ...($rebuildable[$p->id] ?? ['rebuildable' => 0, 'pieces' => [], 'piece_ids' => []]),
             ]),
         ]);
+    }
+
+    /**
+     * For each product that was once taken apart, how many could be put back.
+     *
+     * ⚠️ **This is a query per row, and that is why it is behind a flag.** A
+     * till search runs while somebody types, so the cost is real; it is paid
+     * only on the screen that needs the answer, and only for the rows that
+     * keep stock at all. A service or a second-hand one-off is skipped before
+     * any query is made.
+     *
+     * @param  Collection<int, Product>  $products
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function rebuildable($products)
+    {
+        $assemblies = app(AssemblyService::class);
+
+        return $products
+            ->filter(fn (Product $p) => $p->tracksStock())
+            ->mapWithKeys(function (Product $p) use ($assemblies) {
+                $recipe = $assemblies->recipeFor($p);
+
+                if ($recipe === null) {
+                    return [$p->id => ['rebuildable' => 0, 'pieces' => [], 'piece_ids' => []]];
+                }
+
+                return [$p->id => [
+                    'rebuildable' => $assemblies->rebuildableQuantity($p, $recipe),
+                    'pieces' => $recipe->pieces()->map(fn ($piece) => $piece->product?->name)->filter()->values(),
+                    'piece_ids' => $recipe->pieces()->pluck('product_id')->values(),
+                ]];
+            });
     }
 }

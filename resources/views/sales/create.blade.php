@@ -437,7 +437,24 @@
                                 <span dir="ltr">${escapeHtml(line.sku)}</span>
                                 ${line.kind === 'service' ? '' : `
                                     <span class="opacity-50" aria-hidden="true">&bull;</span>
-                                    <span class="${line.stock > 0 ? '' : 'text-danger fw-semibold'}">${format(line.stock)} ${escapeHtml(line.unit ?? '')} ${@json(__('in stock'))}</span>`}
+                                    <span class="${line.stock > 0 || (line.rebuildable ?? 0) > 0 ? '' : 'text-danger fw-semibold'}">${format(line.stock)} ${escapeHtml(line.unit ?? '')} ${@json(__('in stock'))}</span>
+                                    ${/* ⚠️ Not red, and said in words. A bundle
+                                          taken apart reads zero and is about to
+                                          be put back together at the till — a
+                                          shopkeeper who sees that in red assumes
+                                          the sale is about to be refused. */ ''}
+                                    ${/* ⚠️ Always drawn, hidden when it does
+                                          not apply, because the quantity box
+                                          beside it changes this sentence and
+                                          `refreshRow` redraws cells rather
+                                          than the row — a note conjured by the
+                                          template only is a note that never
+                                          appears when somebody types a 3. */ ''}
+                                    <span class="${(line.rebuildable ?? 0) > 0 && line.stock < line.quantity ? '' : 'd-none'}"
+                                          data-role="rebuild-note" data-index="${index}">
+                                        <span class="opacity-50" aria-hidden="true">&bull;</span>
+                                        <span class="text-info">${@json(__('will be put back together'))}</span>
+                                    </span>`}
                             </div>
                             ${line.condition ? `<div class="small text-secondary">${escapeHtml(line.condition)}</div>` : ''}
                             <div class="small text-warning ${line.belowCost ? '' : 'd-none'}" data-role="below-cost">
@@ -527,17 +544,145 @@
                     : @json(__('Paid in full'));
             }
 
+            /*
+             * ⚠️ One of a bundle and its pieces at a time — Soran, 2026-09-24:
+             * *"if sale or add to card one of 3 main or lines should lock
+             * other"*.
+             *
+             * The stock refuses this anyway, at the end, once the rebuild has
+             * eaten the pieces the other line wanted — but at a till that is
+             * far too late: the customer is waiting and the cart has to be
+             * unpicked. Said here instead, the moment it is asked for.
+             */
+            function clashesWithCart(product) {
+                const mine = product.piece_ids ?? [];
+
+                // Adding a bundle whose piece is already in the cart.
+                const takenPiece = cart.find((line) => mine.includes(line.id));
+
+                if (takenPiece) {
+                    return @json(__(':piece is already in this sale, and :whole is made of it. Take one of them out first.'))
+                        .replace(':piece', takenPiece.name)
+                        .replace(':whole', product.name);
+                }
+
+                // Adding a piece of a bundle that is already in the cart.
+                const takenWhole = cart.find((line) => (line.pieceIds ?? []).includes(product.id));
+
+                return takenWhole
+                    ? @json(__(':whole is already in this sale and is made of :piece. Take one of them out first.'))
+                        .replace(':whole', takenWhole.name)
+                        .replace(':piece', product.name)
+                    : null;
+            }
+
+            /**
+             * How many of this the shopkeeper agrees to have on this line.
+             *
+             * What was asked for when nothing has to be built and when they say
+             * yes; the most that could ever be handed over when more than that
+             * was asked; zero when they say no.
+             *
+             * ⚠️ Silent in every ordinary case, which is the point: it asks
+             * only when the shelf cannot cover what this line now wants and
+             * there are pieces to make up the difference. A question on every
+             * scan would be answered without being read within a day.
+             *
+             * ⚠️ Asked from two places, because there are two ways to want a
+             * second one: scanning it again, and typing a bigger number into
+             * the quantity box. The second went through without a word until
+             * this was written.
+             */
+            function agreedQuantity({ name, wanted, stock, rebuildable, pieces, agreed = 0 }) {
+                if (wanted <= stock || rebuildable < 1 || wanted <= agreed) {
+                    return wanted;
+                }
+
+                /*
+                 * ⚠️ More than the shelf and the pieces together could ever
+                 * come to, so the honest answer is the ceiling and not a
+                 * question. The save would otherwise refuse it saying **"Not
+                 * enough stock: 1 available"** — true of the shelf, and wrong
+                 * about this shop, which can hand over two. A shopkeeper told
+                 * one would set the line to one and never learn about the
+                 * second.
+                 */
+                const ceiling = stock + rebuildable;
+
+                if (wanted > ceiling) {
+                    window.alert(@json(__('Only :count :product can be sold: :stock on the shelf and :more that can be put back together.'))
+                        .replace(':count', format(ceiling))
+                        .replace(':product', name)
+                        .replace(':stock', format(stock))
+                        .replace(':more', format(rebuildable)));
+
+                    return ceiling;
+                }
+
+                // Two sentences, because "there is none" is a lie when there
+                // are two and a third was asked for.
+                const question = (stock > 0
+                    ? @json(__('Only :count :product on the shelf. Put :pieces back together for the rest?'))
+                        .replace(':count', format(stock))
+                    : @json(__('There is no :product on the shelf. Put :pieces back together to sell it?')))
+                    .replace(':product', name)
+                    .replace(':pieces', pieces.join(', '));
+
+                return window.confirm(question) ? wanted : 0;
+            }
+
             function addProduct(product) {
+                const clash = clashesWithCart(product);
+
+                if (clash) {
+                    window.alert(clash);
+                    goToScanner();
+
+                    return;
+                }
+
                 // Section 9b: "Scanning the same product again increments its
                 // line rather than adding a second one." Two lines for one
                 // product at different prices is entered deliberately, by
                 // editing the price on an existing line.
                 const existing = cart.find((l) => l.id === product.id && l.price === product.sale_price);
 
+                /*
+                 * ⚠️ Asked before it happens, never after — Soran chose "yes,
+                 * but ask me first". Putting a bundle back together takes its
+                 * pieces off the shelf, and a shopkeeper who scanned a barcode
+                 * should not discover that from the stock report.
+                 *
+                 * ⚠️ Against the quantity this line is about to REACH, not
+                 * against one. Two on the shelf and a third scanned is a
+                 * rebuild as surely as a first scanned with none, and asking
+                 * only about the first would have let the commonest of the two
+                 * through in silence.
+                 */
+                const wanted = (existing?.quantity ?? 0) + 1;
+
+                if (agreedQuantity({
+                    name: product.name,
+                    wanted,
+                    stock: product.quantity ?? 0,
+                    rebuildable: product.rebuildable ?? 0,
+                    pieces: product.pieces ?? [],
+                    agreed: existing?.agreed ?? 0,
+                }) < wanted) {
+                    goToScanner();
+
+                    return;
+                }
+
                 if (existing) {
                     existing.quantity += 1;
+                    existing.agreed = Math.max(existing.agreed ?? 0, wanted);
                 } else {
                     cart.push({
+                        // How far this line has already been agreed to be put
+                        // back together, so raising it asks again and leaving
+                        // it where it is does not.
+                        agreed: wanted,
                         id: product.id,
                         name: product.name,
                         sku: product.sku,
@@ -549,6 +694,12 @@
                         condition: product.condition_note,
                         cost: product.next_batch_cost,
                         belowCost: product.next_batch_cost !== null && product.sale_price < product.next_batch_cost,
+
+                        // What this line is made of, so a piece of it cannot be
+                        // added to the same cart.
+                        pieceIds: product.piece_ids ?? [],
+                        pieces: product.pieces ?? [],
+                        rebuildable: product.rebuildable ?? 0,
                     });
                 }
 
@@ -597,7 +748,11 @@
             }
 
             async function runSearch(term) {
-                const response = await fetch(`{{ route('products.search') }}?q=${encodeURIComponent(term)}`, {
+                // ⚠️ `rebuildable=1` is the till asking a question only the
+                // till asks: what could be put back together to sell. A
+                // purchase or an adjustment is not rebuilding anything, and the
+                // work is skipped for them.
+                const response = await fetch(`{{ route('products.search') }}?q=${encodeURIComponent(term)}&rebuildable=1`, {
                     headers: { 'Accept': 'application/json' },
                 });
 
@@ -627,7 +782,10 @@
                         <span class="small">
                             ${product.kind === 'service'
                                 ? `<span class="text-secondary me-2">${@json(__('service'))}</span>`
-                                : `<span class="text-secondary me-2">${format(product.quantity)} ${escapeHtml(product.unit ?? '')} ${@json(__('in stock'))}</span>`}
+                                : `<span class="text-secondary me-2">${format(product.quantity)} ${escapeHtml(product.unit ?? '')} ${@json(__('in stock'))}${
+                                    (product.rebuildable ?? 0) > 0
+                                        ? ` · ${@json(__('+:count if put back together'))}`.replace(':count', format(product.rebuildable))
+                                        : ''}</span>`}
                             <span class="fw-semibold">${format(product.sale_price)}</span>
                         </span>`;
                     item.addEventListener('click', () => addProduct(product));
@@ -701,6 +859,8 @@
 
                 row.querySelector('.money').textContent = format(line.quantity * line.price);
                 row.querySelector('[data-role="below-cost"]').classList.toggle('d-none', ! line.belowCost);
+                row.querySelector('[data-role="rebuild-note"]')
+                    ?.classList.toggle('d-none', ! ((line.rebuildable ?? 0) > 0 && line.stock < line.quantity));
 
                 recalc();
             }
@@ -863,6 +1023,46 @@
                     line.belowCost = line.cost !== null && line.price < line.cost;
                 }
 
+                refreshRow(index);
+            });
+
+            /*
+             * ⚠️ Typing a bigger number is the same decision as scanning one
+             * more, and it used to go through without a word.
+             *
+             * On `change` rather than `input`, or typing "10" would ask at the
+             * "1" — and `change` is also what the number pad's OK dispatches,
+             * so the phone way in is the same one. The pad hides itself and
+             * moves on to the price box a moment later; the question is asked
+             * over it and answered before any of that, which is the order a
+             * shopkeeper reads it in anyway.
+             */
+            cartBody.addEventListener('change', (event) => {
+                if (event.target.dataset.role !== 'qty') return;
+
+                const index = Number(event.target.dataset.index);
+                const line = cart[index];
+                if (! line) return;
+
+                const agreed = agreedQuantity({
+                    name: line.name,
+                    wanted: line.quantity,
+                    stock: line.stock,
+                    rebuildable: line.rebuildable ?? 0,
+                    pieces: line.pieces ?? [],
+                    agreed: line.agreed ?? 0,
+                });
+
+                // Said no: back to what the shelf holds, or to what was already
+                // agreed if that is more — never back to one, which would throw
+                // away a quantity nobody objected to.
+                line.quantity = agreed > 0
+                    ? agreed
+                    : Math.max(1, line.agreed ?? 0, Math.min(line.quantity, line.stock));
+
+                line.agreed = Math.max(line.agreed ?? 0, line.quantity);
+
+                event.target.value = line.quantity;
                 refreshRow(index);
             });
 

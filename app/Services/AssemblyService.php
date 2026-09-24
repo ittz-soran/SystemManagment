@@ -442,6 +442,121 @@ class AssemblyService
     }
 
     /**
+     * How this product was last taken apart, if it ever was.
+     *
+     * ⚠️ **A document read as a recipe, which is a stretch worth naming.** An
+     * assembly records what HAPPENED on a day; this asks it what a thing is
+     * made of. The latest one wins, because that is the shop's most recent
+     * answer to that question — split the same bundle three ways this month and
+     * the newest split is what the till will put back together.
+     *
+     * ⚠️ Deleted documents are not recipes. A take-apart that was undone never
+     * happened, and reading it here would offer to rebuild something out of
+     * pieces the shop never made. Two things keep it out, and it is worth
+     * knowing which: the row is soft-deleted, AND `unwind()` removes its lines
+     * outright — `AssemblyItem` carries no soft delete — so `whereHas` finds
+     * nothing even if the scope is ever lifted. A sabotage that lifted the
+     * scope walked through the test, which is how that was learnt.
+     */
+    public function recipeFor(Product $product): ?Assembly
+    {
+        return Assembly::where('direction', Assembly::APART)
+            ->whereHas('items', fn ($q) => $q
+                ->where('role', AssemblyItem::SOURCE)
+                ->where('product_id', $product->id))
+            ->with('items.product')
+            ->orderByDesc('assembled_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * How many of this product could be put back together right now.
+     *
+     * ⚠️ Counted from the SHELF, piece by piece, and limited by the scarcest of
+     * them: a bundle of a board and two pads, with one board and three pads in
+     * stock, is one bundle and not one and a half.
+     *
+     * ⚠️ A recipe whose whole line is for more than one unit divides: taking
+     * two bundles apart into four pads means two pads make one bundle.
+     *
+     * ⚠️ **And if it does not divide evenly, the answer is none.** Two bundles
+     * that came apart into three pads say one and a half pads per bundle, and
+     * there is no such thing as half a pad — offering it would have the till
+     * take two pads off the shelf and call the result a bundle, which is not
+     * what that document says happened. A shop that really has such a recipe
+     * builds it by hand on the Build screen, where it types the quantities.
+     */
+    public function rebuildableQuantity(Product $product, ?Assembly $recipe = null): int
+    {
+        $recipe ??= $this->recipeFor($product);
+
+        if ($recipe === null) {
+            return 0;
+        }
+
+        $per = max(1, (int) $recipe->whole()?->quantity);
+        $possible = null;
+
+        foreach ($recipe->pieces() as $piece) {
+            if ($piece->product === null || $piece->quantity < 1) {
+                return 0;
+            }
+
+            if ($piece->quantity % $per !== 0) {
+                return 0;
+            }
+
+            $needed = intdiv((int) $piece->quantity, $per);
+            $have = (int) $piece->product->quantity;
+
+            $possible = min($possible ?? PHP_INT_MAX, intdiv($have, $needed));
+        }
+
+        return max(0, (int) ($possible ?? 0));
+    }
+
+    /**
+     * Put some back together, from the pieces on the shelf.
+     *
+     * ⚠️ It writes an ordinary `together` document, with the ordinary rules:
+     * the pieces are consumed at FIFO and the whole costs what they cost. There
+     * is no special path for a rebuild, because a rebuild is not special — it
+     * is the same thing a shopkeeper does by hand on the build screen.
+     */
+    public function rebuild(Product $product, int $quantity, User $user, ?Carbon $at = null): Assembly
+    {
+        $recipe = $this->recipeFor($product);
+
+        if ($recipe === null) {
+            throw new RuntimeException(__('There is no record of what :product is made of.', [
+                'product' => $product->name,
+            ]));
+        }
+
+        if ($quantity < 1 || $this->rebuildableQuantity($product, $recipe) < $quantity) {
+            throw new RuntimeException(__('There are not enough pieces to put :count of :product back together.', [
+                'count' => number_format($quantity),
+                'product' => $product->name,
+            ]));
+        }
+
+        $per = max(1, (int) $recipe->whole()?->quantity);
+
+        return $this->putTogether(
+            pieces: $recipe->pieces()
+                ->map(fn ($piece) => [
+                    'product_id' => $piece->product_id,
+                    'quantity' => intdiv((int) $piece->quantity, $per) * $quantity,
+                ])->values()->all(),
+            whole: ['product_id' => $product->id, 'quantity' => $quantity],
+            user: $user,
+            at: $at,
+            note: __('Put back together to sell as :product', ['product' => $product->name]),
+        );
+    }
+
+    /**
      * Share a total out between lines, in the ratio of what they will sell for.
      *
      * ⚠️ **It returns a cost PER UNIT, not per line, and that is the whole
