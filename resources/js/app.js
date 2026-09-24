@@ -709,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * The search box in the topbar.
+ * The type-ahead behind both of the shop's search boxes.
  *
  * The same shape as the cart's product lookup, over the whole shop: type, wait
  * for the typing to stop, ask the server, show what came back grouped by what
@@ -717,16 +717,16 @@ document.addEventListener('DOMContentLoaded', () => {
  * anything — it draws what it is given.
  *
  * Keyboard first, because the person using it has one hand on a barcode scanner:
- * Ctrl+K from anywhere, arrows to move, Enter to open, Escape to leave.
+ * arrows to move, Enter to open, Escape to leave. Ctrl+K reaches the topbar one
+ * from anywhere.
+ *
+ * ⚠️ **One implementation, two boxes** — the topbar's, and the find page's.
+ * Written twice they would drift, and the day they disagreed about what Enter
+ * does would be the day somebody at the till lost a scan. What differs between
+ * them is passed in: which endpoint to ask, and what Enter means when nothing
+ * is highlighted.
  */
-document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('app-search');
-    const panel = document.getElementById('app-search-results');
-
-    if (! input || ! panel) {
-        return;
-    }
-
+function attachSuggest(input, panel, { onBlankEnter } = {}) {
     let items = [];
     let active = -1;
     let pending = null;
@@ -829,22 +829,49 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (! panel.classList.contains('show') || ! items.length) {
-            return;
-        }
-
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            if (! panel.classList.contains('show') || ! items.length) {
+                return;
+            }
+
             event.preventDefault();
             active = event.key === 'ArrowDown'
                 ? (active + 1) % items.length
                 : (active <= 0 ? items.length : active) - 1;
             highlight();
+
+            return;
         }
 
-        if (event.key === 'Enter') {
-            // Nothing chosen yet: the first result is what the reader meant.
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        /*
+         * ⚠️ A highlighted row wins, and nothing else here may swallow Enter.
+         *
+         * A scanner ends every read with Enter, milliseconds after the code
+         * lands and long before the suggestion request comes back. On the find
+         * page that Enter has to reach the form and run the search; on the
+         * topbar there is no form, so the first suggestion is the best guess at
+         * what was meant.
+         */
+        if (active >= 0 && items[active]) {
             event.preventDefault();
-            (items[active] ?? items[0]).click();
+            items[active].click();
+
+            return;
+        }
+
+        if (onBlankEnter) {
+            onBlankEnter(event);
+
+            return;
+        }
+
+        if (panel.classList.contains('show') && items.length) {
+            event.preventDefault();
+            items[0].click();
         }
     });
 
@@ -860,6 +887,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    return { close };
+}
+
+/** The search box in the topbar, on every screen. */
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('app-search');
+    const panel = document.getElementById('app-search-results');
+
+    if (! input || ! panel) {
+        return;
+    }
+
+    attachSuggest(input, panel);
+
     // Ctrl+K, or / with nothing else focused — a hand already on the keyboard
     // should not have to find the mouse.
     document.addEventListener('keydown', (event) => {
@@ -871,6 +912,64 @@ document.addEventListener('DOMContentLoaded', () => {
             input.select();
         }
     });
+});
+
+/**
+ * The find page's box — Soran, 2026-09-24.
+ *
+ * *"while type before click search sugest some result may i dont now full name
+ * or sku"*, and *"every after click search or scaned barcode serach input ready
+ * for new search"*.
+ *
+ * Two things the topbar's box does not do. Enter runs the search rather than
+ * opening the first guess, because this box has a form behind it and a scanner
+ * presses Enter before any suggestion has arrived. And when the page comes back
+ * with an answer, the term is left in the box and SELECTED — the same idiom the
+ * product form already uses for a rescan, so the next scan replaces it instead
+ * of being typed onto the end of it.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('find-q');
+    const panel = document.getElementById('find-suggestions');
+
+    if (! input || ! panel) {
+        return;
+    }
+
+    const suggest = attachSuggest(input, panel, {
+        onBlankEnter: () => {
+            suggest.close();
+            input.form?.requestSubmit();
+        },
+    });
+
+    /*
+     * The hint under the box explains what may be typed, which stops being
+     * useful the moment somebody types — and the suggestions open on top of it,
+     * so its lines show around the panel like a page printed twice.
+     */
+    const hint = document.getElementById('find-hint');
+
+    if (hint) {
+        input.addEventListener('input', () => {
+            hint.classList.toggle('d-none', input.value.trim() !== '');
+        });
+    }
+
+    if (input.value === '') {
+        return;
+    }
+
+    /*
+     * ⚠️ Focused only where there is a real keyboard. `autofocus` on a phone
+     * throws the on-screen keyboard up over the results the reader just asked
+     * for, every single time. A scanner is a keyboard, and a keyboard means a
+     * pointer that is not a fingertip.
+     */
+    if (window.matchMedia('(pointer: fine)').matches) {
+        input.focus();
+        input.select();
+    }
 });
 
 /**

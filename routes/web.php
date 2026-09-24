@@ -90,6 +90,7 @@ Route::middleware(['auth'])->group(function () {
      * route instead would mean inventing a key for "may look things up", which
      * is every job in the shop.
      */
+    Route::get('find/suggest', [FindController::class, 'suggest'])->name('find.suggest');
     Route::get('find', FindController::class)->name('find');
 
     Route::get('dashboard', [DashboardController::class, 'index'])

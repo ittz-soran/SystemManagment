@@ -309,6 +309,150 @@ class FindPageTest extends TestCase
             ->assertSee(__('Nothing matches :term.', ['term' => '40000']));
     }
 
+    // ---- Suggestions while typing ----------------------------------------
+
+    /** *"sugest some result may i dont now full name or sku"*. */
+    public function test_half_a_name_suggests_the_product(): void
+    {
+        $this->buy($this->bazaar, 3);
+
+        $groups = $this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => 'Power ba']))
+            ->assertOk()
+            ->json('groups');
+
+        $this->assertSame(__('Products'), $groups[0]['label']);
+        $this->assertSame('Power bank 17000mAh UK', $groups[0]['items'][0]['label']);
+
+        // ⚠️ Into the dossier, not the product's own record: the reader is on
+        // this page asking what they can DO about the thing.
+        $this->assertSame(route('find', ['product' => $this->pd->id]), $groups[0]['items'][0]['url']);
+        $this->assertStringContainsString('3', $groups[0]['items'][0]['note']);
+    }
+
+    public function test_half_a_sku_suggests_it_too(): void
+    {
+        $groups = $this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => '17-UK']))
+            ->assertOk()
+            ->json('groups');
+
+        $this->assertSame('Power bank 17000mAh UK', $groups[0]['items'][0]['label']);
+    }
+
+    /**
+     * ⚠️ *"barcode shuld fully typed then search"*. A barcode is never
+     * half-known — it is scanned, and it arrives whole — so every prefix of one
+     * would drag unrelated products into a list somebody is reading mid-type.
+     */
+    public function test_half_a_barcode_suggests_nothing_and_the_whole_one_suggests_it(): void
+    {
+        $this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => '69724964']))
+            ->assertOk()
+            ->assertJsonPath('groups', []);
+
+        $groups = $this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => '6972496470268']))
+            ->assertOk()
+            ->json('groups');
+
+        $this->assertSame('Power bank 17000mAh UK', $groups[0]['items'][0]['label']);
+    }
+
+    /** A search the reader actually asked for is still generous. */
+    public function test_a_part_barcode_typed_into_the_search_itself_still_finds_it(): void
+    {
+        $this->actingAs($this->user())
+            ->get(route('find', ['q' => '69724964']))
+            ->assertOk()
+            ->assertSee('Power bank 17000mAh UK');
+    }
+
+    public function test_suggestions_cover_people_and_documents_as_well(): void
+    {
+        $this->buy($this->bazaar, 3);
+        $sale = $this->sell($this->karwan, 1);
+
+        $groups = collect($this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => 'Karwan']))
+            ->assertOk()
+            ->json('groups'))->keyBy('label');
+
+        $this->assertSame('Karwan Ahmed', $groups[__('People')]['items'][0]['label']);
+
+        $documents = collect($this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => 'INV-1']))
+            ->assertOk()
+            ->json('groups'))->keyBy('label');
+
+        $this->assertSame($sale->document_no, $documents[__('Documents')]['items'][0]['label']);
+    }
+
+    /** One letter is everybody's name; the box waits for a second. */
+    public function test_one_character_suggests_nothing(): void
+    {
+        $this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => 'P']))
+            ->assertOk()
+            ->assertJsonPath('groups', []);
+    }
+
+    /** ⚠️ A suggestion the reader may not open is still a fact they were not meant to have. */
+    public function test_suggestions_are_behind_the_same_permissions_as_the_page(): void
+    {
+        $this->buy($this->bazaar, 3);
+        $this->sell($this->karwan, 1);
+
+        $nobody = User::factory()->create(['role' => User::ROLE_USER]);
+        $nobody->permissions()->sync(Permission::where('key', 'auth.login')->pluck('id'));
+
+        $this->actingAs($nobody)
+            ->getJson(route('find.suggest', ['q' => 'Power ba']))
+            ->assertOk()
+            ->assertJsonPath('groups', []);
+
+        $this->actingAs($nobody)
+            ->getJson(route('find.suggest', ['q' => 'Karwan']))
+            ->assertOk()
+            ->assertJsonPath('groups', []);
+
+        $this->actingAs($nobody)
+            ->getJson(route('find.suggest', ['q' => 'INV-1']))
+            ->assertOk()
+            ->assertJsonPath('groups', []);
+    }
+
+    public function test_eastern_digits_suggest_too(): void
+    {
+        $this->buy($this->bazaar, 3);
+        $sale = $this->sell($this->karwan, 1);
+
+        $groups = collect($this->actingAs($this->user())
+            ->getJson(route('find.suggest', ['q' => 'INV-٠٠٠٠١']))
+            ->assertOk()
+            ->json('groups'))->keyBy('label');
+
+        $this->assertSame($sale->document_no, $groups[__('Documents')]['items'][0]['label']);
+    }
+
+    /**
+     * The box carries what it needs for app.js to attach the type-ahead, and
+     * keeps the term so the next scan replaces a selected one.
+     */
+    public function test_the_box_is_wired_for_suggestions_and_keeps_the_term(): void
+    {
+        $html = $this->actingAs($this->user())
+            ->get(route('find', ['q' => 'PD-17-UK']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('id="find-q"', $html);
+        $this->assertStringContainsString('data-url="'.e(route('find.suggest')).'"', $html);
+        $this->assertStringContainsString('aria-controls="find-suggestions"', $html);
+        $this->assertMatchesRegularExpression('/id="find-q"[^>]*value="PD-17-UK"/', $html);
+    }
+
     // ---- Permissions ------------------------------------------------------
 
     /**
