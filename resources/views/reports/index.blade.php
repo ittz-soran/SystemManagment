@@ -67,6 +67,11 @@
 
             @foreach([
                 ['reports.summary', __('Summary'), 'clipboard-data'],
+
+                {{-- The long one: where every dinar of profit came from, down
+                     to the invoice line. Several pages on purpose. --}}
+                ['reports.profit', __('Where the profit came from'), 'graph-up-arrow'],
+
                 ['reports.sales', __('Sales'), 'receipt'],
                 ['reports.purchases', __('Purchases'), 'journal-text'],
                 ['reports.customers', __('Customers'), 'people'],
@@ -78,6 +83,16 @@
                     <i class="bi bi-{{ $icon }} me-1"></i>{{ $label }}
                 </a>
             @endforeach
+
+            {{-- ⚠️ **The audit, and it takes no period by default.** A wrong
+                 layer charged in July is still wrong, and the reason to open
+                 this sheet is to find out whether it ever happened at all —
+                 so it is deliberately not one of the "reports for this
+                 period" above. --}}
+            <a href="{{ route('reports.fifo') }}" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-layers me-1"></i>{{ __('FIFO audit') }}
+            </a>
 
             {{-- ⚠️ Its own permission. Somebody who may read the shop's reports
                  is not automatically somebody who may see what each member of

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Assembly;
 use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\Payment;
@@ -13,13 +14,18 @@ use App\Models\Repair;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Models\StockAdjustment;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Models\Swap;
 use App\Models\User;
 use App\Services\AgedDebtService;
 use App\Services\DailyTotals;
+use App\Support\FifoAudit;
+use App\Support\ProfitBreakdown;
 use App\Support\TradeProfit;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -133,6 +139,144 @@ class ReportController extends Controller
                 ->get(),
             'detailed' => $request->boolean('detailed', true),
         ]);
+    }
+
+    /**
+     * Where the profit came from, in full — Soran, 2026-09-25.
+     *
+     * *"other report just show fully where profit are come in to shop, not
+     * problem if need more A4 pages"*.
+     *
+     * ⚠️ **Nothing is summarised away.** The summary sheet answers "how much";
+     * this one answers "from what", and it answers it all the way down: the
+     * chain to net profit, then the three trades, then every category, then
+     * every product, then every invoice line in the period. It is meant to be
+     * several pages and to be read with a pen.
+     *
+     * Every level is cut from the same two sources the headline uses, and
+     * `ProfitBreakdownTest` holds each level against the one above it — a
+     * breakdown that does not add up to its own total is worse than no
+     * breakdown at all.
+     */
+    public function whereProfitCameFrom(Request $request, ProfitBreakdown $breakdown): View
+    {
+        [$from, $to] = $this->range($request);
+
+        $byProduct = $breakdown->byProduct($from, $to);
+
+        return view('reports.print.profit', [
+            'from' => $from,
+            'to' => $to,
+            'profit' => $this->profit($from, $to),
+            'byKind' => $this->byKind($from, $to),
+            'byCategory' => $breakdown->byCategory($byProduct),
+            'byProduct' => $byProduct,
+            'lines' => $request->boolean('lines', true) ? $breakdown->lines($from, $to) : collect(),
+            'showLines' => $request->boolean('lines', true),
+
+            // The three subtractions below gross profit, itemised rather than
+            // left as one figure each.
+            'writeOffs' => $this->writeOffLines($from, $to),
+            'swaps' => Swap::with('product', 'sale')
+                ->whereBetween('swapped_at', [$from, $to])->orderBy('swapped_at')->get(),
+            'expenses' => Expense::with('category')
+                ->whereBetween('expense_date', [$from, $to])->orderBy('expense_date')->get(),
+        ]);
+    }
+
+    /**
+     * Did every sale really take the oldest layer? — Soran, 2026-09-25.
+     *
+     * ⚠️ **The audit for a fault every other screen agrees with.** A sale
+     * charged to the wrong batch is self-consistent afterwards, so nothing in
+     * the shop disagrees and nothing can notice. Only replaying the history in
+     * date order can — see `FifoAudit`.
+     */
+    public function fifo(Request $request, FifoAudit $audit): View
+    {
+        // Defaults to the whole history rather than this month: a wrong layer
+        // charged in July is still wrong, and the point of opening this page
+        // is to find out whether it ever happened at all.
+        $everything = ! $request->filled('from') && ! $request->filled('to');
+        [$from, $to] = $everything ? [null, null] : $this->range($request);
+
+        $findings = $audit->findings($from, $to);
+
+        return view('reports.print.fifo', [
+            'from' => $from ?? Sale::min('sale_date'),
+            'to' => $to ?? today(),
+            'everything' => $everything,
+            'findings' => $findings,
+            'summary' => $audit->summary($findings),
+
+            // ⚠️ The number printed on the paper, not the row id. A sheet that
+            // says "SALE #9" asks the shopkeeper to go and look up which
+            // invoice that is; INV-00009 is the thing in their hand.
+            'documents' => $this->documentNumbers($findings),
+        ]);
+    }
+
+    /**
+     * `sale:9` => `INV-00009`, for every document the audit named.
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $findings
+     * @return array<string, string>
+     */
+    private function documentNumbers($findings): array
+    {
+        $models = [
+            StockMovement::REF_SALE => Sale::class,
+            StockMovement::REF_SWAP => Swap::class,
+            StockMovement::REF_ADJUSTMENT => StockAdjustment::class,
+            StockMovement::REF_ASSEMBLY => Assembly::class,
+        ];
+
+        $numbers = [];
+
+        foreach ($findings->groupBy('reference_type') as $type => $rows) {
+            $model = $models[$type] ?? null;
+
+            if ($model === null) {
+                continue;
+            }
+
+            // withTrashed where the document can be soft-deleted: an audit that
+            // silently dropped a deleted document's finding would be answering
+            // a different question from the one asked.
+            $query = $model::query();
+
+            if (in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
+                $query->withTrashed();
+            }
+
+            foreach ($query->whereIn('id', $rows->pluck('reference_id')->unique())->get() as $document) {
+                $numbers[$type.':'.$document->id] = $document->document_no;
+            }
+        }
+
+        return $numbers;
+    }
+
+    /**
+     * Every write-off in the period, with what it cost.
+     *
+     * @return Collection<int, object>
+     */
+    private function writeOffLines(Carbon $from, Carbon $to)
+    {
+        return StockMovement::with('product')
+            ->where('reference_type', StockMovement::REF_ADJUSTMENT)
+            ->where('quantity', '<', 0)
+            ->whereBetween('occurred_at', [$from, $to])
+            ->orderBy('occurred_at')
+            ->get()
+            ->map(fn (StockMovement $m) => (object) [
+                'at' => $m->occurred_at,
+                'product' => $m->product?->name ?? '',
+                'units' => -$m->quantity,
+                'cost' => -$m->quantity * $m->unit_cost,
+                'reference_id' => $m->reference_id,
+            ]);
     }
 
     /** What each customer bought, paid, and still owes. */
