@@ -39,6 +39,14 @@
             table { page-break-inside: auto; }
             tr { page-break-inside: avoid; page-break-after: auto; }
             thead { display: table-header-group; }
+
+            /* ⚠️ A section that starts a new sheet. A long report is read one
+               part at a time — the product list, then the invoice lines, then
+               what came off the profit — and a heading stranded at the foot of
+               a page with its table overleaf is read as the end of the
+               document. `break-before` is the modern spelling; the old one
+               stays for whatever the shop's printer driver understands. */
+            .page-break { page-break-before: always; break-before: page; }
         }
     </style>
 </head>

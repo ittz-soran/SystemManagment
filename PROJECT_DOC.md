@@ -1587,6 +1587,46 @@ A take-apart leaves the shop holding three sellable things — the bundle and it
 
 ⚠️ **The search only answers this when the till asks.** `rebuildable=1` is one extra pair of queries per product on the list, and every other search in the shop — the purchase screen, the find box, the label printer — has no use for the answer. A dropdown row that can be made carries its count (*"+1 if put back together"*); a row with none on the shelf and none to build stays red, as it always was.
 
+### The two sheets that answer "is this right?" — Soran, 2026-09-25
+
+*"lyes make fifo audit, and other report just show fully where profit are come in to shop, not problem if need more A4 pages"*.
+
+The summary sheet answers **how much**. These two answer **from what** and **can I trust it**, and they exist because the week before, a figure that was right looked wrong and a figure that was wrong would have looked right.
+
+#### Where the profit came from — `reports.profit`
+
+Six sections, several pages, nothing summarised away:
+
+1. **The chain**, in the order the arithmetic runs — sales, returns, revenue, cost of sales, gross, discounts, write-offs, faulty replaced, expenses, net.
+2. **The three trades** — stock, second-hand, services, with their margins side by side.
+3. **Every category.**
+4. **Every product that sold**, richest first, with the share of the month's profit each one carried.
+5. **Every invoice line in the period** — date, document, customer, product, quantity, price, revenue, FIFO cost, profit. Suppressed with `?lines=0` for a shop with a very long month.
+6. **What came off the profit**, itemised: each write-off, each swap, each expense.
+
+⚠️ **EVERY LEVEL ADDS UP TO THE ONE ABOVE IT, AND A TEST HOLDS IT THERE.** A breakdown that does not sum to its own headline is worse than no breakdown: it hands a shopkeeper two figures for one month and no way to choose between them — which is precisely the trouble that started this work. `ProfitBreakdownTest` sums the products against the whole shop, the categories against the products, and the individual invoice lines against both.
+
+⚠️ **The swap is the one figure that belongs to no line**, and the sheet says so in words at the foot of section 5. The invoice was never touched, so no line can carry it — the shop-wide cost is the lines plus the swap, and that sentence is the whole reconciliation between the deepest level of the sheet and its top.
+
+⚠️ **One query per figure, never one per product.** A shop with two thousand products asking `TradeProfit` two thousand times would time out before it printed anything.
+
+#### The FIFO audit — `reports.fifo`
+
+⚠️ **This is the audit for a fault that leaves every screen agreeing.** When MySQL was rewriting `received_at`, FIFO became "least recently touched first" and sales took the wrong layer — and afterwards *nothing disagrees*. The movement says what it cost, the report sums the movements, the product page reads the same rows. `AccountingAgreesTest` cannot see it, because there is no disagreement to see. Only replaying the history in date order can.
+
+So `FifoAudit` walks every movement the shop has recorded, holding what each layer had left, and lists any outbound line that took a layer while an older one still had stock **on the same shelf**. The sheet gives the document, the product, the layer taken and the layer that should have been taken with their dates and costs, and what the difference did to reported profit.
+
+⚠️ **It changes nothing, and the sheet says so.** Re-costing a sale that has already been reported would move profit between months that have been read and perhaps closed — history rewritten to make a report tidier. This shop's rule everywhere else is that a correction is a new forward document, never an edit to what happened. The audit reports; the shopkeeper decides.
+
+Four things it deliberately does not call a fault, each written on the sheet itself:
+
+- **A supplier return.** It comes off the batch that purchase created, by name and on purpose — those goods go back to that supplier, not the oldest ones the shop happens to hold. Auditing it against FIFO would flag every single one.
+- **A layer in another room.** The till sells one room, so stock in the back was never a choice it had. Replaying across rooms would report a finding on every shop with a second store.
+- **The shelf.** The same units left the shop either way; what differs is which layer each sale was charged to.
+- **Paperwork caught up late.** Read in date order, a sale entered a week afterwards can show as skipping a layer that had not yet been entered.
+
+⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
+
 ### ⚠️ "I detect some wrong Accounting" — Soran, 2026-09-25
 
 *"in services total show 290,000, in find show wrong data !!!, in reports show 231,000 service !! that is wrong, i have afraid for all another Accounting that i depend it"*.

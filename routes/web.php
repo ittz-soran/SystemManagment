@@ -488,6 +488,16 @@ Route::middleware(['auth'])->group(function () {
         // Who mended what, and what the shop made on it — Soran, 2026-09-22.
         Route::get('technicians', [ReportController::class, 'technicians'])
             ->middleware('permission:repairs.view')->name('technicians');
+        /*
+         * ⚠️ **The two sheets that answer "is this right?" rather than "how
+         * much?"** — Soran, 2026-09-25. One shows where every dinar of profit
+         * came from, down to the invoice line; the other replays the whole
+         * history looking for a sale that took the wrong FIFO layer, which is
+         * the one fault every other screen in the shop agrees with.
+         */
+        Route::get('profit', [ReportController::class, 'whereProfitCameFrom'])->name('profit');
+        Route::get('fifo', [ReportController::class, 'fifo'])->name('fifo');
+
         Route::get('receivable', [ReportController::class, 'receivable'])->name('receivable');
         Route::get('payable', [ReportController::class, 'payable'])->name('payable');
     });
