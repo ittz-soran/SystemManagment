@@ -1597,6 +1597,26 @@ What went: `swaps/create`, `swaps.store`, the controller methods and the view. W
 
 ⚠️ **Two tests had to change for reasons worth knowing.** One asserted the reader without swap permission could not see *"the same thing again"* — and started failing the day the help arrived, on a page behaving perfectly, because the help explains all three answers to whoever opens it. It asserts on the buttons now. The other asserted a URL raw; the new one carries two parameters, and Blade escapes the `&` between them.
 
+#### Correcting how many were swapped — Soran, 2026-09-25
+
+*"now make swap quantity change"*.
+
+Until today a swap could have its **note** corrected and nothing else. The comment on the controller said a different quantity was *"delete and do it again"*, which is true of what happens underneath and useless as an instruction: the shopkeeper who typed 1 for a customer who handed back 2 had to find the delete button, read a warning about un-billing a supplier, press it, walk back to the counter screen, find the invoice line again, and start over. The correction is now a number box on the document.
+
+⚠️ **It really is delete-and-do-it-again — the screen just stops making the shopkeeper do it by hand.** `SwapService::update()` unwinds the whole swap and lays it down again at the new figure, in one transaction, on the same row: same `SWP-` number, same id, same place in the history. Three motions come back and three go out again.
+
+⚠️ **`create()`, `update()` and `delete()` now share `apply()` and `unwind()`.** That is the whole reason a correction can be trusted: a swap corrected to two is the same code path as a swap made at two, so the two cannot drift. The test file holds exactly that sentence as its main assertion — it builds a shop, swaps one and corrects it to two, records the shelf, the invoice line, the supplier's credit, the document's cost and every movement; then wipes the trade, builds the same shop again, swaps two from the start, and requires all five to match.
+
+⚠️ **The shelf is read AFTER the undo, not before.** Raising one to two needs a second replacement, and whether the shop has one is a question about the shelf **with the first replacement already back on it**. Asked the other way round, a shop holding exactly one spare could never correct a swap it had just made — the commonest case there is. A test holds a shop at zero on the shelf and corrects its swap anyway; a sabotage that asks the question first fails it.
+
+⚠️ **`swaps.edit` was NOT widened, and that was the main decision.** It was sold to shops as *correct the note on a swap*. Changing a quantity un-bills a supplier, moves stock twice and rewrites what the profit report reads, so `Swap::canBeChanged()` asks for **`swaps.edit` and `swaps.delete` together** and `canBeDeleted()`/`canBeChanged()` share one private `canBeUndone()` — closed books, sold units and missing stock refuse a correction for exactly the reasons they refuse a deletion, because it *is* one. A shop that granted "edit the note" last month did not thereby grant this.
+
+⚠️ **Refused with the reason printed, not by hiding the field.** Somebody holding only `swaps.edit` still gets the note box and a line of text saying why the quantity is not there. A form that silently lacks a field reads as a system that has forgotten how.
+
+⚠️ **A correction is asked the same question a new swap is.** `canSwap()` still runs, so a correction cannot make a swap that `create()` would have refused — in particular the mixed line, where some units came from a purchase and some did not. Because that refusal exists, `faulty_cost` is in practice always rewritten by `apply()`; the clearing before it is a guard for the day somebody softens that refusal, and its comment says so. **An earlier version of that comment claimed `apply()` "only ADDS", a sabotage removing the clearing passed the test written for it, and the comment — not the code — was the thing that was wrong.**
+
+⚠️ **`mostItCouldBe` on the page is counted with the swap undone too**, for the same reason as the shelf: the ceiling a reader sees is what is left of the line plus what this swap is already holding, capped by what the shelf would hold once the replacement is back on it.
+
 #### Its guide topic — Soran, 2026-09-25
 
 *"make guide for goods coming back page"*.

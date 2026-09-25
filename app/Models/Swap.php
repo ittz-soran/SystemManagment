@@ -69,14 +69,48 @@ class Swap extends Model
      */
     public function canBeDeleted(?User $user = null): array
     {
+        return $this->canBeUndone($user, 'swaps.delete',
+            __('You do not have permission to delete swaps.'));
+    }
+
+    /**
+     * Can how many were handed over still be corrected? — Soran, 2026-09-25.
+     *
+     * ⚠️ **The same mechanical question as deleting, because it IS a deletion**
+     * — `update()` unwinds the whole swap and lays it down again at the new
+     * figure. If the faulty units cannot come back out of their batch, the
+     * quantity cannot be changed either, and for exactly the same reason.
+     *
+     * ⚠️ **Two keys, and no existing permission quietly widened.** `swaps.edit`
+     * was sold to shops as *"correct the note on a swap"*, and a shopkeeper who
+     * granted it granted that. Changing a quantity un-bills a supplier and
+     * moves stock twice, so it asks for `swaps.delete` as well — the key that
+     * already means "you may undo one of these". Nobody's access changes
+     * because this exists; the button simply is not there without both.
+     */
+    public function canBeChanged(?User $user = null): array
+    {
+        if ($user && ! $user->hasPermission('swaps.edit')) {
+            return ['allowed' => false, 'reason' => __('You do not have permission to correct swaps.')];
+        }
+
+        return $this->canBeUndone($user, 'swaps.delete',
+            __('Changing how many were handed over undoes the swap and does it again, so it needs the same permission as deleting one.'));
+    }
+
+    /**
+     * @return array{allowed: bool, reason: ?string}
+     */
+    private function canBeUndone(?User $user, string $permission, string $refusal): array
+    {
         $deny = fn (string $reason) => ['allowed' => false, 'reason' => $reason];
 
         if (books_closed_on($this->swapped_at)) {
             return $deny(__('Locked: this date is in a closed period.'));
         }
 
-        if ($user && ! $user->hasPermission('swaps.delete')) {
-            return $deny(__('You do not have permission to delete swaps.'));
+        if ($user && ! $user->hasPermission($permission)) {
+            return $deny($refusal);
         }
 
         $return = $this->purchaseReturn()->first();

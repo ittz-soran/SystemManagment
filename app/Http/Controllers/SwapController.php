@@ -47,27 +47,89 @@ class SwapController extends Controller
             // The page disables the button and prints the reason rather than
             // letting the attempt fail after the fact.
             'deleteState' => $swap->canBeDeleted($request->user()),
+
+            // The same shape, asked of the other button. A swap that cannot be
+            // undone cannot be corrected either, and for the same reason.
+            'changeState' => $swap->canBeChanged($request->user()),
+
+            // The most it could be raised to: what is left on the line, plus
+            // what this swap itself is holding, and never more than the shelf
+            // could hand over once its own replacement is back on it.
+            'mostItCouldBe' => $this->mostItCouldBe($swap),
         ]);
     }
 
     /**
-     * The note, and nothing else.
+     * The note on its own, or the note and how many were handed over.
      *
-     * ⚠️ A swap is a fact about a physical handover. A different quantity, or a
-     * different line, is a different swap — and pretending otherwise behind an
-     * Edit button would leave the stock saying one thing and the document
-     * another. Correcting what somebody typed is worth having; rewriting what
-     * happened is delete and do it again.
+     * ⚠️ **A quantity change is not an edit of this row; it is the swap undone
+     * and done again** — see `SwapService::update()`. So the two go down
+     * different roads on purpose: a note is written straight onto the row,
+     * because a note is a sentence ABOUT the handover, while a quantity IS the
+     * handover and has to move the stock with it.
+     *
+     * The quantity only arrives from somebody who may change it. A form that
+     * did not offer the field still cannot post one, because the service asks
+     * `canBeChanged()` again for itself.
      */
     public function update(Request $request, Swap $swap): RedirectResponse
     {
         $data = $request->validate([
             'note' => ['nullable', 'string', 'max:500'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $swap->update(['note' => $data['note'] ?? null]);
+        $wanted = (int) ($data['quantity'] ?? $swap->quantity);
 
-        return redirect()->route('swaps.show', $swap)->with('success', __('Note saved'));
+        if ($wanted === (int) $swap->quantity) {
+            $swap->update(['note' => $data['note'] ?? null]);
+
+            return redirect()->route('swaps.show', $swap)->with('success', __('Note saved'));
+        }
+
+        try {
+            $this->swaps->update(
+                swap: $swap,
+                quantity: $wanted,
+                user: $request->user(),
+                note: $data['note'] ?? null,
+            );
+        } catch (RuntimeException|Throwable $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('swaps.show', $swap)
+            ->with('success', __('Swap :number is now :count', [
+                'number' => $swap->document_no,
+                'count' => trans_choice('{1}one unit|[2,*]:count units', $wanted, ['count' => number_format($wanted)]),
+            ]));
+    }
+
+    /**
+     * The biggest figure this swap could be corrected to.
+     *
+     * ⚠️ **Counted with the swap itself undone**, because that is the state a
+     * correction starts from: raising one to two needs the shelf to hold a
+     * second replacement, and the first replacement is coming back before the
+     * second goes out. Counted the other way round, a shop with exactly one
+     * spare could never correct a swap it had just made.
+     */
+    private function mostItCouldBe(Swap $swap): int
+    {
+        $line = $swap->saleItem;
+        $product = $swap->product;
+
+        if ($line === null || $product === null || ! $product->tracksStock()) {
+            return (int) $swap->quantity;
+        }
+
+        // What the line could give back once this swap has let go of its own.
+        $onTheLine = $line->returnableQuantity() + (int) $swap->quantity;
+
+        // And what the shelf would hold with this swap's replacement back on it.
+        $onTheShelf = (int) $product->quantity + (int) $swap->quantity;
+
+        return max(1, min($onTheLine, $onTheShelf));
     }
 
     public function destroy(Request $request, Swap $swap): RedirectResponse

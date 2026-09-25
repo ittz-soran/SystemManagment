@@ -74,13 +74,34 @@
                 </div>
 
                 @can('swaps.edit')
-                    {{-- ⚠️ The note, and nothing else on this document, is
-                         editable. A different quantity or a different line is a
-                         different swap — see SwapController::update. --}}
+                    {{-- ⚠️ **The note is written on the row; the quantity is
+                         not.** A note is a sentence ABOUT the handover, so it
+                         can be corrected in place. A quantity IS the handover:
+                         changing it undoes the whole swap and lays it down
+                         again at the new figure, which is why it asks for the
+                         key that undoes one — see SwapService::update. --}}
                     <div class="card-footer">
                         <form action="{{ route('swaps.update', $swap) }}" method="POST" class="row g-2 align-items-end">
                             @csrf
                             @method('PATCH')
+
+                            @if($changeState['allowed'])
+                                <div class="col-6 col-sm-auto">
+                                    <label for="quantity" class="form-label small text-secondary mb-1">
+                                        {{ __('How many') }}
+                                    </label>
+                                    <div class="input-group input-group-sm flex-nowrap">
+                                        <input id="quantity" type="number" name="quantity" dir="ltr"
+                                               class="form-control text-end" style="min-width: 4rem"
+                                               min="1" max="{{ $mostItCouldBe }}" step="1"
+                                               value="{{ old('quantity', $swap->quantity) }}">
+                                        @if($swap->product?->unit)
+                                            <span class="input-group-text">{{ $swap->product->unit }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
+
                             <div class="col-12 col-sm">
                                 <label for="note" class="form-label small text-secondary mb-1">{{ __('Note') }}</label>
                                 <input id="note" name="note" class="form-control form-control-sm" maxlength="500"
@@ -88,9 +109,26 @@
                                        placeholder="{{ __('Not charging, screen dead, dead on arrival…') }}">
                             </div>
                             <div class="col-12 col-sm-auto">
-                                <button class="btn btn-sm btn-outline-primary">{{ __('Save note') }}</button>
+                                <button class="btn btn-sm btn-outline-primary">
+                                    {{ $changeState['allowed'] ? __('Save changes') : __('Save note') }}
+                                </button>
                             </div>
                         </form>
+
+                        @if($changeState['allowed'])
+                            <p class="form-text mb-0 mt-2">
+                                {{ __('Changing how many undoes this swap and does it again at the new figure: the units come back, the supplier is re-billed, and the replacement leaves the shelf afresh. At most :count.', ['count' => number_format($mostItCouldBe)]) }}
+                            </p>
+                        @else
+                            {{-- ⚠️ Shown with its reason, not hidden. The
+                                 reason is the thing that says what to do
+                                 instead — and "the note only" with no
+                                 explanation reads as a system that has
+                                 forgotten how. --}}
+                            <p class="form-text mb-0 mt-2">
+                                <i class="bi bi-lock me-1"></i>{{ $changeState['reason'] }}
+                            </p>
+                        @endif
                     </div>
                 @elseif($swap->note)
                     <div class="card-footer small">

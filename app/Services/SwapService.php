@@ -127,11 +127,11 @@ class SwapService
             throw new RuntimeException($state['reason']);
         }
 
-        return DB::transaction(function () use ($saleItem, $quantity, $user, $swappedAt, $note, $product) {
+        return DB::transaction(function () use ($saleItem, $quantity, $user, $swappedAt, $note) {
             $swap = new Swap([
                 'sale_id' => $saleItem->sale_id,
                 'sale_item_id' => $saleItem->id,
-                'product_id' => $product->id,
+                'product_id' => $saleItem->product_id,
                 'quantity' => $quantity,
                 'note' => $note,
                 'swapped_at' => $swappedAt,
@@ -139,88 +139,192 @@ class SwapService
 
             $swap->document_no = $this->numbers->next(DocumentNumberService::PREFIX_SWAP);
             $swap->user_id = $user->id;
-            // Written below, once the batches have said what they cost.
+            // Written by apply(), once the batches have said what they cost.
             $swap->replacement_cost = 0;
             $swap->faulty_cost = 0;
             $swap->save();
 
-            /*
-             * ⚠️ Where the faulty unit came from, read BEFORE it is put back —
-             * the same trace the faulty sale return uses, in the same order the
-             * restore will use, so the supplier billed is the supplier whose
-             * batch receives it.
-             */
-            $origins = $this->returns->originsFor($saleItem, $quantity);
-
-            /*
-             * 1. The faulty unit goes back into its own batch — but ONLY if
-             * there is a supplier waiting to take it off that batch again.
-             *
-             * ⚠️ **Found 2026-09-24, two days after this shipped, by a test
-             * written for the delete button.** A unit with no purchase behind
-             * it was put back and then left there: the shelf counted a broken
-             * power bank as sellable, and the document said the swap had cost
-             * nothing while the shop had given away a good one. The comment
-             * here used to say the restore was needed "because that is the only
-             * thing a purchase return will accept" — which is exactly the
-             * reason it must not happen when there is no purchase return.
-             *
-             * Not restored, the unit simply never comes back: the sale already
-             * costed it, the shelf stays right, `faulty_cost` stays zero, and
-             * `cost()` then reads the whole replacement — which is the truth of
-             * what the shop is out of pocket.
-             */
-            $canGoBack = $origins->filter(fn ($origin) => $origin->purchase_item !== null)->sum('quantity');
-
-            if ($canGoBack > 0) {
-                $restored = $this->fifo->restoreForSaleItem(
-                    saleItem: $saleItem,
-                    quantity: $quantity,
-                    saleReturnId: $swap->id,
-                    saleReturnItemId: $swap->id,
-                    occurredAt: $swappedAt,
-                    user: $user,
-                    referenceType: StockMovement::REF_SWAP,
-                );
-
-                $swap->faulty_cost = (int) $restored->sum(fn ($movement) => $movement->quantity * $movement->unit_cost);
-            }
-
-            // 2. Sent back to the supplier it was bought from.
-            $swap->purchase_return_id = $this->sendBack($origins, $swap, $user, $swappedAt);
-
-            /*
-             * 3. The replacement leaves the shelf, FIFO, and the customer walks
-             * out with it. ⚠️ AFTER the faulty unit has gone back to the
-             * supplier, so the replacement cannot be the very unit that was
-             * just handed over — which it would be if this ran first and FIFO
-             * reached for the oldest layer.
-             */
-            $out = $this->fifo->consume(
-                product: $product->refresh(),
-                quantity: $quantity,
-                referenceType: StockMovement::REF_SWAP,
-                referenceId: $swap->id,
-                referenceItemId: null,
-                occurredAt: $swappedAt,
-                user: $user,
-            );
-
-            $swap->replacement_cost = (int) $out->sum(fn ($movement) => -$movement->quantity * $movement->unit_cost);
-            $swap->save();
-
-            /*
-             * ⚠️ The line is not edited — same quantity, same price, same
-             * printed invoice — but a unit already handed back must not ALSO be
-             * returnable, or a second unit that never existed would go onto the
-             * shelf.
-             */
-            $saleItem->forceFill([
-                'quantity_swapped' => $saleItem->quantity_swapped + $quantity,
-            ])->save();
+            $this->apply($swap, $saleItem, $quantity, $user, $swappedAt);
 
             return $swap->refresh();
         });
+    }
+
+    /**
+     * Change how many were handed over — Soran, 2026-09-25.
+     *
+     * ⚠️ **AN UNDO AND A REDO, NEVER A PATCH.** The note could be corrected in
+     * place because a note is a sentence about the handover; a quantity is the
+     * handover. Writing a new number onto the row would leave three movements,
+     * a supplier's credit and an invoice line's `quantity_swapped` all still
+     * describing the old one — the document saying one thing and the stock
+     * another, which is the exact shape of the fault this shop has spent two
+     * days hunting elsewhere.
+     *
+     * So the whole swap comes off and goes back on at the new figure. The
+     * document number and the row survive, so whatever points at it still
+     * points at it, and `apply()`/`unwind()` are the same pair `create()` and
+     * `delete()` use — the arrangement `StockAdjustmentService` and
+     * `AssemblyService` already use, so the three can never drift.
+     *
+     * ⚠️ **The shelf is read AFTER the undo, not before.** Raising a swap from
+     * one to two needs a second replacement, and whether the shop has one is a
+     * question about the shelf with the first replacement already back on it.
+     * Asked the other way round, a shop holding exactly one spare could never
+     * correct a swap it had just made.
+     */
+    public function update(Swap $swap, int $quantity, User $user, ?string $note = null): Swap
+    {
+        if ($quantity < 1) {
+            throw new RuntimeException(__('Swap at least one.'));
+        }
+
+        $state = $swap->canBeChanged($user);
+
+        if (! $state['allowed']) {
+            throw new RuntimeException($state['reason']);
+        }
+
+        return DB::transaction(function () use ($swap, $quantity, $user, $note) {
+            // Section 8: asked again inside the transaction, because between
+            // the page loading and this running somebody may have closed the
+            // books or sold the unit this is about to take back.
+            $state = $swap->fresh()->canBeChanged($user);
+
+            if (! $state['allowed']) {
+                throw new RuntimeException($state['reason']);
+            }
+
+            $this->unwind($swap, $user);
+
+            $saleItem = SaleItem::whereKey($swap->sale_item_id)->lockForUpdate()->firstOrFail();
+
+            if ($quantity > $saleItem->returnableQuantity()) {
+                throw new RuntimeException(__('Only :count of that line can still come back.', [
+                    'count' => $saleItem->returnableQuantity(),
+                ]));
+            }
+
+            $canSwap = $this->canSwap($saleItem, $quantity);
+
+            if (! $canSwap['allowed']) {
+                throw new RuntimeException($canSwap['reason']);
+            }
+
+            /*
+             * ⚠️ **Cleared on purpose, and no test can reach it — read this
+             * before deleting it.** `apply()` assigns all three of these, so
+             * today they are written over whatever is here. All three except
+             * one: `faulty_cost` is set only when there is a purchase behind
+             * the faulty units, and a correction that went from "there is one"
+             * to "there is none" would leave the old figure standing while the
+             * money it names never came back.
+             *
+             * That cannot happen right now because `canSwap()` refuses a line
+             * whose units came partly from a purchase and partly not — so the
+             * units a correction can reach are all-purchase or none, and the
+             * answer never flips. The day that refusal is softened into
+             * something that handles a mixed line, this clearing is what stops
+             * `cost()` from lying to the profit report. It costs one write.
+             */
+            $swap->forceFill([
+                'quantity' => $quantity,
+                'note' => $note,
+                'replacement_cost' => 0,
+                'faulty_cost' => 0,
+                'purchase_return_id' => null,
+            ])->save();
+
+            $this->apply($swap, $saleItem, $quantity, $user, $swap->swapped_at);
+
+            return $swap->refresh();
+        });
+    }
+
+    /**
+     * Put the swap's three motions on the shelf, in the one order that works.
+     *
+     * Shared by `create()` and `update()` so a correction cannot drift from
+     * the thing it corrects.
+     */
+    private function apply(Swap $swap, SaleItem $saleItem, int $quantity, User $user, Carbon $swappedAt): void
+    {
+        $product = $saleItem->product()->firstOrFail();
+
+        /*
+         * ⚠️ Where the faulty unit came from, read BEFORE it is put back —
+         * the same trace the faulty sale return uses, in the same order the
+         * restore will use, so the supplier billed is the supplier whose
+         * batch receives it.
+         */
+        $origins = $this->returns->originsFor($saleItem, $quantity);
+
+        /*
+         * 1. The faulty unit goes back into its own batch — but ONLY if
+         * there is a supplier waiting to take it off that batch again.
+         *
+         * ⚠️ **Found 2026-09-24, two days after this shipped, by a test
+         * written for the delete button.** A unit with no purchase behind
+         * it was put back and then left there: the shelf counted a broken
+         * power bank as sellable, and the document said the swap had cost
+         * nothing while the shop had given away a good one. The comment
+         * here used to say the restore was needed "because that is the only
+         * thing a purchase return will accept" — which is exactly the
+         * reason it must not happen when there is no purchase return.
+         *
+         * Not restored, the unit simply never comes back: the sale already
+         * costed it, the shelf stays right, `faulty_cost` stays zero, and
+         * `cost()` then reads the whole replacement — which is the truth of
+         * what the shop is out of pocket.
+         */
+        $canGoBack = $origins->filter(fn ($origin) => $origin->purchase_item !== null)->sum('quantity');
+
+        if ($canGoBack > 0) {
+            $restored = $this->fifo->restoreForSaleItem(
+                saleItem: $saleItem,
+                quantity: $quantity,
+                saleReturnId: $swap->id,
+                saleReturnItemId: $swap->id,
+                occurredAt: $swappedAt,
+                user: $user,
+                referenceType: StockMovement::REF_SWAP,
+            );
+
+            $swap->faulty_cost = (int) $restored->sum(fn ($movement) => $movement->quantity * $movement->unit_cost);
+        }
+
+        // 2. Sent back to the supplier it was bought from.
+        $swap->purchase_return_id = $this->sendBack($origins, $swap, $user, $swappedAt);
+
+        /*
+         * 3. The replacement leaves the shelf, FIFO, and the customer walks
+         * out with it. ⚠️ AFTER the faulty unit has gone back to the
+         * supplier, so the replacement cannot be the very unit that was
+         * just handed over — which it would be if this ran first and FIFO
+         * reached for the oldest layer.
+         */
+        $out = $this->fifo->consume(
+            product: $product->refresh(),
+            quantity: $quantity,
+            referenceType: StockMovement::REF_SWAP,
+            referenceId: $swap->id,
+            referenceItemId: null,
+            occurredAt: $swappedAt,
+            user: $user,
+        );
+
+        $swap->replacement_cost = (int) $out->sum(fn ($movement) => -$movement->quantity * $movement->unit_cost);
+        $swap->save();
+
+        /*
+         * ⚠️ The line is not edited — same quantity, same price, same
+         * printed invoice — but a unit already handed back must not ALSO be
+         * returnable, or a second unit that never existed would go onto the
+         * shelf.
+         */
+        $saleItem->forceFill([
+            'quantity_swapped' => $saleItem->quantity_swapped + $quantity,
+        ])->save();
     }
 
     /**
@@ -263,43 +367,62 @@ class SwapService
                 throw new RuntimeException($state['reason']);
             }
 
-            /*
-             * 1. The supplier is un-billed, and the faulty unit lands back in
-             *    its batch. `alreadyAuthorised` because the right to do this
-             *    came from `swaps.delete` — see PurchaseReturnService::delete.
-             */
-            $return = $swap->purchaseReturn()->first();
-
-            if ($return !== null) {
-                $this->purchaseReturns->delete($return, $user, alreadyAuthorised: true);
-            }
-
-            /*
-             * 2. Both of the swap's own movements come off: the faulty unit out
-             *    of its batch again, and the replacement back onto the shelf.
-             *    One call, so it is one all-or-nothing check.
-             */
-            $movements = StockMovement::where('reference_type', StockMovement::REF_SWAP)
-                ->where('reference_id', $swap->id)
-                ->lockForUpdate()
-                ->get();
-
-            $this->fifo->reverseMovements($movements);
-
-            /*
-             * 3. And the invoice line may be given back again. ⚠️ Locked and
-             *    read fresh: a stale model here writes nothing at all, because
-             *    forceFill on an instance that already holds the value leaves
-             *    the row clean and save() does no work.
-             */
-            $saleItem = SaleItem::whereKey($swap->sale_item_id)->lockForUpdate()->firstOrFail();
-
-            $saleItem->forceFill([
-                'quantity_swapped' => $saleItem->quantity_swapped - $swap->quantity,
-            ])->save();
+            $this->unwind($swap, $user);
 
             $swap->delete();
         });
+    }
+
+    /**
+     * Take the whole swap back off the shelf, leaving the row itself alone.
+     *
+     * ⚠️ **Backwards through exactly what `apply()` did, and the order is the
+     * whole of it.** The supplier is un-billed FIRST, because that is what puts
+     * the faulty unit back into its batch — and the movement removed second is
+     * the one that put it there, which cannot come off a batch that has not got
+     * it.
+     *
+     * Shared by `delete()` and `update()`: a correction that undid a swap any
+     * differently from the way a deletion undoes one would be a second, quieter
+     * mechanism for the same job, and the two would drift the first time either
+     * was touched.
+     */
+    private function unwind(Swap $swap, User $user): void
+    {
+        /*
+         * 1. The supplier is un-billed, and the faulty unit lands back in
+         *    its batch. `alreadyAuthorised` because the right to do this
+         *    came from `swaps.delete` — see PurchaseReturnService::delete.
+         */
+        $return = $swap->purchaseReturn()->first();
+
+        if ($return !== null) {
+            $this->purchaseReturns->delete($return, $user, alreadyAuthorised: true);
+        }
+
+        /*
+         * 2. Both of the swap's own movements come off: the faulty unit out
+         *    of its batch again, and the replacement back onto the shelf.
+         *    One call, so it is one all-or-nothing check.
+         */
+        $movements = StockMovement::where('reference_type', StockMovement::REF_SWAP)
+            ->where('reference_id', $swap->id)
+            ->lockForUpdate()
+            ->get();
+
+        $this->fifo->reverseMovements($movements);
+
+        /*
+         * 3. And the invoice line may be given back again. ⚠️ Locked and
+         *    read fresh: a stale model here writes nothing at all, because
+         *    forceFill on an instance that already holds the value leaves
+         *    the row clean and save() does no work.
+         */
+        $saleItem = SaleItem::whereKey($swap->sale_item_id)->lockForUpdate()->firstOrFail();
+
+        $saleItem->forceFill([
+            'quantity_swapped' => $saleItem->quantity_swapped - $swap->quantity,
+        ])->save();
     }
 
     /**
