@@ -1597,6 +1597,18 @@ What went: `swaps/create`, `swaps.store`, the controller methods and the view. W
 
 ⚠️ **Two tests had to change for reasons worth knowing.** One asserted the reader without swap permission could not see *"the same thing again"* — and started failing the day the help arrived, on a page behaving perfectly, because the help explains all three answers to whoever opens it. It asserts on the buttons now. The other asserted a URL raw; the new one carries two parameters, and Blade escapes the `&` between them.
 
+#### Its guide topic — Soran, 2026-09-25
+
+*"make guide for goods coming back page"*.
+
+⚠️ **The topic that existed was describing a screen the shop no longer has.** `faulty-swap` told the reader that for anything other than the same product *"the screen sends you there, because that is a screen you already have"* — true of the old three-state swap page, and a lie about the counter that replaced it. A guide that describes a screen the shop has not got is worse than no guide, because it is believed.
+
+So it is `goods-coming-back` now, **Anything coming back**, rewritten for the screen that exists: find the item; pick the paper it is on, and why the screen has to ask; the three answers and which one leaves the invoice alone; the quantity on every one of them and the three different caps; the settlement on an exchange; faulty as a tick rather than a fourth answer; what is shown greyed and why; and what a swap actually costs.
+
+⚠️ **A screen three jobs can open earns its button on any of the three.** The topic names `swaps.create`, `sale_returns.create` and `purchase_returns.create`, and `guide/show` now asks `Navigation::allows()` rather than `hasPermission()` directly — the menu already knew how to read a list of keys as OR, and asking the same question twice in two ways is how a guide comes to offer a button the menu does not. The guard test accepts a list too, and still requires every key named to be a permission that exists.
+
+⚠️ **The two neighbouring topics were made true rather than left alone.** *A customer brings something back* opens "start from the invoice, not from the product" — which is now only one of two ways in — so it says when to use each: the counter when you have the item, the invoice screen when somebody brings several different things back on one receipt, because that takes them all on one document. *Sending something back to a supplier* gained the same pointer.
+
 ⚠️ **A held cart comes back without the lock.** `HeldCartController::linesFor()` is shared with the purchase cart and does not carry piece lists, so a restored cart says nothing about bundles and pieces until something is scanned afresh. Nothing is written wrongly — the rebuild still runs on save, and a cart holding both a bundle and its piece is refused for want of stock with the whole transaction rolled back. The shopkeeper simply hears it a minute later than they would have.
 
 ⚠️ **Selling, not editing.** A new sale puts things back together; **editing an existing one does not**, and will still refuse a bundle it has no stock for. An edit unwinds its old lines and re-applies them, so the shelf reads one thing before that unwind and another after, and a shortfall worked out at the wrong moment is a shortfall worked out wrongly — in the one calculation that decides how much stock a shop thinks it has. The till is where a customer is waiting; the edit screen is not, and there the Build page does it in a document of its own.

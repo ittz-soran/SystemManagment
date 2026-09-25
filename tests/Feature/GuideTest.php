@@ -125,6 +125,36 @@ class GuideTest extends TestCase
     }
 
     /** Every screen a topic offers to open is a screen that exists. */
+    /**
+     * ⚠️ **A screen three jobs can open earns its button on any of the three.**
+     * The counter starts swaps, sale returns and supplier returns, so its topic
+     * names all three keys — and a reader holding only one of them must still
+     * be offered the way in. Checked through the rendered page, because the
+     * question is asked in the template.
+     */
+    public function test_the_counter_topic_offers_its_screen_on_any_one_key(): void
+    {
+        foreach (['swaps.create', 'sale_returns.create', 'purchase_returns.create'] as $key) {
+            $user = User::factory()->create(['role' => User::ROLE_USER]);
+            $user->permissions()->sync(Permission::where('key', $key)->pluck('id'));
+
+            $this->actingAs($user)->get(route('guide.show', 'goods-coming-back'))
+                ->assertOk()
+                ->assertSee(__('Open this screen'))
+                ->assertSee(route('goods-back.index'), false);
+        }
+
+        // And somebody who may do none of the three still READS it — the guide
+        // is open to everybody — but is not offered a door they cannot pass.
+        $reader = User::factory()->create(['role' => User::ROLE_USER]);
+        $reader->permissions()->sync(Permission::where('key', 'products.view')->pluck('id'));
+
+        $this->actingAs($reader)->get(route('guide.show', 'goods-coming-back'))
+            ->assertOk()
+            ->assertSee(__('Anything coming back'))
+            ->assertDontSee(__('Open this screen'));
+    }
+
     public function test_every_link_points_at_a_real_route_and_a_real_permission(): void
     {
         $keys = Permission::pluck('key')->all();
@@ -149,8 +179,15 @@ class GuideTest extends TestCase
                 "{$slug} links to [{$topic['route']}], which needs a record in its URL",
             );
 
-            if ($topic['permission'] !== null) {
-                $this->assertContains($topic['permission'], $keys, "{$slug} names a permission that does not exist");
+            /*
+             * ⚠️ A list of keys means ANY of them, the same as the menu and
+             * the route middleware — a screen that three different jobs can
+             * open is reachable on three different keys. Every one of them
+             * still has to be a permission that exists, or the button is shown
+             * to nobody and nothing says why.
+             */
+            foreach ((array) ($topic['permission'] ?? []) as $permission) {
+                $this->assertContains($permission, $keys, "{$slug} names a permission that does not exist");
             }
         }
     }
