@@ -13,6 +13,7 @@ use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FindController;
+use App\Http\Controllers\GoodsBackController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\InstallController;
@@ -315,6 +316,28 @@ Route::middleware(['auth'])->group(function () {
     // ---- Returns ---------------------------------------------------------
     // Section 7: a return creates a new forward document, so it is never
     // blocked by the edit lock.
+    /*
+     * ⚠️ **One counter for everything that comes back** — Soran, 2026-09-25.
+     * The page issues SWP, SRT, PRT or the pair the answer needs, so it is
+     * open to anybody holding ANY of those keys and each action carries its
+     * own. `EnsurePermission` treats several keys as OR, which is exactly the
+     * question here: may this reader do at least one of the three?
+     */
+    Route::get('goods-back', [GoodsBackController::class, 'index'])
+        ->middleware('permission:swaps.create,sale_returns.create,purchase_returns.create')
+        ->name('goods-back.index');
+    Route::get('goods-back/suggest', [GoodsBackController::class, 'suggest'])
+        ->middleware('permission:swaps.create,sale_returns.create,purchase_returns.create')
+        ->name('goods-back.suggest');
+    Route::post('goods-back/swap', [GoodsBackController::class, 'swap'])
+        ->middleware('permission:swaps.create')->name('goods-back.swap');
+    Route::post('goods-back/exchange', [GoodsBackController::class, 'exchange'])
+        ->middleware('permission:sale_returns.create')->name('goods-back.exchange');
+    Route::post('goods-back/refund', [GoodsBackController::class, 'refund'])
+        ->middleware('permission:sale_returns.create')->name('goods-back.refund');
+    Route::post('goods-back/send-back', [GoodsBackController::class, 'sendBack'])
+        ->middleware('permission:purchase_returns.create')->name('goods-back.send-back');
+
     Route::get('sale-returns', [SaleReturnController::class, 'index'])
         ->middleware('permission:sale_returns.view')->name('sale-returns.index');
     Route::get('sales/{sale}/return', [SaleReturnController::class, 'create'])

@@ -928,6 +928,34 @@ document.addEventListener('DOMContentLoaded', () => {
  * product form already uses for a rescan, so the next scan replaces it instead
  * of being typed onto the end of it.
  */
+/**
+ * The same suggest-while-you-type box on the goods-coming-back page.
+ *
+ * ⚠️ Its rows carry what is actually POSSIBLE with each product — "3 sold can
+ * come back · 12 bought can go back" — so a shopkeeper who scans the wrong
+ * thing learns it from the list rather than two clicks further in.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('gb-q');
+    const panel = document.getElementById('gb-suggestions');
+
+    if (! input || ! panel) {
+        return;
+    }
+
+    const suggest = attachSuggest(input, panel, {
+        onBlankEnter: () => {
+            suggest.close();
+            input.form?.requestSubmit();
+        },
+    });
+
+    if (input.value !== '') {
+        input.focus();
+        input.select();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('find-q');
     const panel = document.getElementById('find-suggestions');
@@ -2430,4 +2458,84 @@ document.addEventListener('DOMContentLoaded', () => {
     input.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && window.innerWidth < 768) show(false);
     });
+});
+
+/**
+ * Goods coming back: the figure at the bottom of the card follows the quantity.
+ *
+ * ⚠️ **Every one of these actions takes a quantity** — Soran, 2026-09-25:
+ * *"i sale 3 charger then customer return 1 because dont need this 1"*. Three
+ * sold and one coming back is the ordinary case, not the rare one, and a card
+ * that says "refund 54,000" while the box says 1 is worse than one that says
+ * nothing.
+ *
+ * The arithmetic is only quantity × price, which the server recomputes and
+ * re-checks on arrival. This is the screen keeping up with the keystrokes, not
+ * a second opinion about money.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const at = (role) => document.querySelector(`[data-role="${role}"]`);
+    const show = (role, value) => {
+        const box = at(role);
+
+        if (box) box.textContent = window.appMoney(value);
+    };
+
+    const follow = (qtyRole, totalRole) => {
+        const qty = at(qtyRole);
+
+        if (! qty) return;
+
+        const price = Number(qty.dataset.price || 0);
+        const redraw = () => show(totalRole, Math.max(0, Number(qty.value) || 0) * price);
+
+        qty.addEventListener('input', redraw);
+        redraw();
+    };
+
+    follow('refund-qty', 'refund-total');
+    follow('send-qty', 'send-total');
+
+    // The exchange has two sides and a difference between them, which is the
+    // one figure that whole screen exists to show.
+    const back = at('ex-back');
+    const out = at('ex-out');
+    const price = at('ex-price');
+
+    if (! back || ! out || ! price) return;
+
+    const net = at('ex-net');
+    const box = at('ex-settlement');
+    const paid = at('ex-paid');
+    const words = box?.dataset ?? {};
+
+    const redraw = () => {
+        const credit = Math.max(0, Number(back.value) || 0) * Number(back.dataset.price || 0);
+        const charge = Math.max(0, Number(out.value) || 0) * Math.max(0, Number(price.value) || 0);
+        const difference = charge - credit;
+
+        show('ex-credit', credit);
+        show('ex-charge', charge);
+
+        if (net) {
+            net.textContent = difference === 0
+                ? words.same ?? ''
+                : (difference > 0 ? words.owes ?? '' : words.refunds ?? '')
+                    .replace(':amount', window.appMoney(Math.abs(difference)));
+        }
+
+        // A cash drawer is not a negotiation: when the customer owes, the box
+        // opens on what he owes. He can still type less and leave the rest on
+        // his account, which is what Soran asked for.
+        if (paid && ! paid.dataset.touched) {
+            paid.value = Math.max(0, difference);
+        }
+
+        box?.classList.toggle('alert-warning', difference !== 0);
+        box?.classList.toggle('alert-secondary', difference === 0);
+    };
+
+    paid?.addEventListener('input', () => { paid.dataset.touched = '1'; });
+    [back, out, price].forEach((field) => field.addEventListener('input', redraw));
+    redraw();
 });

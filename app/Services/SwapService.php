@@ -37,6 +37,61 @@ class SwapService
     ) {}
 
     /**
+     * Can this line be swapped right now, and if not, why not?
+     *
+     * ⚠️ **Asked by the screen before it draws the button, and again by
+     * `create()` inside the transaction.** A till that offers a swap it cannot
+     * complete is worse than one that refuses: the customer is standing there.
+     * And between the page loading and the button being held, somebody else
+     * may have sold the last one — so the reason is computed twice on purpose,
+     * never cached.
+     *
+     * @return array{allowed: bool, reason: ?string}
+     */
+    public function canSwap(SaleItem $saleItem, int $quantity): array
+    {
+        $no = fn (string $reason) => ['allowed' => false, 'reason' => $reason];
+
+        $product = $saleItem->product()->first();
+
+        if ($product === null || ! $product->tracksStock()) {
+            return $no(__('A service cannot be swapped — there is nothing to hand over.'));
+        }
+
+        // Checked against the SHELF rather than the whole shop.
+        if ($product->quantity < $quantity) {
+            return $no(__('There is no :product left to swap it for. Return it or change it for something else.', [
+                'product' => $product->name,
+            ]));
+        }
+
+        /*
+         * ⚠️ All of them came from a purchase, or none of them did.
+         *
+         * A mixed line is the one case this document cannot tell the truth
+         * about: the units that have a supplier must go back into their batch
+         * so the purchase return can take them, and the units that have none
+         * must not, or they sit on the shelf as sellable stock while being
+         * broken. Restoring a chosen subset would need FIFO to put back
+         * particular units rather than a count of them, which is surgery on the
+         * one class in this system that must never be wrong.
+         *
+         * So it refuses, and says where to go instead. Rare enough to be worth
+         * a sentence rather than a second mechanism: it needs one invoice line
+         * whose units came partly from a purchase and partly from opening stock
+         * or another room.
+         */
+        $origins = $this->returns->originsFor($saleItem, $quantity);
+        $fromPurchase = $origins->filter(fn ($origin) => $origin->purchase_item !== null)->sum('quantity');
+
+        if ($fromPurchase > 0 && $fromPurchase < $origins->sum('quantity')) {
+            return $no(__('Some of these units came from a purchase and some did not, so they cannot be swapped together. Take it back on the invoice instead.'));
+        }
+
+        return ['allowed' => true, 'reason' => null];
+    }
+
+    /**
      * Give the customer the same thing again, and send the faulty one back.
      *
      * @param  int  $quantity  how many of that line came back faulty
@@ -66,42 +121,10 @@ class SwapService
 
         $product = $saleItem->product()->firstOrFail();
 
-        if (! $product->tracksStock()) {
-            throw new RuntimeException(__('A service cannot be swapped — there is nothing to hand over.'));
-        }
+        $state = $this->canSwap($saleItem, $quantity);
 
-        /*
-         * ⚠️ Checked before anything is written, and checked against the SHELF
-         * rather than the whole shop. A swap the till cannot complete is worse
-         * than one it refuses: the customer is standing there.
-         */
-        if ($product->quantity < $quantity) {
-            throw new RuntimeException(__('There is no :product left to swap it for. Return it or change it for something else.', [
-                'product' => $product->name,
-            ]));
-        }
-
-        /*
-         * ⚠️ All of them came from a purchase, or none of them did.
-         *
-         * A mixed line is the one case this document cannot tell the truth
-         * about: the units that have a supplier must go back into their batch
-         * so the purchase return can take them, and the units that have none
-         * must not, or they sit on the shelf as sellable stock while being
-         * broken. Restoring a chosen subset would need FIFO to put back
-         * particular units rather than a count of them, which is surgery on the
-         * one class in this system that must never be wrong.
-         *
-         * So it refuses, and says where to go instead. Rare enough to be worth
-         * a sentence rather than a second mechanism: it needs one invoice line
-         * whose units came partly from a purchase and partly from opening stock
-         * or another room.
-         */
-        $origins = $this->returns->originsFor($saleItem, $quantity);
-        $fromPurchase = $origins->filter(fn ($origin) => $origin->purchase_item !== null)->sum('quantity');
-
-        if ($fromPurchase > 0 && $fromPurchase < $origins->sum('quantity')) {
-            throw new RuntimeException(__('Some of these units came from a purchase and some did not, so they cannot be swapped together. Take it back on the invoice instead.'));
+        if (! $state['allowed']) {
+            throw new RuntimeException($state['reason']);
         }
 
         return DB::transaction(function () use ($saleItem, $quantity, $user, $swappedAt, $note, $product) {

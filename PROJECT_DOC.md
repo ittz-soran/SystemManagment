@@ -1587,6 +1587,60 @@ A take-apart leaves the shop holding three sellable things — the bundle and it
 
 ⚠️ **The search only answers this when the till asks.** `rebuildable=1` is one extra pair of queries per product on the list, and every other search in the shop — the purchase screen, the find box, the label printer — has no use for the answer. A dropdown row that can be made carries its count (*"+1 if put back together"*); a row with none on the shelf and none to build stays red, as it always was.
 
+### One counter for everything that comes back — Soran, 2026-09-25
+
+*"i want one page for all but at deferent document number PRT, SRT, SWP or any ... open page -> select item (by smart search) -> show swap because faulty, return from customer, return to supplier"*.
+
+Three screens existed and each was correct on its own. The problem was never the mechanisms; it was that a shopkeeper with a customer in front of them had to decide **which of three menu entries this afternoon belongs to** before they could start. **Goods coming back** is the one door: find the item, pick the paper it is on, say what the customer wants.
+
+⚠️ **THE PAGE HAS NO DOCUMENT NUMBER OF ITS OWN.** It issues `SWP`, `SRT`, `PRT` — or the pair the answer needs — from the counters that already exist. No new table, no new kind of record, and the three services are called exactly as they were. Nothing is written until a button is held, so all three answers can be looked at and walked away from.
+
+#### Why there is a middle step
+
+A product on its own cannot be acted on. A sale return gives back **that invoice line's** price and puts stock into **that line's** batches; a purchase return comes off **that purchase's own** batch. So the search finds the product and the page then shows both lists at once — invoice lines that still have something to come back, and purchase lines whose units are still in their batch. Which list the row came from decides which answers exist.
+
+⚠️ **The suggestion answers the question before it is chosen.** Each row carries what is actually possible — *"3 sold can come back · 40 bought can go back"* — so somebody who scans the wrong thing learns it from the list rather than two clicks further in.
+
+⚠️ **Two caps on a supplier return, and the smaller one wins.** A purchase line counts what has been sent back; the batch counts what is physically left. A line that bought ten and sold ten still reads ten unreturned on its own record while its batch is empty — so the row carries both, offers the smaller, and says which one bit. Shown and refused, never hidden: the reason is the thing that tells the shopkeeper what to do instead.
+
+#### The three answers, and what each does to the invoice
+
+| What the customer wants | Document | The invoice |
+|---|---|---|
+| **The same thing again** | `SWP` | **not touched** |
+| **A different product** | `SRT` + a new `INV` | line drops, new invoice |
+| **His money back** | `SRT`, and `PRT` when faulty | line drops |
+
+⚠️ **Only the first can leave the invoice alone, and the reason is arithmetic rather than taste.** A same-product swap is still true word for word: he bought a charger and owns a charger. The moment he walks out with something else it is not — and the damage is not cosmetic. `TradeProfit` reads revenue off the sale lines **product by product**, so a charger line left at 18,000 would keep money that actually bought a power bank. Wrong in the one calculation the shop is judged by, and invisible, because both products still add up to the right total.
+
+So an exchange changes the lines: `ExchangeService` writes a sale return for what came back and a **new invoice** for what went out, in one transaction, both or neither. Soran chose a new invoice over a line added to the old one: a September invoice growing a line in October moves money into a month it was not earned in and can reopen a closed period.
+
+⚠️ **THE NEW SALE IS WRITTEN FIRST, AND THAT ORDER IS THE WHOLE SETTLEMENT.** A sale return posts its refund against what the customer owes and hands back only what will not fit — `LedgerService::post` returns the rest as `unapplied`. With the new sale already on the account, the credit for the old item lands on the new charge and the customer settles the difference, which is what an exchange **is**. Written the other way round the refund walks out of the till as cash and the same customer hands it straight back: two movements for a trade in which money may never have changed hands at all. A sabotage reversing the order leaves 18,000 sitting on an account that should be square, and the cheaper-product test catches it.
+
+⚠️ **A walk-in is two movements, and has to be.** Section 4 refuses a system customer who has not paid in full, so the till takes the new price in and gives the old one back. It nets to exactly the difference the screen showed — the drawer is right, the books are right, and Soran only ever types one figure.
+
+⚠️ **The same product is refused here.** That is a swap, and routing it through an exchange would change an invoice that had no reason to change, and tell a different story about the same afternoon on two documents instead of one. The search excludes it and the service refuses it, because a URL can be typed.
+
+#### Quantity on everything
+
+*"should have qty to both PRT and SRT, i sale 3 charger then customer return 1 because dont need this 1"*.
+
+Three sold and one coming back is the ordinary case, not the rare one. Every action takes a quantity, and the cap is a different question each time: what is still returnable on the line, what is on the shelf to hand over, what is still in the batch. The figure at the foot of each card follows the box as it is typed — quantity times price, which the server recomputes and re-checks on arrival. The screen keeping up with the keystrokes, not a second opinion about money.
+
+⚠️ **Faulty is a tick, not a separate answer.** *"He just did not need it"* is a plain `SRT` that goes nowhere near a supplier. Ticking **faulty** writes the `PRT` in the same transaction, at the price that supplier was paid. Both the money-back card and the exchange card carry it, because an exchanged item can be faulty too.
+
+#### What it replaces, and what it does not
+
+New swap, new sale return and new purchase return all lead here; the three lists stay in the menu as history with their documents, delete and edit untouched. Their own create pages still answer at their old addresses so nothing bookmarked breaks.
+
+⚠️ **One product at a time, by construction.** Searching by item finds one line, so a customer bringing back three different things from one receipt would make three documents. The invoice's own return screen still does whole invoices in one go, and the card links to it by name when the invoice has more than one line. Shown only where it helps: a one-line invoice has no other lines to offer.
+
+⚠️ **No services** — Soran, 2026-09-25: *"no service"*. A repair or a fitting fee has no stock to move, so two of the three answers could never apply and the third is the sale return screen's own job.
+
+⚠️ **`SwapService::canSwap()` was extracted for this page and is asked twice on purpose.** The screen asks before it draws the button; `create()` asks again inside the transaction. Between the page loading and the button being held somebody else may have sold the last one, so the reason is computed twice and never cached — the same shape `canBeDeleted()` already uses.
+
+**The door opens on any of the three keys.** `EnsurePermission` already treated several keys as OR; `Navigation::allows()` now does too, for a list rather than a string. A shopkeeper who may only send goods back to a supplier still needs the door, and must not be shown the two cards they could never press — written as a list rather than an invented `goods_back.view` that nothing would ever check.
+
 ### ⚠️ MySQL was rewriting the FIFO order — Soran, 2026-09-24
 
 **Found in his own shop, from the screen.** He swapped a cable and the replacement came off the **newer** batch while 29 units sat in the older one: *"this Sale INV-00054 #345 line must user old batch are 128 ... because have 29 remaining on old batch"*. Then the sentence that solved it: *"and this 2026-09-24 10:26 date times is wrong!!"* — both batches were showing the same timestamp, minutes old, while their own movements still read 2026-08-24 and 2026-09-06, and the adjustment documents behind them read August too.
