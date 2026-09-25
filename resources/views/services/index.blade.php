@@ -17,16 +17,47 @@
 
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-12 col-md-4">
                 <label for="search" class="form-label small">{{ __('Name') }}</label>
                 <input id="search" type="search" name="search" value="{{ request('search') }}"
                        class="form-control form-control-sm">
             </div>
-            <div class="col-md-2">
-                <button class="btn btn-sm btn-outline-secondary w-100">{{ __('Filter') }}</button>
+
+            {{-- ⚠️ The two boxes that stop this table and the profit report
+                 disagreeing. Sold and Earned are read over this period; without
+                 it the table said "all time" and the report said "this month",
+                 and neither of them said which. --}}
+            <div class="col-6 col-md-3">
+                <label for="from" class="form-label small">{{ __('From') }}</label>
+                <input id="from" type="date" name="from" dir="ltr" value="{{ $from->toDateString() }}"
+                       class="form-control form-control-sm" {{ $all ? 'disabled' : '' }}>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <label for="to" class="form-label small">{{ __('To') }}</label>
+                <input id="to" type="date" name="to" dir="ltr" value="{{ $to->toDateString() }}"
+                       class="form-control form-control-sm" {{ $all ? 'disabled' : '' }}>
+            </div>
+
+            <div class="col-12 col-md-2 d-grid">
+                <button class="btn btn-sm btn-outline-secondary">{{ __('Filter') }}</button>
             </div>
         </div>
     </form>
+
+    {{-- What the two money columns are counting, said in words above them
+         rather than left for the reader to assume. --}}
+    <p class="small text-secondary d-flex flex-wrap align-items-center gap-2 mb-3">
+        <i class="bi bi-calendar3"></i>
+        @if($all)
+            <span>{{ __('Sold and Earned count every service ever sold.') }}</span>
+            <a href="{{ route('services.index', ['search' => request('search')]) }}">{{ __('Show this month instead') }}</a>
+        @else
+            <span dir="ltr" class="app-code">{{ $from->format(setting('date_format', 'Y-m-d')) }} → {{ $to->format(setting('date_format', 'Y-m-d')) }}</span>
+            <span>{{ __('— Sold and Earned count only what was sold between these dates, the same as the profit report.') }}</span>
+            <a href="{{ route('services.index', ['search' => request('search'), 'all' => 1]) }}">{{ __('All time') }}</a>
+        @endif
+    </p>
 
     @if($services->isEmpty())
         <x-empty-state icon="magic"

@@ -201,7 +201,15 @@
 {{-- ─── The invoices that sold it ──────────────────────────────────────────── --}}
 @if($soldOn->isNotEmpty())
     <div class="card mb-3">
-        <div class="card-header">{{ __('Invoices that sold it') }}</div>
+        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <span>{{ __('Invoices that sold it') }}</span>
+            @if($soldLines > $recent)
+                {{-- The figures above are all time; this table is not. --}}
+                <span class="small text-secondary fw-normal">
+                    {{ __('the last :shown of :total', ['shown' => number_format($recent), 'total' => number_format($soldLines)]) }}
+                </span>
+            @endif
+        </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 table-cards">
                 <thead>
@@ -248,7 +256,14 @@
 {{-- ─── And the purchases that brought it in ───────────────────────────────── --}}
 @if($boughtOn->isNotEmpty())
     <div class="card">
-        <div class="card-header">{{ __('Purchases that brought it in') }}</div>
+        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <span>{{ __('Purchases that brought it in') }}</span>
+            @if($boughtLines > $recent)
+                <span class="small text-secondary fw-normal">
+                    {{ __('the last :shown of :total', ['shown' => number_format($recent), 'total' => number_format($boughtLines)]) }}
+                </span>
+            @endif
+        </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 table-cards">
                 <thead>

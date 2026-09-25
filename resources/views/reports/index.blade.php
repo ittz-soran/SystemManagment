@@ -287,7 +287,17 @@
         @if($byKind !== [])
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">{{ __('Where the profit came from') }}</div>
+                    {{-- ⚠️ The period on the card, not only at the top of the
+                         page. This table is read against the Services screen
+                         and the second-hand book, which carry their own dates,
+                         and a figure compared with another figure has to say
+                         what it is counting. --}}
+                    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <span>{{ __('Where the profit came from') }}</span>
+                        <span class="small text-secondary fw-normal app-code" dir="ltr">
+                            {{ $from->format(setting('date_format', 'Y-m-d')) }} → {{ $to->format(setting('date_format', 'Y-m-d')) }}
+                        </span>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm align-middle mb-0">
                             <thead>
