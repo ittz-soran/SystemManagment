@@ -391,6 +391,21 @@ class FindController extends Controller
                     ->where('product_id', $product->id)
                     ->orderByDesc('id')->limit(self::RECENT)->get()
                 : collect(),
+
+            /*
+             * ⚠️ **How many there really are, so a short list cannot read as
+             * the whole history** — Soran, 2026-09-25: *"in find show wrong
+             * data"*.
+             *
+             * The figures above the table are all time; the table is the last
+             * eight. A page that says "sold, all time: 11" over eight rows and
+             * gives no sign it has stopped counting is asking a shopkeeper to
+             * conclude the system has lost three sales. Now the card says
+             * which eight it is showing.
+             */
+            'soldLines' => $maySell ? SaleItem::where('product_id', $product->id)->count() : 0,
+            'boughtLines' => $mayBuy ? PurchaseItem::where('product_id', $product->id)->count() : 0,
+            'recent' => self::RECENT,
         ];
     }
 

@@ -1587,6 +1587,48 @@ A take-apart leaves the shop holding three sellable things — the bundle and it
 
 ⚠️ **The search only answers this when the till asks.** `rebuildable=1` is one extra pair of queries per product on the list, and every other search in the shop — the purchase screen, the find box, the label printer — has no use for the answer. A dropdown row that can be made carries its count (*"+1 if put back together"*); a row with none on the shelf and none to build stays red, as it always was.
 
+### ⚠️ "I detect some wrong Accounting" — Soran, 2026-09-25
+
+*"in services total show 290,000, in find show wrong data !!!, in reports show 231,000 service !! that is wrong, i have afraid for all another Accounting that i depend it"*.
+
+**Every figure was right. Not one dinar was wrong, anywhere.** What was wrong is that three screens answered three different questions and none of them said which — and from the outside that is indistinguishable from a broken till. It is worse than being wrong: a wrong number can be corrected, a mistrusted one cannot, and the whole reason this system exists is that its owner checks it weekly.
+
+| Screen | What it was counting | What it said it was counting |
+|---|---|---|
+| **Services** | every service ever sold | *Sold · Earned* |
+| **Profit report** | this month to today | *Sold · Revenue* |
+| **Find → product** | all time above; **the last 8 invoices** in the table below | nothing at all |
+
+So "37 sold, 290,000" and "28 sold, 231,000" were both true, of different months, and the 9 units and 59,000 between them were August. And a product page reading *"Sold, all time: 11"* over eight rows invited exactly one conclusion: three sales have gone missing.
+
+#### What was checked before anything was changed
+
+The accusation was taken at face value and the arithmetic audited end to end, on a shop built with every awkward shape in it — two months of trade, two FIFO layers, a return, a swap, a service with no cost. Every figure was asked down every route the shop offers:
+
+- the Services page's own SQL, `TradeProfit`, and raw joined SQL — **identical**, all time and per service
+- every cached customer and supplier balance against the ledger rows that made it — **identical**
+- every product's cached quantity against its own movements; the batches against the movements, in units and in value — **identical**
+- the profit report's three kinds against the whole shop, and each row's own `revenue − cost = profit` — **identical**
+- every invoice's total against the lines it is made of — **identical**
+
+**Nothing was wrong with the books.** The fix is in what the pages say about themselves.
+
+#### What changed
+
+**The Services page takes a period**, defaulting to this month, with the dates printed above the table in words — the same two boxes and the same default the second-hand book and the profit report already had. It was the only money screen in the shop without one. *All time* is a link beside it rather than the silent default it used to be.
+
+**The profit report's card carries its own dates**, not only the page header, because that table is read against other screens and a figure compared with another figure has to say what it is counting.
+
+**The Find page says when a list is not the whole list** — *"the last 8 of 12"* — so a short table can never again read as a complete history sitting under an all-time total.
+
+#### ⚠️ `AccountingAgreesTest`, which is the real answer
+
+A page that says what it counts can drift again tomorrow. So the audit is now a test, and it is the one to read first when any figure is ever doubted again: it builds the shop with the history, asks the same question down every route, and fails if any two routes disagree by a single dinar. **Where two screens answer the same question they must give the same number; where they answer different questions, the difference must be the period and nothing else** — all time minus this month has to equal exactly what went before, with nothing leaking in.
+
+⚠️ **A failure in that file is never cosmetic.** It means two screens are telling a shopkeeper different things about the same money.
+
+⚠️ **One of its guards was written wrong first, and the sabotage found it.** The swap test summed the swap's own movements and compared them with the swap document — two readings of the same two rows, which agree whatever the profit report does with them. Deleting the swap term from `TradeProfit` walked straight through it. It now rebuilds the cost of sales *without* the swap and requires the report's own figure to be exactly that much higher, and the same sabotage fails it.
+
 ### One counter for everything that comes back — Soran, 2026-09-25
 
 *"i want one page for all but at deferent document number PRT, SRT, SWP or any ... open page -> select item (by smart search) -> show swap because faulty, return from customer, return to supplier"*.

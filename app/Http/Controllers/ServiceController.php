@@ -10,6 +10,7 @@ use App\Services\ProductCodeService;
 use App\Support\MoneyInput;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -32,6 +33,17 @@ class ServiceController extends Controller
 
     public function index(Request $request): View
     {
+        /*
+         * The period the Sold and Earned columns are read over. Defaults to
+         * this month because that is what a shopkeeper checks — the same
+         * default, and the same two boxes, as the second-hand book and the
+         * profit report. "All time" is one link away rather than the silent
+         * default it used to be.
+         */
+        $all = $request->boolean('all');
+        $from = $all ? Carbon::create(1970, 1, 1)->startOfDay() : ($request->date('from') ?: now()->startOfMonth());
+        $to = $all ? now()->endOfDay() : ($request->date('to') ?: now())->endOfDay();
+
         $services = Product::services()
             ->with('category')
             ->when($request->filled('search'), fn ($q) => $q
@@ -40,10 +52,25 @@ class ServiceController extends Controller
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
-        // What each has earned — the only number a service has, since it has no
-        // stock to value and no cost to set against it.
+        /*
+         * ⚠️ **OVER A PERIOD, AND THE PERIOD IS ON THE SCREEN** — Soran,
+         * 2026-09-25: *"in services total show 290,000 ... in reports show
+         * 231,000 service !! that is wrong"*.
+         *
+         * Neither figure was wrong. This column totalled ALL TIME while the
+         * profit report totalled THIS MONTH, and neither page said so — two
+         * true answers to two different questions, printed as though they
+         * answered the same one. From the outside that is indistinguishable
+         * from a broken till, and it is worse than being wrong, because a
+         * wrong number can be corrected and a mistrusted one cannot.
+         *
+         * So it takes a range like the second-hand book and the reports do,
+         * defaults to this month like both of them, and prints the dates above
+         * the table. `AccountingAgreesTest` now holds the two to each other.
+         */
         $earned = SaleItem::query()
             ->whereIn('product_id', $services->getCollection()->pluck('id'))
+            ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
             ->selectRaw('product_id, SUM(quantity - quantity_returned) as units, SUM((quantity - quantity_returned) * unit_price) as revenue')
             ->groupBy('product_id')
             ->get()
@@ -55,6 +82,9 @@ class ServiceController extends Controller
             'lens' => $request->user()->lens(),
             'services' => $services,
             'earned' => $earned,
+            'from' => $from,
+            'to' => $to,
+            'all' => $all,
             'categories' => Category::orderBy('name')->get(),
             // Same reasoning as the second-hand screen: on a shop that upgraded
             // into this feature the category does not exist until the first
