@@ -306,6 +306,7 @@ final class Guide
                 'sections' => [
                     [__('Start from the invoice, not from the product'), [
                         __('Find the sale and return against it. That is what lets the system know what the customer actually paid for that piece, discount included, instead of guessing at today’s price.'),
+                        __('If you have the item but not the invoice, start on “Anything coming back” instead: it finds the invoice from the item and hands you the same refund. Use this screen when a customer brings several different things back from one receipt, because it takes them all on one document.'),
                     ]],
                     [__('Part of an invoice is normal'), [
                         __('Return one of the three they bought and the other two stay sold. What has already come back is remembered, so the same piece cannot be returned twice.'),
@@ -319,33 +320,59 @@ final class Guide
                 ],
             ],
 
-            'faulty-swap' => [
+            /*
+             * ⚠️ **One topic for one screen** — Soran, 2026-09-25. This was
+             * `faulty-swap`, about a page that no longer exists: it told the
+             * reader the screen would "send you" to a return for the other two
+             * answers, which was true of the old three-state swap page and is
+             * a lie about the counter that replaced it. A guide that describes
+             * a screen the shop has not got is worse than no guide, because it
+             * is believed.
+             */
+            'goods-coming-back' => [
                 'group' => 'selling',
-                'icon' => 'arrow-left-right',
-                'title' => __('A faulty item comes back'),
-                'blurb' => __('Hand over the same thing again, change it for something else, or give the money back — and send the broken one to the supplier.'),
-                'minutes' => 3,
+                'icon' => 'box-arrow-in-left',
+                'title' => __('Anything coming back'),
+                'blurb' => __('One screen for all of it: swap a faulty item, take something back from a customer, or send goods back to your supplier.'),
+                'minutes' => 4,
                 'route' => 'goods-back.index',
-                'permission' => 'swaps.create',
+
+                // Any one of the three keys opens the door, so any one of them
+                // earns the button at the foot of this page.
+                'permission' => ['swaps.create', 'sale_returns.create', 'purchase_returns.create'],
                 'sections' => [
                     [__('Start with the thing in your hand'), [
-                        __('Scan it or type part of its name. The screen then shows which invoices sold it, newest first, because last week’s sale is far likelier than one from two years ago.'),
-                        __('You do not need the invoice number. Finding the sale from the product is the whole point of this screen.'),
+                        __('Scan it, or type part of its name or code. You do not need the invoice number or the purchase number — finding the paperwork from the item is the whole point of this screen.'),
+                        __('While you type, each suggestion says what can actually be done with that item: “3 sold can come back · 40 bought can go back”. Scan the wrong thing and you find out there and then, not two screens later.'),
                     ]],
-                    [__('Three ways out, and the shelf decides which are open'), [
-                        __('Handing over the same product again is a swap. Giving something different, or the money back, is a return — the screen sends you there, because that is a screen you already have.'),
-                        __('If there is none left on the shelf, the swap is not offered at all. The other two still are.'),
+                    [__('Then pick the paper it is on'), [
+                        __('The screen shows two lists: the invoices that sold it, and the purchases that brought it in. Which one you pick decides what can be done, because the two are not the same question.'),
+                        __('A refund gives back what THAT invoice line charged, and puts the stock back in the batches that line took. A supplier return comes off THAT purchase’s own batch. Neither can be worked out from the item alone, which is why the screen has to ask.'),
+                        __('Each row says what is still left on it. A row with nothing left is still shown, and says why — a batch already emptied, or goods already sent back — rather than quietly disappearing.'),
                     ]],
-                    [__('A swap does not change the invoice'), [
-                        __('The customer bought one and still has one, so the paper they are holding stays true. What changed is which piece they have, and what is on your shelf.'),
-                        __('The line cannot then be returned as well. A piece already handed back and replaced must not come back a second time, or you would be putting stock on the shelf that never existed.'),
+                    [__('Three answers, and only one leaves the invoice alone'), [
+                        __('The same thing again is a swap. The customer bought a charger and still has a charger, so the paper in their hand stays true and nothing about the invoice changes.'),
+                        __('A different product changes the invoice, and it has to: the profit report reads what each product earned off the sale lines, so leaving a charger line standing while the customer walks out with a power bank would put the money on the wrong product. The screen takes the old line back and writes a new invoice for the new item.'),
+                        __('Their money back changes the invoice too. The line drops by what came back and the refund comes off what they owe, with anything left over handed over.'),
                     ]],
-                    [__('The broken one goes back to whoever sold it to you'), [
-                        __('The screen names the purchase it came from and the supplier before you do anything, so you know who carries the cost while the customer is still standing there.'),
-                        __('A purchase return is raised for you. If the piece never came from a purchase — opening stock, or carried in from another room — there is nobody to send it to, and the shop carries it. The screen says so rather than pretending.'),
+                    [__('How many, every time'), [
+                        __('Sold three chargers and one comes back? That is one, not three. Every answer takes a quantity, and the money underneath it follows the box as you type.'),
+                        __('The most you can do is different for each answer, and the screen says which limit it hit: what is left on that invoice line, what is on the shelf to hand over, or what is still sitting in that batch.'),
                     ]],
-                    [__('What it costs you'), [
-                        __('Usually nothing. It costs something when the replacement comes off a newer, dearer batch than the broken one did — the supplier only gives back what they were paid. The document shows that difference, and it appears on your profit report as “Faulty goods replaced”.'),
+                    [__('A different product settles the difference there and then'), [
+                        __('Pick the new item the same way, and the screen shows the one figure that matters: nothing changes hands when the prices match, the customer pays when the new one is dearer, the shop refunds when it is cheaper.'),
+                        __('What he pays can go on his account instead of over the counter — the box opens on the difference, and you can type less.'),
+                    ]],
+                    [__('Faulty is a tick, not a fourth answer'), [
+                        __('Somebody who simply did not need it is an ordinary return, and nothing goes near a supplier. Tick “it came back faulty” and the broken one is sent to the supplier it was bought from, at the price they were paid, in the same breath as the refund.'),
+                        __('If the piece never came from a purchase — opening stock, or carried in from another room — there is nobody to send it to and the shop carries it. The screen says so rather than pretending.'),
+                    ]],
+                    [__('When something is not offered'), [
+                        __('Nothing on the shelf to swap with? The card stays on the screen and tells you why, because the reason is the thing that says what to do instead. Only a permission you do not hold removes a card entirely.'),
+                        __('Bringing back three different things from one receipt? Do the whole invoice at once instead — the screen offers that as a link, because searching by item can only find one line at a time.'),
+                    ]],
+                    [__('What a swap costs you'), [
+                        __('Usually nothing. It costs something when the replacement comes off a newer, dearer batch than the broken one did, because the supplier only gives back what they were paid. That difference shows on your profit report as “Faulty goods replaced”.'),
                     ]],
                 ],
             ],
@@ -542,6 +569,7 @@ final class Guide
                 'sections' => [
                     [__('It has to still be on the shelf'), [
                         __('You can only send back what you still hold from that purchase. If it has already gone out to customers there is nothing to return, and the right tool is a stock adjustment instead.'),
+                        __('Holding the item and not sure which purchase it came from? “Anything coming back” finds the purchases from the item and shows how many of each are still in their batch.'),
                     ]],
                     [__('What you owe goes down'), [
                         __('The value of the return comes off the supplier’s balance. If you had already paid them, it becomes credit with them rather than cash coming back — which is what actually happens between a shop and its supplier.'),

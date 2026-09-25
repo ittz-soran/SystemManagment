@@ -129,7 +129,7 @@ class BenchAndSwapHelpTest extends TestCase
     /** The swap topic sits beside the return it is a cousin of. */
     public function test_the_swap_topic_is_under_selling(): void
     {
-        $this->assertSame('selling', Guide::topic('faulty-swap')['group']);
+        $this->assertSame('selling', Guide::topic('goods-coming-back')['group']);
 
         $this->actingAs($this->admin)
             ->get(route('guide.index'))
@@ -144,7 +144,7 @@ class BenchAndSwapHelpTest extends TestCase
             'repair-taking-in' => 'Already scratched, small dent on the corner, no charger. This is the line that settles an argument three weeks later about a mark nobody remembers. Take thirty seconds over it.',
             'repair-doing-the-job' => 'Nobody is charged for work they never agreed to.',
             'repair-comes-back' => 'A shop that forgets charges somebody twice for the same screen. That is the argument this exists to prevent.',
-            'faulty-swap' => 'The customer bought one and still has one, so the paper they are holding stays true. What changed is which piece they have, and what is on your shelf.',
+            'goods-coming-back' => 'The customer bought a charger and still has a charger, so the paper in their hand stays true and nothing about the invoice changes.',
         ];
 
         foreach ($expected as $slug => $sentence) {
@@ -165,7 +165,7 @@ class BenchAndSwapHelpTest extends TestCase
         $nobody = User::factory()->create(['role' => User::ROLE_USER]);
         $nobody->permissions()->sync(Permission::where('key', 'auth.login')->pluck('id'));
 
-        foreach (['repair-taking-in', 'repair-doing-the-job', 'repair-comes-back', 'faulty-swap'] as $slug) {
+        foreach (['repair-taking-in', 'repair-doing-the-job', 'repair-comes-back', 'goods-coming-back'] as $slug) {
             $this->actingAs($nobody)->get(route('guide.show', $slug))->assertOk();
         }
     }

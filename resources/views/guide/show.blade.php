@@ -38,8 +38,14 @@
                          that leads to "access denied" — and the guide is open
                          to everybody, so this is the one thing on the page that
                          has to be asked about. --}}
+                    {{-- ⚠️ `Navigation::allows()` rather than `hasPermission()`
+                         directly: a screen can be reachable on ANY of several
+                         keys — the goods-back counter starts three different
+                         documents — and the menu already knows how to ask that
+                         question of a list. Asking it twice, two ways, is how
+                         a guide comes to offer a button the menu does not. --}}
                     @if(isset($topic['route']) && Route::has($topic['route'])
-                        && ($topic['permission'] === null || auth()->user()->hasPermission($topic['permission'])))
+                        && \App\Support\Navigation::allows(auth()->user(), $topic))
                         <a href="{{ route($topic['route']) }}" class="btn btn-primary mt-4">
                             {{ __('Open this screen') }}
                             <i class="bi bi-arrow-right" aria-hidden="true"></i>
