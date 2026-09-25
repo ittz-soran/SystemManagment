@@ -360,10 +360,18 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::get('swaps', [SwapController::class, 'index'])
         ->middleware('permission:swaps.view')->name('swaps.index');
-    Route::get('swaps/create', [SwapController::class, 'create'])
-        ->middleware('permission:swaps.create')->name('swaps.create');
-    Route::post('swaps', [SwapController::class, 'store'])
-        ->middleware('permission:swaps.create')->name('swaps.store');
+    /*
+     * ⚠️ **Swaps are started on `Goods coming back` now** — Soran,
+     * 2026-09-25: *"remove page swaps because i use goods-back it"*. The old
+     * screen is gone; this redirect stays so a bookmark, a printed link or a
+     * page somebody left open does not land on a missing page.
+     *
+     * Deliberately unnamed: `route('swaps.create')` must fail loudly wherever
+     * it is still called, rather than quietly sending a reader somewhere the
+     * button did not promise.
+     */
+    Route::get('swaps/create', fn () => redirect()->route('goods-back.index'))
+        ->middleware('permission:swaps.create');
     Route::get('swaps/{swap}', [SwapController::class, 'show'])
         ->middleware('permission:swaps.view')->name('swaps.show');
     // ⚠️ The note only. See SwapController::update for why nothing else is.

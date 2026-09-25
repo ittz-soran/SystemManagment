@@ -187,23 +187,24 @@ final class ScreenHelp
                 ],
             ],
 
-            'swaps.create' => [
-                'title' => __('A faulty item comes back'),
-                'intro' => __('Replace it with the same thing, change it for something else, or give the money back — and send the broken one to your supplier.'),
+            'goods-back.index' => [
+                'title' => __('Anything coming back'),
+                'intro' => __('One screen for all of it: swap a faulty item, take something back from a customer, or send goods back to your supplier. Find the item and the screen offers only what can really be done with it.'),
                 'steps' => [
-                    [__('Scan the faulty item'), __('Or type part of its name. You do not need the invoice number.')],
-                    [__('Pick the invoice that sold it'), __('Newest first, because last week’s sale is far likelier than one from two years ago.')],
-                    [__('Choose what to do'), __('Hand over the same thing, or take it back on the invoice and sell something else or refund.')],
+                    [__('Scan the item that came back'), __('Or type part of its name. You do not need the invoice or the purchase number.')],
+                    [__('Pick the paper it is on'), __('Sold to a customer, or bought from a supplier. The list shows what is still left to come back on each one, newest first.')],
+                    [__('Say what is wanted, and how many'), __('Three chargers sold and one coming back is one, not three — every choice takes a quantity, and the money underneath follows it as you type.')],
                 ],
                 'warning' => [
-                    __('A swap does not change the invoice'),
-                    __('The customer bought one and still has one, so their printed paper stays true. What changed is which piece they have. That line cannot then be returned as well, or you would put stock on the shelf that never existed.'),
+                    __('Only a swap leaves the invoice alone'),
+                    __('The same thing again is a swap: the customer bought one and still has one, so their printed paper stays true and that line cannot then be returned as well. A different product or the money back both change the invoice, because what the customer owns has changed.'),
                 ],
                 'notes' => [
-                    __('None left on the shelf? The swap is not offered. The other two ways out still are.'),
-                    __('The broken one goes back to the purchase it came from, and the screen names that supplier before you do anything.'),
-                    __('If it never came from a purchase, there is nobody to send it to and the shop carries it. The screen says so.'),
-                    __('It costs you something only when the replacement comes off a newer, dearer batch. That shows on the profit report as Faulty goods replaced.'),
+                    __('A different product asks for the new one, then shows what is owed: nothing when the prices match, the difference either way when they do not. It can go on the customer’s account.'),
+                    __('Nothing on the shelf? The swap is not offered, and the screen says why rather than hiding the button.'),
+                    __('Tick “it came back faulty” and the broken one goes to the supplier it was bought from, at the price they were paid, in the same breath.'),
+                    __('A supplier return comes off that purchase’s own batch, never the oldest — those goods go back to that supplier.'),
+                    __('A swap costs you something only when the replacement comes off a newer, dearer batch. That shows on the profit report as Faulty goods replaced.'),
                 ],
             ],
 

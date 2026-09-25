@@ -154,7 +154,13 @@ class FindPageTest extends TestCase
     }
 
     /** The faulty tab Soran asked for, on the line itself. */
-    public function test_each_invoice_line_offers_the_swap_page_on_that_line(): void
+    /**
+     * ⚠️ Straight to the counter with the line already chosen and the swap
+     * already selected — Soran, 2026-09-25, when the old swap screen was
+     * removed. A "Came back faulty" button that lands on a search box would
+     * make the reader find the line they were already looking at.
+     */
+    public function test_each_invoice_line_offers_the_counter_on_that_line(): void
     {
         $this->buy($this->bazaar, 5);
         $sale = $this->sell($this->karwan, 1);
@@ -163,7 +169,12 @@ class FindPageTest extends TestCase
             ->get(route('find', ['q' => 'PD-17-UK']))
             ->assertOk()
             ->assertSee(__('Came back faulty'))
-            ->assertSee(route('swaps.create', ['sale_item' => $sale->items->first()->id]), false);
+            // ⚠️ `e()` because the URL now carries two parameters, and Blade
+            // escapes the `&` between them. Asserted raw, it looks for an
+            // ampersand the page never prints.
+            ->assertSee(e(route('goods-back.index', [
+                'sale_item' => $sale->items->first()->id, 'answer' => 'same',
+            ])), false);
     }
 
     /** A scanned barcode is one product, so the page does not ask again. */

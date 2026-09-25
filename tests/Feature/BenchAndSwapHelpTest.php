@@ -60,14 +60,27 @@ class BenchAndSwapHelpTest extends TestCase
             ->assertSee(__('Never put a line on the job for something you have not got — collection is refused, with the mended device on the counter.'), false);
     }
 
-    public function test_the_swap_screen_has_its_help(): void
+    /**
+     * ⚠️ The swap screen is `Goods coming back` now — Soran, 2026-09-25. The
+     * help moved with the flow rather than being left behind on a page nobody
+     * can reach.
+     */
+    public function test_the_goods_coming_back_screen_has_its_help(): void
     {
         $this->actingAs($this->admin)
-            ->get(route('swaps.create'))
+            ->get(route('goods-back.index'))
             ->assertOk()
             ->assertSee(__('Help for this screen'))
-            ->assertSee(__('A swap does not change the invoice'))
-            ->assertSee(__('None left on the shelf? The swap is not offered. The other two ways out still are.'), false);
+            ->assertSee(__('Only a swap leaves the invoice alone'))
+            ->assertSee(__('Nothing on the shelf? The swap is not offered, and the screen says why rather than hiding the button.'), false);
+    }
+
+    /** And the page it replaced sends a bookmark on rather than 404ing. */
+    public function test_the_old_swap_address_redirects_to_the_counter(): void
+    {
+        $this->actingAs($this->admin)
+            ->get('/swaps/create')
+            ->assertRedirect(route('goods-back.index'));
     }
 
     /**

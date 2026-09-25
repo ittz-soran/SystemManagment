@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\ExchangeService;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
+use App\Services\SwapService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
@@ -167,6 +168,49 @@ class GoodsBackTest extends TestCase
 
         $this->actingAs($this->user())->get(route('goods-back.index', ['q' => 'fitting']))
             ->assertOk()->assertDontSee('Screen fitting');
+    }
+
+    /**
+     * ⚠️ **An impossible answer is greyed with its reason, never hidden** —
+     * ported here when the old swap screen was removed, because this is the
+     * only page that asks the question now. A shopkeeper who cannot see the
+     * Swap card does not learn that the shelf is empty.
+     */
+    public function test_an_empty_shelf_greys_the_swap_and_says_why(): void
+    {
+        $purchase = $this->buy($this->charger, 1, 11_000);
+        $line = $this->sell($this->charger, 1, 18_000)->items()->firstOrFail();
+
+        $this->assertSame(0, (int) $this->charger->fresh()->quantity, 'the shelf must be empty');
+        $this->assertNotNull($purchase);
+
+        $this->actingAs($this->user())
+            ->get(route('goods-back.index', ['sale_item' => $line->id, 'answer' => 'same']))
+            ->assertOk()
+            // The card is still drawn, and carries the sentence that says what
+            // to do instead.
+            ->assertSee('The same thing again')
+            ->assertSee('There is no Charger 33W left to swap it for')
+            ->assertDontSee('Swap it</button>', false);
+    }
+
+    /**
+     * ⚠️ A line already swapped has nothing left to come back — also ported
+     * from the screen this one replaced.
+     */
+    public function test_a_line_already_swapped_is_not_offered_again(): void
+    {
+        $this->buy($this->charger, 3, 11_000);
+        $line = $this->sell($this->charger, 1, 18_000)->items()->firstOrFail();
+
+        app(SwapService::class)->create($line, 1, $this->user());
+
+        $this->assertSame(0, $line->fresh()->returnableQuantity());
+
+        $this->actingAs($this->user())
+            ->get(route('goods-back.index', ['product' => $this->charger->id]))
+            ->assertOk()
+            ->assertSee('Never sold, or every line has already come back');
     }
 
     // ---- His money back, with a quantity -----------------------------------
@@ -420,11 +464,19 @@ class GoodsBackTest extends TestCase
             'purchase_returns.create', 'purchase_returns.view',
         ]);
 
-        $this->actingAs($user)
-            ->get(route('goods-back.index', ['sale_item' => $line->id]))
-            ->assertOk()
-            ->assertDontSee('The same thing again')
-            ->assertDontSee('His money back');
+        /*
+         * ⚠️ Asserted on the BUTTONS, not on the words. The screen's own `?`
+         * help explains all three answers to whoever opens it — that is the
+         * point of help — so a test that looked for the phrase "the same thing
+         * again" started failing the day the help arrived, on a page that was
+         * behaving perfectly.
+         */
+        $page = $this->actingAs($user)->get(route('goods-back.index', ['sale_item' => $line->id]));
+
+        $page->assertOk()
+            ->assertDontSee(__('Swap it'))
+            ->assertDontSee(__('Take it back'))
+            ->assertDontSee(__('Exchange it'));
     }
 
     public function test_somebody_with_none_of_the_three_keys_is_refused(): void

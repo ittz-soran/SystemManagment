@@ -1581,6 +1581,22 @@ A take-apart leaves the shop holding three sellable things — the bundle and it
 
 ⚠️ **One of the whole and its pieces per cart** — *"if sale or add to card one of 3 main or lines should lock other"*. The stock would refuse the second one anyway, at the end, once the rebuild had eaten what the other line wanted. At a till that is far too late: the customer is waiting and the cart has to be unpicked to find out why. So it is said the moment it is asked for, in both directions, naming both products and which to take out.
 
+#### The old swap screen is gone — Soran, 2026-09-25
+
+*"remove page swaps because i use goods-back it"*.
+
+⚠️ **It was the only one of the three that was fully redundant, and that is why it is the only one removed.** The sale-return and purchase-return create pages still do something this counter cannot: a whole invoice, or a whole purchase, several lines in one document. The swap screen did nothing `Goods coming back` does not do better, so keeping it would have meant two screens to teach, two to translate, and two that must stay true to the same rules.
+
+What went: `swaps/create`, `swaps.store`, the controller methods and the view. What stayed: the list, the document, its note and deleting one — a swap still has to be read back and undone somewhere.
+
+⚠️ **Nothing was left pointing at a hole.** Five places linked to that page and each now opens the counter with what it already knew: the swaps list's own button, the Find page's product-level *Came back faulty*, the Find page's per-line one (straight to `?sale_item=N&answer=same`, because a button on a line that landed on a search box would make the reader find the line they were looking at), the guide topic, and the `?` help.
+
+⚠️ **The help moved with the flow rather than being left on a page nobody can reach**, and was rewritten for the screen that exists: three answers instead of two, a quantity on every one, and the sentence that matters — *only a swap leaves the invoice alone*. That also closes the one gap this feature shipped with: the counter had no `?` help of its own.
+
+`/swaps/create` still answers, as a redirect, so a bookmark or a printed link does not land on a missing page. Deliberately **unnamed**: `route('swaps.create')` must fail loudly wherever it is still called rather than quietly sending a reader somewhere a button did not promise.
+
+⚠️ **Two tests had to change for reasons worth knowing.** One asserted the reader without swap permission could not see *"the same thing again"* — and started failing the day the help arrived, on a page behaving perfectly, because the help explains all three answers to whoever opens it. It asserts on the buttons now. The other asserted a URL raw; the new one carries two parameters, and Blade escapes the `&` between them.
+
 ⚠️ **A held cart comes back without the lock.** `HeldCartController::linesFor()` is shared with the purchase cart and does not carry piece lists, so a restored cart says nothing about bundles and pieces until something is scanned afresh. Nothing is written wrongly — the rebuild still runs on save, and a cart holding both a bundle and its piece is refused for want of stock with the whole transaction rolled back. The shopkeeper simply hears it a minute later than they would have.
 
 ⚠️ **Selling, not editing.** A new sale puts things back together; **editing an existing one does not**, and will still refuse a bundle it has no stock for. An edit unwinds its old lines and re-applies them, so the shelf reads one thing before that unwind and another after, and a shortfall worked out at the wrong moment is a shortfall worked out wrongly — in the one calculation that decides how much stock a shop thinks it has. The till is where a customer is waiting; the edit screen is not, and there the Build page does it in a document of its own.
