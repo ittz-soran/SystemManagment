@@ -703,6 +703,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:sale_returns.view')->name('sale-returns.print');
     Route::get('purchase-returns/{purchaseReturn}/print', [PrintController::class, 'purchaseReturn'])
         ->middleware('permission:purchase_returns.view')->name('purchase-returns.print');
+    Route::get('swaps/{swap}/print', [PrintController::class, 'swap'])
+        ->middleware('permission:swaps.view')->name('swaps.print');
 });
 
 require __DIR__.'/auth.php';

@@ -2,30 +2,32 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ListsGoodsComingBack;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
+use App\Models\PurchaseReturnItem;
 use App\Services\PurchaseReturnService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use RuntimeException;
 
 class PurchaseReturnController extends Controller
 {
+    use ListsGoodsComingBack;
+
     public function __construct(private PurchaseReturnService $returns) {}
 
     public function index(Request $request): View
     {
-        $returns = PurchaseReturn::with('purchase', 'supplier', 'user')
-            // An archived period stays in the database and out of this list,
-            // unless the reader asks for it.
-            ->visible($request->boolean('archived'))
+        $filtered = $this->cameBack(PurchaseReturn::query(), $request, 'return_date');
+
+        $returns = (clone $filtered)->with('purchase', 'supplier', 'user')
             ->orderByDesc('return_date')
             ->orderByDesc('id')
-            ->when($request->filled('search'), fn ($q) => $q->where('document_no', 'like', '%'.$request->input('search').'%'))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('return_date', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('return_date', '<=', $request->date('to')))
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
@@ -34,7 +36,59 @@ class PurchaseReturnController extends Controller
 
         return view('purchase-returns.index', [
             'lens' => $request->user()->lens(),
-            'archivedCount' => $archivedCount, 'returns' => $returns]);
+            'archivedCount' => $archivedCount,
+            'returns' => $returns,
+            'isFiltered' => $this->isFiltered($request),
+            'stats' => $this->figures($filtered, $request),
+        ]);
+    }
+
+    /**
+     * The same four questions as the sale-return list, in the supplier's
+     * vocabulary: they credit rather than refund, and the units leave the
+     * shelf rather than come back to it.
+     *
+     * @param  Builder<PurchaseReturn>  $filtered
+     * @return array<int, array{label: string, value: string, note: string}>
+     */
+    private function figures($filtered, Request $request): array
+    {
+        $lens = $request->user()->lens();
+
+        $count = (int) (clone $filtered)->count();
+        $credited = (int) (clone $filtered)->sum('total_amount');
+
+        $units = (int) PurchaseReturnItem::whereIn('purchase_return_id', (clone $filtered)->select('id'))
+            ->sum('quantity');
+
+        // What actually came back as money. The rest came off what the shop
+        // still owed that supplier, which never moved.
+        $cash = $this->settledInCash($filtered, new PurchaseReturn);
+
+        return [
+            [
+                'label' => __('Returns'),
+                'value' => number_format($count),
+                'note' => __('documents on this list'),
+            ],
+            [
+                'label' => __('Units sent back'),
+                'value' => number_format($units),
+                'note' => __('and off the shelf'),
+            ],
+            [
+                'label' => __('Credited'),
+                'value' => money($credited, in: $lens),
+                'note' => __('what the suppliers owed back'),
+            ],
+            [
+                'label' => __('Cash back'),
+                'value' => money($cash, in: $lens),
+                'note' => __(':amount came off what you owed instead', [
+                    'amount' => money(max(0, $credited - $cash), in: $lens),
+                ]),
+            ],
+        ];
     }
 
     public function create(Request $request, Purchase $purchase): View

@@ -102,6 +102,39 @@
         </div>
 
         <div class="col-lg-4">
+            {{-- The money, then where it went — the same two cards as a sale
+                 return and a swap, Soran 2026-09-25. --}}
+            @php
+                $cameBack = (int) $payments->sum('amount');
+                $offBalance = max(0, (int) $return->total_amount - $cameBack);
+            @endphp
+            <div class="card mb-3">
+                <div class="card-header">{{ __('The money') }}</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">{{ __('Total credit') }}</span>
+                        <span class="money">{{ money($return->total_amount, false, $lens) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">{{ __('Cash back') }}</span>
+                        <span class="money">{{ money($cameBack, false, $lens) }}</span>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between fw-semibold">
+                        <span>{{ __('Came off what you owed') }}</span>
+                        <span class="money">{{ money($offBalance, false, $lens) }}</span>
+                    </div>
+
+                    <div class="small text-secondary mt-2">
+                        {{ $offBalance > 0
+                            ? __('A credit clears what you owe this supplier first, and only what is left over comes back as cash.')
+                            : __('You owed them nothing, so the whole credit came back as cash.') }}
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">{{ __('Cash received back') }}</div>
                 @if($payments->isEmpty())

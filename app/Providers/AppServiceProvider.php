@@ -148,6 +148,15 @@ class AppServiceProvider extends ServiceProvider
             \App\Models\Purchase::class,
             \App\Models\SaleReturn::class,
             \App\Models\PurchaseReturn::class,
+
+            /*
+             * ⚠️ Added 2026-09-25, the day a swap's quantity became
+             * correctable. Until then a swap was written once and never
+             * edited, so a history card on it would have read "nothing
+             * recorded yet" forever — which says the opposite of the truth.
+             * Now there is something to record: who changed it, and to what.
+             */
+            \App\Models\Swap::class,
             \App\Models\Payment::class,
             \App\Models\Expense::class,
             \App\Models\ExpenseCategory::class,

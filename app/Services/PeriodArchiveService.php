@@ -76,6 +76,18 @@ class PeriodArchiveService
                 ->select('purchase_returns.document_no', 'purchase_returns.return_date',
                     'purchases.document_no as against_purchase', 'purchase_returns.total_amount')],
 
+            /*
+             * ⚠️ A swap has no total of its own — the invoice behind it was
+             * never changed — so the sheet carries what it actually cost the
+             * shop: the replacement less what the supplier gave back.
+             */
+            'swaps' => ['date' => 'swaps.swapped_at', 'query' => fn () => DB::table('swaps')
+                ->leftJoin('sales', 'sales.id', '=', 'swaps.sale_id')
+                ->leftJoin('products', 'products.id', '=', 'swaps.product_id')
+                ->select('swaps.document_no', 'swaps.swapped_at',
+                    'sales.document_no as against_sale', 'products.sku', 'products.name as product',
+                    'swaps.quantity', 'swaps.replacement_cost', 'swaps.faulty_cost', 'swaps.note')],
+
             'payments' => ['date' => 'payments.paid_at', 'query' => fn () => DB::table('payments')
                 ->select('payments.document_no', 'payments.paid_at', 'payments.payable_type',
                     'payments.amount', 'payments.direction', 'payments.payment_method', 'payments.notes')],

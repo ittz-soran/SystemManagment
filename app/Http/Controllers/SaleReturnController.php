@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ListsGoodsComingBack;
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Services\SaleReturnService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,19 +23,17 @@ use RuntimeException;
  */
 class SaleReturnController extends Controller
 {
+    use ListsGoodsComingBack;
+
     public function __construct(private SaleReturnService $returns) {}
 
     public function index(Request $request): View
     {
-        $returns = SaleReturn::with('sale', 'customer', 'user')
-            // An archived period stays in the database and out of this list,
-            // unless the reader asks for it.
-            ->visible($request->boolean('archived'))
+        $filtered = $this->cameBack(SaleReturn::query(), $request, 'return_date');
+
+        $returns = (clone $filtered)->with('sale', 'customer', 'user')
             ->orderByDesc('return_date')
             ->orderByDesc('id')
-            ->when($request->filled('search'), fn ($q) => $q->where('document_no', 'like', '%'.$request->input('search').'%'))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('return_date', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('return_date', '<=', $request->date('to')))
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
@@ -41,7 +42,64 @@ class SaleReturnController extends Controller
 
         return view('sale-returns.index', [
             'lens' => $request->user()->lens(),
-            'archivedCount' => $archivedCount, 'returns' => $returns]);
+            'archivedCount' => $archivedCount,
+            'returns' => $returns,
+            'isFiltered' => $this->isFiltered($request),
+            'stats' => $this->figures($filtered, $request),
+        ]);
+    }
+
+    /**
+     * The four figures over the list, in the customer's vocabulary.
+     *
+     * ⚠️ **Of the filtered range, not of all time**, and each is asked of the
+     * same query the table is drawn from — `clone`d rather than re-built, so a
+     * filter that reaches the rows cannot fail to reach the totals. A figure
+     * that quietly counts something else from the list under it is the exact
+     * complaint that opened this week: *"in services total show 290,000 … in
+     * reports show 231,000"*.
+     *
+     * @param  Builder<SaleReturn>  $filtered
+     * @return array<int, array{label: string, value: string, note: string}>
+     */
+    private function figures($filtered, Request $request): array
+    {
+        $lens = $request->user()->lens();
+
+        $count = (int) (clone $filtered)->count();
+        $refunded = (int) (clone $filtered)->sum('total_amount');
+
+        $units = (int) SaleReturnItem::whereIn('sale_return_id', (clone $filtered)->select('id'))
+            ->sum('quantity');
+
+        // What actually left the till. The rest of the refund went against what
+        // the customer already owed, which is money that never moved.
+        $cash = $this->settledInCash($filtered, new SaleReturn);
+
+        return [
+            [
+                'label' => __('Returns'),
+                'value' => number_format($count),
+                'note' => __('documents on this list'),
+            ],
+            [
+                'label' => __('Units back on the shelf'),
+                'value' => number_format($units),
+                'note' => __('and sellable again'),
+            ],
+            [
+                'label' => __('Refunded'),
+                'value' => money($refunded, in: $lens),
+                'note' => __('what the customers were given back'),
+            ],
+            [
+                'label' => __('Cash out of the till'),
+                'value' => money($cash, in: $lens),
+                'note' => __(':amount came off what they owed instead', [
+                    'amount' => money(max(0, $refunded - $cash), in: $lens),
+                ]),
+            ],
+        ];
     }
 
     /** The return screen for one sale. */

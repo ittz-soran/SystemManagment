@@ -10,30 +10,9 @@
 
     <x-archived-notice :count="$archivedCount" />
 
-    <form method="GET" class="card card-body mb-3">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label for="search" class="form-label small">{{ __('Document number') }}</label>
-                <input id="search" type="search" name="search" value="{{ request('search') }}"
-                       class="form-control form-control-sm" placeholder="SRT-">
-            </div>
-            <div class="col-md-2">
-                <label for="from" class="form-label small">{{ __('From') }}</label>
-                <input id="from" type="date" name="from" value="{{ request('from') }}" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-2">
-                <label for="to" class="form-label small">{{ __('To') }}</label>
-                <input id="to" type="date" name="to" value="{{ request('to') }}" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button class="btn btn-sm btn-outline-primary">{{ __('Filter') }}</button>
-                <a href="{{ route('sale-returns.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
-            </div>
-            <div class="col-12">
-                <x-date-presets />
-            </div>
-        </div>
-    </form>
+    <x-doc-stats :tiles="$stats" :filtered="$isFiltered" />
+
+    <x-doc-filter :action="route('sale-returns.index')" prefix="SRT-" />
 
     @if($returns->isEmpty())
         <div class="card">
