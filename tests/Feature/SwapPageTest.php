@@ -9,7 +9,6 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
-use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Models\Swap;
 use App\Models\User;
@@ -83,172 +82,11 @@ class SwapPageTest extends TestCase
 
     // ---- Finding the thing ------------------------------------------------
 
-    public function test_the_page_starts_by_asking_for_the_product(): void
-    {
-        $this->actingAs($this->user())
-            ->get(route('swaps.create'))
-            ->assertOk()
-            ->assertSee(__('Name, SKU or barcode'));
-    }
-
-    public function test_it_finds_the_product_by_sku(): void
-    {
-        $this->buy(2);
-
-        $page = $this->actingAs($this->user())->get(route('swaps.create', ['q' => 'PD-17']));
-
-        $page->assertOk()->assertSee('Power bank 17000mAh UK');
-        $page->assertSee(route('swaps.create', ['product' => $this->pd->id]), false);
-    }
-
-    public function test_a_search_that_matches_nothing_says_so(): void
-    {
-        $this->actingAs($this->user())
-            ->get(route('swaps.create', ['q' => 'NOT-A-THING']))
-            ->assertOk()
-            ->assertDontSee('Power bank 17000mAh UK')
-            ->assertSee(__('Nothing matches :term.', ['term' => 'NOT-A-THING']));
-    }
-
     // ---- Which invoice sold it -------------------------------------------
-
-    public function test_choosing_a_product_lists_the_invoices_that_sold_it(): void
-    {
-        $this->buy(3);
-        $sale = $this->sell(1);
-
-        $page = $this->actingAs($this->user())->get(route('swaps.create', ['product' => $this->pd->id]));
-
-        $page->assertOk()
-            ->assertSee($sale->document_no)
-            ->assertSee('Karwan')
-            ->assertSee(route('swaps.create', ['sale_item' => $sale->items->first()->id]), false);
-    }
-
-    /**
-     * ⚠️ A line whose units have all come back already must not be offered: the
-     * shop would hand over a replacement for something it has already replaced.
-     */
-    public function test_a_line_already_swapped_is_not_offered_again(): void
-    {
-        $this->buy(3);
-        $sale = $this->sell(1);
-
-        app(SwapService::class)->create($sale->items->first(), 1, $this->user());
-
-        $this->actingAs($this->user())
-            ->get(route('swaps.create', ['product' => $this->pd->id]))
-            ->assertOk()
-            ->assertDontSee($sale->document_no)
-            ->assertSee(__('No invoice has this product still to come back. Nothing was sold, or everything sold has already been returned or swapped.'));
-    }
 
     // ---- The decision ----------------------------------------------------
 
-    public function test_the_decision_page_offers_the_swap_and_names_the_supplier(): void
-    {
-        $this->buy(3);
-        $sale = $this->sell(1);
-
-        $page = $this->actingAs($this->user())
-            ->get(route('swaps.create', ['sale_item' => $sale->items->first()->id]));
-
-        $page->assertOk()
-            ->assertSee(__('Hand over the same thing'))
-            ->assertSee(__('Swap it'))
-            // The shelf is read before anything is decided, and above the
-            // buttons: three bought, one sold, so two are there.
-            ->assertSee(__('On the shelf right now'))
-            ->assertSee('2 pcs')
-            // And who will carry the cost of the faulty one.
-            ->assertSee(__('Where the faulty one came from'))
-            ->assertSee('Bazaar Mobile')
-            ->assertSee(Purchase::first()->document_no);
-    }
-
-    /**
-     * ⚠️ The case Soran raised: *"now I don't have stock same this"*. The swap
-     * must not be offered at all — and the other two ways out must still be.
-     */
-    public function test_with_an_empty_shelf_the_swap_is_not_offered_but_the_return_is(): void
-    {
-        $this->buy(1);
-        $sale = $this->sell(1);
-
-        $this->assertSame(0, $this->pd->fresh()->quantity);
-
-        $page = $this->actingAs($this->user())
-            ->get(route('swaps.create', ['sale_item' => $sale->items->first()->id]));
-
-        $page->assertOk()
-            ->assertDontSee(__('Swap it'))
-            ->assertSee(__('There is no :product left to swap it for. Return it or change it for something else.', [
-                'product' => 'Power bank 17000mAh UK',
-            ]))
-            ->assertSee(__('Take it back on the invoice'))
-            ->assertSee(route('sale-returns.create', ['sale' => $sale, 'line' => $sale->items->first()->id]), false);
-    }
-
-    /** Taking a return is its own permission, so the way out is not offered. */
-    public function test_the_return_is_not_offered_without_the_permission(): void
-    {
-        $this->buy(1);
-        $sale = $this->sell(1);
-
-        $user = User::factory()->create(['role' => User::ROLE_USER]);
-        $user->permissions()->sync(Permission::whereIn('key', ['swaps.view', 'swaps.create'])->pluck('id'));
-
-        $this->actingAs($user)
-            ->get(route('swaps.create', ['sale_item' => $sale->items->first()->id]))
-            ->assertOk()
-            ->assertDontSee(__('Take it back on the invoice'))
-            ->assertSee(__('You are not allowed to take returns, so ask somebody who is.'));
-    }
-
     // ---- Doing it --------------------------------------------------------
-
-    public function test_the_form_swaps_it_and_lands_on_the_document(): void
-    {
-        $this->buy(3);
-        $sale = $this->sell(1);
-
-        $response = $this->actingAs($this->user())->post(route('swaps.store'), [
-            'sale_item_id' => $sale->items->first()->id,
-            'quantity' => 1,
-            'note' => 'Not charging',
-        ]);
-
-        $swap = Swap::firstOrFail();
-        $response->assertRedirect(route('swaps.show', $swap))
-            ->assertSessionHas('success');
-
-        $this->assertSame(1, $swap->quantity);
-        $this->assertSame('Not charging', $swap->note);
-        // The invoice is untouched, and the shelf is down to one.
-        $this->assertSame(0, Sale::find($sale->id)->returns()->count());
-        $this->assertSame(1, $this->pd->fresh()->quantity);
-    }
-
-    /**
-     * ⚠️ A swap the shop cannot do comes back as a message on the page, not a
-     * 500 — the customer is standing at the counter.
-     */
-    public function test_a_swap_that_cannot_be_done_says_why(): void
-    {
-        $this->buy(1);
-        $sale = $this->sell(1);
-
-        $this->actingAs($this->user())
-            ->from(route('swaps.create', ['sale_item' => $sale->items->first()->id]))
-            ->post(route('swaps.store'), [
-                'sale_item_id' => $sale->items->first()->id,
-                'quantity' => 1,
-            ])
-            ->assertRedirect(route('swaps.create', ['sale_item' => $sale->items->first()->id]))
-            ->assertSessionHas('error');
-
-        $this->assertSame(0, Swap::count());
-    }
 
     // ---- Reading it back -------------------------------------------------
 
@@ -439,8 +277,10 @@ class SwapPageTest extends TestCase
         // A reader may read, and may not do.
         $this->actingAs($reader)->get(route('swaps.index'))->assertOk();
         $this->actingAs($reader)->get(route('swaps.show', $swap))->assertOk();
-        $this->actingAs($reader)->get(route('swaps.create'))->assertForbidden();
-        $this->actingAs($reader)->post(route('swaps.store'), [
+
+        // And may not make one. Swaps are started on `Goods coming back` now,
+        // so that is where the doing key is asked for.
+        $this->actingAs($reader)->post(route('goods-back.swap'), [
             'sale_item_id' => $sale->items->first()->id, 'quantity' => 1,
         ])->assertForbidden();
 
@@ -468,16 +308,5 @@ class SwapPageTest extends TestCase
 
         $this->actingAs($stranger)->get(route('sales.index'))->assertOk()
             ->assertDontSee(route('swaps.index'), false);
-    }
-
-    /** A sale item that no longer exists is a 404, not a 500. */
-    public function test_an_unknown_line_is_simply_not_found(): void
-    {
-        $page = $this->actingAs($this->user())->get(route('swaps.create', ['sale_item' => 9_999]));
-
-        // Nothing chosen: the page falls back to asking for the product.
-        $page->assertOk()->assertSee(__('Name, SKU or barcode'));
-
-        $this->assertNull(SaleItem::find(9_999));
     }
 }

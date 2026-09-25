@@ -4,7 +4,7 @@
 
 @section('actions')
     @can('swaps.create')
-        <a href="{{ route('swaps.create') }}" class="btn btn-primary">
+        <a href="{{ route('goods-back.index') }}" class="btn btn-primary">
             <i class="bi bi-arrow-left-right me-1"></i>{{ __('Swap a faulty item') }}
         </a>
     @endcan
@@ -17,7 +17,7 @@
         <div class="card">
             <x-empty-state icon="arrow-left-right"
                            :message="__('No swaps yet. When a faulty item comes back and you hand over the same thing again, it is recorded here.')"
-                           :action="auth()->user()->hasPermission('swaps.create') ? route('swaps.create') : null"
+                           :action="auth()->user()->hasPermission('swaps.create') ? route('goods-back.index') : null"
                            :actionLabel="__('Swap a faulty item')" />
         </div>
     @else

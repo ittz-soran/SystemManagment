@@ -59,7 +59,7 @@ class ScreenHelpTest extends TestCase
             // that nobody has a habit to fall back on.
             'repairs.create',
             'repairs.show',
-            'swaps.create',
+            'goods-back.index',
 
             'reports.index',
         ], array_keys(ScreenHelp::all()));

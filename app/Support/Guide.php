@@ -325,7 +325,7 @@ final class Guide
                 'title' => __('A faulty item comes back'),
                 'blurb' => __('Hand over the same thing again, change it for something else, or give the money back — and send the broken one to the supplier.'),
                 'minutes' => 3,
-                'route' => 'swaps.create',
+                'route' => 'goods-back.index',
                 'permission' => 'swaps.create',
                 'sections' => [
                     [__('Start with the thing in your hand'), [

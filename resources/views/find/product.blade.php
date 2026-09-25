@@ -72,7 +72,7 @@
             @endcan
             @can('swaps.create')
                 @if($tracks)
-                    <a href="{{ route('swaps.create', ['product' => $product->id]) }}" class="btn btn-outline-primary">
+                    <a href="{{ route('goods-back.index', ['product' => $product->id]) }}" class="btn btn-outline-primary">
                         <i class="bi bi-arrow-left-right me-1"></i>{{ __('A faulty one came back') }}
                     </a>
                 @endif
@@ -240,7 +240,7 @@
                                  already read. --}}
                             @can('swaps.create')
                                 @if($line->returnableQuantity() > 0)
-                                    <a href="{{ route('swaps.create', ['sale_item' => $line->id]) }}"
+                                    <a href="{{ route('goods-back.index', ['sale_item' => $line->id, 'answer' => 'same']) }}"
                                        class="btn btn-sm btn-outline-primary">{{ __('Came back faulty') }}</a>
                                 @endif
                             @endcan
