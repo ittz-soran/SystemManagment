@@ -6,6 +6,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Models\Swap;
 use App\Services\SetupProgress;
 use Illuminate\View\View;
 
@@ -45,6 +46,20 @@ class PrintController extends Controller
     {
         return view('print.purchase-return', [
             'return' => $purchaseReturn->load('purchase', 'supplier', 'user', 'items.product'),
+        ]);
+    }
+
+    /**
+     * ⚠️ A swap prints as a one-line document, because a swap IS one line —
+     * one product, handed over again. It is on paper for the same reason the
+     * two returns are: the customer may be given it, and a shop that can hand
+     * over a printed SRT but not a printed SWP looks like a shop that is not
+     * sure a swap is a real document.
+     */
+    public function swap(Swap $swap): View
+    {
+        return view('print.swap', [
+            'swap' => $swap->load('sale.customer', 'product', 'user', 'purchaseReturn.purchase.supplier'),
         ]);
     }
 }

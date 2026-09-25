@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Supplier;
+use App\Models\Swap;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -113,6 +114,28 @@ final class RecordHistory
     private const NOT_WORTH_SAYING = ['updated_at', 'created_at'];
 
     /**
+     * And the columns only one kind of record has, that the engine writes.
+     *
+     * ⚠️ **The log still stores them** — Section 8 asks for the full previous
+     * version and gets it. This is about the screen. A shopkeeper who corrects
+     * a swap from one to two wants to read *"Quantity 1 → 2"*; the first
+     * version of that card also said *"Purchase Return Id 4 → 5"*, which
+     * teaches nothing and invites worry about a number they cannot act on. The
+     * same three columns are the swap's noise list in `ActivityObserver`, and
+     * deliberately: they are the ones `SwapService::apply()` rewrites on every
+     * save, so they are never news.
+     *
+     * @return list<string>
+     */
+    private static function notWorthSaying(Model $model): array
+    {
+        return [...self::NOT_WORTH_SAYING, ...match (true) {
+            $model instanceof Swap => ['replacement_cost', 'faulty_cost', 'purchase_return_id'],
+            default => [],
+        }];
+    }
+
+    /**
      * @return list<array{
      *     action: string,
      *     at: Carbon,
@@ -148,12 +171,13 @@ final class RecordHistory
         }
 
         $history = [];
+        $skip = self::notWorthSaying($model);
 
         foreach ($entries as $entry) {
             $changes = [];
 
             foreach (($entry->old_values ?? []) as $field => $was) {
-                if (in_array($field, self::NOT_WORTH_SAYING, true)) {
+                if (in_array($field, $skip, true)) {
                     $state[$field] = $was;
 
                     continue;

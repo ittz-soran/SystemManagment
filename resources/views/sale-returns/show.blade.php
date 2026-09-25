@@ -99,6 +99,45 @@
         </div>
 
         <div class="col-lg-4">
+            {{-- ⚠️ **The money, then where it went** — the same two cards as a
+                 purchase return and a swap, Soran 2026-09-25. The total is in
+                 the table's foot as well, and deliberately: what is new here is
+                 the SPLIT, and a split with no total over it is a figure the
+                 reader has to scroll back to make sense of. --}}
+            @php
+                $paidOut = (int) $payments->sum('amount');
+                $offBalance = max(0, (int) $return->total_amount - $paidOut);
+            @endphp
+            <div class="card mb-3">
+                <div class="card-header">{{ __('The money') }}</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">{{ __('Total refund') }}</span>
+                        <span class="money">{{ money($return->total_amount, false, $lens) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">{{ __('Cash out of the till') }}</span>
+                        <span class="money">{{ money($paidOut, false, $lens) }}</span>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between fw-semibold">
+                        <span>{{ __('Came off what they owed') }}</span>
+                        <span class="money">{{ money($offBalance, false, $lens) }}</span>
+                    </div>
+
+                    <div class="small text-secondary mt-2">
+                        {{-- Section 7: a refund clears the debt before it opens
+                             the till, so this is the ordinary case, not an
+                             exception worth a warning. --}}
+                        {{ $offBalance > 0
+                            ? __('A refund clears what the customer owes first, and only what is left over leaves the till.')
+                            : __('They owed nothing, so the whole refund left the till.') }}
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">{{ __('Cash paid back') }}</div>
                 @if($payments->isEmpty())

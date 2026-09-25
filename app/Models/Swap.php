@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HidesArchivedPeriod;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +17,21 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable(['sale_id', 'sale_item_id', 'product_id', 'quantity', 'note', 'swapped_at'])]
 class Swap extends Model
 {
-    use SoftDeletes;
+    use HidesArchivedPeriod, SoftDeletes;
+
+    /**
+     * Section 8c: the column an archived period is decided by.
+     *
+     * ⚠️ **The trait was added only once `PeriodArchiveService` had a `swaps`
+     * sheet.** On its own it would have hidden rows from the list that the
+     * period export had never written to a file — the one thing archiving must
+     * never do, since it is supposed to move history out of sight, not out of
+     * reach.
+     */
+    public function archivePeriodColumn(): string
+    {
+        return 'swapped_at';
+    }
 
     protected function casts(): array
     {

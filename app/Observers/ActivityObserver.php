@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Supplier;
+use App\Models\Swap;
 use App\Services\ActivityLogger;
 use Illuminate\Database\Eloquent\Model;
 
@@ -45,6 +46,10 @@ class ActivityObserver
             $model instanceof Supplier => ['balance'],
             $model instanceof Sale,
             $model instanceof Purchase => ['status'],
+            // The service writes all three on the same save every time it lays
+            // a swap down, so without this every "create" would be followed a
+            // millisecond later by an "update" saying nothing.
+            $model instanceof Swap => ['replacement_cost', 'faulty_cost', 'purchase_return_id'],
             default => [],
         }];
 

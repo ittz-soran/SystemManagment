@@ -10,13 +10,29 @@
     @endcan
 @endsection
 
+{{--
+    ⚠️ **The same skeleton as the two return lists, in the same order** — Soran,
+    2026-09-25: *"make all three purchase-returns, sale-returns, swaps have same
+    designs or same like one"*. The lens note, the archived notice, four
+    figures, the filter row, the table, pagination. This list had none of the
+    middle three, which nobody had noticed for two days because there was
+    nothing on the screen it was visibly different from.
+--}}
 @section('content')
     <x-lens-note :lens="$lens" />
+
+    <x-archived-notice :count="$archivedCount" />
+
+    <x-doc-stats :tiles="$stats" :filtered="$isFiltered" />
+
+    <x-doc-filter :action="route('swaps.index')" prefix="SWP-" />
 
     @if($swaps->isEmpty())
         <div class="card">
             <x-empty-state icon="arrow-left-right"
-                           :message="__('No swaps yet. When a faulty item comes back and you hand over the same thing again, it is recorded here.')"
+                           :message="$isFiltered
+                               ? __('No swaps match that. Clear the filter to see them all.')
+                               : __('No swaps yet. When a faulty item comes back and you hand over the same thing again, it is recorded here.')"
                            :action="auth()->user()->hasPermission('swaps.create') ? route('goods-back.index') : null"
                            :actionLabel="__('Swap a faulty item')" />
         </div>
@@ -32,6 +48,11 @@
                         <th class="money">{{ __('Quantity') }}</th>
                         <th>{{ __('Against') }}</th>
                         <th>{{ __('Sent back') }}</th>
+                        {{-- The swap's equivalent of the returns' Total column:
+                             what the shop is out of pocket, which is the only
+                             money figure a swap has. --}}
+                        <th class="money">{{ __('Cost') }}</th>
+                        <th class="text-end">{{ __('Actions') }}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -60,6 +81,10 @@
                                     {{-- No purchase behind the faulty unit, so nobody to bill. --}}
                                     <span class="text-secondary small">{{ __('The shop carried it') }}</span>
                                 @endif
+                            </td>
+                            <td class="money" data-label="{{ __('Cost') }}">{{ money($swap->cost(), in: $lens) }}</td>
+                            <td class="list-card-actions text-end">
+                                <x-row-actions :print="route('swaps.print', $swap)" />
                             </td>
                         </tr>
                     @endforeach

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ListsGoodsComingBack;
 use App\Models\Swap;
 use App\Services\SwapService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -25,16 +27,82 @@ use Throwable;
  */
 class SwapController extends Controller
 {
+    use ListsGoodsComingBack;
+
     public function __construct(private SwapService $swaps) {}
 
     public function index(Request $request): View
     {
+        $filtered = $this->cameBack(Swap::query(), $request, 'swapped_at');
+
         return view('swaps.index', [
             'lens' => $request->user()->lens(),
-            'swaps' => Swap::with('sale.customer', 'product', 'purchaseReturn')
+            'swaps' => (clone $filtered)->with('sale.customer', 'product', 'purchaseReturn')
                 ->orderByDesc('swapped_at')->orderByDesc('id')
-                ->paginate($request->user()->items_per_page),
+                ->paginate($request->user()->items_per_page)
+                ->withQueryString(),
+
+            // Section 8c: the toggle only appears when something is hidden.
+            'archivedCount' => (int) Swap::archivedOnly()->count(),
+            'isFiltered' => $this->isFiltered($request),
+            'stats' => $this->figures($filtered, $request),
         ]);
+    }
+
+    /**
+     * The same four questions the two return lists ask, in the one vocabulary
+     * where the third has no column to read.
+     *
+     * ⚠️ **A swap has no total.** The invoice behind it was not changed, so
+     * there is no `total_amount` to sum — what a swap is worth to the shop is
+     * `replacement_cost - faulty_cost`, the dearer layer the replacement came
+     * off less what the supplier gave back. A tile showing the sale price here
+     * would be exactly the mistake the P&L made before `TradeProfit` learned
+     * about swaps: money the shop never made.
+     *
+     * @param  Builder<Swap>  $filtered
+     * @return array<int, array{label: string, value: string, note: string}>
+     */
+    private function figures($filtered, Request $request): array
+    {
+        $lens = $request->user()->lens();
+
+        $count = (int) (clone $filtered)->count();
+        $units = (int) (clone $filtered)->sum('quantity');
+        $cost = (int) (clone $filtered)->sum('replacement_cost') - (int) (clone $filtered)->sum('faulty_cost');
+
+        // How many were the supplier's problem rather than the shop's. A swap
+        // with no purchase behind the faulty unit is one the shop carried.
+        $billed = (int) (clone $filtered)->whereNotNull('purchase_return_id')->count();
+
+        return [
+            [
+                'label' => __('Swaps'),
+                'value' => number_format($count),
+                'note' => __('documents on this list'),
+            ],
+            [
+                'label' => __('Units handed over again'),
+                'value' => number_format($units),
+                'note' => __('the same thing, a second time'),
+            ],
+            [
+                'label' => __('What it cost the shop'),
+                'value' => money($cost, in: $lens),
+                'note' => $cost < 0
+                    ? __('the replacements came off cheaper layers')
+                    : __('the replacements less what came back'),
+            ],
+            [
+                'label' => __('Billed to a supplier'),
+                'value' => number_format($billed),
+                'note' => trans_choice(
+                    '{0}the shop carried none of them|{1}the shop carried the other one'
+                    .'|[2,*]the shop carried the other :count',
+                    max(0, $count - $billed), ['count' => number_format(max(0, $count - $billed))],
+                ),
+            ],
+        ];
     }
 
     public function show(Request $request, Swap $swap): View

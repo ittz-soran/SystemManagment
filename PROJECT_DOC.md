@@ -1635,6 +1635,41 @@ So it is `goods-coming-back` now, **Anything coming back**, rewritten for the sc
 
 ⚠️ **The search only answers this when the till asks.** `rebuildable=1` is one extra pair of queries per product on the list, and every other search in the shop — the purchase screen, the find box, the label printer — has no use for the answer. A dropdown row that can be made carries its count (*"+1 if put back together"*); a row with none on the shelf and none to build stays red, as it always was.
 
+#### One design for all three ways something comes back — Soran, 2026-09-25
+
+*"make all three purchase-returns, sale-returns, swaps have same designs or same like one and make better ui and data statics"*.
+
+⚠️ **They were built at three different times and it showed.** One counter starts all three documents now, so a reader arriving from it met three screens that did not look related: both return lists had a filter row and the swap list had none; both returns printed and a swap did not; both returns carried a history card and a swap said nothing about itself; and not one of the three answered the question a shopkeeper actually opens these lists with — *how much came back this month, and what did it cost me?*
+
+**The rule this writes down: the three are one family with three vocabularies.** Same skeleton, same components, same order on the page. Only the words change, because a customer is refunded, a supplier credits, and a swap costs.
+
+**Every list page, in this order:** the lens note · the archived notice · **four figures** · the filter row · the table · pagination. Every document page: the number, date and party in the heading · **Print** and **Delete** as the actions · the lines table with its total on the left · **two cards on the right, the money and where it went** · the reason or note · the history.
+
+**The four figures, one shape in three vocabularies.** Each list answers the same four questions in its own words, and each figure is **of the filtered range, not of all time** — the tile says so under itself. That sentence is there because it is exactly the confusion that produced *"in services total show 290,000 … in reports show 231,000"*: a figure with no scope written next to it is read as a figure about everything.
+
+| | Sale returns | Purchase returns | Swaps |
+|---|---|---|---|
+| **How many** | returns | returns | swaps |
+| **How much stock** | units back on the shelf | units sent back | units handed over again |
+| **The money** | refunded | credited | what it cost the shop |
+| **The split** | cash out of the till, vs against what they owed | cash back, vs off what you owed | billed to a supplier, vs the shop carried it |
+
+⚠️ **The third swap figure is the only one that is not a column sum.** A sale return's money is `total_amount`; a swap's is `Swap::cost()` — the replacement's cost less what came back for the faulty one — because **the invoice is untouched by a swap, so a swap has no total**. A tile reading the swap's sale price would be the same mistake the P&L made before `TradeProfit` learned about swaps: money the shop never made.
+
+**What each of the three gained.**
+
+- **Swaps** gained the filter row, the archived notice, a print view (`SWP` on paper, the same layout as `SRT` and `PRT`), a history card, and the four figures.
+- **Sale and purchase returns** gained the four figures, and lost their two hand-copied filter rows to one component.
+- All three gained a `Print` action on the document page and the same two-card right column.
+
+⚠️ **The filter row is now one component, not three copies.** `<x-doc-filter>` takes the route to clear to and the document prefix for its placeholder. Three copies of a filter row is how the swap list came to have none: nobody noticed it was missing, because there was nothing it was visibly different from.
+
+⚠️ **Archiving had to be made true before the notice could be shown.** `<x-archived-notice>` on the swap list would have read zero forever, because `Swap` did not use `HidesArchivedPeriod` — and simply adding the trait would have been worse than leaving it off: the list would hide rows that the period export had never written to a file, which is the one thing archiving must never do. So `swaps` is a sheet in `PeriodArchiveService` as well, carrying the document, the date, the invoice it is against, the product, how many, and what it cost.
+
+⚠️ **A swap is observed now, and the reason is this week's other change.** `ActivityObserver` deliberately holds only the models worth reading back, and a swap was written once and never edited — so a history card would have read "nothing recorded yet" forever, which says the opposite of the truth. Since a swap's quantity can be **corrected**, there is now something to record: who changed it from one to two, and when. `replacement_cost`, `faulty_cost` and `purchase_return_id` are noise columns for this model, exactly as `products.quantity` is — `apply()` writes them on the same save every time, and without that they would post an "update" entry a millisecond after every "create".
+
+**Not done, and deliberately.** Section 9 asks for an **Export CSV** on every list and these three still have none — but neither does any other transactional list in the shop, so it is a decision about all of them rather than about these, and doing it for three would make the family *less* like the rest. The period export already writes all three to CSV.
+
 ### The two sheets that answer "is this right?" — Soran, 2026-09-25
 
 *"lyes make fifo audit, and other report just show fully where profit are come in to shop, not problem if need more A4 pages"*.
