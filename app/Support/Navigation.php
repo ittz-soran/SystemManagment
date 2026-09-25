@@ -36,6 +36,15 @@ final class Navigation
                 ['route' => 'purchases.create', 'permission' => 'purchases.create', 'icon' => 'bag-plus', 'label' => __('New purchase')],
                 ['route' => 'sales.index', 'permission' => 'sales.view', 'icon' => 'receipt', 'label' => __('Sales history')],
                 ['route' => 'purchases.index', 'permission' => 'purchases.view', 'icon' => 'journal-text', 'label' => __('Purchase history')],
+                /*
+                 * ⚠️ **The only way in** — Soran, 2026-09-25. Swaps, sale
+                 * returns and purchase returns are all started here now; the
+                 * three entries below are their histories, and their own
+                 * create pages still answer at their old addresses so nothing
+                 * bookmarked breaks.
+                 */
+                ['route' => 'goods-back.index', 'permission' => ['swaps.create', 'sale_returns.create', 'purchase_returns.create'], 'icon' => 'box-arrow-in-left', 'label' => __('Goods coming back')],
+
                 ['route' => 'sale-returns.index', 'permission' => 'sale_returns.view', 'icon' => 'arrow-return-left', 'label' => __('Sale returns')],
                 ['route' => 'purchase-returns.index', 'permission' => 'purchase_returns.view', 'icon' => 'arrow-return-right', 'label' => __('Purchase returns')],
                 ['route' => 'swaps.index', 'permission' => 'swaps.view', 'icon' => 'arrow-left-right', 'label' => __('Swaps')],
@@ -116,6 +125,23 @@ final class Navigation
         // permission nobody can be refused is a lie in the permissions editor.
         if ($item['permission'] === null) {
             return true;
+        }
+
+        /*
+         * ⚠️ **A list of keys is OR, not AND** — the same question the route
+         * middleware asks. One counter can start three different documents, so
+         * a shopkeeper who may only send goods back to a supplier still needs
+         * to see the door. Written as a list rather than an invented
+         * `goods_back.view` that nothing would ever check.
+         */
+        if (is_array($item['permission'])) {
+            foreach ($item['permission'] as $permission) {
+                if ($user->hasPermission($permission)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         return $user->hasPermission($item['permission']);
