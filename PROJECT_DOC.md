@@ -1710,6 +1710,31 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### The sales and purchase lists got the four figures too — Soran, 2026-09-26
+
+*"and for sales, purchases"*.
+
+Both already had a primary button and a filter row richer than the goods-back lists' — a customer or a supplier, a status — so **the filter row stays as it is**. The family is about the ORDER of the page and the figures over it, not about every list asking the same questions. What they were missing was the strip.
+
+| | Sales history | Purchase history |
+|---|---|---|
+| **How many** | Invoices | Purchases |
+| **The money** | Sold (`total_amount`) | Bought (`grand_total`) |
+| **Settled** | Paid | Paid |
+| **Outstanding** | Still due | Still owed |
+
+⚠️ **`grand_total` on purchases, not `total_amount`.** The discount comes off the invoice and the list's own column reads the grand total; a tile on the other field would sum to more than the rows beneath it.
+
+⚠️ **There is no `amount_paid` column, and a first version summed one** — every Paid tile read a confident zero. What has been paid is the payments **netted**: money the other way is money handed back across the counter.
+
+⚠️ **`payable_type` holds the morph alias, not the class name** — the same trap the sale-return list fell into the day before, walked into again one day later. It is the single most repeatable mistake in this codebase: `getMorphClass()`, never `::class`.
+
+⚠️ **A return credits a document as surely as a payment settles it.** `Sale::amountDue()` subtracts both, so the strip does too — a tile that forgot the credit would print a bigger figure than the Due column directly underneath it, with nothing on the page saying which to believe. That is the shape of every accounting fault found this week, and it has its own test: an invoice part-paid and part-returned, with the tile required to equal the sum of the rows.
+
+**No profit tile, and that is on purpose.** Profit needs the FIFO cost of these particular documents, and the shop already holds that arithmetic in two places — `TradeProfit` for a period, the sales report for a set of invoices. ⚠️ A third copy on a list screen is exactly how the shop came to have two clocks. If these lists should carry profit, the existing calculation gets **extracted**, not written again.
+
+⚠️ **One sabotage survived and taught something.** Dropping `customer_id` from `isFiltered()` changed nothing about the figures — they follow the query whatever that method thinks — so the test passed. It only changed the **sentence**, from *"only what the filter below is showing"* to *"everything on this list"*. A strip counting one customer while claiming to count everything is the unlabelled-scope fault that started this week, so the test reads the sentence now as well as the numbers.
+
 #### The two return lists got the way in they were missing — Soran, 2026-09-26
 
 *"make purchase-returns and sale-returns like swaps ui page, have statics and have button like Swap faulty item in both"*.

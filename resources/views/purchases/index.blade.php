@@ -16,6 +16,13 @@
 
     <x-archived-notice :count="$archivedCount" />
 
+    {{-- ⚠️ **The same four-figure strip the goods-back lists carry** — Soran,
+         2026-09-26: *"and for sales, purchases"*. The filter row below is
+         richer than theirs (a customer, a status) and stays as it is: the
+         family is about the ORDER of the page and the figures over it, not
+         about every list asking the same questions. --}}
+    <x-doc-stats :tiles="$stats" :filtered="$isFiltered" />
+
     <form method="GET" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
