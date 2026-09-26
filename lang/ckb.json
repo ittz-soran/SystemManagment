@@ -103,6 +103,7 @@
     "Added stock room :name": "‏ژووری کۆگای :name زیادکرا",
     "Added the currency :code": "دراوی :code زیادکرا",
     "Adding a product to the catalogue creates a name and a price. It does not create anything on the shelf. The purchase is what does that, and it is why a brand-new shop cannot sell before it has bought.": "زیادکردنی بەرهەمێک بۆ کاتالۆگ ناوێک و نرخێک دروست دەکات. هیچ شتێک لەسەر ڕەفە دروست ناکات. کڕینەکەیە ئەوە دەکات، و لەبەر ئەوەیە دوکانێکی نوێ ناتوانێت پێش ئەوەی بکڕێت بفرۆشێت.",
+    "Adding the column below comes to :listed, which is more than the shop lost. Some of these lines passed the SAME units of the same older layer — only the first of them could have taken those units, so the figure above counts them once.": "کۆکردنەوەی ستوونی خوارەوە دەگاتە :listed، کە زیاترە لەوەی دوکانەکە لەدەستی داوە. هەندێک لەم دێڕانە بەسەر هەمان یەکەی هەمان چینی کۆنتردا تێپەڕیون — تەنها یەکەمیان دەیتوانی ئەو یەکانە ببات، بۆیە ژمارەی سەرەوە تەنها جارێک دەیانژمێرێت.",
     "Address": "ناونیشان",
     "address": "ناونیشان",
     "Add the database server's bin folder to PATH, or set :setting in .env — forward slashes and no quotes.": "بوخچەی bin ی ڕاژەی بنکەدراوە بخە سەر PATH، یان :setting لە .env دابنێ — بە سلاشی پێشەوە و بێ دووانە.",

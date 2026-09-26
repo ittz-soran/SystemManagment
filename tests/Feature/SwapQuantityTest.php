@@ -19,6 +19,7 @@ use App\Services\PurchaseService;
 use App\Services\SaleService;
 use App\Services\StockAdjustmentService;
 use App\Services\SwapService;
+use App\Support\TradeProfit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -152,6 +153,105 @@ class SwapQuantityTest extends TestCase
         $this->pd->forceFill(['quantity' => 0])->save();
         $this->bazaar->forceFill(['balance' => 0])->save();
         $this->karwan->forceFill(['balance' => 0])->save();
+    }
+
+    /**
+     * ⚠️ **The profit report, not just the shelf** — Soran, 2026-09-26: *"i
+     * fell profit is wrong"*, the day after corrections shipped.
+     *
+     * `TradeProfit` reads the swap's cost off its movements **filtered by
+     * `occurred_at`**. A correction deletes those movements and writes them
+     * again, so the one thing that could quietly wreck a month is the new pair
+     * landing on the day of the correction instead of the day of the swap.
+     * Everything nets out inside one month and nothing shows; across a month
+     * boundary the cost moves to the wrong month, and the two months are wrong
+     * in opposite directions while the year still adds up.
+     *
+     * So the swap here is LAST month and the correction is today.
+     */
+    public function test_correcting_an_old_swap_leaves_the_cost_in_its_own_month(): void
+    {
+        $when = today()->subMonthNoOverflow()->startOfMonth()->addDays(9);
+
+        $this->buy(4, 40_000, 120);
+        $this->buy(10, 44_000, 90);
+
+        $sale = app(SaleService::class)->create(
+            customer: $this->karwan,
+            lines: [['product_id' => $this->pd->id, 'quantity' => 3, 'unit_price' => 60_000]],
+            user: $this->user(), saleDate: $when, amountPaid: 180_000, paymentMethod: 'cash',
+        );
+
+        $swap = app(SwapService::class)->create($sale->items->first(), 1, $this->user(), $when);
+        $this->assertSame($when->toDateString(), $swap->swapped_at->toDateString());
+
+        app(SwapService::class)->update($swap, 2, $this->user());
+
+        $lastMonth = [$when->copy()->startOfMonth(), $when->copy()->endOfMonth()];
+        $thisMonth = [today()->startOfMonth(), today()->endOfDay()];
+
+        // Every swap movement is still dated the day of the swap.
+        $this->assertSame(0, StockMovement::where('reference_type', StockMovement::REF_SWAP)
+            ->whereBetween('occurred_at', $thisMonth)->count(),
+            'correcting an old swap wrote its cost into the month it was corrected in');
+
+        $stock = Product::ofKind(Product::KIND_STOCK);
+
+        $this->assertSame(
+            $swap->fresh()->cost(),
+            $this->swapCostIn($stock, $lastMonth),
+            'the report does not carry the corrected figure',
+        );
+
+        // And nothing at all leaked into this month.
+        $this->assertSame(0, TradeProfit::between($stock, ...$thisMonth)['cost']);
+    }
+
+    /**
+     * What the profit report counts as the swap term, over one window.
+     *
+     * ⚠️ Rebuilt from the movements the report reads, not from the document,
+     * so it can disagree with `Swap::cost()` — which is the whole point.
+     */
+    private function swapCostIn($products, array $window): int
+    {
+        return -(int) StockMovement::query()
+            ->whereIn('product_id', $products->clone()->select('id'))
+            ->where('reference_type', StockMovement::REF_SWAP)
+            ->whereBetween('occurred_at', $window)
+            ->sum(DB::raw(StockMovement::VALUE));
+    }
+
+    /**
+     * ⚠️ **A swap corrected to N earns the same profit as a swap made at N**,
+     * asked of the report rather than of the swap. The document agreeing with
+     * itself proves nothing — that was the mistake the first swap guard in
+     * `AccountingAgreesTest` made, and a sabotage walked through it.
+     */
+    public function test_the_profit_after_a_correction_is_the_profit_of_the_figure_it_was_corrected_to(): void
+    {
+        $this->buy(4, 40_000, 120);
+        $this->buy(20, 44_000, 90);
+        $sale = $this->sell(3);
+
+        $swap = app(SwapService::class)->create($sale->items->first(), 1, $this->user());
+        app(SwapService::class)->update($swap, 3, $this->user());
+
+        $window = [today()->startOfMonth(), today()->endOfDay()];
+        $corrected = TradeProfit::between(Product::ofKind(Product::KIND_STOCK), ...$window);
+
+        // The same shop again, swapped at three from the start.
+        $this->refreshDatabaseForComparison();
+
+        $this->buy(4, 40_000, 120);
+        $this->buy(20, 44_000, 90);
+        $sale = $this->sell(3);
+        app(SwapService::class)->create($sale->items->first(), 3, $this->user());
+
+        $straight = TradeProfit::between(Product::ofKind(Product::KIND_STOCK), ...$window);
+
+        $this->assertSame($straight, $corrected, 'the P&L can tell a corrected swap from a straight one');
+        $this->assertGreaterThan(0, $straight['cost'], 'the fixture must actually cost something');
     }
 
     // ---- Down as well as up -------------------------------------------------

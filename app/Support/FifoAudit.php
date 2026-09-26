@@ -75,16 +75,35 @@ final class FifoAudit
         return $findings->sortByDesc(fn (object $row) => $row->occurred_at->getTimestamp())->values();
     }
 
-    /** What the whole audit comes to, in one line. */
+    /**
+     * What the whole audit comes to, in one line.
+     *
+     * ⚠️ **`difference` is NOT the sum of the column the sheet prints** —
+     * Soran, 2026-09-26, from his own shop. Two sales on the same day both
+     * skipped batch #232, and both rows read *"1 left"*: one unit, offered to
+     * two sales, and its 3,000 counted twice. Every row was true on its own —
+     * each sale really did pass an available older unit — but had the first
+     * taken it, the second would have found the layer empty and taken exactly
+     * what it took. His headline said 6,650 where the truth was 3,650.
+     *
+     * So the money figure comes from `countable`: what following FIFO
+     * throughout would ACTUALLY have charged, replayed as a second ledger that
+     * spends the older layers it reaches for. `listed` is the column's own sum,
+     * kept so the sheet can say when the two differ rather than leaving a
+     * reader to add up the rows and find a third number.
+     */
     public function summary(Collection $findings): array
     {
         return [
             'lines' => $findings->count(),
             'units' => (int) $findings->sum('units'),
 
-            // Positive: the sale was charged MORE than the oldest layer cost,
-            // so the shop's reported profit is lower than it really was.
-            'difference' => (int) $findings->sum('difference'),
+            // Positive: the shop was charged MORE than FIFO would have
+            // charged, so its reported profit is lower than it really was.
+            'difference' => (int) $findings->sum('countable'),
+
+            // The rows added up, which double-counts a shared older layer.
+            'listed' => (int) $findings->sum('difference'),
             'products' => $findings->pluck('product_id')->unique()->count(),
         ];
     }
@@ -139,6 +158,17 @@ final class FifoAudit
         $layer = [];
         $findings = collect();
 
+        /*
+         * ⚠️ **The second ledger: what the layers would hold if FIFO had been
+         * followed all along.** Without it the audit can only ask "was there an
+         * older layer at this moment", and answers yes for every sale that
+         * passed the same last unit — so one unit's difference is charged to
+         * two sales and the headline is double what the shop actually lost.
+         * This one SPENDS what it reaches for, so the counterfactual is a story
+         * that could really have happened.
+         */
+        $ideal = [];
+
         foreach ($timeline as $movement) {
             $batch = (int) $movement->stock_batch_id;
             $quantity = (int) $movement->quantity;
@@ -155,25 +185,91 @@ final class FifoAudit
                 'id' => $batch,
             ];
             $left[$batch] ??= 0;
+            $ideal[$batch] ??= 0;
 
             if ($quantity > 0) {
                 $left[$batch] += $quantity;
+                $ideal[$batch] += $quantity;
 
                 continue;
             }
 
-            if (in_array($movement->reference_type, self::FIFO_OUT, true)) {
-                $older = $this->oldestWithStock($layer, $left, $layer[$batch]);
+            if (! in_array($movement->reference_type, self::FIFO_OUT, true)) {
+                /*
+                 * A supplier return takes the batch that purchase created, by
+                 * name, in both worlds — so it comes off both ledgers and is
+                 * never a finding. Anything else that names its own batch is
+                 * treated the same way.
+                 */
+                $left[$batch] += $quantity;
+                $ideal[$batch] += $quantity;
 
-                if ($older !== null && $this->inWindow($movement, $from, $to)) {
-                    $findings->push($this->finding($movement, $layer[$batch], $older, $left[$older['id']]));
-                }
+                continue;
+            }
+
+            $older = $this->oldestWithStock($layer, $left, $layer[$batch]);
+
+            // What FIFO would have paid for these units, spending the ideal
+            // ledger as it goes. Done for EVERY outbound line, in or out of
+            // the window, or the ledger stops being a true alternative history.
+            $units = abs($quantity);
+            $wouldHaveCost = $this->consumeIdeal($layer, $ideal, $units, (int) $movement->unit_cost);
+            $wasCharged = (int) $movement->unit_cost * $units;
+
+            if ($older !== null && $this->inWindow($movement, $from, $to)) {
+                $findings->push($this->finding(
+                    $movement,
+                    $layer[$batch],
+                    $older,
+                    $left[$older['id']],
+                    $wasCharged - $wouldHaveCost,
+                ));
             }
 
             $left[$batch] += $quantity;
         }
 
         return $findings;
+    }
+
+    /**
+     * Spend `$units` from the ideal ledger, oldest layer first, and say what
+     * that would have cost.
+     *
+     * ⚠️ **It spends even when it agrees with what really happened**, because
+     * a ledger that only moves on the lines the audit complains about is not an
+     * alternative history — it is the same history with holes in it, and the
+     * next finding would read it wrongly.
+     *
+     * If the ideal ledger runs dry — which it can, because a purchase entered
+     * late leaves the two worlds holding different layers — the rest is valued
+     * at what the shop actually paid. A guess there would invent a difference.
+     *
+     * @param  array<int, array<string, mixed>>  $layer
+     * @param  array<int, int>  $ideal
+     */
+    private function consumeIdeal(array $layer, array &$ideal, int $units, int $fallbackCost): int
+    {
+        $cost = 0;
+        $order = collect($layer)->sort(fn ($a, $b) => $this->comesBefore($a, $b) ? -1 : 1);
+
+        foreach ($order as $id => $candidate) {
+            if ($units < 1) {
+                break;
+            }
+
+            $available = min($ideal[$id] ?? 0, $units);
+
+            if ($available < 1) {
+                continue;
+            }
+
+            $cost += $available * (int) $candidate['cost'];
+            $ideal[$id] -= $available;
+            $units -= $available;
+        }
+
+        return $cost + ($units * $fallbackCost);
     }
 
     /**
@@ -225,7 +321,7 @@ final class FifoAudit
      * @param  array<string, mixed>  $took
      * @param  array<string, mixed>  $older
      */
-    private function finding(object $movement, array $took, array $older, int $olderLeft): object
+    private function finding(object $movement, array $took, array $older, int $olderLeft, int $countable): object
     {
         $units = abs((int) $movement->quantity);
 
@@ -245,10 +341,18 @@ final class FifoAudit
             'older_received' => $older['received'],
             'older_left' => $olderLeft,
 
-            // What the wrong layer cost the books. Positive means the sale was
-            // charged more than it should have been, so the profit it reported
-            // is lower than the truth.
+            // What the wrong layer cost the books, this line against that
+            // layer. Positive means the sale was charged more than it should
+            // have been, so the profit it reported is lower than the truth.
+            //
+            // ⚠️ **Do not sum this column.** Two lines can name the same last
+            // unit of the same older layer, and both are right — see summary().
             'difference' => ($took['cost'] - $older['cost']) * $units,
+
+            // The part of that difference the counterfactual actually supports:
+            // what this line cost, less what FIFO would have paid with the
+            // older layers it had genuinely not yet spent. This one sums.
+            'countable' => $countable,
         ];
     }
 }

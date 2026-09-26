@@ -1710,6 +1710,43 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### ⚠️ "i fell profit is wrong" — Soran, 2026-09-26, and the profit was right
+
+He sent four sheets for **2026-09-01 → 2026-09-26** and said the profit felt wrong. It was not. Every figure on every sheet reconciles, and the audit below is written down so the next doubt starts from a checked baseline instead of from nothing.
+
+| | |
+|---|---|
+| Sales | 3,246,750 |
+| Sale returns | −289,000 |
+| **Revenue** | **2,957,750** |
+| Cost of goods sold | −1,824,774 |
+| **Gross profit** | **1,132,976** |
+| Expenses | −95,000 |
+| **Net profit** | **1,037,976** |
+
+What was checked, and agreed to the dinar: the summary sheet, the profit sheet and the reports page tiles print the same four figures; the sales sheet's own foot (41 sales, 3,246,750 / 2,926,750 paid / 320,000 owed / 1,132,976) matches the chain; the three trades sum to revenue, cost and gross; the six categories sum to the same; the product list sums to the same; `Products 104` equals the four stock categories' 64 + 29 + 8 + 3.
+
+**Two things on the sheets that look like faults and are not.**
+
+- **`Car Holder Sikenai XO-65 — sold 1, revenue 0, cost 5,000, profit −5,000`.** On `INV-00026` the line really is `1 pcs × 0`. He gave it away with the sale, and the sheet is telling him a freebie still costs 5,000. ⚠️ Worth keeping exactly as it is: the alternative is a giveaway that costs nothing on paper, which is how a shop loses money it never sees.
+- **`Faulty goods replaced — 0`.** There is no `SWP` anywhere in the period. The line is right, and the swap work of 2026-09-25 is not implicated in anything here.
+
+#### ⚠️ The FIFO audit was double-counting a shared older layer
+
+Found while checking the sheets above, and it is a real fault in a report he reads.
+
+His audit listed four lines and headlined **6,650**. Two of those lines — `INV-00027` and `INV-00036`, same product, same day — each said they should have taken batch **#232**, and each said **"1 left"**. One unit cannot be the layer two sales should both have taken: had the first taken it, the second would have found it empty and taken exactly what it took. Dropping the duplicated 3,000 brings it to **at most 3,650**, and possibly lower — ⚠️ the exact figure cannot be worked out by hand from the sheet, because the second ledger also spends on his *correct* sales, and one of those may already have taken #232's last unit in the FIFO world. The page computes it; arithmetic on the printed rows cannot, which is the whole reason the fault existed.
+
+⚠️ **The cause is that the audit had only one ledger.** `replay()` held what each layer actually had left, and asked at each outbound line "was there an older layer with stock". Every row it produced was true. But the layer it named was never *spent* — nothing in the replay represented the world where FIFO had been followed — so the same last unit was offered to every sale that passed it, and the money total added each one.
+
+**The fix is a second ledger.** `$ideal` starts identical, and every outbound FIFO line consumes from it oldest-first, whether or not that line is a finding. What it would have cost is compared with what was charged, and that difference (`countable`) is what the headline sums.
+
+⚠️ **It spends on the lines that were RIGHT as well**, and that is the part a first attempt gets wrong. A ledger that only moves when the audit complains is not an alternative history, it is the same history with holes in it — still holding units a correct sale had already sold, and so forgiving a later line that really did cost money. A sabotage that skipped the correct lines passed the first version of the test; the fixture now sells one unit correctly before the dates break.
+
+⚠️ **The per-line column is unchanged and still does not add to the headline**, because every row in it is true and dropping rows would hide real findings. So the sheet says it in words when the two differ — *"Adding the column below comes to 6,650, which is more than the shop lost"* — and the table's foot prints the **column's** own sum, so a reader who adds the rows lands on the figure printed under them. Three numbers with a sentence joining them beats two numbers and a reader guessing.
+
+⚠️ **None of this changed his profit.** The FIFO audit reports and alters nothing, by design — so the 1,037,976 above stood before the fix and stands after it. What was wrong was the size of a scar, not the books.
+
 ### ⚠️ "I detect some wrong Accounting" — Soran, 2026-09-25
 
 *"in services total show 290,000, in find show wrong data !!!, in reports show 231,000 service !! that is wrong, i have afraid for all another Accounting that i depend it"*.
