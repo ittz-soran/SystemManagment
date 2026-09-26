@@ -301,6 +301,7 @@
             </button>
         </div>
     </form>
+    <x-leave-guard />
 @endsection
 
 @push('scripts')
@@ -915,6 +916,33 @@
             discount.recurrency();
             paid.recurrency();
             render();
+
+            /*
+             * ⚠️ **Leaving with work in the cart asks first** — Soran,
+             * 2026-09-26. The snapshot is taken AFTER the first render, so what
+             * the screen opened holding is the thing "unchanged" means: on a new
+             * sale that is nothing, so any line trips the guard; on an edit it is
+             * the document's own lines, so only a real change does; and a held
+             * cart restored onto this screen does not, because it is already
+             * saved.
+             *
+             * Quantity and price are in it as well as the product — changing a
+             * number is unsaved work exactly as much as adding a line is.
+             */
+            const snapshot = () => JSON.stringify(
+                cart.map((line) => [line.product_id, line.quantity, line.price])
+            );
+
+            const pristine = snapshot();
+
+            /*
+             * ⚠️ Assigned rather than handed to `appLeaveGuard.watch()`: app.js
+             * is a module and the browser defers it, so this inline script runs
+             * FIRST and `window.appLeaveGuard` does not exist yet. The guard
+             * reads this global when it needs it, so there is no order to get
+             * wrong.
+             */
+            window.appUnsavedWork = () => snapshot() !== pristine;
         })();
     </script>
 @endpush
@@ -987,6 +1015,12 @@
                     });
 
                     if (! response.ok) throw new Error(@json(__('That could not be saved.')));
+
+                    // ⚠️ Holding IS saving it, so the leave guard must let go
+                    // before this navigates — otherwise the one button whose
+                    // whole job is to keep the cart would ask whether the
+                    // shopkeeper minded losing it.
+                    window.appLeaveGuard?.release();
 
                     window.location = @json(route('purchases.create'));
                 } catch (e) {
