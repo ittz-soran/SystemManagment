@@ -2060,6 +2060,33 @@ Both modules shipped without either half of the help, which was noticed and left
 
 **Both directions, one mechanism.** Receivable is customers and sales; payable is suppliers and purchases. Same buckets, same reconciling line.
 
+### ⚠️ A cart is not left by accident — Soran, 2026-09-26
+
+*"when counter or user on page sale/purchase and already added item to cart -> should not go another where or page until complete or show warning message to close or stay"*.
+
+Eight things scanned, the customer waiting, and somebody's thumb finds **Sales history** in the menu. The cart was gone, silently, with nothing asked — and the shop scans it all again with a queue forming.
+
+**The rule: leaving a cart screen with work in it asks first.** Not a lock — a shopkeeper who really means to leave must be able to — but never a silent loss.
+
+⚠️ **The guard is "has it CHANGED", not "has it got lines".** The edit screen *is* the create screen with the document's lines preloaded, so "any lines" would nag on every visit to an invoice somebody only opened to read. A snapshot is taken once the cart has been drawn, and the guard compares against it — so on a new sale any line trips it, on an edit only a real change does, and a **held cart restored** does not (it is already saved). One rule, both screens, and it is the correct one in each.
+
+⚠️ **Quantity and price edits count.** The snapshot holds the product, the quantity and the price of every line, so changing a number is as much unsaved work as adding a line — which it is.
+
+**Two exits, because a browser has two kinds of leaving.**
+
+- **Inside the shop** — the menu, the back link, any link on the page: intercepted, and the shop's own modal asks, in the reader's language. *Stay* is the primary button; *Leave and lose it* is the danger one. The text names the way out the shop already has: **hold the cart** and pick it up later.
+- **Out of the browser** — closing the tab, reloading, typing an address: `beforeunload`, which shows the browser's own wording and cannot be styled. Worth having anyway: it is the only thing that catches a closed tab.
+
+⚠️ **Saving and holding must not trip it.** The guard releases on the guarded form's own `submit`, and the Hold button releases before it navigates. A guard that asks "are you sure?" when the shopkeeper pressed **Save** is worse than no guard, because it trains them to dismiss it without reading.
+
+⚠️ **Links that do not navigate are left alone**: an anchor to `#`, anything opening a new tab, a `data-bs-toggle` that opens a modal, and the number-pad's own buttons. A guard that fires on the keypad would make the cart unusable.
+
+⚠️ **THE TRAP, AND ONLY A BROWSER SHOWED IT.** The first version had each cart page call `window.appLeaveGuard?.watch(...)`. `app.js` is a **module**, so the browser defers it — and a page's own inline `<script>` runs while the document is still parsing, which is *before* that line has executed. `window.appLeaveGuard` did not exist yet, the optional chaining swallowed the call without a murmur, and the guard watched nothing. Every test would have passed; the shop would have had a modal nobody could make appear. So the page **assigns** `window.appUnsavedWork` and the guard looks that global up each time it asks: there is no order left to get wrong.
+
+**What was driven in a browser, because none of it is provable from the markup:** an empty cart navigates freely · one line makes the menu ask · *Stay* keeps the cart and the lines · *Leave and lose it* goes · **Save** completes and never asks · **Hold this cart** holds and never asks · the number pad still opens · and on the **edit** screen an untouched cart is silent while a changed quantity asks.
+
+⚠️ **The feature test holds the wiring, not the behaviour** — the modal is on the page, the predicate is assigned rather than handed over, Hold releases before it navigates, the guard is in the **compiled bundle** (`app.js` being right is not the same as the build being current, the same reason `CartRowTest` reads the compiled stylesheet), and no screen without a cart carries it.
+
 ### Cart behaviour (Purchase and Sale — one shared component)
 
 | | Purchase cart | Sale cart |

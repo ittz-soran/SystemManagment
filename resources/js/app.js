@@ -2539,3 +2539,149 @@ document.addEventListener('DOMContentLoaded', () => {
     [back, out, price].forEach((field) => field.addEventListener('input', redraw));
     redraw();
 });
+
+/**
+ * Leaving a cart screen with work in it asks first — Soran, 2026-09-26:
+ * *"when counter or user on page sale/purchase and already added item to cart
+ * -> should not go another where or page until complete or show warning
+ * message to close or stay"*.
+ *
+ * ⚠️ **Not a lock.** Somebody who means to leave must be able to. What must
+ * never happen is eight scanned lines disappearing because a thumb found the
+ * menu, with a customer standing there and nothing having been asked.
+ *
+ * A page opts in by handing over a predicate:
+ *
+ *     window.appLeaveGuard.watch(() => snapshot() !== pristine);
+ *
+ * ⚠️ **"Has it CHANGED", never "has it got lines".** The edit screen IS the
+ * create screen with a document's lines preloaded, so a lines-based guard would
+ * nag on every invoice somebody opened only to read. The cart pages hand over a
+ * comparison against the state they started in — which on a new sale is empty,
+ * so any line trips it.
+ *
+ * ⚠️ **Saving and holding release it.** A guard that asks "are you sure?" when
+ * the shopkeeper pressed Save is worse than no guard: it teaches them to
+ * dismiss the box without reading it, and then it catches nothing.
+ */
+window.appLeaveGuard = (() => {
+    let released = false;
+
+    /*
+     * ⚠️ **Read at the moment it is needed, never captured at load.** This file
+     * is a module, so the browser defers it — and a cart page's own inline
+     * script runs while the document is still parsing, which is BEFORE this
+     * line has executed. A page calling `appLeaveGuard.watch(...)` therefore
+     * called it on `undefined`, the optional chaining swallowed it, and the
+     * guard silently watched nothing. Found by driving it in a browser; no
+     * amount of reading would have shown it.
+     *
+     * So the page assigns `window.appUnsavedWork` whenever it likes and this
+     * looks the global up each time it asks. There is no order to get wrong.
+     */
+    const dirty = () => ! released
+        && typeof window.appUnsavedWork === 'function'
+        && window.appUnsavedWork();
+
+    return {
+        /** Kept for callers that would rather hand the predicate over. */
+        watch(predicate) {
+            window.appUnsavedWork = predicate;
+            released = false;
+        },
+
+        /** About to leave on purpose — a save, or a cart being held. */
+        release() {
+            released = true;
+        },
+
+        /** For the tests and for anything that needs to ask. */
+        isDirty: dirty,
+    };
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modalEl = document.getElementById('leave-guard');
+
+    if (! modalEl) return;
+
+    const guard = window.appLeaveGuard;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    let pending = null;
+
+    /*
+     * ⚠️ The browser's own dialog, for the kind of leaving a page cannot
+     * intercept: the tab closed, a reload, an address typed over the top. Its
+     * wording belongs to the browser and cannot be styled — worth having
+     * anyway, because nothing else catches a closed tab.
+     */
+    addEventListener('beforeunload', (event) => {
+        if (! guard.isDirty()) return;
+
+        event.preventDefault();
+
+        // Still required by some browsers, ignored by the rest.
+        event.returnValue = '';
+    });
+
+    /*
+     * And inside the shop, where the modal can speak the reader's language.
+     *
+     * ⚠️ Capture phase, so this runs before anything else bound to the link —
+     * and only for a click that would really navigate. A keypad button, an
+     * anchor to `#`, a modal trigger and anything opening a new tab all stay
+     * exactly as they were; a guard that fired on the number pad would make
+     * the cart unusable.
+     */
+    document.addEventListener('click', (event) => {
+        if (! guard.isDirty()) return;
+
+        const link = event.target.closest('a[href]');
+
+        if (! link) return;
+
+        const href = link.getAttribute('href');
+
+        if (
+            ! href
+            || href.startsWith('#')
+            || href.startsWith('javascript:')
+            || link.target === '_blank'
+            || link.hasAttribute('download')
+            || link.dataset.bsToggle
+            || link.dataset.leaveAnyway !== undefined
+        ) {
+            return;
+        }
+
+        // Somewhere else on this same page is not leaving it.
+        const destination = new URL(link.href, location.href);
+
+        if (destination.origin === location.origin
+            && destination.pathname === location.pathname
+            && destination.search === location.search) {
+            return;
+        }
+
+        event.preventDefault();
+        pending = destination.href;
+        modal.show();
+    }, true);
+
+    modalEl.querySelector('[data-leave-anyway]')?.addEventListener('click', () => {
+        guard.release();
+        modal.hide();
+
+        // The one the shopkeeper asked for, now that they have said so twice.
+        if (pending) window.location.href = pending;
+    });
+
+    /*
+     * ⚠️ Any guarded save releases it. `data-guard-submit` is already on every
+     * save form in the shop for the double-click guard, so this needs no second
+     * marker — and a form that saves without it would be the odd one out.
+     */
+    document.querySelectorAll('form').forEach((form) => {
+        form.addEventListener('submit', () => guard.release());
+    });
+});
