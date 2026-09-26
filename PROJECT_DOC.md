@@ -1710,6 +1710,26 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### The two return lists got the way in they were missing — Soran, 2026-09-26
+
+*"make purchase-returns and sale-returns like swaps ui page, have statics and have button like Swap faulty item in both"*.
+
+The figures and the filter row arrived the day before. What was still missing was the **way in**: both return lists had an empty `@section('actions')` while the swaps list carried a primary button, so the two of them read as history you could look at but not add to. Their empty states said *"No returns yet. Start one from a document"* — which names neither the document nor where to find it.
+
+| | button | icon |
+|---|---|---|
+| Sale returns | **Take an item back** | `arrow-return-left` |
+| Purchase returns | **Send an item back** | `arrow-return-right` |
+| Swaps | *Swap a faulty item* (already there) | `arrow-left-right` |
+
+Each icon is the one that list already wears in the menu, and each label is the counter's own sentence for that answer — *"Swap it, take it back from the customer, or send it back to the supplier."*
+
+⚠️ **All three go to the counter, not to a form of their own.** `goods-back` asks the one question for all three documents, and the create pages still answer at their old addresses for anything bookmarked. A second way in would be a second screen to teach, translate and keep true — the reason the old swap screen was removed in the first place.
+
+⚠️ **The empty state offers it too**, and only to somebody who may actually create one: the button is gated on `sale_returns.create` / `purchase_returns.create`, not on the `view` key that got the reader onto the page.
+
+⚠️ **Two of the three tests written for this passed their own sabotages, and the reason is worth keeping.** The menu links to the counter from *every* screen in the shop, so `assertSee(route('goods-back.index'))` is true of a page with no button at all — hiding the button with `d-none` walked straight through it. And asserting the label is "somewhere on the page" cannot tell the heading's button from the empty state's, so emptying the middle of the screen also passed. The tests count **primary anchors to the counter carrying that label**: exactly one on a list with rows, exactly two on an empty one.
+
 #### ⚠️ "i fell profit is wrong" — Soran, 2026-09-26, and the profit was right
 
 He sent four sheets for **2026-09-01 → 2026-09-26** and said the profit felt wrong. It was not. Every figure on every sheet reconciles, and the audit below is written down so the next doubt starts from a checked baseline instead of from nothing.

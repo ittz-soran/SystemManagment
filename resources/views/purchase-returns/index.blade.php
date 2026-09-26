@@ -3,7 +3,25 @@
 @section('title', __('Purchase returns'))
 
 @section('actions')
+    @can('purchase_returns.create')
+        <a href="{{ route('goods-back.index') }}" class="btn btn-primary">
+            <i class="bi bi-arrow-return-right me-1"></i>{{ __('Send an item back') }}
+        </a>
+    @endcan
 @endsection
+
+{{--
+    ⚠️ **The same three parts the swaps list has** — Soran, 2026-09-26: *"have
+    statics and have button like Swap faulty item in both"*. The figures and the
+    filter arrived the day before; what was still missing was the way IN. This
+    page had an empty `actions` section and an empty state that told the reader
+    to "start one from a document" without saying which document or where.
+
+    ⚠️ **It goes to the counter, not to a form of its own.** One screen asks the
+    one question for all three documents — find the item, then it offers only
+    what can really be done with it — so a second way in would be a second
+    screen to teach and to keep true.
+--}}
 
 @section('content')
     <x-lens-note :lens="$lens" />
@@ -16,7 +34,12 @@
 
     @if($returns->isEmpty())
         <div class="card">
-            <x-empty-state icon="arrow-return-left" :message="__('No returns yet. Start one from a document.')" />
+            <x-empty-state icon="arrow-return-right"
+                           :message="$isFiltered
+                               ? __('No returns match that. Clear the filter to see them all.')
+                               : __('No returns yet. When something goes back to the supplier who sold it, it is recorded here.')"
+                           :action="auth()->user()->hasPermission('purchase_returns.create') ? route('goods-back.index') : null"
+                           :actionLabel="__('Send an item back')" />
         </div>
     @else
         <div class="card">
