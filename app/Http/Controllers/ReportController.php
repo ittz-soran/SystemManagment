@@ -14,6 +14,7 @@ use App\Models\Repair;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Models\StockAdjustment;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
@@ -792,17 +793,42 @@ class ReportController extends Controller
         ];
     }
 
-    /** Ranked by units actually sold, net of what came back. */
+    /**
+     * Ranked by units actually sold, net of what came back in the same period.
+     *
+     * ⚠️ **On the same clock as every other figure on this sheet** — Soran,
+     * 2026-09-26. It used to subtract `quantity_returned`, which carries no
+     * date, so a product sold this month and returned next month was already
+     * discounted here while section 4 of the profit sheet still counted it.
+     * Two lists of the same ten products, ranked differently, with nothing on
+     * either saying why.
+     */
     private function topProducts(Carbon $from, Carbon $to)
     {
+        $back = SaleReturnItem::query()
+            ->whereHas('saleReturn', fn ($q) => $q->whereBetween('return_date', [$from, $to]))
+            ->groupBy('product_id')
+            ->selectRaw('product_id')
+            ->selectRaw('SUM(quantity) as units')
+            ->selectRaw('SUM(quantity * unit_price) as revenue')
+            ->get()
+            ->keyBy('product_id');
+
         $sold = SaleItem::query()
             ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
-            ->selectRaw('product_id, SUM(quantity - quantity_returned) as units, SUM((quantity - quantity_returned) * unit_price) as revenue')
+            ->selectRaw('product_id, SUM(quantity) as units, SUM(quantity * unit_price) as revenue')
             ->groupBy('product_id')
-            ->havingRaw('SUM(quantity - quantity_returned) > 0')
-            ->orderByDesc('units')
-            ->limit(10)
-            ->get();
+            ->get()
+            ->map(function ($row) use ($back) {
+                $row->units = (int) $row->units - (int) ($back[$row->product_id]->units ?? 0);
+                $row->revenue = (int) $row->revenue - (int) ($back[$row->product_id]->revenue ?? 0);
+
+                return $row;
+            })
+            ->filter(fn ($row) => $row->units > 0)
+            ->sortByDesc('units')
+            ->take(10)
+            ->values();
 
         $products = Product::whereIn('id', $sold->pluck('product_id'))->get()->keyBy('id');
 

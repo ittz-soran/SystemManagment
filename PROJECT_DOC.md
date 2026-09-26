@@ -1731,6 +1731,52 @@ What was checked, and agreed to the dinar: the summary sheet, the profit sheet a
 - **`Car Holder Sikenai XO-65 — sold 1, revenue 0, cost 5,000, profit −5,000`.** On `INV-00026` the line really is `1 pcs × 0`. He gave it away with the sale, and the sheet is telling him a freebie still costs 5,000. ⚠️ Worth keeping exactly as it is: the alternative is a giveaway that costs nothing on paper, which is how a shop loses money it never sees.
 - **`Faulty goods replaced — 0`.** There is no `SWP` anywhere in the period. The line is right, and the swap work of 2026-09-25 is not implicated in anything here.
 
+#### ⚠️ The shop had two clocks, and three reports were reading both at once — Soran, 2026-09-26
+
+*"before push i let you my fell, 24/9 to 24/9 and 25/9 to 25/9 and both"*. He read one shop three ways. **The two days added up. Neither day agreed with itself.** He was right, and this is the most serious accounting fault found so far — more serious than the one that started the week, because nothing disagreed at the level anybody normally looks.
+
+**There are two legitimate clocks, and both are worth having.**
+
+- **The period clock** asks *what happened between these dates*. A sale on the 24th is the 24th's revenue; its return on the 25th is the 25th's refund. `ReportController::profit()` — the chain in section 1 and the four tiles on the reports page — has always been on this clock, on both sides of the subtraction.
+- **The cohort clock** asks *how did the sales made between these dates turn out*. The return comes off the 24th whenever it was written. The sales report is on this clock and says so in its own subtitle.
+
+⚠️ **`TradeProfit` was on neither.** Its revenue subtracted `sale_items.quantity_returned` — **a current-state column with no date on it** — while its cost subtracted only the return movements whose `occurred_at` fell inside the window. One half of the subtraction landed and the other did not. On his 24th that produced revenue already net of a refund that had not happened yet, against a cost that had not been credited: a figure belonging to no clock at all.
+
+His 24th, three ways: the tiles said **24,800**, the sales report said **14,300**, and sections 2–5 of the profit sheet would have said **1,800** — a sheet contradicting its own headline three lines down.
+
+⚠️ **It hid because every total was right.** The two days still summed to the two days together; the month still summed to the month. Only a window with a sale on one side and its return on the other was wrong, and then only when read alone. **Every figure ever checked here had been checked over a window holding both documents** — including the whole-September audit done the same morning, which is why that one came back clean and was clean.
+
+**Four places carried it**, not one:
+
+| | what it feeds | what it did |
+|---|---|---|
+| `TradeProfit::between()` | section 2, the services and second-hand pages | revenue undated, cost dated |
+| `ProfitBreakdown::byProduct()` | sections 3 and 4 | same |
+| `ProfitBreakdown::lines()` | section 5 | same, per line |
+| `DailyTotals::forProduct()` | a product's own chart | same — and there it bent the **shape of the week**, not a total: a unit sold Monday and returned Friday vanished from Monday's bar, so a busy Monday read quiet |
+
+All four are on the **period clock** now: returns subtracted by the **return document's own date**, matching what section 1 has always done.
+
+⚠️ **Section 5 gained rows it did not have.** A refund against a sale from before the window has no line in "every line sold in the period" — so the deepest level stopped adding up to the top, which is the one thing that sheet promises. Those refunds now appear as their own rows, marked *"returned this period, sold before it"*, because an invoice dated before the sheet with no explanation reads as a fault.
+
+⚠️ **Two report feet were mislabelled and are fixed with it.** The sales and purchases sheets footed their returns as *"Returned in this period"* while showing everything returned against those documents **since** — so his 24th showed 23,000 "returned in this period" for a return written on the 25th. They say *"Returned against them since"* now, which is what the subtitle above them already promised.
+
+⚠️ **`topProducts` on the summary is on the same clock too.** It is a ranking rather than a reconciled total, so it was not wrong in the same way — but two lists of the same ten products ranked on two different clocks, with nothing saying why, is how this whole week started.
+
+⚠️ **And one figure on the same page was arithmetic on a loss.** Section 4's *Share* column divided by `max(1, total profit)`. A day holding nothing but a refund has a negative total, so it divided by 1 and printed **−1,050,000%**. A share of a loss is not a share: the column prints `—` when the period did not make a profit to take a share of. It was found by looking at the fixed page rather than by a test, which is the argument for always opening the thing.
+
+**The two clocks still differ on purpose, and that is not a bug.** The sales report and the profit report can print different profit for one day, because they answer different questions. Over any window holding both a sale and its return they agree exactly.
+
+**His own two days, before and after:**
+
+| | tiles (always right) | sections 2–5, before | sections 2–5, after |
+|---|---|---|---|
+| 24/9 alone | 54,000 · 29,200 · **24,800** | 31,000 · 29,200 · **1,800** | 54,000 · 29,200 · **24,800** |
+| 25/9 alone | 32,000 · 5,500 · **26,500** | — | 32,000 · 5,500 · **26,500** |
+| both | 86,000 · 34,700 · **51,300** | 86,000 · 34,700 · **51,300** | unchanged |
+
+Reproduced in the container on his exact shape before anything was changed: **1,800 against a headline of 24,800, on the same sheet.**
+
 #### ⚠️ The FIFO audit was double-counting a shared older layer
 
 Found while checking the sheets above, and it is a real fault in a report he reads.

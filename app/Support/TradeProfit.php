@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\SaleItem;
+use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,13 @@ use Illuminate\Support\Facades\DB;
  * given back nets to nothing rather than leaving a profit behind. A service
  * consumes no movements, so its whole price falls through as profit without
  * anything here having to know it is special.
+ *
+ * ⚠️ **This is the PERIOD clock: a document belongs to the day it was written.**
+ * A sale on the 24th is the 24th's revenue; its return on the 25th is the 25th's
+ * refund. The sales report answers the other question — *how did the sales made
+ * in this period turn out* — and pulls the return back onto the sale's own day,
+ * which is why the two can print different profit for one day and both be
+ * right. Over a window holding both documents they always agree.
  */
 final class TradeProfit
 {
@@ -35,12 +43,42 @@ final class TradeProfit
         // passing Product::used() means "these products", not "these rows".
         $ids = fn () => $products->clone()->select('id');
 
+        /*
+         * ⚠️ **BOTH SIDES ARE DATED, AND THE DATE IS THE DOCUMENT'S OWN** —
+         * Soran, 2026-09-26: *"24/9 to 24/9 and 25/9 to 25/9 and both"*.
+         *
+         * This used to read `quantity - quantity_returned` off the sale line.
+         * That column is the CURRENT state and knows no dates, so a sale on the
+         * 24th whose return came on the 25th had its revenue taken away on the
+         * 24th — while the matching cost, which IS filtered by `occurred_at`
+         * below, stayed. One half of the subtraction landed and the other did
+         * not, and the day reported a loss on an afternoon the shop earned
+         * 13,500.
+         *
+         * ⚠️ **It hid because the totals were right.** The two days still added
+         * up to the two days together, and the month still added up to the
+         * month; only a window with a sale on one side and its return on the
+         * other was wrong, and then only when read on its own. Every figure
+         * checked before this was checked over a window holding both.
+         *
+         * So the return is subtracted by ITS date, the way
+         * `ReportController::profit()` has always done it — sales in the window
+         * less returns in the window — and the sheet's sections can no longer
+         * disagree with the headline above them.
+         */
         $lines = SaleItem::query()
             ->whereIn('product_id', $ids())
             ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]));
 
-        $units = (int) $lines->clone()->sum(DB::raw('quantity - quantity_returned'));
-        $revenue = (int) $lines->clone()->sum(DB::raw('(quantity - quantity_returned) * unit_price'));
+        $returned = SaleReturnItem::query()
+            ->whereIn('product_id', $ids())
+            ->whereHas('saleReturn', fn ($q) => $q->whereBetween('return_date', [$from, $to]));
+
+        $units = (int) $lines->clone()->sum('quantity')
+            - (int) $returned->clone()->sum('quantity');
+
+        $revenue = (int) $lines->clone()->sum(DB::raw('quantity * unit_price'))
+            - (int) $returned->clone()->sum(DB::raw('quantity * unit_price'));
 
         $moved = fn (string $reference, string $sign) => (int) StockMovement::query()
             ->whereIn('product_id', $ids())

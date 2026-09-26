@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Product;
 use App\Models\SaleItem;
+use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -37,40 +38,67 @@ final class ProfitBreakdown
      */
     public function byProduct(Carbon $from, Carbon $to): Collection
     {
-        $revenue = SaleItem::query()
+        /*
+         * ⚠️ **A return belongs to the day IT was written, not to the day the
+         * sale was** — Soran, 2026-09-26. This read `quantity - quantity_returned`
+         * off the sale line, and that column is the current state with no date
+         * on it: a sale on the 24th returned on the 25th had its money taken
+         * away on the 24th, while `costPerProduct()` below — which has always
+         * filtered by `occurred_at` — left the cost there. Half the subtraction
+         * landed. The period's own total stayed right, so it only showed when a
+         * single day was read on its own.
+         */
+        $sold = SaleItem::query()
             ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
             ->groupBy('product_id')
             ->selectRaw('product_id')
-            ->selectRaw('SUM(quantity - quantity_returned) as units')
-            ->selectRaw('SUM((quantity - quantity_returned) * unit_price) as revenue')
+            ->selectRaw('SUM(quantity) as units')
+            ->selectRaw('SUM(quantity * unit_price) as revenue')
+            ->get()
+            ->keyBy('product_id');
+
+        $back = SaleReturnItem::query()
+            ->whereHas('saleReturn', fn ($q) => $q->whereBetween('return_date', [$from, $to]))
+            ->groupBy('product_id')
+            ->selectRaw('product_id')
+            ->selectRaw('SUM(quantity) as units')
+            ->selectRaw('SUM(quantity * unit_price) as revenue')
             ->get()
             ->keyBy('product_id');
 
         $cost = $this->costPerProduct($from, $to);
 
+        /*
+         * ⚠️ Keyed off BOTH, because a product can appear in a period through a
+         * refund alone — sold last week, brought back today. Left out, the
+         * product rows no longer add up to the headline that already counts it.
+         */
+        $ids = $sold->keys()->merge($back->keys())->merge($cost->keys())->unique();
+
         $products = Product::with('category')
-            ->whereIn('id', $revenue->keys())
+            ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
 
-        return $revenue
-            ->map(function ($row) use ($products, $cost) {
-                $product = $products[$row->product_id] ?? null;
+        return $ids
+            ->map(function ($id) use ($products, $cost, $sold, $back) {
+                $product = $products[$id] ?? null;
 
                 if ($product === null) {
                     return null;
                 }
 
-                $earned = (int) $row->revenue;
-                $spent = (int) ($cost[$row->product_id] ?? 0);
+                $earned = (int) ($sold[$id]->revenue ?? 0) - (int) ($back[$id]->revenue ?? 0);
+                $spent = (int) ($cost[$id] ?? 0);
+                $units = (int) ($sold[$id]->units ?? 0) - (int) ($back[$id]->units ?? 0);
 
                 return (object) [
-                    'product_id' => (int) $row->product_id,
+                    'product_id' => (int) $id,
                     'name' => $product->name,
                     'sku' => (string) $product->sku,
                     'kind' => $product->kind,
                     'category' => $product->category?->name,
-                    'units' => (int) $row->units,
+                    'units' => $units,
                     'revenue' => $earned,
                     'cost' => $spent,
                     'profit' => $earned - $spent,
@@ -193,25 +221,67 @@ final class ProfitBreakdown
         $cost = collect($out->keys())->merge($back->keys())->unique()
             ->mapWithKeys(fn ($id) => [(int) $id => (int) ($out[$id] ?? 0) - (int) ($back[$id] ?? 0)]);
 
-        return SaleItem::with('sale.customer', 'product')
-            ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
+        /*
+         * ⚠️ **What came back INSIDE the window, keyed to the line it came off**
+         * — Soran, 2026-09-26. The old version took `quantity_returned` off the
+         * sale line, which is the current state and carries no date, so a line
+         * sold on the 24th and returned on the 25th read as returned on the
+         * 24th too — while the cost above, filtered by `occurred_at`, did not.
+         */
+        $refunded = SaleReturnItem::query()
+            ->whereHas('saleReturn', fn ($q) => $q->whereBetween('return_date', [$from, $to]))
+            ->groupBy('sale_item_id')
+            ->selectRaw('sale_item_id')
+            ->selectRaw('SUM(quantity) as units')
+            ->selectRaw('SUM(quantity * unit_price) as revenue')
             ->get()
-            ->map(function (SaleItem $line) use ($cost) {
-                $sold = $line->quantity - $line->quantity_returned;
-                $revenue = $sold * (int) $line->unit_price;
+            ->keyBy('sale_item_id');
+
+        $sold = SaleItem::with('sale.customer', 'product')
+            ->whereHas('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
+            ->get();
+
+        /*
+         * ⚠️ **And the refunds whose SALE is not in this window at all.** Sold
+         * last week, brought back today: the money and the cost are this
+         * period's, and there is no line here to hang them on. Left out, this
+         * section stops adding up to the headline above it — which is the one
+         * thing the sheet promises. They come in as their own rows, and the
+         * view marks them so a reader is not left wondering why an invoice from
+         * before the period is on the page.
+         */
+        $orphans = SaleItem::with('sale.customer', 'product')
+            ->whereIn('id', $refunded->keys())
+            ->whereDoesntHave('sale', fn ($q) => $q->whereBetween('sale_date', [$from, $to]))
+            ->get();
+
+        return $sold->merge($orphans)
+            ->map(function (SaleItem $line) use ($cost, $refunded, $from, $to) {
+                $inWindow = $line->sale->sale_date->betweenIncluded($from, $to);
+
+                $units = ($inWindow ? (int) $line->quantity : 0)
+                    - (int) ($refunded[$line->id]->units ?? 0);
+
+                $revenue = ($inWindow ? (int) $line->quantity * (int) $line->unit_price : 0)
+                    - (int) ($refunded[$line->id]->revenue ?? 0);
+
                 $spent = (int) ($cost[$line->id] ?? 0);
 
                 return (object) [
                     'sale' => $line->sale,
                     'product' => $line->product,
-                    'units' => $sold,
+                    'units' => $units,
                     'unit_price' => (int) $line->unit_price,
                     'revenue' => $revenue,
                     'cost' => $spent,
                     'profit' => $revenue - $spent,
+
+                    // The view says so on the row rather than leaving an
+                    // invoice from before the period looking like a mistake.
+                    'refund_only' => ! $inWindow,
                 ];
             })
-            ->filter(fn (object $row) => $row->units !== 0 || $row->revenue !== 0)
+            ->filter(fn (object $row) => $row->units !== 0 || $row->revenue !== 0 || $row->cost !== 0)
             ->sortBy([
                 fn (object $a, object $b) => $a->sale->sale_date <=> $b->sale->sale_date,
                 fn (object $a, object $b) => $a->sale->id <=> $b->sale->id,
