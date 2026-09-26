@@ -131,6 +131,143 @@ class FifoAuditTest extends TestCase
     }
 
     /**
+     * ⚠️ **Soran's own sheet, 2026-09-26: the same single unit offered to two
+     * sales.** His audit listed INV-00027 and INV-00036 — same product, same
+     * day — each as having skipped batch #232, and each said *"1 left"*. One
+     * unit cannot be the layer two sales should both have taken: had the first
+     * one taken it, the second would have found the layer empty and taken
+     * exactly what it did take.
+     *
+     * The per-line rows are each true — both sales really did pass an
+     * available older unit — but the money total added both differences and
+     * told him his profit was overstated by twice what it was. A headline
+     * figure on an audit is the one number a shopkeeper acts on, so it has to
+     * be the honest one: what following FIFO throughout would actually have
+     * cost.
+     */
+    public function test_two_sales_skipping_one_unit_are_not_counted_twice(): void
+    {
+        // One unit in the old cheap layer, plenty in the new dear one.
+        $this->buy(1, 11_000, 20);
+        $this->buy(10, 12_000, 10);
+
+        $old = StockBatch::where('unit_cost', 11_000)->firstOrFail();
+        $new = StockBatch::where('unit_cost', 12_000)->firstOrFail();
+        $wasReceived = $old->received_at;
+
+        $old->forceFill(['received_at' => $new->received_at->copy()->addHour()])->save();
+
+        $this->sell(1);
+        $this->sell(1);
+
+        $old->forceFill(['received_at' => $wasReceived])->save();
+
+        $audit = new FifoAudit;
+        $findings = $audit->findings();
+
+        // Both lines are listed, because both statements are true.
+        $this->assertCount(2, $findings, 'both sales did pass an available older unit');
+
+        // ⚠️ But the shop was only ever one unit's difference worse off. The
+        // old layer held ONE unit at 1,000 less — that is the whole of it.
+        $this->assertSame(
+            1_000,
+            $audit->summary($findings)['difference'],
+            'the same unit was counted against two sales, doubling the headline',
+        );
+    }
+
+    /**
+     * ⚠️ **The alternative history has to run on the lines that were RIGHT
+     * too.** A sale that correctly took the oldest layer spends that layer in
+     * both worlds — and a ledger that only moves when the audit complains is
+     * not an alternative history, it is the same history with holes in it. It
+     * would still be holding units a correct sale had already sold, and would
+     * then forgive a later line that really did cost the shop money.
+     */
+    public function test_the_ideal_ledger_spends_on_correct_sales_as_well(): void
+    {
+        $this->buy(2, 11_000, 20);
+        $this->buy(10, 12_000, 10);
+
+        $old = StockBatch::where('unit_cost', 11_000)->firstOrFail();
+        $new = StockBatch::where('unit_cost', 12_000)->firstOrFail();
+        $wasReceived = $old->received_at;
+
+        // One sale while everything is in order: it takes the old layer, and
+        // so would FIFO. One of the two cheap units is gone in both worlds.
+        $this->sell(1);
+
+        // Then the dates break and two more sales pass the one unit left.
+        $old->forceFill(['received_at' => $new->received_at->copy()->addHour()])->save();
+        $this->sell(1);
+        $this->sell(1);
+        $old->forceFill(['received_at' => $wasReceived])->save();
+
+        $audit = new FifoAudit;
+        $findings = $audit->findings();
+
+        $this->assertCount(2, $findings, 'the correct sale is not a finding');
+
+        // One cheap unit was left to skip, so one unit's 1,000 is the whole
+        // loss — not two, and not three.
+        $this->assertSame(1_000, $audit->summary($findings)['difference']);
+        $this->assertSame(2_000, $audit->summary($findings)['listed'], 'the column still adds to two');
+    }
+
+    /** And the sheet says so, rather than leaving him to add the column. */
+    public function test_the_sheet_says_why_the_column_does_not_add_to_the_headline(): void
+    {
+        $this->buy(1, 11_000, 20);
+        $this->buy(10, 12_000, 10);
+
+        $old = StockBatch::where('unit_cost', 11_000)->firstOrFail();
+        $new = StockBatch::where('unit_cost', 12_000)->firstOrFail();
+        $wasReceived = $old->received_at;
+
+        $old->forceFill(['received_at' => $new->received_at->copy()->addHour()])->save();
+        $this->sell(1);
+        $this->sell(1);
+        $old->forceFill(['received_at' => $wasReceived])->save();
+
+        $page = $this->actingAs($this->user())->get(route('reports.fifo'))->assertOk();
+
+        $page->assertSee(__('Adding the column below comes to :listed, which is more than the shop lost. Some of these lines passed the SAME units of the same older layer — only the first of them could have taken those units, so the figure above counts them once.', [
+            'listed' => money(2_000, false),
+        ]));
+
+        // ⚠️ And the table's own foot prints the COLUMN's sum, not the
+        // headline — a reader who adds the rows up must land on the figure
+        // printed under them, or the sheet has three numbers and no story.
+        // Read out of the tfoot itself: both figures appear on this page, so
+        // `assertSee` on either one proves nothing about where it is.
+        $this->assertMatchesRegularExpression(
+            '/<tfoot>.*?'.preg_quote(money(2_000, false), '/').'.*?<\/tfoot>/s',
+            $page->getContent(),
+            'the table foot does not add up to its own column',
+        );
+    }
+
+    /** ⚠️ And says nothing when there is nothing to explain. */
+    public function test_an_ordinary_finding_gets_no_extra_sentence(): void
+    {
+        $this->buy(5, 11_000, 20);
+        $this->buy(5, 12_000, 10);
+
+        $old = StockBatch::where('unit_cost', 11_000)->firstOrFail();
+        $new = StockBatch::where('unit_cost', 12_000)->firstOrFail();
+        $wasReceived = $old->received_at;
+
+        $old->forceFill(['received_at' => $new->received_at->copy()->addHour()])->save();
+        $this->sell(2);
+        $old->forceFill(['received_at' => $wasReceived])->save();
+
+        $this->actingAs($this->user())->get(route('reports.fifo'))
+            ->assertOk()
+            ->assertDontSee('which is more than the shop lost', false);
+    }
+
+    /**
      * ⚠️ **A purchase return is not a FIFO fault and must never be reported.**
      * It deducts from the batch that purchase created, by name and on purpose
      * — those goods go back to that supplier, not the oldest ones the shop

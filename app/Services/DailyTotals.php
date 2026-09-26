@@ -10,6 +10,7 @@ use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
 use App\Support\CalendarNames;
 use Illuminate\Support\Carbon;
@@ -234,8 +235,27 @@ class DailyTotals
             ->whereBetween('sales.sale_date', [$from, $to])
             ->groupBy('sales.sale_date')
             ->selectRaw('sales.sale_date as day')
-            ->selectRaw('SUM(sale_items.quantity - sale_items.quantity_returned) as units')
-            ->selectRaw('SUM((sale_items.quantity - sale_items.quantity_returned) * sale_items.unit_price) as revenue')
+            ->selectRaw('SUM(sale_items.quantity) as units')
+            ->selectRaw('SUM(sale_items.quantity * sale_items.unit_price) as revenue')
+            ->get();
+
+        /*
+         * ⚠️ **A return comes off the day it was brought back** — Soran,
+         * 2026-09-26. This used to subtract `quantity_returned`, which is the
+         * line's current state and carries no date: a unit sold on Monday and
+         * returned on Friday vanished from Monday's bar, so the chart showed a
+         * quiet Monday that had in fact been busy, and a Friday that looked
+         * ordinary. The shape of the week was wrong even though the week's
+         * total was right.
+         */
+        $backRows = SaleReturnItem::query()
+            ->join('sale_returns', 'sale_returns.id', '=', 'sale_return_items.sale_return_id')
+            ->where('sale_return_items.product_id', $product->id)
+            ->whereBetween('sale_returns.return_date', [$from, $to])
+            ->groupBy('sale_returns.return_date')
+            ->selectRaw('sale_returns.return_date as day')
+            ->selectRaw('SUM(sale_return_items.quantity) as units')
+            ->selectRaw('SUM(sale_return_items.quantity * sale_return_items.unit_price) as revenue')
             ->get();
 
         $units = [];
@@ -245,6 +265,12 @@ class DailyTotals
             $day = $this->dayOf($row->day);
             $units[$day] = ($units[$day] ?? 0) + (int) $row->units;
             $revenue[$day] = ($revenue[$day] ?? 0) + (int) $row->revenue;
+        }
+
+        foreach ($backRows as $row) {
+            $day = $this->dayOf($row->day);
+            $units[$day] = ($units[$day] ?? 0) - (int) $row->units;
+            $revenue[$day] = ($revenue[$day] ?? 0) - (int) $row->revenue;
         }
 
         $perDay = ['units' => [], 'revenue' => []];

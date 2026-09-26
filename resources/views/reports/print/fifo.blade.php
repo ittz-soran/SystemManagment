@@ -62,6 +62,22 @@
                 </tr>
                 </tbody>
             </table>
+
+            {{-- ⚠️ **Said out loud when the column does not add to the
+                 headline** — Soran, 2026-09-26. Two of his lines named the same
+                 last unit of the same older layer and both were charged its
+                 3,000, so the sheet told him 6,650 where the truth was 3,650.
+                 The rows are each true and stay; the total is the honest one;
+                 and the reader is told why adding the column gives a third
+                 number rather than being left to wonder which to believe. --}}
+            @if($summary['listed'] !== $summary['difference'])
+                <p class="small mb-2">
+                    {{ __('Adding the column below comes to :listed, which is more than the shop lost. Some of these lines passed the SAME units of the same older layer — only the first of them could have taken those units, so the figure above counts them once.', [
+                        'listed' => money(abs($summary['listed']), false),
+                    ]) }}
+                </p>
+            @endif
+
             <p class="small mb-0">
                 {{ __('Nothing has been changed. Re-costing a sale that has already been reported would move profit between months that have been read and perhaps closed; in this shop a correction is always a new forward document, never an edit to what happened.') }}
             </p>
@@ -115,7 +131,10 @@
                 <td colspan="3">{{ __('Together') }}</td>
                 <td class="money">{{ number_format($summary['units']) }}</td>
                 <td colspan="2"></td>
-                <td class="money">{{ money($summary['difference'], false) }}</td>
+                {{-- ⚠️ The COLUMN's own sum, which is what a reader adding the
+                     rows will get. The headline above is the honest figure, and
+                     the note up there explains the gap when there is one. --}}
+                <td class="money">{{ money($summary['listed'], false) }}</td>
             </tr>
             </tfoot>
         </table>

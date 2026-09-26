@@ -92,7 +92,15 @@
             </tr>
             @if($totals['returned'] > 0)
                 <tr>
-                    <td colspan="6">{{ __('Returned in this period') }}</td>
+                    {{-- ⚠️ **Not "in this period"** — Soran, 2026-09-26. This
+                         sheet lists the documents WRITTEN in the period and
+                         shows everything returned against them since, which is
+                         what its own subtitle promises. On a single day that
+                         pulls a return from a later day onto this total, and
+                         the old label said the opposite: he read 23,000
+                         "returned in this period" on a day whose return was
+                         written the day after. --}}
+                    <td colspan="6">{{ __('Returned against them since') }}</td>
                     <td class="money">− {{ money($totals['returned'], false) }}</td>
                 </tr>
             @endif

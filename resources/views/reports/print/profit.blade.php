@@ -126,7 +126,13 @@
         </tr>
         </thead>
         <tbody>
-        @php $totalProfit = max(1, (int) $byProduct->sum('profit')); @endphp
+        {{-- ⚠️ **A share of a loss is not a share** — Soran, 2026-09-26. This
+             was `max(1, …)`, so a period whose profit came out negative — a day
+             holding nothing but a refund does exactly that — divided by 1 and
+             printed "-1050000%". The figure it is a share OF has to be a
+             profit, or there is nothing to take a share of and the column says
+             so. --}}
+        @php $totalProfit = (int) $byProduct->sum('profit'); @endphp
         @foreach($byProduct as $row)
             <tr>
                 <td>
@@ -140,7 +146,9 @@
                 <td class="money fw-semibold">{{ money($row->profit, false) }}</td>
                 <td class="money">{{ $row->margin }}%</td>
                 {{-- How much of the month this one product carried. --}}
-                <td class="money">{{ (int) round($row->profit / $totalProfit * 100) }}%</td>
+                <td class="money">
+                    {{ $totalProfit > 0 ? (int) round($row->profit / $totalProfit * 100).'%' : '—' }}
+                </td>
             </tr>
         @endforeach
         </tbody>
@@ -185,7 +193,18 @@
                     <td dir="ltr">{{ $line->sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</td>
                     <td class="app-code">{{ $line->sale->document_no }}</td>
                     <td>{{ $line->sale->customer?->displayName() }}</td>
-                    <td>{{ $line->product?->name }}</td>
+                    <td>
+                        {{ $line->product?->name }}
+                        {{-- ⚠️ Sold before this period and brought back inside
+                             it. The money and the cost are this period's, so
+                             the row has to be here for the section to add up —
+                             but its date is older than the sheet, and an
+                             invoice from before the period with no explanation
+                             reads as a fault. --}}
+                        @if($line->refund_only ?? false)
+                            <div class="small">{{ __('returned this period, sold before it') }}</div>
+                        @endif
+                    </td>
                     <td class="money">{{ number_format($line->units) }}</td>
                     <td class="money">{{ money($line->unit_price, false) }}</td>
                     <td class="money">{{ money($line->revenue, false) }}</td>

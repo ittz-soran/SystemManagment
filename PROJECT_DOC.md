@@ -1710,6 +1710,89 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### ⚠️ "i fell profit is wrong" — Soran, 2026-09-26, and the profit was right
+
+He sent four sheets for **2026-09-01 → 2026-09-26** and said the profit felt wrong. It was not. Every figure on every sheet reconciles, and the audit below is written down so the next doubt starts from a checked baseline instead of from nothing.
+
+| | |
+|---|---|
+| Sales | 3,246,750 |
+| Sale returns | −289,000 |
+| **Revenue** | **2,957,750** |
+| Cost of goods sold | −1,824,774 |
+| **Gross profit** | **1,132,976** |
+| Expenses | −95,000 |
+| **Net profit** | **1,037,976** |
+
+What was checked, and agreed to the dinar: the summary sheet, the profit sheet and the reports page tiles print the same four figures; the sales sheet's own foot (41 sales, 3,246,750 / 2,926,750 paid / 320,000 owed / 1,132,976) matches the chain; the three trades sum to revenue, cost and gross; the six categories sum to the same; the product list sums to the same; `Products 104` equals the four stock categories' 64 + 29 + 8 + 3.
+
+**Two things on the sheets that look like faults and are not.**
+
+- **`Car Holder Sikenai XO-65 — sold 1, revenue 0, cost 5,000, profit −5,000`.** On `INV-00026` the line really is `1 pcs × 0`. He gave it away with the sale, and the sheet is telling him a freebie still costs 5,000. ⚠️ Worth keeping exactly as it is: the alternative is a giveaway that costs nothing on paper, which is how a shop loses money it never sees.
+- **`Faulty goods replaced — 0`.** There is no `SWP` anywhere in the period. The line is right, and the swap work of 2026-09-25 is not implicated in anything here.
+
+#### ⚠️ The shop had two clocks, and three reports were reading both at once — Soran, 2026-09-26
+
+*"before push i let you my fell, 24/9 to 24/9 and 25/9 to 25/9 and both"*. He read one shop three ways. **The two days added up. Neither day agreed with itself.** He was right, and this is the most serious accounting fault found so far — more serious than the one that started the week, because nothing disagreed at the level anybody normally looks.
+
+**There are two legitimate clocks, and both are worth having.**
+
+- **The period clock** asks *what happened between these dates*. A sale on the 24th is the 24th's revenue; its return on the 25th is the 25th's refund. `ReportController::profit()` — the chain in section 1 and the four tiles on the reports page — has always been on this clock, on both sides of the subtraction.
+- **The cohort clock** asks *how did the sales made between these dates turn out*. The return comes off the 24th whenever it was written. The sales report is on this clock and says so in its own subtitle.
+
+⚠️ **`TradeProfit` was on neither.** Its revenue subtracted `sale_items.quantity_returned` — **a current-state column with no date on it** — while its cost subtracted only the return movements whose `occurred_at` fell inside the window. One half of the subtraction landed and the other did not. On his 24th that produced revenue already net of a refund that had not happened yet, against a cost that had not been credited: a figure belonging to no clock at all.
+
+His 24th, three ways: the tiles said **24,800**, the sales report said **14,300**, and sections 2–5 of the profit sheet would have said **1,800** — a sheet contradicting its own headline three lines down.
+
+⚠️ **It hid because every total was right.** The two days still summed to the two days together; the month still summed to the month. Only a window with a sale on one side and its return on the other was wrong, and then only when read alone. **Every figure ever checked here had been checked over a window holding both documents** — including the whole-September audit done the same morning, which is why that one came back clean and was clean.
+
+**Four places carried it**, not one:
+
+| | what it feeds | what it did |
+|---|---|---|
+| `TradeProfit::between()` | section 2, the services and second-hand pages | revenue undated, cost dated |
+| `ProfitBreakdown::byProduct()` | sections 3 and 4 | same |
+| `ProfitBreakdown::lines()` | section 5 | same, per line |
+| `DailyTotals::forProduct()` | a product's own chart | same — and there it bent the **shape of the week**, not a total: a unit sold Monday and returned Friday vanished from Monday's bar, so a busy Monday read quiet |
+
+All four are on the **period clock** now: returns subtracted by the **return document's own date**, matching what section 1 has always done.
+
+⚠️ **Section 5 gained rows it did not have.** A refund against a sale from before the window has no line in "every line sold in the period" — so the deepest level stopped adding up to the top, which is the one thing that sheet promises. Those refunds now appear as their own rows, marked *"returned this period, sold before it"*, because an invoice dated before the sheet with no explanation reads as a fault.
+
+⚠️ **Two report feet were mislabelled and are fixed with it.** The sales and purchases sheets footed their returns as *"Returned in this period"* while showing everything returned against those documents **since** — so his 24th showed 23,000 "returned in this period" for a return written on the 25th. They say *"Returned against them since"* now, which is what the subtitle above them already promised.
+
+⚠️ **`topProducts` on the summary is on the same clock too.** It is a ranking rather than a reconciled total, so it was not wrong in the same way — but two lists of the same ten products ranked on two different clocks, with nothing saying why, is how this whole week started.
+
+⚠️ **And one figure on the same page was arithmetic on a loss.** Section 4's *Share* column divided by `max(1, total profit)`. A day holding nothing but a refund has a negative total, so it divided by 1 and printed **−1,050,000%**. A share of a loss is not a share: the column prints `—` when the period did not make a profit to take a share of. It was found by looking at the fixed page rather than by a test, which is the argument for always opening the thing.
+
+**The two clocks still differ on purpose, and that is not a bug.** The sales report and the profit report can print different profit for one day, because they answer different questions. Over any window holding both a sale and its return they agree exactly.
+
+**His own two days, before and after:**
+
+| | tiles (always right) | sections 2–5, before | sections 2–5, after |
+|---|---|---|---|
+| 24/9 alone | 54,000 · 29,200 · **24,800** | 31,000 · 29,200 · **1,800** | 54,000 · 29,200 · **24,800** |
+| 25/9 alone | 32,000 · 5,500 · **26,500** | — | 32,000 · 5,500 · **26,500** |
+| both | 86,000 · 34,700 · **51,300** | 86,000 · 34,700 · **51,300** | unchanged |
+
+Reproduced in the container on his exact shape before anything was changed: **1,800 against a headline of 24,800, on the same sheet.**
+
+#### ⚠️ The FIFO audit was double-counting a shared older layer
+
+Found while checking the sheets above, and it is a real fault in a report he reads.
+
+His audit listed four lines and headlined **6,650**. Two of those lines — `INV-00027` and `INV-00036`, same product, same day — each said they should have taken batch **#232**, and each said **"1 left"**. One unit cannot be the layer two sales should both have taken: had the first taken it, the second would have found it empty and taken exactly what it took. Dropping the duplicated 3,000 brings it to **at most 3,650**, and possibly lower — ⚠️ the exact figure cannot be worked out by hand from the sheet, because the second ledger also spends on his *correct* sales, and one of those may already have taken #232's last unit in the FIFO world. The page computes it; arithmetic on the printed rows cannot, which is the whole reason the fault existed.
+
+⚠️ **The cause is that the audit had only one ledger.** `replay()` held what each layer actually had left, and asked at each outbound line "was there an older layer with stock". Every row it produced was true. But the layer it named was never *spent* — nothing in the replay represented the world where FIFO had been followed — so the same last unit was offered to every sale that passed it, and the money total added each one.
+
+**The fix is a second ledger.** `$ideal` starts identical, and every outbound FIFO line consumes from it oldest-first, whether or not that line is a finding. What it would have cost is compared with what was charged, and that difference (`countable`) is what the headline sums.
+
+⚠️ **It spends on the lines that were RIGHT as well**, and that is the part a first attempt gets wrong. A ledger that only moves when the audit complains is not an alternative history, it is the same history with holes in it — still holding units a correct sale had already sold, and so forgiving a later line that really did cost money. A sabotage that skipped the correct lines passed the first version of the test; the fixture now sells one unit correctly before the dates break.
+
+⚠️ **The per-line column is unchanged and still does not add to the headline**, because every row in it is true and dropping rows would hide real findings. So the sheet says it in words when the two differ — *"Adding the column below comes to 6,650, which is more than the shop lost"* — and the table's foot prints the **column's** own sum, so a reader who adds the rows lands on the figure printed under them. Three numbers with a sentence joining them beats two numbers and a reader guessing.
+
+⚠️ **None of this changed his profit.** The FIFO audit reports and alters nothing, by design — so the 1,037,976 above stood before the fix and stands after it. What was wrong was the size of a scar, not the books.
+
 ### ⚠️ "I detect some wrong Accounting" — Soran, 2026-09-25
 
 *"in services total show 290,000, in find show wrong data !!!, in reports show 231,000 service !! that is wrong, i have afraid for all another Accounting that i depend it"*.
