@@ -3,16 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\InsufficientStockException;
+use App\Models\AccountTransaction;
 use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\HeldCart;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\User;
 use App\Services\AssemblyService;
 use App\Services\BulkDeleteService;
 use App\Services\SaleService;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -26,13 +30,10 @@ class SaleController extends Controller
 
     public function index(Request $request): View
     {
-        $sales = Sale::with('customer', 'user')
+        $filtered = Sale::query()
             // An archived period stays in the database and out of this list,
             // unless the reader asks for it.
             ->visible($request->boolean('archived'))
-            // Section 9b: sort the newest first on every transactional list.
-            ->orderByDesc('sale_date')
-            ->orderByDesc('id')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->input('customer_id')))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('sale_date', '>=', $request->date('from')))
@@ -55,7 +56,12 @@ class SaleController extends Controller
                 ->orWhereHas('items.product', fn ($p) => $p
                     ->where('name', 'like', '%'.$request->input('search').'%')
                     ->orWhere('sku', 'like', '%'.$request->input('search').'%')
-                    ->orWhere('barcode', 'like', '%'.$request->input('search').'%'))))
+                    ->orWhere('barcode', 'like', '%'.$request->input('search').'%'))));
+
+        $sales = (clone $filtered)->with('customer', 'user')
+            // Section 9b: sort the newest first on every transactional list.
+            ->orderByDesc('sale_date')
+            ->orderByDesc('id')
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
@@ -68,7 +74,114 @@ class SaleController extends Controller
             'archivedCount' => $archivedCount,
             'sales' => $sales,
             'customers' => Customer::orderByDesc('is_system')->orderBy('name')->get(),
+            'isFiltered' => $this->isFiltered($request),
+            'stats' => $this->figures($filtered, $request),
         ]);
+    }
+
+    /**
+     * The four figures over the list — Soran, 2026-09-26: *"and for sales,
+     * purchases"*.
+     *
+     * ⚠️ **Asked of the same query the table is drawn from**, `clone`d rather
+     * than rebuilt, so a filter that reaches the rows cannot fail to reach the
+     * totals. They are the sales report's own four for the same selection:
+     * how many, what they came to, what has been paid, what is still due.
+     *
+     * ⚠️ **No profit tile here, and that is on purpose.** Profit needs the FIFO
+     * cost of these particular documents, and the shop already has that
+     * arithmetic in two places — `TradeProfit` for a period and the sales
+     * report for a set of invoices. A third copy on a list screen is exactly
+     * how the shop came to have two clocks; if this list should carry profit,
+     * the existing calculation gets extracted rather than written again.
+     *
+     * @param  Builder<Sale>  $filtered
+     * @return array<int, array{label: string, value: string, note: string}>
+     */
+    private function figures($filtered, Request $request): array
+    {
+        $lens = $request->user()->lens();
+        $ids = (clone $filtered)->select('id');
+
+        $count = (int) (clone $filtered)->count();
+        $total = (int) (clone $filtered)->sum('total_amount');
+
+        /*
+         * ⚠️ **There is no `amount_paid` column** — a first version of this
+         * summed one and every tile read zero. What has been paid is the
+         * payments netted, money the other way being money handed back.
+         *
+         * ⚠️ And `payable_type` holds the MORPH ALIAS, not the class name.
+         * Written with `::class` the query matches nothing and the tile reads a
+         * confident zero — the same trap the sale-return list fell into a day
+         * ago. `getMorphClass()` is the alias, whatever the map says today.
+         */
+        $paid = (int) Payment::where('payable_type', (new Sale)->getMorphClass())
+            ->whereIn('payable_id', $ids)
+            ->where('direction', Payment::DIRECTION_IN)
+            ->sum('amount')
+            - (int) Payment::where('payable_type', (new Sale)->getMorphClass())
+                ->whereIn('payable_id', $ids)
+                ->where('direction', Payment::DIRECTION_OUT)
+                ->sum('amount');
+
+        /*
+         * ⚠️ **A return credits the document as surely as a payment settles
+         * it**, and `Sale::amountDue()` subtracts both. Left out here, this
+         * strip would disagree with the Due column in the rows underneath it.
+         */
+        $credited = -(int) AccountTransaction::query()
+            ->where('reference_type', 'sale_return')
+            ->whereIn('reference_id', SaleReturn::whereIn('sale_id', $ids)->select('id'))
+            ->sum('amount');
+
+        $due = max(0, $total - $paid - $credited);
+
+        // How many are carrying it, which is the difference between one
+        // awkward account and a habit.
+        $owing = (clone $filtered)->get()->filter(fn ($row) => $row->amountDue() > 0)->count();
+
+        return [
+            [
+                'label' => __('Invoices'),
+                'value' => number_format($count),
+                'note' => __('documents on this list'),
+            ],
+            [
+                'label' => __('Sold'),
+                'value' => money($total, in: $lens),
+                'note' => __('what these invoices came to'),
+            ],
+            [
+                'label' => __('Paid'),
+                'value' => money($paid, in: $lens),
+                'note' => $credited > 0
+                    ? __(':amount more came off as returns', ['amount' => money($credited, in: $lens)])
+                    : __('taken so far, cash and on account'),
+            ],
+            [
+                'label' => __('Still due'),
+                'value' => money($due, in: $lens),
+                'note' => trans_choice(
+                    '{0}every one of them is settled|{1}on one invoice|[2,*]across :count invoices',
+                    $owing, ['count' => number_format($owing)],
+                ),
+            ],
+        ];
+    }
+
+    /**
+     * Whether the reader narrowed the list, so the figures can say which of
+     * their two sentences applies.
+     */
+    private function isFiltered(Request $request): bool
+    {
+        return $request->filled('search')
+            || $request->filled('from')
+            || $request->filled('to')
+            || $request->filled('status')
+            || $request->filled('customer_id')
+            || $request->boolean('archived');
     }
 
     public function create(Request $request): View

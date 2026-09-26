@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountTransaction;
 use App\Models\Currency;
 use App\Models\HeldCart;
+use App\Models\Payment;
 use App\Models\Purchase;
+use App\Models\PurchaseReturn;
 use App\Models\StockRoom;
 use App\Models\Supplier;
 use App\Services\BulkDeleteService;
 use App\Services\PurchaseService;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -21,19 +26,21 @@ class PurchaseController extends Controller
 
     public function index(Request $request): View
     {
-        $purchases = Purchase::with('supplier', 'user')
+        $filtered = Purchase::query()
             // An archived period stays in the database and out of this list,
             // unless the reader asks for it.
             ->visible($request->boolean('archived'))
-            ->orderByDesc('purchase_date')
-            ->orderByDesc('id')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('supplier_id'), fn ($q) => $q->where('supplier_id', $request->input('supplier_id')))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('purchase_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('purchase_date', '<=', $request->date('to')))
             ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('document_no', 'like', '%'.$request->input('search').'%')
-                ->orWhere('supplier_invoice_no', 'like', '%'.$request->input('search').'%')))
+                ->orWhere('supplier_invoice_no', 'like', '%'.$request->input('search').'%')));
+
+        $purchases = (clone $filtered)->with('supplier', 'user')
+            ->orderByDesc('purchase_date')
+            ->orderByDesc('id')
             ->paginate($request->user()->items_per_page)
             ->withQueryString();
 
@@ -46,7 +53,104 @@ class PurchaseController extends Controller
             'archivedCount' => $archivedCount,
             'purchases' => $purchases,
             'suppliers' => Supplier::companies()->orderBy('name')->get(),
+            'isFiltered' => $this->isFiltered($request),
+            'stats' => $this->figures($filtered, $request),
         ]);
+    }
+
+    /**
+     * The four figures over the list, in the supplier's vocabulary — the same
+     * four the sales list answers about customers.
+     *
+     * ⚠️ **`grand_total`, not `total_amount`.** The discount comes off the
+     * invoice, and what the shop owes is what it agreed to pay — the list's own
+     * "Grand total" column reads the same field, so a tile on `total_amount`
+     * would sum to more than the rows under it.
+     *
+     * @param  Builder<Purchase>  $filtered
+     * @return array<int, array{label: string, value: string, note: string}>
+     */
+    private function figures($filtered, Request $request): array
+    {
+        $lens = $request->user()->lens();
+        $ids = (clone $filtered)->select('id');
+
+        $count = (int) (clone $filtered)->count();
+        $total = (int) (clone $filtered)->sum('grand_total');
+
+        /*
+         * ⚠️ **There is no `amount_paid` column** — a first version of this
+         * summed one and every tile read zero. What has been paid is the
+         * payments netted, money the other way being money handed back.
+         *
+         * ⚠️ And `payable_type` holds the MORPH ALIAS, not the class name.
+         * Written with `::class` the query matches nothing and the tile reads a
+         * confident zero — the same trap the sale-return list fell into a day
+         * ago. `getMorphClass()` is the alias, whatever the map says today.
+         */
+        $paid = (int) Payment::where('payable_type', (new Purchase)->getMorphClass())
+            ->whereIn('payable_id', $ids)
+            ->where('direction', Payment::DIRECTION_OUT)
+            ->sum('amount')
+            - (int) Payment::where('payable_type', (new Purchase)->getMorphClass())
+                ->whereIn('payable_id', $ids)
+                ->where('direction', Payment::DIRECTION_IN)
+                ->sum('amount');
+
+        /*
+         * ⚠️ **A return credits the document as surely as a payment settles
+         * it**, and `Purchase::amountDue()` subtracts both. Left out here, this
+         * strip would disagree with the Due column in the rows underneath it.
+         */
+        $credited = -(int) AccountTransaction::query()
+            ->where('reference_type', 'purchase_return')
+            ->whereIn('reference_id', PurchaseReturn::whereIn('purchase_id', $ids)->select('id'))
+            ->sum('amount');
+
+        $due = max(0, $total - $paid - $credited);
+
+        // How many are carrying it, which is the difference between one
+        // awkward account and a habit.
+        $owing = (clone $filtered)->get()->filter(fn ($row) => $row->amountDue() > 0)->count();
+
+        return [
+            [
+                'label' => __('Purchases'),
+                'value' => number_format($count),
+                'note' => __('documents on this list'),
+            ],
+            [
+                'label' => __('Bought'),
+                'value' => money($total, in: $lens),
+                'note' => __('what these purchases came to'),
+            ],
+            [
+                'label' => __('Paid'),
+                'value' => money($paid, in: $lens),
+                'note' => $credited > 0
+                    ? __(':amount more came off as returns', ['amount' => money($credited, in: $lens)])
+                    : __('handed over so far'),
+            ],
+            [
+                'label' => __('Still owed'),
+                'value' => money($due, in: $lens),
+                'note' => trans_choice(
+                    '{0}every one of them is settled|{1}on one purchase|[2,*]across :count purchases',
+                    $owing, ['count' => number_format($owing)],
+                ),
+            ],
+        ];
+    }
+
+    /** Whether the reader narrowed the list. */
+    private function isFiltered(Request $request): bool
+    {
+        return $request->filled('search')
+            || $request->filled('from')
+            || $request->filled('to')
+            || $request->filled('status')
+            || $request->filled('supplier_id')
+            || $request->boolean('archived');
     }
 
     public function create(Request $request): View
