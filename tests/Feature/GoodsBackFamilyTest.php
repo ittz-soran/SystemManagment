@@ -5,9 +5,12 @@ namespace Tests\Feature;
 use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\PurchaseReturn;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\Swap;
@@ -255,8 +258,106 @@ class GoodsBackFamilyTest extends TestCase
         }
     }
 
-    /** And every document page does. */
-    public function test_all_three_documents_carry_the_same_furniture(): void
+    /**
+     * ⚠️ **And the same way IN** — Soran, 2026-09-26: *"have button like Swap
+     * faulty item in both"*. All three lists had the figures and the filter;
+     * only the swaps list had a button, so the two returns read as history you
+     * could look at but not add to.
+     */
+    public function test_all_three_lists_offer_the_counter_as_their_way_in(): void
+    {
+        // ⚠️ With rows on them, so exactly ONE button is expected. An empty
+        // list draws a second one in its empty state, and a count of "one or
+        // more" would be satisfied by that second one alone.
+        $this->aDocumentOfEachKind();
+
+        foreach ([
+            'sale-returns.index' => __('Take an item back'),
+            'purchase-returns.index' => __('Send an item back'),
+            'swaps.index' => __('Swap a faulty item'),
+        ] as $route => $label) {
+            $page = $this->actingAs($this->user())->get(route($route))->assertOk();
+
+            // ⚠️ **The BUTTON, not the words anywhere on the page.** The menu
+            // links to the counter from every screen in the shop, so
+            // `assertSee(route('goods-back.index'))` is true of a page with no
+            // button at all — a sabotage that hid this one walked straight
+            // through the first version of this test.
+            $this->assertSame(
+                1,
+                $this->countersOn($page->getContent(), $label),
+                "no primary button to the counter on {$route}",
+            );
+        }
+    }
+
+    /**
+     * How many visible primary buttons on this page lead to the counter under
+     * the given label.
+     */
+    private function countersOn(string $html, string $label): int
+    {
+        return preg_match_all(
+            '/<a href="[^"]*goods-back[^"]*" class="btn btn-primary">(?:(?!<\/a>).)*?'
+            .preg_quote($label, '/').'/s',
+            $html,
+        );
+    }
+
+    /**
+     * ⚠️ And an empty list says the same thing, rather than *"start one from a
+     * document"* without naming the document or where to find it.
+     */
+    public function test_an_empty_list_offers_the_counter_too(): void
+    {
+        foreach ([
+            'sale-returns.index' => __('Take an item back'),
+            'purchase-returns.index' => __('Send an item back'),
+        ] as $route => $label) {
+            $page = $this->actingAs($this->user())->get(route($route))->assertOk();
+
+            // ⚠️ **TWO of them on an empty list**: the one in the heading and
+            // the one in the empty state. Counted, because the heading's button
+            // alone satisfies any assertion that only asks whether the label is
+            // somewhere on the page — which is how the first version of this
+            // test passed a sabotage that emptied the middle of the screen.
+            $this->assertSame(
+                2,
+                $this->countersOn($page->getContent(), $label),
+                "an empty {$route} does not say where to start",
+            );
+
+            $page->assertDontSee(__('No returns yet. Start one from a document.'));
+        }
+    }
+
+    /**
+     * ⚠️ **A reader who may not create one is not offered the button.** The two
+     * keys are separate on purpose: somebody trusted to read the history of
+     * what went back is not thereby trusted to send something back.
+     */
+    public function test_a_reader_without_the_key_is_not_offered_the_counter(): void
+    {
+        $viewer = User::factory()->create(['role' => User::ROLE_USER]);
+        $viewer->permissions()->sync(
+            Permission::whereIn('key', ['sale_returns.view', 'purchase_returns.view'])->pluck('id')
+        );
+
+        $this->actingAs($viewer->load('permissions'))->get(route('sale-returns.index'))
+            ->assertOk()
+            ->assertDontSee(__('Take an item back'), false);
+
+        $this->actingAs($viewer->load('permissions'))->get(route('purchase-returns.index'))
+            ->assertOk()
+            ->assertDontSee(__('Send an item back'), false);
+    }
+
+    /**
+     * One of each of the three, so a list under test has a row on it.
+     *
+     * @return array{0: SaleReturn, 1: PurchaseReturn, 2: Swap}
+     */
+    private function aDocumentOfEachKind(): array
     {
         $purchase = $this->buy(20);
         $sale = $this->sell(10);
@@ -274,6 +375,14 @@ class GoodsBackFamilyTest extends TestCase
         );
 
         $swap = app(SwapService::class)->create($sale->fresh()->items->first(), 1, $this->user());
+
+        return [$saleReturn, $purchaseReturn, $swap];
+    }
+
+    /** And every document page does. */
+    public function test_all_three_documents_carry_the_same_furniture(): void
+    {
+        [$saleReturn, $purchaseReturn, $swap] = $this->aDocumentOfEachKind();
 
         $pages = [
             route('sale-returns.show', $saleReturn),
