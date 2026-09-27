@@ -348,6 +348,43 @@ class ProductNameTest extends TestCase
             ->assertSee(route('products.name-advice'), false);
     }
 
+    // ---- 4. The browser's own spellchecker -------------------------------
+
+    /**
+     * Soran, 2026-09-27: *"Option 1"* — the one he had held back.
+     *
+     * ⚠️ Off for the whole shop and on for the one field that earns it. Every
+     * other screen is full of SKUs, barcodes, IMEIs, document numbers, phone
+     * numbers and people's names, and a red line under all of them teaches the
+     * reader to ignore red lines.
+     */
+    public function test_the_shop_starts_with_the_spellchecker_off(): void
+    {
+        foreach (['sales.create', 'customers.index', 'products.index'] as $screen) {
+            $page = $this->actingAs($this->admin())->get(route($screen))->assertOk()->getContent();
+
+            $this->assertStringContainsString('<body class="bg-body-tertiary" spellcheck="false"', $page, $screen);
+        }
+    }
+
+    public function test_the_product_name_switches_it_back_on(): void
+    {
+        $product = $this->product('Cable Sikenai 30W C to LTG Y2');
+
+        foreach ([route('products.create'), route('products.edit', $product)] as $url) {
+            $page = $this->actingAs($this->admin())->get($url)->assertOk()->getContent();
+
+            $this->assertMatchesRegularExpression(
+                '/<input id="name"[^>]*\sspellcheck="true"/',
+                $page,
+                $url,
+            );
+
+            // And nowhere else on the form: a part number is not a misspelling.
+            $this->assertSame(1, substr_count($page, 'spellcheck="true"'), $url);
+        }
+    }
+
     /** On an edit the box knows which product to leave out of its own advice. */
     public function test_the_edit_form_tells_the_advice_which_product_it_is(): void
     {

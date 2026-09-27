@@ -9,11 +9,14 @@ use Illuminate\Support\Str;
 /**
  * Catching a typo before it becomes a second product — Soran, 2026-09-27.
  *
- * He tested three of these on a live page before any of it was built, then
- * chose them: tidy the name on save, warn when it is nearly one he already
+ * He tested four of these on a live page before any of it was built, then
+ * chose three: tidy the name on save, warn when it is nearly one he already
  * sells, and offer the spelling his own catalogue already uses. The browser's
- * own spellchecker was the fourth and he turned it down after seeing it
- * underline *Sikenai*, *Mcdodo* and *Joyroom* — every brand in the shop.
+ * own spellchecker was the fourth; he held it back after seeing it underline
+ * *Sikenai*, *Mcdodo* and *Joyroom* — every brand in the shop — and asked for
+ * it a few hours later once the rest worked. It is not in this class: it is one
+ * attribute on the product name field and one on `<body>` turning it off
+ * everywhere else. See Section 9.
  *
  * ⚠️ **THE DICTIONARY IS HIS CATALOGUE, NOT ENGLISH.** That one decision is
  * what makes this usable in a shop selling Chinese accessories in Iraq: a word

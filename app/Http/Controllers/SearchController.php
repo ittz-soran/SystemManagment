@@ -168,30 +168,50 @@ class SearchController extends Controller
      * screen, because a payment is not an invoice and the shop may well let
      * somebody see one and not the other.
      *
+     * ⚠️ **A sale also matches the name written on it** — Soran, 2026-09-27:
+     * *"system can search for walk-in names"*. For a walk-in there is no
+     * account and no phone number, so that name is the shop's only handle on
+     * the person; without this the sale could be found by its number alone.
+     * The sales list's own box already matched it. Only sales carry one: a sale
+     * return takes its customer from the sale it returns.
+     *
      * @return list<array<string, mixed>|null>
      */
     private function documents(User $user, string $term): array
     {
+        // The last column of each row is what the box matches BESIDES the
+        // document number.
         $kinds = [
-            ['sales.view', Sale::class, __('Sales'), 'sales.show', 'receipt', ['customer']],
-            ['purchases.view', Purchase::class, __('Purchases'), 'purchases.show', 'journal-text', ['supplier']],
-            ['sale_returns.view', SaleReturn::class, __('Sale returns'), 'sale-returns.show', 'arrow-return-left', ['customer']],
-            ['purchase_returns.view', PurchaseReturn::class, __('Purchase returns'), 'purchase-returns.show', 'arrow-return-right', ['supplier']],
-            ['payments.view', Payment::class, __('Payments'), 'payments.show', 'cash-coin', []],
-            ['expenses.view', Expense::class, __('Expenses'), 'expenses.show', 'cash-stack', ['category']],
-            ['stock_adjustments.view', StockAdjustment::class, __('Stock adjustments'), 'stock-adjustments.show', 'sliders', ['product']],
+            ['sales.view', Sale::class, __('Sales'), 'sales.show', 'receipt', ['customer'], ['walk_in_name']],
+            ['purchases.view', Purchase::class, __('Purchases'), 'purchases.show', 'journal-text', ['supplier'], []],
+            ['sale_returns.view', SaleReturn::class, __('Sale returns'), 'sale-returns.show', 'arrow-return-left', ['customer'], []],
+            ['purchase_returns.view', PurchaseReturn::class, __('Purchase returns'), 'purchase-returns.show', 'arrow-return-right', ['supplier'], []],
+            ['payments.view', Payment::class, __('Payments'), 'payments.show', 'cash-coin', [], []],
+            ['expenses.view', Expense::class, __('Expenses'), 'expenses.show', 'cash-stack', ['category'], []],
+            ['stock_adjustments.view', StockAdjustment::class, __('Stock adjustments'), 'stock-adjustments.show', 'sliders', ['product'], []],
         ];
 
         $groups = [];
 
-        foreach ($kinds as [$permission, $class, $label, $route, $icon, $with]) {
+        foreach ($kinds as [$permission, $class, $label, $route, $icon, $with, $also]) {
             if (! $user->hasPermission($permission)) {
                 continue;
             }
 
             $hits = $class::query()
                 ->with($with)
-                ->where('document_no', 'like', "%{$term}%")
+                // Grouped, so that anything added to this query later cannot
+                // be escaped by the `or`. The soft delete is already safe
+                // without it — Eloquent nests the wheres it finds when it
+                // applies a global scope — but a LOCAL scope would not be, and
+                // CartSearchTest exists because that mistake was made once.
+                ->where(function (Builder $q) use ($term, $also) {
+                    $q->where('document_no', 'like', "%{$term}%");
+
+                    foreach ($also as $column) {
+                        $q->orWhere($column, 'like', "%{$term}%");
+                    }
+                })
                 ->orderByDesc('id')
                 ->limit(self::PER_GROUP)
                 ->get()
@@ -214,7 +234,10 @@ class SearchController extends Controller
     private function describe(Model $document): string
     {
         return match (true) {
-            $document instanceof Sale, $document instanceof SaleReturn
+            // Both, for a walk-in: the account the books saw and the name
+            // somebody wrote beside it. See Sale::soldTo().
+            $document instanceof Sale => $document->soldTo(),
+            $document instanceof SaleReturn
                 => $document->customer?->displayName() ?? '',
             $document instanceof Purchase, $document instanceof PurchaseReturn
                 => $document->supplier?->name ?? '',

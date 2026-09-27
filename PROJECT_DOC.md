@@ -2172,7 +2172,7 @@ Eight things scanned, the customer waiting, and somebody's thumb finds **Sales h
 
 **The problem is not spelling. It is the same product entered twice.** A shop selling Chinese accessories in Iraq types `cable sikenai 30w c to ltg  y2` on Monday and `Cable Sikanai 30w C to LTG Y2` on Thursday, and now there are two products, two stocks, two costs and two lines in every report — and neither one is wrong enough for anybody to notice.
 
-**Three helps, on the product add and edit forms only.** They are `app/Support/ProductName.php`.
+**Four helps, on the product add and edit forms only.** The first three are `app/Support/ProductName.php`; the fourth is the browser's own and was added a few hours after the others, once he had the rest working.
 
 **1. The name is tidied on save.** `cable sikenai 30w c to ltg  y2` is stored as `Cable Sikenai 30W C to LTG Y2`. Double spaces collapse, `30w` becomes `30W`, `128gb` becomes `128GB` (also `V`, `A`, `mAh`, `Hz`, `TB`), `usb`/`ltg`/`pd`/`nc`/`lte`/`ssd`/`hdd`/`rgb`/`led`/`hdmi` go to capitals, and each remaining word gets a capital first letter.
 
@@ -2198,7 +2198,7 @@ One card carries all three, and it takes the stronger heading as soon as one of 
 - `Wirless` is corrected to `Wireless`, because *Wireless* is in the products he sells.
 - *Sikenai*, *Mcdodo*, *Joyroom*, *Ldnio* are never questioned, because they are in the products he sells.
 
-That is also why the browser's own spellchecker — the fourth option — was turned down after he watched it underline every brand on his shelves.
+It is also why this one is the help that *corrects*, and the browser's own (below) only underlines: a dictionary that has never heard of *Sikenai* cannot be told about it.
 
 ⚠️ **A word must appear in at least TWO products before it is offered as a correction.** One product is not a vocabulary: a brand entered once, with its own typo, would otherwise become the spelling every future product is corrected *to* — the fault teaching itself.
 
@@ -2207,6 +2207,30 @@ That is also why the browser's own spellchecker — the fourth option — was tu
 **When editing, the product being edited is left out of both** — its own name is neither a look-alike of itself nor the dictionary entry that confirms its own typo.
 
 **The advice is one endpoint**, `GET products/name-advice`, behind `products.create` or `products.edit`, debounced, and it returns both the look-alikes and the spellings. ⚠️ **It never blocks a save** and the form works with JavaScript off — the tidy is the only part that changes what is stored, and that happens on the server.
+
+**4. ⚠️ THE BROWSER'S OWN SPELLCHECKER, OFF EVERYWHERE AND ON IN ONE PLACE** — Soran, 2026-09-27, asking for the option he had held back: *"Option 1"*.
+
+The reason it was held back is real and has not gone away: this shop's catalogue is full of words no dictionary has — *Sikenai*, *Mcdodo*, *Joyroom*, *Ldnio* — and the browser underlines every one of them. What makes it worth having anyway is doing the other half of the job, which nobody does: **turning it off where it is only noise**.
+
+- **`spellcheck="false"` on `<body>`**, so the whole shop starts silent. Every screen here is full of SKUs, barcodes, IMEIs, document numbers, phone numbers and people's names, and a red line under all of them teaches the reader to ignore red lines.
+- **`spellcheck="true"` on the product name, and nowhere else.** It is the one field in the shop holding a sentence of ordinary words that somebody typed by hand and that a hundred later screens will repeat.
+
+⚠️ **The dictionary is the browser's, and it follows the shop's own language** — nothing sets `lang` on the field. A language the reader's browser has no dictionary for simply gets no underlines; that is the browser being honest, not the shop being broken.
+
+⚠️ **This is the only one of the four that the shop cannot teach.** A browser spellchecker has no API to add a word to, so *Sikenai* will keep its red line forever. That is exactly why help 3 exists and is the one that corrects: **the shop's catalogue is the dictionary that knows this shop.** This fourth one is the dictionary that knows English, offered on top of it rather than instead of it.
+
+### Finding a walk-in sale by the name on it — Soran, 2026-09-27
+
+*"system can search for walk-in names"*.
+
+A name written on a walk-in sale is the only handle the shop has on that customer — there is no account, no phone number, nothing else to look them up by. So it is searchable from **both** boxes:
+
+- **The sales list's own search** already matched it (Section 9, the walk-in name).
+- **The one box at the top of every screen** did not: it matched documents by their number alone. It now matches a sale by the name written on it too, and the row says who it was — the account and the name, exactly as the invoice does.
+
+⚠️ **Only sales, because only sales carry one.** A sale return has no walk-in name of its own; it inherits its customer from the sale it returns, and the name lives on that document.
+
+⚠️ **Behind `sales.view` like every other document group**, and the name is shown only in the note of a row the reader may already open.
 
 ---
 
