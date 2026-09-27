@@ -29,6 +29,28 @@ class SaleService
     /**
      * @param  array<int, array{product_id: int, quantity: int, unit_price: int}>  $lines
      */
+    /**
+     * A walk-in name, kept only where it means something.
+     *
+     * ⚠️ **The server decides, not the form.** The tick box is hidden for a
+     * named customer, but a hidden field is a suggestion and never a rule —
+     * anything can post anything. A named customer already has a name, and a
+     * second one on the same document is two answers to one question.
+     *
+     * Trimmed and length-capped here as well, so the column cannot be reached
+     * with whitespace or with more than it holds.
+     */
+    private function walkInName(Customer $customer, ?string $name): ?string
+    {
+        if (! $customer->is_system) {
+            return null;
+        }
+
+        $name = trim((string) $name);
+
+        return $name === '' ? null : mb_substr($name, 0, 100);
+    }
+
     public function create(
         Customer $customer,
         array $lines,
@@ -44,6 +66,12 @@ class SaleService
          * this says; it is what the receipt prints and what an edit reopens.
          */
         ?int $exchangeRate = null,
+
+        /*
+         * ⚠️ A name written on a walk-in sale — Soran, 2026-09-27. A note on
+         * the invoice, never a customer: no balance, no history, nothing owed.
+         */
+        ?string $walkInName = null,
     ): Sale {
         if ($lines === []) {
             throw new RuntimeException(__('A sale needs at least one line.'));
@@ -53,7 +81,7 @@ class SaleService
             throw new RuntimeException(__('Locked: this date is in a closed period.'));
         }
 
-        return DB::transaction(function () use ($customer, $lines, $user, $saleDate, $amountPaid, $paymentMethod, $exchangeRate) {
+        return DB::transaction(function () use ($customer, $lines, $user, $saleDate, $amountPaid, $paymentMethod, $exchangeRate, $walkInName) {
             /*
              * Every row this sale will contend for, claimed in one order before
              * anything is written — FifoService::claim(). It must be here, at
@@ -84,6 +112,7 @@ class SaleService
             $sale = Sale::create([
                 'document_no' => $this->numbers->next(DocumentNumberService::PREFIX_SALE),
                 'customer_id' => $customer->id,
+                'walk_in_name' => $this->walkInName($customer, $walkInName),
                 'user_id' => $user->id,
                 'total_amount' => $totalAmount,
                 'status' => Sale::STATUS_ACTIVE,
@@ -160,6 +189,11 @@ class SaleService
         // The rate this receipt was written at, carried through the edit — or
         // correcting a price would drop the currency off the document.
         ?int $exchangeRate = null,
+
+        // ⚠️ The walk-in name, re-read on every edit. Left out of the signature
+        // it would survive a change of customer, so an invoice moved onto a
+        // named account would keep somebody else's name written on it.
+        ?string $walkInName = null,
     ): Sale {
         if ($lines === []) {
             throw new RuntimeException(__('A sale needs at least one line.'));
@@ -169,7 +203,7 @@ class SaleService
             throw new RuntimeException(__('Locked: this date is in a closed period.'));
         }
 
-        return DB::transaction(function () use ($sale, $customer, $lines, $user, $saleDate, $exchangeRate) {
+        return DB::transaction(function () use ($sale, $customer, $lines, $user, $saleDate, $exchangeRate, $walkInName) {
             // Section 8: re-checked inside the transaction, not just before it.
             $lock = $sale->fresh()->canBeModified($user);
 
@@ -213,6 +247,7 @@ class SaleService
 
             $sale->update([
                 'customer_id' => $customer->id,
+                'walk_in_name' => $this->walkInName($customer, $walkInName),
                 'total_amount' => $totalAmount,
                 'sale_date' => $saleDate,
                 'exchange_rate' => $exchangeRate,

@@ -8,7 +8,7 @@
 @section('content')
     <div class="mb-3">
         <div class="small text-uppercase">{{ __('Customer') }}</div>
-        <div class="fw-semibold">{{ $sale->customer->displayName() }}</div>
+        <div class="fw-semibold">{{ $sale->soldTo() }}</div>
         @if($sale->customer->phone)
             <div class="small" dir="ltr">{{ $sale->customer->phone }}</div>
         @endif
