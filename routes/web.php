@@ -179,6 +179,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('products/search', [ProductController::class, 'search'])
         ->middleware('permission:products.view')->name('products.search');
 
+    /*
+     * Section 9 — "Help with the name of a product": look-alikes and spellings,
+     * asked for while a name is being typed on the add or edit form. Whoever
+     * may write a product may ask; it reads nothing a product page does not
+     * already show them.
+     */
+    Route::get('products/name-advice', [ProductController::class, 'nameAdvice'])
+        ->middleware('permission:products.create,products.edit')->name('products.name-advice');
+
     Route::get('products', [ProductController::class, 'index'])
         ->middleware('permission:products.view')->name('products.index');
     Route::get('products/create', [ProductController::class, 'create'])

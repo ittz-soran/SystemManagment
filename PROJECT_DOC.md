@@ -2166,6 +2166,48 @@ Eight things scanned, the customer waiting, and somebody's thumb finds **Sales h
 - First-time purchase of a product has no previous price, so manual entry is required.
 - **Below-cost warning (sale cart):** if a manual price is below the cost of the batch that would be consumed, show a non-blocking warning — *"Below cost: this unit cost 200,000."* Soran may still sell below cost deliberately (clearance, damaged goods), so it warns rather than blocks.
 
+### Help with the name of a product — Soran, 2026-09-27
+
+*"i need Grammar check and spell corrector -> just have in product add end edit first"*, then, after trying four of them on a live page: ***"ok 2,3 and 4 if need 1 i let you after"***.
+
+**The problem is not spelling. It is the same product entered twice.** A shop selling Chinese accessories in Iraq types `cable sikenai 30w c to ltg  y2` on Monday and `Cable Sikanai 30w C to LTG Y2` on Thursday, and now there are two products, two stocks, two costs and two lines in every report — and neither one is wrong enough for anybody to notice.
+
+**Three helps, on the product add and edit forms only.** They are `app/Support/ProductName.php`.
+
+**1. The name is tidied on save.** `cable sikenai 30w c to ltg  y2` is stored as `Cable Sikenai 30W C to LTG Y2`. Double spaces collapse, `30w` becomes `30W`, `128gb` becomes `128GB` (also `V`, `A`, `mAh`, `Hz`, `TB`), `usb`/`ltg`/`pd`/`nc`/`lte`/`ssd`/`hdd`/`rgb`/`led`/`hdmi` go to capitals, and each remaining word gets a capital first letter.
+
+⚠️ **A word is left exactly as typed if it already carries a capital, or any punctuation.** `B450M-KII+R5`, `PD-17-UK` and `i5-10th` are part numbers, and putting a capital on the front of one corrupts it. The hyphen is what tells them apart from `y2`, which is a plain word with a digit in it and does want its capital.
+
+⚠️ **Joining words keep their small letter unless they start the name** — `C to LTG`, not `C To LTG`. The list is *to, and, or, for, with, in, of, by, on, the*; every one of them is too short and too common to be a part number.
+
+⚠️ **On save, never while typing.** A field that rewrites itself under the cursor is a field nobody can type in. It runs in `ProductRequest::prepareForValidation()`, so the create form, the edit form and the length rule all see the same stored name.
+
+**2. A warning when it is nearly a product he already sells.** As the name is typed, the form asks the server for look-alikes and shows at most three, with their SKU and a link that opens each in a new tab:
+
+- **0.90 and above** — *"You almost certainly already sell this"*.
+- **0.75 to 0.90** — *"Worth a look before you save"*.
+
+One card carries all three, and it takes the stronger heading as soon as one of them is certain — the shopkeeper needs to know the strongest thing the system has to say, not read three of them.
+
+⚠️ **It advises and never blocks.** Two products can be genuinely different — a 20W and a 30W of the same cable differ by one character — so the shopkeeper standing at the counter must always be able to say *yes, I mean it*. There is no override button because there is nothing to override.
+
+**How alike is measured:** the better of two numbers — character distance (catches a letter changed, dropped or doubled) and shared words (catches the same product typed in a different order). Neither finds both on its own, and shared words alone is capped just under *certain*, because two names can share every word and differ by the number that matters. ⚠️ `levenshtein()` counts **bytes**, so for a name that is not plain ASCII — Kurdish, Arabic — the shared-word measure carries it alone rather than scoring a name on its UTF-8 encoding.
+
+**3. ⚠️ THE DICTIONARY IS HIS CATALOGUE, NOT ENGLISH.** This is the decision the whole feature rests on. A word is only ever questioned when it is nearly a word **his own products already use**, so:
+
+- `Wirless` is corrected to `Wireless`, because *Wireless* is in the products he sells.
+- *Sikenai*, *Mcdodo*, *Joyroom*, *Ldnio* are never questioned, because they are in the products he sells.
+
+That is also why the browser's own spellchecker — the fourth option — was turned down after he watched it underline every brand on his shelves.
+
+⚠️ **A word must appear in at least TWO products before it is offered as a correction.** One product is not a vocabulary: a brand entered once, with its own typo, would otherwise become the spelling every future product is corrected *to* — the fault teaching itself.
+
+⚠️ **Words shorter than five letters, and any word containing a digit, are never corrected.** `PD` and `30W` are not misspellings of anything, and at four letters or fewer nearly every word is two edits from another.
+
+**When editing, the product being edited is left out of both** — its own name is neither a look-alike of itself nor the dictionary entry that confirms its own typo.
+
+**The advice is one endpoint**, `GET products/name-advice`, behind `products.create` or `products.edit`, debounced, and it returns both the look-alikes and the spellings. ⚠️ **It never blocks a save** and the form works with JavaScript off — the tidy is the only part that changes what is stored, and that happens on the server.
+
 ---
 
 ## 9b. Page & Modal Design

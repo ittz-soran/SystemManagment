@@ -20,6 +20,7 @@ use App\Services\LabelService;
 use App\Services\MasterDataTransfer;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
+use App\Support\ProductName;
 use App\Support\Units;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -482,6 +483,42 @@ class ProductController extends Controller
                 'product' => $product->name,
                 'backup' => basename((string) $backup),
             ]));
+    }
+
+    /**
+     * Section 9 — "Help with the name of a product".
+     *
+     * What the add and edit forms ask while a name is being typed: products
+     * that look like it, and words that are nearly words the shop already uses.
+     *
+     * ⚠️ **Advice only.** Nothing here changes what is saved and nothing here
+     * can refuse a save — a 20W and a 30W of one cable differ by a character
+     * and are two real products. The form works with this endpoint unreachable.
+     */
+    public function nameAdvice(Request $request): JsonResponse
+    {
+        $name = $request->string('name')->trim()->toString();
+
+        // Which product is being edited, so it is left out of its own advice:
+        // a name is not a look-alike of itself, and a product must not be the
+        // dictionary entry that confirms its own typo.
+        $ignore = $request->filled('ignore') ? (int) $request->input('ignore') : null;
+
+        if ($name === '') {
+            return response()->json(['look_alikes' => [], 'spellings' => []]);
+        }
+
+        return response()->json([
+            'look_alikes' => ProductName::lookAlikes($name, $ignore)
+                ->map(fn (array $hit) => [
+                    'name' => $hit['name'],
+                    'sku' => $hit['sku'],
+                    'url' => route('products.show', $hit['id']),
+                    'certain' => $hit['score'] >= ProductName::CERTAIN,
+                ])
+                ->values(),
+            'spellings' => ProductName::spellingsItKnows($name, $ignore)->values(),
+        ]);
     }
 
     /**

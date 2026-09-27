@@ -91,7 +91,10 @@ class EntryLensTest extends TestCase
 
         $product->refresh();
 
-        $this->assertSame('Cable, braided', $product->name);
+        // Section 9's tidy runs on save, so the stored name is the tidied one.
+        // What matters here is that the rename went through and neither price
+        // moved with it.
+        $this->assertSame('Cable, Braided', $product->name);
         $this->assertSame(10_000, $product->purchase_price, 'the cost moved');
         $this->assertSame(15_000, $product->sale_price, 'the price moved');
     }
