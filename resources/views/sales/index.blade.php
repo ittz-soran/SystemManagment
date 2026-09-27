@@ -92,6 +92,10 @@
                         <th>{{ __('Status') }}</th>
                         <th class="money">{{ __('Total') }}</th>
                         <th class="money">{{ __('Due') }}</th>
+                        {{-- ⚠️ **What this one invoice earned** — Soran,
+                             2026-09-27: *"profit per inv"*. Gathered for the
+                             whole page in the controller, never per row. --}}
+                        <th class="money">{{ __('Profit') }}</th>
                         <th class="text-end">{{ __('Actions') }}</th>
                     </tr>
                     </thead>
@@ -116,6 +120,18 @@
                             <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}"
                                 data-label="{{ __('Due') }}">
                                 {{ money($sale->amountDue(), in: $lens) }}
+                            </td>
+                            {{-- ⚠️ The true figure or the mask, never a marked-up
+                                 one: a cost inflated by this reader's percentage
+                                 would make a PLAUSIBLE profit that is not the
+                                 shop's, and a figure that is quietly false is
+                                 worse than one visibly withheld. --}}
+                            <td class="money" data-label="{{ __('Profit') }}">
+                                @if($seesCost)
+                                    {{ money($profit[$sale->id]['profit'] ?? 0, in: $lens) }}
+                                @else
+                                    <span class="text-secondary">{{ hidden_money() }}</span>
+                                @endif
                             </td>
                             <td class="text-end list-card-actions">
                                 <x-row-actions :print="route('sales.print', $sale)" />

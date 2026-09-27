@@ -23,6 +23,7 @@ use App\Models\Swap;
 use App\Models\User;
 use App\Services\AgedDebtService;
 use App\Services\DailyTotals;
+use App\Support\DocumentProfit;
 use App\Support\FifoAudit;
 use App\Support\ProfitBreakdown;
 use App\Support\TradeProfit;
@@ -116,12 +117,12 @@ class ReportController extends Controller
             'detailed' => $request->boolean('detailed', true),
             // Section 5: the cost of a sale is what its movements recorded, not
             // the product's purchase price and not an average.
-            'cost' => $this->costPerDocument(StockMovement::REF_SALE, $sales->pluck('id')),
+            'cost' => DocumentProfit::costPerDocument(StockMovement::REF_SALE, $sales->pluck('id')),
             // And what came back put its cost back on the shelf. Subtracting the
             // returned money without adding this back charges the sale twice for
             // the same unit, and the figure at the bottom of this sheet stops
             // agreeing with the one on the summary.
-            'costReversed' => $this->costReturnedPerSale($sales->pluck('id')),
+            'costReversed' => DocumentProfit::costReturnedPerSale($sales->pluck('id')),
         ]);
     }
 
@@ -384,8 +385,8 @@ class ReportController extends Controller
             ->get(['repairs.id', 'repairs.technician_id', 'repairs.sale_id', 'sales.total_amount']);
 
         $saleIds = $collected->pluck('sale_id');
-        $costs = $this->costPerDocument(StockMovement::REF_SALE, $saleIds);
-        $costBack = $this->costReturnedPerSale($saleIds);
+        $costs = DocumentProfit::costPerDocument(StockMovement::REF_SALE, $saleIds);
+        $costBack = DocumentProfit::costReturnedPerSale($saleIds);
 
         $refunded = $saleIds->isEmpty() ? collect() : SaleReturn::whereIn('sale_id', $saleIds)
             ->groupBy('sale_id')
@@ -480,67 +481,6 @@ class ReportController extends Controller
             'expensesByCategory' => $this->expensesByCategory($from, $to),
             'topProducts' => $this->topProducts($from, $to),
         ]);
-    }
-
-    /**
-     * The FIFO cost each document consumed, keyed by document.
-     *
-     * One query for the whole report rather than one per row. Outgoing
-     * movements are stored negative, so the sign is turned here.
-     *
-     * @param  \Illuminate\Support\Collection<int, int>  $ids
-     * @return array<int, int>
-     */
-    private function costPerDocument(string $type, $ids): array
-    {
-        if ($ids->isEmpty()) {
-            return [];
-        }
-
-        return StockMovement::where('reference_type', $type)
-            ->whereIn('reference_id', $ids)
-            ->groupBy('reference_id')
-            ->selectRaw('reference_id, SUM(-'.StockMovement::VALUE.') as cost')
-            ->pluck('cost', 'reference_id')
-            ->map(fn ($cost) => (int) $cost)
-            ->all();
-    }
-
-    /**
-     * The FIFO cost each sale got back when something was returned to it.
-     *
-     * The movements belong to the return, not to the sale, so the returns are
-     * asked which sale they undo.
-     *
-     * @param  Collection<int, int>  $saleIds
-     * @return array<int, int>
-     */
-    private function costReturnedPerSale($saleIds): array
-    {
-        if ($saleIds->isEmpty()) {
-            return [];
-        }
-
-        $returns = SaleReturn::whereIn('sale_id', $saleIds)->pluck('sale_id', 'id');
-
-        if ($returns->isEmpty()) {
-            return [];
-        }
-
-        $byReturn = StockMovement::where('reference_type', StockMovement::REF_SALE_RETURN)
-            ->whereIn('reference_id', $returns->keys())
-            ->groupBy('reference_id')
-            ->selectRaw('reference_id, SUM('.StockMovement::VALUE.') as cost')
-            ->pluck('cost', 'reference_id');
-
-        $bySale = [];
-
-        foreach ($byReturn as $returnId => $cost) {
-            $saleId = $returns[$returnId];
-            $bySale[$saleId] = ($bySale[$saleId] ?? 0) + (int) $cost;
-        }
-
-        return $bySale;
     }
 
     /**
