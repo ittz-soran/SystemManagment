@@ -30,11 +30,20 @@ use Illuminate\Support\Str;
  */
 final class ProductName
 {
-    /** Above this, two names are almost certainly the same product. */
-    public const CERTAIN = 0.90;
+    /**
+     * Two names that are one product spelled two ways.
+     *
+     * ⚠️ **Reserved for a MISSPELLING, never a variant.** The first version
+     * scored names by characters in common and said this about a Blue earphone
+     * against the Black one, a 45W charger against the 30W and an M20 mouse
+     * against the M10 — three real products out of seven tried. In a shop where
+     * nearly every new product is a variant of one on the shelf, a warning that
+     * fires on every save is one nobody reads.
+     */
+    public const SAME_THING = 'same';
 
-    /** Above this, worth a second look before saving. */
-    public const WORTH_A_LOOK = 0.75;
+    /** Plainly overlapping — the colour, the capacity, the next wattage up. */
+    public const CLOSE = 'close';
 
     /**
      * A word must appear in at least this many products before it is offered
@@ -54,9 +63,21 @@ final class ProductName
      *
      * ⚠️ **Silent, and run on save rather than while typing.** A field that
      * rewrites itself under the cursor is a field nobody can type in.
+     *
+     * ⚠️ **THE SHOP'S OWN CATALOGUE DECIDES HOW A WORD IS WRITTEN.** The rules
+     * further down are only what a brand-new shop has. A fixed list of words to
+     * capitalise got his real names wrong — `msi` came out `Msi`, `ps4` came out
+     * `Ps4`, `type-c` was left alone — while his products say `MSI`, `PS4` and
+     * `Type-C`. It is the same decision as `spellingsItKnows()`, applied to
+     * casing instead of spelling, and it means this gets better with every
+     * product added.
+     *
+     * @param  array<string, string>|null  $house  the shop's spellings, or null to read them
      */
-    public static function tidy(string $raw): string
+    public static function tidy(string $raw, ?array $house = null): string
     {
+        $house ??= self::houseStyle();
+
         $name = trim(preg_replace('/\s+/u', ' ', $raw) ?? '');
 
         if ($name === '') {
@@ -99,13 +120,27 @@ final class ProductName
          * common to be a part number.
          */
         return collect(explode(' ', $name))
-            ->map(function (string $word, int $position) {
-                if ($word === '' || preg_match('/[\p{Lu}]|[^\p{L}\p{N}]/u', $word)) {
+            ->map(function (string $word, int $position) use ($house) {
+                if ($word === '') {
                     return $word;
                 }
 
-                if ($position > 0 && in_array(mb_strtolower($word), self::JOINING, true)) {
-                    return mb_strtolower($word);
+                // The shop has written this word before, so it already knows
+                // how. Its answer beats every rule below — that is the whole
+                // point — except when the reader has typed one of the shop's
+                // own spellings, which is never something to overrule.
+                $key = mb_strtolower($word);
+
+                if (isset($house[$key])) {
+                    return in_array($word, $house[$key], true) ? $word : $house[$key][0];
+                }
+
+                if (preg_match('/[\p{Lu}]|[^\p{L}\p{N}]/u', $word)) {
+                    return $word;
+                }
+
+                if ($position > 0 && in_array($key, self::JOINING, true)) {
+                    return $key;
                 }
 
                 return Str::ucfirst($word);
@@ -114,9 +149,51 @@ final class ProductName
     }
 
     /**
+     * Every word the shop's products use, spelled the way the shop spells it.
+     *
+     * ⚠️ **The commonest form wins.** A tie goes to the one carrying more
+     * capitals — `PS4` over `ps4`, which is almost always what a shop means —
+     * and then alphabetically, so the same catalogue always gives the same
+     * answer and a name does not change casing between two saves.
+     *
+     * @return array<string, list<string>> lowercase word => its spellings, best first
+     */
+    public static function houseStyle(?int $ignore = null): array
+    {
+        $counts = [];
+
+        foreach (self::catalogue($ignore)->pluck('name') as $name) {
+            foreach (explode(' ', trim(preg_replace('/\s+/u', ' ', (string) $name) ?? '')) as $word) {
+                if ($word === '') {
+                    continue;
+                }
+
+                $counts[mb_strtolower($word)][$word] ??= 0;
+                $counts[mb_strtolower($word)][$word]++;
+            }
+        }
+
+        $house = [];
+
+        foreach ($counts as $key => $forms) {
+            uksort($forms, fn (string $a, string $b) => [$forms[$b], self::capitals($b), $a] <=> [$forms[$a], self::capitals($a), $b]);
+
+            $house[$key] = array_keys($forms);
+        }
+
+        return $house;
+    }
+
+    /** How many capital letters a word carries, for breaking a tie. */
+    private static function capitals(string $word): int
+    {
+        return (int) preg_match_all('/\p{Lu}/u', $word);
+    }
+
+    /**
      * Products that look like this name, the likeliest first.
      *
-     * @return Collection<int, array{id: int, name: string, sku: ?string, score: float}>
+     * @return Collection<int, array{id: int, name: string, sku: ?string, verdict: string, score: float}>
      */
     public static function lookAlikes(string $raw, ?int $ignore = null): Collection
     {
@@ -127,16 +204,152 @@ final class ProductName
         }
 
         return self::catalogue($ignore)
-            ->map(fn (Product $p) => [
-                'id' => $p->id,
-                'name' => $p->name,
-                'sku' => $p->sku,
-                'score' => self::similarity($needle, self::normalise($p->name)),
+            ->map(function (Product $p) use ($needle) {
+                ['verdict' => $verdict, 'score' => $score] = self::compare($needle, self::normalise($p->name));
+
+                return ['id' => $p->id, 'name' => $p->name, 'sku' => $p->sku, 'verdict' => $verdict, 'score' => $score];
+            })
+            ->filter(fn (array $hit) => $hit['verdict'] !== null)
+            ->sortBy([
+                fn (array $a, array $b) => ($b['verdict'] === self::SAME_THING) <=> ($a['verdict'] === self::SAME_THING),
+                fn (array $a, array $b) => $b['score'] <=> $a['score'],
             ])
-            ->filter(fn (array $hit) => $hit['score'] >= self::WORTH_A_LOOK)
-            ->sortByDesc('score')
             ->take(3)
             ->values();
+    }
+
+    /**
+     * How two normalised names relate — word by word, not letter by letter.
+     *
+     * ⚠️ **This is the fix for the warning that cried wolf.** Characters in
+     * common cannot tell *Blue* from *Black*, and in this shop nearly every new
+     * product is a variant of one already on the shelf. Words can: the word
+     * that differs is either a number (a variant), a near-miss of the other
+     * (a misspelling), or something else entirely.
+     *
+     * @return array{verdict: string|null, score: float}
+     */
+    private static function compare(string $a, string $b): array
+    {
+        if ($a === '' || $b === '') {
+            return ['verdict' => null, 'score' => 0.0];
+        }
+
+        if ($a === $b) {
+            return ['verdict' => self::SAME_THING, 'score' => 1.0];
+        }
+
+        $left = explode(' ', $a);
+        $right = explode(' ', $b);
+
+        // The words both names use, taken out of both — including a word used
+        // twice, which is why this is a list and not a set.
+        $shared = 0;
+
+        foreach ($left as $i => $word) {
+            $at = array_search($word, $right, true);
+
+            if ($at !== false) {
+                $shared++;
+                unset($left[$i], $right[$at]);
+            }
+        }
+
+        $left = array_values($left);
+        $right = array_values($right);
+
+        /*
+         * Not one word in common, so there is nothing to weigh and no reason to
+         * pay for the pairing below. On a real catalogue this is almost every
+         * product, and this line is what keeps a keystroke cheap.
+         */
+        if ($shared === 0) {
+            return ['verdict' => null, 'score' => 0.0];
+        }
+
+        $misspelt = 0;
+        $variant = 0;
+        $different = 0;
+
+        // What is left over, paired off by whichever two words are closest.
+        foreach ($left as $word) {
+            $best = null;
+
+            foreach ($right as $at => $other) {
+                $gap = self::distance($word, $other);
+
+                if ($best === null || $gap < $best['gap']) {
+                    $best = ['gap' => $gap, 'at' => $at, 'word' => $other];
+                }
+            }
+
+            if ($best === null) {
+                // Nothing left to pair with: one name simply says more.
+                $different++;
+
+                continue;
+            }
+
+            unset($right[$best['at']]);
+
+            match (self::kinship($word, $best['word'])) {
+                'variant' => $variant++,
+                'misspelt' => $misspelt++,
+                default => $different++,
+            };
+        }
+
+        // Anything still unpaired on the other side is a difference too.
+        $different += count($right);
+
+        $parts = $shared + $misspelt + $variant + $different;
+        $score = $parts === 0 ? 0.0 : $shared / $parts;
+
+        /*
+         * ⚠️ **Certain means every difference is a misspelling** — that is the
+         * one case where two names really are one product. More than two
+         * misspelt words is not a typo, it is a different product.
+         */
+        if ($different === 0 && $variant === 0 && $misspelt <= 2 && $shared > 0) {
+            // $misspelt === 0 here means the same words in a different order,
+            // which is the same product written twice.
+            return ['verdict' => self::SAME_THING, 'score' => $score];
+        }
+
+        // Worth a look when the words they share outnumber the words they do
+        // not, two to one. Below that they are simply two products that happen
+        // to begin with the same brand.
+        return [
+            'verdict' => $shared >= 2 && ($misspelt + $variant + $different) * 2 <= $shared ? self::CLOSE : null,
+            'score' => $score,
+        ];
+    }
+
+    /**
+     * What two words that are not the same word are to each other.
+     *
+     * ⚠️ **Same letters, different digits is ALWAYS a variant** — `30w`/`45w`,
+     * `m10`/`m20`, `128gb`/`64gb`. That one rule is what stops the shop being
+     * told its next wattage up is a duplicate.
+     */
+    private static function kinship(string $word, string $other): string
+    {
+        $letters = fn (string $w) => preg_replace('/\d+/u', '', $w) ?? $w;
+
+        if ((preg_match('/\d/u', $word) || preg_match('/\d/u', $other)) && $letters($word) === $letters($other)) {
+            return 'variant';
+        }
+
+        // A misspelling is a near-miss between two words long enough for the
+        // near-miss to mean something, and a word carrying a digit is a code
+        // rather than a word.
+        $longest = max(mb_strlen($word), mb_strlen($other));
+
+        if ($longest >= 4 && ! preg_match('/\d/u', $word.$other) && self::distance($word, $other) <= 2) {
+            return 'misspelt';
+        }
+
+        return 'different';
     }
 
     /**
@@ -239,54 +452,6 @@ final class ProductName
     private static function normalise(string $value): string
     {
         return trim(preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower($value)) ?? '');
-    }
-
-    /**
-     * How alike two normalised names are, from 0 to 1.
-     *
-     * ⚠️ **Two measures, and the kinder one wins.** Character distance catches
-     * a letter changed or dropped; shared words catch the same product typed in
-     * a different order. Neither finds both on its own.
-     */
-    private static function similarity(string $a, string $b): float
-    {
-        if ($a === '' || $b === '') {
-            return 0.0;
-        }
-
-        if ($a === $b) {
-            return 1.0;
-        }
-
-        $byWord = self::sharedWords($a, $b);
-
-        /*
-         * ⚠️ `levenshtein()` counts BYTES, so a Kurdish or Arabic name would be
-         * scored on its UTF-8 encoding rather than its letters. Where either
-         * side is not plain ASCII the shared-word measure carries it alone,
-         * which is correct if a little less sensitive.
-         */
-        if (! mb_check_encoding($a, 'ASCII') || ! mb_check_encoding($b, 'ASCII')) {
-            return $byWord;
-        }
-
-        $gap = self::distance($a, $b);
-        $byChar = 1 - $gap / max(strlen($a), strlen($b));
-
-        // Shared words alone never quite reach "certainly the same": two
-        // products can share every word and differ by the number that matters.
-        return max($byChar, $byWord * 0.97);
-    }
-
-    private static function sharedWords(string $a, string $b): float
-    {
-        $left = array_unique(explode(' ', $a));
-        $right = array_unique(explode(' ', $b));
-
-        $both = count(array_intersect($left, $right));
-        $either = count(array_unique([...$left, ...$right]));
-
-        return $either === 0 ? 0.0 : $both / $either;
     }
 
     /** ASCII-safe edit distance; anything else is compared by its letters. */

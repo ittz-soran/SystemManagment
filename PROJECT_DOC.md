@@ -2174,7 +2174,17 @@ Eight things scanned, the customer waiting, and somebody's thumb finds **Sales h
 
 **Four helps, on the product add and edit forms only.** The first three are `app/Support/ProductName.php`; the fourth is the browser's own and was added a few hours after the others, once he had the rest working.
 
-**1. The name is tidied on save.** `cable sikenai 30w c to ltg  y2` is stored as `Cable Sikenai 30W C to LTG Y2`. Double spaces collapse, `30w` becomes `30W`, `128gb` becomes `128GB` (also `V`, `A`, `mAh`, `Hz`, `TB`), `usb`/`ltg`/`pd`/`nc`/`lte`/`ssd`/`hdd`/`rgb`/`led`/`hdmi` go to capitals, and each remaining word gets a capital first letter.
+**1. The name is tidied on save.** `cable sikenai 30w c to ltg  y2` is stored as `Cable Sikenai 30W C to LTG Y2`.
+
+⚠️ **THE SHOP'S OWN CATALOGUE IS THE AUTHORITY ON HOW A WORD IS WRITTEN — Soran, 2026-09-27, after testing the first version: *"2, 3 and 4 on the product form still not work good"*.**
+
+The first version had a hard-coded list of ten words to capitalise, and on his real catalogue it got his own names wrong: `msi` came out `Msi`, `ps4` came out `Ps4`, `4g` came out `4g`, and `type-c` was left alone — while his products say `MSI`, `PS4`, `4G` and `Type-C`. A fixed list cannot know a shop it has never seen.
+
+So a word is written **the way this shop already writes it**. `msi` → `MSI` because *Monitor MSI GF244* is on the shelf. `type-c` → `Type-C`, `b450m-kii+r5` → `B450M-KII+R5`, `smarttag` → `SmartTag`. It is the same decision as help 3, applied to casing instead of spelling, and it means the tidy gets better every time a product is added.
+
+⚠️ **The typed word wins when it is already one of the ways the shop writes it**, so two legitimate spellings never flip-flop; otherwise the commonest form wins, ties going to the one with more capitals and then alphabetically, so the answer is the same every time.
+
+**Only when the shop has never seen the word** do the built-in rules apply, which is what a brand-new shop has: double spaces collapse, `30w` becomes `30W` and `128gb` becomes `128GB` (also `V`, `A`, `mAh`, `Hz`, `TB`), `usb`/`ltg`/`pd`/`nc`/`lte`/`ssd`/`hdd`/`rgb`/`led`/`hdmi` go to capitals, and each remaining word gets a capital first letter.
 
 ⚠️ **A word is left exactly as typed if it already carries a capital, or any punctuation.** `B450M-KII+R5`, `PD-17-UK` and `i5-10th` are part numbers, and putting a capital on the front of one corrupts it. The hyphen is what tells them apart from `y2`, which is a plain word with a digit in it and does want its capital.
 
@@ -2184,14 +2194,27 @@ Eight things scanned, the customer waiting, and somebody's thumb finds **Sales h
 
 **2. A warning when it is nearly a product he already sells.** As the name is typed, the form asks the server for look-alikes and shows at most three, with their SKU and a link that opens each in a new tab:
 
-- **0.90 and above** — *"You almost certainly already sell this"*.
-- **0.75 to 0.90** — *"Worth a look before you save"*.
+⚠️ **A VARIANT IS NOT A DUPLICATE, AND THE FIRST VERSION COULD NOT TELL THEM APART — Soran, 2026-09-27: *"still not work good"*.**
 
-One card carries all three, and it takes the stronger heading as soon as one of them is certain — the shopkeeper needs to know the strongest thing the system has to say, not read three of them.
+It scored two names by how many characters they had in common, and in a phone-accessory shop almost every new product is a variant of one already on the shelf. So it said **"you almost certainly already sell this"** about *Earphone Anker Soundcore R50i NC **Blue*** against the **Black**, about *Charger Sikenai **45W*** against the **30W**, and about *Mouse Rapoo Wireless **M20*** against the **M10** — three real, different products out of seven tried. A warning that fires on nearly every save is one nobody reads.
+
+**So the two names are compared word by word, not letter by letter**, and each word that is not in both is put in one of three boxes:
+
+- **a different number, same letters** — `30W` against `45W`, `M20` against `M10`, `256GB` against `128GB`: a **variant**. Never a duplicate.
+- **nearly the same word** — `Sikanai` against `Sikenai`, `Rapo` against `Rapoo`, `Blck` against `Black`: within two letters, four letters or longer, no digits: a **misspelling**.
+- **anything else** — `Blue` against `Black`, `LTG` against `C`: simply a **different word**.
+
+Then:
+
+- **"You almost certainly already sell this"** — *only* when every difference is a misspelling. That is the one case where two names really are one product, and it is the case this feature was built for.
+- **"Worth a look before you save"** — when the names plainly overlap: **the words they share must outnumber the words they do not by two to one**. This is where every colour, capacity and wattage variant lands, and it is useful there — it shows the siblings and their SKUs — as long as it does not shout.
+- **Nothing at all** below that. *Router Olax Battery* and *Router Olax 4 Port Ethernet 4G LTE* share two words out of seven and are not each other.
+
+One card carries all three hits, and it takes the stronger heading as soon as one of them is certain — the shopkeeper needs to know the strongest thing the system has to say, not read three of them.
 
 ⚠️ **It advises and never blocks.** Two products can be genuinely different — a 20W and a 30W of the same cable differ by one character — so the shopkeeper standing at the counter must always be able to say *yes, I mean it*. There is no override button because there is nothing to override.
 
-**How alike is measured:** the better of two numbers — character distance (catches a letter changed, dropped or doubled) and shared words (catches the same product typed in a different order). Neither finds both on its own, and shared words alone is capped just under *certain*, because two names can share every word and differ by the number that matters. ⚠️ `levenshtein()` counts **bytes**, so for a name that is not plain ASCII — Kurdish, Arabic — the shared-word measure carries it alone rather than scoring a name on its UTF-8 encoding.
+**The order the hits come in** is by how much of the name the two share, so the closest is first. ⚠️ `levenshtein()` counts **bytes**, so the word-against-word comparison walks a non-ASCII word — Kurdish, Arabic — by character instead, rather than scoring it on its UTF-8 encoding.
 
 **3. ⚠️ THE DICTIONARY IS HIS CATALOGUE, NOT ENGLISH.** This is the decision the whole feature rests on. A word is only ever questioned when it is nearly a word **his own products already use**, so:
 
