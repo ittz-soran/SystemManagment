@@ -1710,6 +1710,26 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### Profit, per invoice and in total — Soran, 2026-09-27
+
+*"can explane this profit tile before create"* … *"ok, and have profit in sales/70 or sale history page, profit per inv"*.
+
+Explained first, then built: a **Profit** tile over the sales list, a **Profit column on every row**, and a **What this invoice earned** card on the invoice's own page. All three read one calculation.
+
+⚠️ **`DocumentProfit` is an EXTRACTION, not a new sum.** `ReportController` held `costPerDocument()` and `costReturnedPerSale()` privately and the sales report has used them since it was built. They moved to `App\Support\DocumentProfit` and the report now calls the same code. **A second implementation of profit is how this shop came to have two clocks**, and the answer to "put profit somewhere new" is always to extract, never to write it again.
+
+⚠️ **This is the cohort clock and the label says so.** *"Profit on these invoices — after FIFO cost, including anything returned against them since."* Over a window holding both a sale and its return it agrees with the reports page exactly; on a single day it need not. Measured on the dev shop: all time **20,300** both ways, 25/9 alone **14,300** here against **24,800** there. Both right, answering different questions — and an unlabelled scope is the fault that cost this shop two days.
+
+⚠️ **THE SAME BUG, A FOURTH TIME, CAUGHT BECAUSE HE ASKED TO SEE IT FIRST.** The first tile read **43,300** on a shop that had made **20,300**. It subtracted what a return **credited to a balance** — and that return was refunded in **cash**, which credits no balance at all, so 23,000 of returned goods never came off. Revenue is the invoices less the **returns' own totals**, which is what the sales report's foot has always printed. The balance credit is still right for *Still due*, because a cash refund genuinely does not reduce what somebody owes: two figures, two purposes, and they are not interchangeable.
+
+⚠️ **The rows add up to the tile, and a test holds them there** — with a return in the fixture, because without one the tile and the rows agree however either is written and the sabotage walks through.
+
+⚠️ **Four queries a page, never four a row.** `perSale()` gathers the whole page at once, the same rule `ProfitBreakdown` follows.
+
+⚠️ **Masked outright, never marked up.** `cost_seen()` inflates a cost by the reader's percentage — right for one price on a product page, wrong here, because a marked-up cost makes a **plausible profit that is not the shop's**. Anyone who is not on `COST_REAL` sees `*****` on the tile, on every row and on the invoice page. A figure that is quietly false is worse than one visibly withheld.
+
+**Purchases keep their four.** Nothing is earned by buying, so there is no profit to show — the two lists stop being identical, and that is the honest answer rather than a tile invented to match.
+
 #### The sales and purchase lists got the four figures too — Soran, 2026-09-26
 
 *"and for sales, purchases"*.

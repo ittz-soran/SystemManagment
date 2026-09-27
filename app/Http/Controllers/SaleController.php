@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\AssemblyService;
 use App\Services\BulkDeleteService;
 use App\Services\SaleService;
+use App\Support\DocumentProfit;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -76,6 +77,18 @@ class SaleController extends Controller
             'customers' => Customer::orderByDesc('is_system')->orderBy('name')->get(),
             'isFiltered' => $this->isFiltered($request),
             'stats' => $this->figures($filtered, $request),
+
+            /*
+             * ⚠️ **What each invoice on THIS page earned** — Soran, 2026-09-27:
+             * *"profit per inv"*. Gathered for the twenty-five rows being drawn,
+             * in four queries rather than four per row.
+             *
+             * Whether it may be shown at all is asked once, here, rather than
+             * per row: a marked-up cost would make a plausible profit that is
+             * not the shop's, so it is the true figure or the mask.
+             */
+            'profit' => DocumentProfit::perSale($sales->pluck('id')),
+            'seesCost' => $request->user()->seesRealCost(),
         ]);
     }
 
@@ -137,6 +150,35 @@ class SaleController extends Controller
 
         $due = max(0, $total - $paid - $credited);
 
+        /*
+         * What those invoices cost the shop, from the one place that works it
+         * out — `ReportController` used to hold this privately and the sales
+         * report still calls the same code. A second implementation of profit
+         * is how this shop came to have two clocks.
+         */
+        $ids = (clone $filtered)->pluck('id');
+        $cost = DocumentProfit::costOfSales($ids);
+
+        /*
+         * ⚠️ **What came back is NOT the same figure as what was credited.**
+         *
+         * `$credited` above is the account-transaction credit — what a return
+         * took off the customer's balance — and it is the right thing for
+         * "Still due", because a refund paid in cash does not reduce what
+         * somebody owes. It is the WRONG thing for revenue: that same cash
+         * refund credits no balance at all, so the money came back and this
+         * figure stayed at zero.
+         *
+         * A first version of the profit tile used it and read 43,300 on a shop
+         * that had made 20,300 — the 23,000 of returned goods never came off.
+         * Revenue is the invoices less the RETURNS' OWN TOTALS, which is what
+         * the sales report has always printed at its foot.
+         */
+        $returned = (int) SaleReturn::whereIn('sale_id', $ids)->sum('total_amount');
+
+        // ⚠️ True cost or nothing. See the tile below for why not a markup.
+        $seesCost = $request->user()->seesRealCost();
+
         // How many are carrying it, which is the difference between one
         // awkward account and a habit.
         $owing = (clone $filtered)->get()->filter(fn ($row) => $row->amountDue() > 0)->count();
@@ -152,12 +194,32 @@ class SaleController extends Controller
                 'value' => money($total, in: $lens),
                 'note' => __('what these invoices came to'),
             ],
+            /*
+             * ⚠️ **The cohort clock, and the label is what makes it safe.**
+             * This is the profit of THESE INVOICES with everything returned
+             * against them taken off, whenever it was returned — the figure at
+             * the foot of the sales report, and the question this list asks.
+             * The reports page answers the other one: what happened between two
+             * dates. Over a month they agree; on 2026-09-24 they are 14,300 and
+             * 24,800. Two figures called "profit" with nothing saying which is
+             * which is the fault that cost this shop two days, so the note says
+             * it.
+             *
+             * ⚠️ **Masked outright for a reader who may not see true cost, not
+             * marked up.** `cost_seen()` inflates a cost by that reader's
+             * percentage, which is right for one price on a product page and
+             * wrong here: a marked-up cost makes a PLAUSIBLE profit that is not
+             * the shop's. A figure that is quietly false is worse than one that
+             * is visibly withheld.
+             */
             [
-                'label' => __('Paid'),
-                'value' => money($paid, in: $lens),
-                'note' => $credited > 0
-                    ? __(':amount more came off as returns', ['amount' => money($credited, in: $lens)])
-                    : __('taken so far, cash and on account'),
+                'label' => __('Profit on these invoices'),
+                'value' => $seesCost
+                    ? money($total - $returned - $cost, in: $lens)
+                    : hidden_money(),
+                'note' => $seesCost
+                    ? __('after FIFO cost, including anything returned against them since')
+                    : __('needs permission to see what things cost'),
             ],
             [
                 'label' => __('Still due'),
@@ -438,6 +500,15 @@ class SaleController extends Controller
             'sale' => $sale->load('customer', 'user', 'items.product', 'returns'),
             'payments' => $sale->payments()->orderBy('paid_at')->get(),
             'lockState' => $sale->canBeModified(auth()->user()),
+
+            /*
+             * What this one invoice earned — Soran, 2026-09-27. The same
+             * calculation the list and the sales report use, asked for one id,
+             * so the number on the document and the number on the row it came
+             * from cannot drift.
+             */
+            'profit' => DocumentProfit::perSale(collect([$sale->id]))[$sale->id] ?? null,
+            'seesCost' => $request->user()->seesRealCost(),
         ]);
     }
 

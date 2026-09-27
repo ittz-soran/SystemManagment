@@ -95,6 +95,55 @@
         </div>
 
         <div class="col-lg-4">
+            {{--
+                What this invoice earned — Soran, 2026-09-27.
+
+                ⚠️ **Revenue here is the invoice less anything returned against
+                it**, and cost is the FIFO cost its movements recorded less the
+                cost a return put back. The same `DocumentProfit` the list and
+                the sales report read, asked for one id — so the figure on this
+                document and the figure on the row it came from cannot drift.
+
+                ⚠️ **This is the cohort clock**: everything returned against
+                this invoice comes off it, whenever it was returned. The reports
+                page answers the other question — what happened between two
+                dates — so on a single day the two can differ and both be right.
+                The note says which one this is.
+            --}}
+            @if($profit !== null)
+                <div class="card mb-3">
+                    <div class="card-header">{{ __('What this invoice earned') }}</div>
+                    <div class="card-body">
+                        @if($seesCost)
+                            <div class="d-flex justify-content-between">
+                                <span class="text-secondary">{{ __('Revenue') }}</span>
+                                <span class="money">{{ money($profit['revenue'], false, $lens) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-secondary">{{ __('What it cost') }}</span>
+                                <span class="money">−{{ money($profit['cost'], false, $lens) }}</span>
+                            </div>
+
+                            <hr>
+
+                            <div class="d-flex justify-content-between fw-semibold">
+                                <span>{{ $profit['profit'] < 0 ? __('Lost on it') : __('Profit') }}</span>
+                                <span class="money">{{ money(abs($profit['profit']), false, $lens) }}</span>
+                            </div>
+
+                            <div class="small text-secondary mt-2">
+                                {{ __('FIFO cost of the units that actually left, less anything returned against this invoice since.') }}
+                            </div>
+                        @else
+                            <div class="text-secondary">
+                                {{ hidden_money() }}
+                                <div class="small mt-1">{{ __('needs permission to see what things cost') }}</div>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             <div class="card mb-3">
                 <div class="card-header">{{ __('Payments') }}</div>
                 @if($payments->isEmpty())
