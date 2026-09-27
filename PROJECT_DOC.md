@@ -1710,6 +1710,26 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### A name on a walk-in sale — Soran, 2026-09-27
+
+*"in sale i need type name person -> just for cash customer -> click on check box show input customer name … this is not stored customers -> just like an note for invoices"*.
+
+⚠️ **It is a note, not a customer, and the difference is the whole feature.** A walk-in who gives a name is not an account: no balance, no history, nothing to owe. Creating a `customers` row for every one of them would fill the customer list with people who bought a cable once, and each would carry a balance the shop then has to reconcile forever.
+
+So it is one nullable column on the sale — `walk_in_name` — written on the invoice and nowhere else.
+
+⚠️ **Only on a Cash Customer sale, and the server enforces it.** A named customer already has a name; a second one on the same document is two answers to one question. The checkbox is hidden for anybody else, and `SaleService` drops the value rather than trusting the form — a hidden field is a suggestion, never a rule.
+
+⚠️ **It is opt-in behind a tick, because the till is a hundred-times-a-day screen.** A permanent extra box is a permanent extra thing to tab past for the shopkeeper who does not want it, and the overwhelming majority of walk-ins have no name worth writing.
+
+**Where it appears:** the invoice's own page and its printed sheet, beside *Cash Customer* rather than instead of it — the sale really was to the walk-in account, and a document that hides that would misrepresent whose balance it touched. The sales list shows it the same way, and the list's search matches it, because *"who bought one of these"* is the question that search exists to answer.
+
+⚠️ **Re-read on every edit, or it would outlive the sale it belonged to.** Left out of `update()`'s signature the name would survive a change of customer, and an invoice moved onto a named account would keep a stranger's name printed on it. Moving a sale off the Cash Customer clears it.
+
+⚠️ **The box is emptied when it is hidden, not merely hidden.** A name typed for a walk-in and then orphaned by a change of customer would post anyway — the server drops it, but the shopkeeper would never have seen it go. It is cleared where they can watch it happen.
+
+**Driven in a browser, because the showing and hiding is JavaScript:** the tick appears for the Cash Customer with its box closed · ticking opens the box · choosing a named customer hides the block and empties the field · and a sale saved with a name reads *"Cash Customer · Ahmed the plumber"* on the document.
+
 #### Shop health: one page that checks the whole machine — Soran, 2026-09-27
 
 *"can add diagnostic section to full check system health -> Accounting, Licence, Storage, Codebase, numbers..... full check"*.

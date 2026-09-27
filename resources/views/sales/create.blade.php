@@ -114,6 +114,44 @@
                             <div class="form-text" id="cash-customer-note">
                                 {{ __('Walk-in buyers use the Cash Customer, which must be paid in full.') }}
                             </div>
+
+                            {{--
+                                A name written on a walk-in sale — Soran,
+                                2026-09-27: *"sometimes i need have name customer
+                                or person name … this is not stored customers"*.
+
+                                ⚠️ **Behind a tick, because this is the
+                                hundred-times-a-day screen.** A permanent extra
+                                box is a permanent extra thing to tab past for
+                                the shopkeeper who does not want one, and most
+                                walk-ins have no name worth writing.
+
+                                ⚠️ **Shown for the Cash Customer only.** A named
+                                customer already has a name. The server drops
+                                the value anyway — a hidden field is a
+                                suggestion, never a rule.
+                            --}}
+                            @php $walkIn = old('walk_in_name', $editing ? $sale->walk_in_name : null); @endphp
+
+                            <div id="walk-in-block" class="mt-2 d-none">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="walk-in-toggle"
+                                           @checked(filled($walkIn))>
+                                    <label class="form-check-label small" for="walk-in-toggle">
+                                        {{ __('Write a name on this invoice') }}
+                                    </label>
+                                </div>
+
+                                <div id="walk-in-field" class="mt-2 {{ filled($walkIn) ? '' : 'd-none' }}">
+                                    <input type="text" name="walk_in_name" id="walk_in_name"
+                                           class="form-control form-control-sm" maxlength="100"
+                                           value="{{ $walkIn }}"
+                                           placeholder="{{ __('Who it is for') }}">
+                                    <div class="form-text">
+                                        {{ __('Written on the invoice only. It does not create a customer and nothing is owed.') }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mb-3">
@@ -1112,6 +1150,45 @@
                     }
                 });
             }
+
+            /*
+             * The walk-in name — Soran, 2026-09-27.
+             *
+             * ⚠️ **The box is EMPTIED when it is hidden, not just hidden.** A
+             * name typed for a walk-in and then left behind by a change of
+             * customer would post anyway; the server drops it, but the
+             * shopkeeper would have seen it disappear without being told. Clear
+             * it where they can see it happen.
+             */
+            (() => {
+                const block = document.getElementById('walk-in-block');
+                const toggle = document.getElementById('walk-in-toggle');
+                const field = document.getElementById('walk-in-field');
+                const input = document.getElementById('walk_in_name');
+
+                if (! block || ! customerSelect) return;
+
+                const showField = (on) => {
+                    field.classList.toggle('d-none', ! on);
+                    if (on) input.focus(); else input.value = '';
+                };
+
+                const forThisCustomer = () => {
+                    const isCash = customerSelect.selectedOptions[0]?.dataset.system === '1';
+
+                    block.classList.toggle('d-none', ! isCash);
+
+                    if (! isCash) {
+                        toggle.checked = false;
+                        showField(false);
+                    }
+                };
+
+                toggle.addEventListener('change', () => showField(toggle.checked));
+                customerSelect.addEventListener('change', forThisCustomer);
+
+                forThisCustomer();
+            })();
 
             document.addEventListener('keydown', (event) => {
                 // Not while the keypad is up, or F2 would save the document

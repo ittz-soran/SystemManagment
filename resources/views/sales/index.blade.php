@@ -114,7 +114,15 @@
                                  it carries no label. --}}
                             <td class="list-card-title"><x-document-link :document="$sale" :kind="false" /></td>
                             <td data-label="{{ __('Date') }}"><span class="app-code">{{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }}</span></td>
-                            <td data-label="{{ __('Customer') }}"><x-document-link :document="$sale->customer" :kind="false" /></td>
+                            <td data-label="{{ __('Customer') }}">
+                                <x-document-link :document="$sale->customer" :kind="false" />
+                                {{-- ⚠️ Beside the account, never instead of it:
+                                     the sale really was to the Cash Customer,
+                                     and that is whose balance it touched. --}}
+                                @if($sale->walk_in_name)
+                                    <div class="small text-secondary">{{ $sale->walk_in_name }}</div>
+                                @endif
+                            </td>
                             <td data-label="{{ __('Status') }}"><x-status-badge :status="$sale->status" /></td>
                             <td class="money" data-label="{{ __('Total') }}">{{ money($sale->total_amount, in: $lens) }}</td>
                             <td class="money {{ $sale->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}"

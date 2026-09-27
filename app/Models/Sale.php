@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['document_no', 'customer_id', 'user_id', 'total_amount', 'status', 'sale_date', 'exchange_rate'])]
+#[Fillable(['document_no', 'customer_id', 'walk_in_name', 'user_id', 'total_amount', 'status', 'sale_date', 'exchange_rate'])]
 class Sale extends Model
 {
     use CreditedByReturns, HidesArchivedPeriod, SoftDeletes;
@@ -78,6 +78,23 @@ class Sale extends Model
      * the APPLIED credit rather than the return's total — Soran found this
      * reading 180,000 on an invoice with 45,000 already back on the shelf.
      */
+    /**
+     * Who this sale was to, as a person reads it.
+     *
+     * ⚠️ **Both, when there is a walk-in name — never instead.** The sale
+     * really was to the Cash Customer account, and that is whose balance it
+     * touched; a document showing only "Ahmed" would misrepresent the books.
+     * The name is a note written beside it, which is all it ever was.
+     */
+    public function soldTo(): string
+    {
+        $account = $this->customer?->displayName() ?? __('Unknown');
+
+        return $this->walk_in_name
+            ? $account.' · '.$this->walk_in_name
+            : $account;
+    }
+
     public function amountDue(): int
     {
         return $this->total_amount - $this->amountPaid() - $this->creditedByReturns();

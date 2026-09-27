@@ -51,6 +51,11 @@ class SaleController extends Controller
              */
             ->when($request->filled('search'), fn ($q) => $q->where(fn ($w) => $w
                 ->where('document_no', 'like', '%'.$request->input('search').'%')
+                // ⚠️ And the name written on a walk-in sale — Soran,
+                // 2026-09-27. "Who bought one of these" is the question this
+                // box exists for, and for a walk-in this is the only answer
+                // the shop has.
+                ->orWhere('walk_in_name', 'like', '%'.$request->input('search').'%')
                 ->orWhereHas('customer', fn ($c) => $c
                     ->where('name', 'like', '%'.$request->input('search').'%')
                     ->orWhere('phone', 'like', '%'.$request->input('search').'%'))
@@ -276,6 +281,14 @@ class SaleController extends Controller
     {
         $data = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
+
+            /*
+             * ⚠️ A name written on a walk-in sale — Soran, 2026-09-27. A note
+             * on the invoice, never a customer. `SaleService` drops it for a
+             * named account rather than trusting this, because the tick box
+             * being hidden is not the same as the field being impossible.
+             */
+            'walk_in_name' => ['nullable', 'string', 'max:100'],
             'sale_date' => ['required', 'date'],
             'amount_paid' => ['nullable', 'integer', 'min:0'],
             'payment_method' => ['required', 'in:cash,bank,transfer'],
@@ -326,6 +339,7 @@ class SaleController extends Controller
                     amountPaid: (int) ($data['amount_paid'] ?? 0),
                     paymentMethod: $data['payment_method'],
                     exchangeRate: $data['exchange_rate'] ?? null,
+                    walkInName: $data['walk_in_name'] ?? null,
                 );
             });
         } catch (InsufficientStockException $e) {
@@ -456,6 +470,14 @@ class SaleController extends Controller
     {
         $data = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
+
+            /*
+             * ⚠️ A name written on a walk-in sale — Soran, 2026-09-27. A note
+             * on the invoice, never a customer. `SaleService` drops it for a
+             * named account rather than trusting this, because the tick box
+             * being hidden is not the same as the field being impossible.
+             */
+            'walk_in_name' => ['nullable', 'string', 'max:100'],
             'sale_date' => ['required', 'date'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'exists:products,id'],
@@ -471,6 +493,7 @@ class SaleController extends Controller
                 user: $request->user(),
                 saleDate: Carbon::parse($data['sale_date']),
                 exchangeRate: $data['exchange_rate'] ?? null,
+                walkInName: $data['walk_in_name'] ?? null,
             );
         } catch (InsufficientStockException|\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
