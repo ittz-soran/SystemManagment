@@ -124,6 +124,67 @@ class ProductNameTest extends TestCase
             ->assertSessionHasErrors('name');
     }
 
+    /**
+     * ⚠️ **His real catalogue, and the ten-word list that got it wrong.**
+     *
+     * Soran, 2026-09-27, after testing: *"still not work good"*. The first tidy
+     * had a hard-coded list of words to capitalise and wrote `Msi`, `Ps4`, `4g`
+     * and `type-c` where his own products say `MSI`, `PS4`, `4G` and `Type-C`.
+     * The catalogue knew all four the whole time.
+     */
+    public function test_a_word_is_written_the_way_the_shop_already_writes_it(): void
+    {
+        foreach ([
+            'Monitor MSI GF244 24" 180Hz',
+            'Controller PS4 Master Copy',
+            'Router Olax 4 Port Ethernet 4G LTE',
+            'Charger Laptop Lenovo 20V 3.25A Type-C',
+            'SmartTag Anker Eufy Android',
+            'Power Bank Hoco 3000mAh 2in 5Out',
+            'Bundle Asus MotherBord B450M-KII+R5 5500',
+        ] as $onTheShelf) {
+            $this->product($onTheShelf);
+        }
+
+        foreach ([
+            'monitor msi gf244 24" 180hz' => 'Monitor MSI GF244 24" 180Hz',
+            'controller ps4 master copy' => 'Controller PS4 Master Copy',
+            'router olax 4 port ethernet 4g lte' => 'Router Olax 4 Port Ethernet 4G LTE',
+            'charger laptop lenovo 20v 3.25a type-c' => 'Charger Laptop Lenovo 20V 3.25A Type-C',
+            'smarttag anker eufy android' => 'SmartTag Anker Eufy Android',
+            'power bank hoco 3000mah 2in 5out' => 'Power Bank Hoco 3000mAh 2in 5Out',
+            // Even a part number, which no rule could ever have got right.
+            'bundle asus motherbord b450m-kii+r5 5500' => 'Bundle Asus MotherBord B450M-KII+R5 5500',
+        ] as $typed => $expected) {
+            $this->assertSame($expected, ProductName::tidy($typed), $typed);
+        }
+    }
+
+    /** A word the shop has never used still gets the built-in rules. */
+    public function test_a_word_the_shop_has_never_used_falls_back_to_the_rules(): void
+    {
+        $this->product('Monitor MSI GF244 24" 180Hz');
+
+        $this->assertSame('Charger Baseus 65W USB C', ProductName::tidy('charger baseus 65w usb c'));
+    }
+
+    /**
+     * ⚠️ Two legitimate spellings must not flip-flop between saves. The reader
+     * typed one the shop already uses, so it is left alone even though the
+     * other is commoner.
+     */
+    public function test_a_spelling_the_shop_already_uses_is_not_overruled(): void
+    {
+        $this->product('Cable Sikenai 30W C to LTG');
+        $this->product('Charger Sikenai 30W PD');
+        $this->product('Adapter SIKENAI 12V');
+
+        $this->assertSame('Holder SIKENAI Magnetic', ProductName::tidy('Holder SIKENAI Magnetic'));
+
+        // Lower case is nobody's spelling, so the commoner one wins.
+        $this->assertSame('Holder Sikenai Magnetic', ProductName::tidy('holder sikenai magnetic'));
+    }
+
     // ---- 2. The look-alike warning --------------------------------------
 
     public function test_the_typo_he_would_have_made_is_caught(): void
@@ -150,6 +211,73 @@ class ProductNameTest extends TestCase
 
         $this->assertCount(1, $advice['look_alikes']);
         $this->assertFalse($advice['look_alikes'][0]['certain']);
+    }
+
+    /**
+     * ⚠️ **THE ONE THAT SENT IT BACK.** Soran tested it on his real catalogue
+     * and it said *"you almost certainly already sell this"* about a Blue
+     * earphone against the Black, a 45W charger against the 30W, and an M20
+     * mouse against the M10 — three real products out of seven tried. In a shop
+     * where nearly every new product is a variant of one on the shelf, a
+     * warning that fires on every save is one nobody reads.
+     */
+    public function test_a_variant_is_never_called_a_duplicate(): void
+    {
+        foreach ([
+            'Earphone Anker Soundcore R50i NC Black',
+            'Charger Sikenai 30W PD',
+            'Mouse Rapoo Wireless M10 PLUS Black',
+            'Flash Sandisk 128GB 2.0',
+        ] as $onTheShelf) {
+            $this->product($onTheShelf);
+        }
+
+        foreach ([
+            'Earphone Anker Soundcore R50i NC Blue',
+            'Charger Sikenai 45W PD',
+            'Mouse Rapoo Wireless M20 PLUS Black',
+            'Flash Sandisk 256GB 2.0',
+        ] as $variant) {
+            $advice = $this->advice($variant);
+
+            // It still says something — the siblings and their SKUs are worth
+            // seeing — but it never claims the shop already sells this one.
+            $this->assertNotEmpty($advice['look_alikes'], $variant);
+
+            foreach ($advice['look_alikes'] as $hit) {
+                $this->assertFalse($hit['certain'], $variant.' vs '.$hit['name']);
+            }
+        }
+    }
+
+    /** And the misspellings it was built for are still certain. */
+    public function test_a_misspelling_is_still_certain(): void
+    {
+        foreach ([
+            'Cable Sikenai 30W C to LTG',
+            'Mouse Rapoo Wireless M10 PLUS Black',
+            'Earphone Anker Soundcore R50i NC Black',
+        ] as $onTheShelf) {
+            $this->product($onTheShelf);
+        }
+
+        foreach ([
+            'Cable Sikanai 30W C to LTG',
+            'Mouse Rapo Wireless M10 PLUS Black',
+            'Earphone Anker Soundcore R50i NC Blck',
+        ] as $typo) {
+            $advice = $this->advice($typo);
+
+            $this->assertTrue($advice['look_alikes'][0]['certain'], $typo);
+        }
+    }
+
+    /** Two products that merely start with the same brand are left alone. */
+    public function test_sharing_a_brand_is_not_sharing_a_product(): void
+    {
+        $this->product('Router Olax 4 Port Ethernet 4G LTE');
+
+        $this->assertSame([], $this->advice('Router Olax Battery')['look_alikes']);
     }
 
     public function test_the_same_words_in_a_different_order_are_caught(): void

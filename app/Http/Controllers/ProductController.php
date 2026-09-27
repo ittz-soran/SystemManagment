@@ -514,7 +514,10 @@ class ProductController extends Controller
                     'name' => $hit['name'],
                     'sku' => $hit['sku'],
                     'url' => route('products.show', $hit['id']),
-                    'certain' => $hit['score'] >= ProductName::CERTAIN,
+                    // ⚠️ Certain means every difference between the two names
+                    // is a MISSPELLING. A different colour, capacity or
+                    // wattage is a variant and never says this.
+                    'certain' => $hit['verdict'] === ProductName::SAME_THING,
                 ])
                 ->values(),
             'spellings' => ProductName::spellingsItKnows($name, $ignore)->values(),
