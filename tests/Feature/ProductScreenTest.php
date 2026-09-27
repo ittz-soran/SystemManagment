@@ -210,7 +210,8 @@ class ProductScreenTest extends TestCase
             'opening_unit_cost' => 11_500,
         ])->assertRedirect(route('products.index'));
 
-        $product = Product::where('name', 'Anker charger')->sole();
+        // Section 9's tidy runs on save, so the name stored is the tidied one.
+        $product = Product::where('name', 'Anker Charger')->sole();
 
         $this->assertSame(6, $product->quantity);
         $this->assertSame(11_500, $product->stockBatches()->sole()->unit_cost);

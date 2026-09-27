@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Rules\Amount;
 use App\Services\ProductCodeService;
 use App\Support\MoneyInput;
+use App\Support\ProductName;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ProductRequest extends FormRequest
@@ -101,6 +102,19 @@ class ProductRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        /*
+         * Section 9 — "Help with the name of a product". The name is tidied
+         * here rather than in the controller so that the create form, the edit
+         * form and the `max:255` rule all see the one name that will be stored.
+         *
+         * ⚠️ Silent, and only on save. Nothing else about the name is touched:
+         * the look-alike warning and the spelling suggestions advise on screen
+         * and never change what was typed.
+         */
+        if (is_string($name = $this->input('name'))) {
+            $this->merge(['name' => ProductName::tidy($name)]);
+        }
+
         if ($this->user()->seesRealCost()) {
             return;
         }

@@ -10,6 +10,15 @@
                     <input id="name" name="name" value="{{ old('name', $product->name) }}"
                            class="form-control @error('name') is-invalid @enderror" required autofocus>
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+                    {{-- Section 9 — "Help with the name of a product". Filled
+                         in by the script at the foot of this form, and empty
+                         until the server has something to say. It advises: it
+                         cannot refuse a save, and nothing here changes what is
+                         typed unless the person presses the button. --}}
+                    <div id="name-advice" class="mt-2"
+                         data-url="{{ route('products.name-advice') }}"
+                         @if($product->exists) data-ignore="{{ $product->id }}" @endif></div>
                 </div>
 
                 <div class="row g-3">
@@ -206,6 +215,160 @@
 
             unit.addEventListener('change', sync);
             sync();
+        })();
+
+        /*
+         * Section 9 — "Help with the name of a product".
+         *
+         * Two of the three helps live here, and both only advise: the look-alike
+         * warning and the spellings the shop's own catalogue already uses. The
+         * third — tidying the name — is done on the server when the form is
+         * saved, so this script being blocked, slow or broken costs the shop
+         * nothing but the advice.
+         */
+        (() => {
+            const box = document.getElementById('name');
+            const out = document.getElementById('name-advice');
+
+            if (! box || ! out) {
+                return;
+            }
+
+            /* ⚠️ The array is built first and handed over as ONE variable.
+               Blade's json directive splits its own argument on commas and
+               takes the second and third as json_encode's flags and depth, so
+               an array literal written inline is silently truncated at its
+               first comma and the page is left with broken JavaScript. */
+            @php($say = [
+                'certain' => __('You almost certainly already sell this'),
+                'maybe' => __('Worth a look before you save'),
+                'spelling' => __('You usually write it :word — it is in :count of your products.'),
+                'use' => __('Use it'),
+            ])
+            const say = @json($say);
+
+            let timer = null;
+            let asked = '';
+
+            const draw = (advice) => {
+                out.innerHTML = '';
+
+                const alikes = advice.look_alikes || [];
+
+                if (alikes.length) {
+                    const sure = alikes.some((hit) => hit.certain);
+                    const card = document.createElement('div');
+                    card.className = 'alert small py-2 px-3 mb-0 ' + (sure ? 'alert-warning' : 'alert-secondary');
+
+                    const head = document.createElement('div');
+                    head.className = 'fw-semibold';
+                    head.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>';
+                    head.append(sure ? say.certain : say.maybe);
+                    card.append(head);
+
+                    const list = document.createElement('ul');
+                    list.className = 'list-unstyled mb-0 mt-1';
+
+                    alikes.forEach((hit) => {
+                        // A flex row with a gap rather than a margin on the
+                        // code: under RTL the margin lands on the wrong side of
+                        // the bidi run and the SKU touches the name.
+                        const row = document.createElement('li');
+                        row.className = 'd-flex flex-wrap gap-2';
+                        const link = document.createElement('a');
+                        link.href = hit.url;
+                        link.target = '_blank';
+                        link.rel = 'noopener';
+                        link.textContent = hit.name;
+                        row.append(link);
+
+                        if (hit.sku) {
+                            const code = document.createElement('span');
+                            code.className = 'text-secondary app-code';
+                            code.textContent = hit.sku;
+                            row.append(code);
+                        }
+
+                        list.append(row);
+                    });
+
+                    card.append(list);
+                    out.append(card);
+                }
+
+                (advice.spellings || []).forEach((hint) => {
+                    const card = document.createElement('div');
+                    card.className = 'alert alert-info small py-2 px-3 mb-0 mt-2 d-flex flex-wrap align-items-center gap-2';
+
+                    const text = document.createElement('span');
+                    text.innerHTML = '<i class="bi bi-lightbulb me-1"></i>';
+                    text.append(say.spelling
+                        .replace(':word', '\u201C' + hint.suggested + '\u201D')
+                        .replace(':count', hint.seen));
+                    card.append(text);
+
+                    const fix = document.createElement('button');
+                    fix.type = 'button';
+                    fix.className = 'btn btn-sm btn-outline-primary py-0 px-2';
+                    fix.textContent = say.use;
+                    // Only the word that was flagged, and only where it stands
+                    // alone — so "Wirless" in "Wirless Mouse" is replaced and
+                    // nothing inside a part number is touched.
+                    fix.addEventListener('click', () => {
+                        const word = hint.typed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        box.value = box.value.replace(new RegExp('\\b' + word + '\\b', 'giu'), hint.suggested);
+                        box.dispatchEvent(new Event('input'));
+                        box.focus();
+                    });
+                    card.append(fix);
+
+                    out.append(card);
+                });
+            };
+
+            const ask = () => {
+                const name = box.value.trim();
+
+                if (name.length < 4) {
+                    out.innerHTML = '';
+                    asked = '';
+
+                    return;
+                }
+
+                if (name === asked) {
+                    return;
+                }
+
+                asked = name;
+
+                const url = new URL(out.dataset.url, window.location.origin);
+                url.searchParams.set('name', name);
+
+                if (out.dataset.ignore) {
+                    url.searchParams.set('ignore', out.dataset.ignore);
+                }
+
+                fetch(url, { headers: { Accept: 'application/json' } })
+                    .then((response) => (response.ok ? response.json() : null))
+                    .then((advice) => {
+                        // A slow answer to an old question must not overwrite a
+                        // newer one, and a refusal simply says nothing.
+                        if (advice && box.value.trim() === asked) {
+                            draw(advice);
+                        }
+                    })
+                    .catch(() => {});
+            };
+
+            box.addEventListener('input', () => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(ask, 400);
+            });
+
+            // An edit screen starts with a name already in the box; a fresh one
+            // does not, and `ask` returns on its own.
+            ask();
         })();
     </script>
 @endpush
