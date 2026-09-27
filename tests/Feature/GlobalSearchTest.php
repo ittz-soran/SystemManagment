@@ -70,6 +70,26 @@ class GlobalSearchTest extends TestCase
         );
     }
 
+    /**
+     * The same sale, but to the Cash Customer with a name written beside it —
+     * which for a walk-in is the shop's only handle on the person.
+     */
+    private function sellToAWalkIn(string $name): Sale
+    {
+        app(PurchaseService::class)->create(
+            supplier: $this->supplier,
+            lines: [['product_id' => $this->product->id, 'quantity' => 10, 'unit_price' => 10_000]],
+            user: $this->admin, purchaseDate: now(), amountPaid: 0,
+        );
+
+        return app(SaleService::class)->create(
+            customer: Customer::cashCustomer(),
+            lines: [['product_id' => $this->product->id, 'quantity' => 1, 'unit_price' => 15_000]],
+            user: $this->admin, saleDate: now(), amountPaid: 15_000,
+            walkInName: $name,
+        );
+    }
+
     private function expense(): Expense
     {
         return DB::transaction(fn () => Expense::create([
@@ -100,6 +120,68 @@ class GlobalSearchTest extends TestCase
         $this->assertSame($sale->document_no, $found[__('Sales')][0]['label']);
         $this->assertSame(route('sales.show', $sale), $found[__('Sales')][0]['url']);
         $this->assertStringContainsString('Karwan', $found[__('Sales')][0]['note']);
+    }
+
+    /**
+     * Soran, 2026-09-27: *"system can search for walk-in names"*. A walk-in has
+     * no account and no phone number, so the name written on the invoice is the
+     * only thing left to look them up by.
+     */
+    public function test_it_finds_a_walk_in_sale_by_the_name_written_on_it(): void
+    {
+        $sale = $this->sellToAWalkIn('Hemin Osman');
+
+        $found = $this->search($this->admin, 'Hemin');
+
+        $this->assertCount(1, $found[__('Sales')]);
+        $this->assertSame($sale->document_no, $found[__('Sales')][0]['label']);
+        $this->assertSame(route('sales.show', $sale), $found[__('Sales')][0]['url']);
+
+        // Both, as the invoice itself prints it: the account the books saw and
+        // the name somebody wrote beside it.
+        $this->assertStringContainsString('Hemin Osman', $found[__('Sales')][0]['note']);
+        $this->assertStringContainsString(Customer::cashCustomer()->displayName(), $found[__('Sales')][0]['note']);
+    }
+
+    /**
+     * A deleted sale is gone from the box by either handle.
+     *
+     * The name is the one worth checking: nobody searches for a deleted invoice
+     * by its number, so a leak there would never have been noticed.
+     */
+    public function test_a_deleted_sale_is_not_found_by_the_name_on_it(): void
+    {
+        $sale = $this->sellToAWalkIn('Hemin Osman');
+        $sale->delete();
+
+        $this->assertArrayNotHasKey(__('Sales'), $this->search($this->admin, 'Hemin'));
+        $this->assertArrayNotHasKey(__('Sales'), $this->search($this->admin, $sale->document_no));
+    }
+
+    /** ⚠️ The name reaches no other kind of document — only sales carry one. */
+    public function test_a_walk_in_name_does_not_drag_in_other_documents(): void
+    {
+        $this->sellToAWalkIn('Hemin Osman');
+        $this->expense();
+
+        $found = $this->search($this->admin, 'Hemin');
+
+        $this->assertSame([__('Sales')], array_keys($found));
+    }
+
+    /** The name is a document, and documents are behind their own permission. */
+    public function test_a_reader_without_sales_never_sees_a_walk_in_name(): void
+    {
+        $this->sellToAWalkIn('Hemin Osman');
+
+        $clerk = User::create([
+            'name' => 'Shop Assistant', 'email' => 'assistant@example.com',
+            'password' => 'a-strong-password-2026', 'role' => User::ROLE_USER,
+            'is_active' => true, 'language' => 'en', 'theme' => 'auto', 'items_per_page' => 25,
+        ]);
+        $clerk->permissions()->sync(Permission::where('key', 'products.view')->pluck('id')->all());
+
+        $this->assertArrayNotHasKey(__('Sales'), $this->search($clerk, 'Hemin'));
     }
 
     public function test_it_finds_a_product_by_name_sku_or_barcode(): void

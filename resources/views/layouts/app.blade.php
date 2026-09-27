@@ -131,7 +131,12 @@
 {{-- data-base: where the app starts. On shared hosting the shop is reached at
      /sys/public/, and app.js needs to know which part of the path is the
      address and which part is the screen. --}}
-<body class="bg-body-tertiary"
+{{-- ⚠️ Section 9 — the browser's own spellchecker is OFF for the whole shop
+     and switched on again by the one field that earns it, the product name.
+     Every screen here is full of SKUs, barcodes, IMEIs, document numbers,
+     phone numbers and people's names; a red line under all of them teaches
+     the reader to ignore red lines. --}}
+<body class="bg-body-tertiary" spellcheck="false"
       data-hold-hint="{{ __('Hold to save') }}"
       data-base="{{ rtrim(parse_url(url('/'), PHP_URL_PATH) ?: '', '/') }}">
 <div class="d-flex">

@@ -7,7 +7,13 @@
             <div class="card-body">
                 <div class="mb-3">
                     <label for="name" class="form-label">{{ __('Name') }}</label>
-                    <input id="name" name="name" value="{{ old('name', $product->name) }}"
+                    {{-- Section 9, the fourth help: the browser's own
+                         spellchecker, switched back on for this one field.
+                         `<body>` turns it off everywhere else. It will
+                         underline every brand the shop sells and cannot be
+                         taught otherwise — which is what the three helps below
+                         the box are for. --}}
+                    <input id="name" name="name" value="{{ old('name', $product->name) }}" spellcheck="true"
                            class="form-control @error('name') is-invalid @enderror" required autofocus>
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
 
