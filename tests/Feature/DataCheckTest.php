@@ -569,11 +569,33 @@ class DataCheckTest extends TestCase
     // The page
     // =====================================================================
 
-    public function test_the_page_reports_a_healthy_shop(): void
+    /**
+     * ⚠️ **The banner speaks for the whole page now** — Soran, 2026-09-27, when
+     * the licence, the disk and the code joined it. A test environment has
+     * never taken a backup, so the machine half legitimately complains while
+     * the books are perfect.
+     *
+     * What must be true is that the reader is told WHICH: "One thing here
+     * cannot be right" over a wall of green accounting ticks would be read as
+     * the shop's money being wrong, and that is the one thing this page must
+     * never do.
+     */
+    public function test_the_page_says_the_books_agree_even_when_the_machine_does_not(): void
     {
-        $this->get(route('settings.data-check'))
-            ->assertOk()
-            ->assertSee(__('Everything agrees.'), false);
+        $page = $this->get(route('settings.data-check'))->assertOk();
+
+        $machine = app(\App\Services\ShopHealth::class)->run();
+
+        if ($machine['serious'] === 0 && $machine['notice'] === 0) {
+            $page->assertSee(__('Everything agrees.'), false);
+
+            return;
+        }
+
+        // The books are sound, and the page says so while pointing elsewhere.
+        $page->assertSee(__('The books agree. It is :where that needs attention.', [
+            'where' => __('Storage'),
+        ]), false);
     }
 
     public function test_the_page_names_what_is_wrong(): void

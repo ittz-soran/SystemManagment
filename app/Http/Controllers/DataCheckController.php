@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\DataIntegrityService;
+use App\Services\ShopHealth;
 use Illuminate\View\View;
 
 /**
@@ -18,8 +19,17 @@ use Illuminate\View\View;
  */
 class DataCheckController extends Controller
 {
-    public function index(DataIntegrityService $integrity): View
+    public function index(DataIntegrityService $integrity, ShopHealth $health): View
     {
-        return view('data-check.index', $integrity->run());
+        return view('data-check.index', [
+            ...$integrity->run(),
+
+            /*
+             * ⚠️ The machine's half — the licence, the disk, the code — which
+             * until today only `php artisan shop:doctor` could see, and a
+             * shopkeeper on cPanel has no terminal to run it in.
+             */
+            'health' => $health->run(),
+        ]);
     }
 }

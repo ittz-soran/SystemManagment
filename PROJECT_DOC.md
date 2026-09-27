@@ -1710,6 +1710,30 @@ Four things it deliberately does not call a fault, each written on the sheet its
 
 ⚠️ **Replayed in the order things HAPPENED, never by row id**, and a test exists that can tell the two apart — a fixture where the later-dated sale is typed first, so an id-ordered replay reports the wrong line. The first version of that test could not: every fixture had ids ascending with time, and a sabotage swapping the ordering passed. The same sabotage now fails.
 
+#### Shop health: one page that checks the whole machine — Soran, 2026-09-27
+
+*"can add diagnostic section to full check system health -> Accounting, Licence, Storage, Codebase, numbers..... full check"*.
+
+⚠️ **Half the shop's diagnostics existed and he could never see them.** `Settings → Data check` put seventeen accounting checks on a web page. Everything else — the licence, the folders, the compiled assets, the database driver, the recent errors — lived only in `php artisan shop:doctor`, **a terminal command, on cPanel shared hosting, for a shopkeeper**. It may as well not have existed.
+
+So the page becomes **Shop health**, in sections:
+
+| Section | What it answers |
+|---|---|
+| **Accounting** | the existing seventeen, untouched — do the records still agree with one another |
+| **Licence** | is one required, is it valid, how long is left, does it name this host |
+| **Storage** | is there disk left, can the shop write, when did a backup last run, how big is the log |
+| **Codebase** | is every migration run, are the compiled assets present AND current, what PHP is this, are the caches sane |
+| **Numbers** | how big the shop actually is — products, documents, movements, batches — which is the first thing anybody asks when something is slow |
+
+⚠️ **`ShopHealth` is where the checks live, and `ShopDoctor` reads it.** The command keeps its terminal output and stops holding its own copy of the answers. **One implementation, two ways to read it** — the same rule `DocumentProfit` was extracted under an hour earlier, and the rule this shop keeps learning: a second copy is how two screens come to disagree.
+
+⚠️ **The same check shape as the accounting checks, so the page renders one thing.** Every check returns a key, a label, a severity, the sentence that says why it matters, and its examples — and `attempt()`'s promise is kept: **a check that throws costs you that check, not the page.** A diagnostics page is the last page in the shop allowed to answer with a stack trace.
+
+⚠️ **Numbers is not pass-or-fail and is not pretended to be.** A shop with two hundred thousand movements is not *wrong*; it is large, and that is the answer to "why has this got slow". It renders as a plain table, with no tick beside it.
+
+⚠️ **Read-only, like the page it grew from.** It reports and does not touch. Where a safe repair already exists — *Recheck stock*, *Run a backup now* — the finding links to it rather than doing it, because the difference between a cache to rebuild and two records that cannot both be right is the judgement a person has to make.
+
 #### Profit, per invoice and in total — Soran, 2026-09-27
 
 *"can explane this profit tile before create"* … *"ok, and have profit in sales/70 or sale history page, profit per inv"*.
