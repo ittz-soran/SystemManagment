@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Services\Licence;
 use App\Services\SchemaVersion;
+use App\Services\ShopHealth;
+use BaconQrCode\Writer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -45,8 +47,26 @@ class ShopDoctor extends Command
             'database' => $this->database(),
             'drivers' => $this->drivers(),
             'dependencies' => $this->dependencies(),
-            'assets' => $this->assets(),
-            'licence' => $this->licence(),
+            /*
+             * ⚠️ **Read from `ShopHealth`, not worked out again here** —
+             * Soran, 2026-09-27. The licence and the compiled assets used to be
+             * answered twice, once for this terminal and once nowhere at all,
+             * because the web had no page for them. Now the page and this
+             * command read one implementation; a second copy is how two
+             * screens come to disagree.
+             */
+            /*
+             * ⚠️ **The facts stay named here, and the verdicts come from the
+             * same service the page reads.** A shopkeeper needs "the assets
+             * are fine"; a person with an SSH session diagnosing a bad deploy
+             * needs both hashes and the stylesheet's filename. One place works
+             * them out, two places present them — a first attempt flattened
+             * these into the verdict and destroyed all five, which is a
+             * capability loss wearing the clothes of a tidy-up.
+             */
+            'assets' => app(ShopHealth::class)->assetFacts(),
+            'licence' => app(ShopHealth::class)->licenceFacts(),
+            'health' => $this->health(),
             'errors' => $this->errors((int) $this->option('errors')),
         ];
 
@@ -76,6 +96,39 @@ class ShopDoctor extends Command
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The whole health page, flattened for a terminal.
+     *
+     * One line per check: the verdict, the question it asked, and its reading
+     * where there is one. The detail lives on the page — this is for somebody
+     * who has an SSH session and wants the answer in four seconds.
+     *
+     * @return array<string, string>
+     */
+    private function health(): array
+    {
+        $report = [];
+
+        foreach (app(ShopHealth::class)->run()['sections'] as $section) {
+            foreach ($section['checks'] as $check) {
+                $word = match ($check['severity']) {
+                    ShopHealth::SERIOUS => 'NEEDS A PERSON',
+                    ShopHealth::NOTICE => 'worth a look',
+                    ShopHealth::UNAVAILABLE => 'did not run',
+                    default => 'ok',
+                };
+
+                $said = collect($check['examples'])
+                    ->map(fn ($e) => $e['what'].': '.$e['says'])
+                    ->implode('; ');
+
+                $report[$check['key']] = trim($word.'  '.($check['note'] ?? '').'  '.$said);
+            }
+        }
+
+        return $report;
     }
 
     private function readable(mixed $value): string
@@ -320,7 +373,7 @@ class ShopDoctor extends Command
         $report['packages missing'] = $missing === [] ? ['none'] : $missing;
 
         // Named one by one because each is a screen that will answer 500.
-        $report['qr code library'] = class_exists(\BaconQrCode\Writer::class) ? 'present' : 'MISSING — the authenticator page will fail';
+        $report['qr code library'] = class_exists(Writer::class) ? 'present' : 'MISSING — the authenticator page will fail';
 
         return $report;
     }
@@ -353,51 +406,6 @@ class ShopDoctor extends Command
             ! is_writable($path) => 'NOT WRITABLE — '.$path,
             default => 'writable',
         };
-    }
-
-    /**
-     * What the browser will be asked to load, and whether it is there.
-     *
-     * @return array<string, mixed>
-     */
-    private function assets(): array
-    {
-        $public = rtrim(defined('SHOP_PUBLIC') ? (string) constant('SHOP_PUBLIC') : public_path(), '/\\');
-
-        $shared = base_path('public/build/manifest.json');
-        $theirs = $public.'/build/manifest.json';
-
-        $report = [
-            'shared manifest' => is_file($shared) ? substr(hash_file('sha256', $shared), 0, 12) : 'MISSING',
-            'shop manifest' => is_file($theirs) ? substr(hash_file('sha256', $theirs), 0, 12) : 'MISSING',
-        ];
-
-        $report['they match'] = is_file($shared) && is_file($theirs)
-            && hash_file('sha256', $shared) === hash_file('sha256', $theirs);
-
-        // The actual file the page will link to. Present-and-matching manifests
-        // still serve nothing if the stylesheet beside them never arrived.
-        if (is_file($theirs)) {
-            $manifest = json_decode((string) file_get_contents($theirs), true);
-            $css = $manifest['resources/scss/app.scss']['file'] ?? null;
-
-            $report['stylesheet'] = $css ?? 'not named in the manifest';
-            $report['stylesheet is there'] = $css !== null && is_file($public.'/build/'.$css);
-        }
-
-        return $report;
-    }
-
-    /** @return array<string, mixed> */
-    private function licence(): array
-    {
-        try {
-            $licence = app(Licence::class);
-
-            return ['required' => $licence->isRequired(), 'state' => $licence->state()];
-        } catch (Throwable $e) {
-            return ['state' => 'could not be read', 'why' => $e->getMessage()];
-        }
     }
 
     /**

@@ -500,15 +500,15 @@
              the version worth having after a power cut or a restored backup. --}}
         <div class="card mt-3">
             <div class="card-header d-flex align-items-center gap-2">
-                <i class="bi bi-shield-check"></i>{{ __('Data check') }}
+                <i class="bi bi-shield-check"></i>{{ __('Shop health') }}
             </div>
             <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div class="text-secondary small mb-0" style="max-width: 44rem">
-                    {{ __('Reads every record and reports whether they still agree with one another — stock against its batches, balances against the ledger, totals against their lines, and every link the database itself cannot enforce. It changes nothing.') }}
+                    {{ __('Reads every record and reports whether they still agree with one another — stock against its batches, balances against the ledger, totals against their lines, and every link the database itself cannot enforce. Then the machine around them: the licence, the disk, the backups and the code. It changes nothing.') }}
                 </div>
 
                 <a href="{{ route('settings.data-check') }}" class="btn btn-outline-primary">
-                    <i class="bi bi-clipboard-check me-1"></i>{{ __('Run the data check') }}
+                    <i class="bi bi-clipboard-check me-1"></i>{{ __('Check the whole shop') }}
                 </a>
             </div>
         </div>
