@@ -362,6 +362,20 @@ class StockRoomTest extends TestCase
 
         app(TransferService::class)->delete($transfer, $this->user);
 
+        /*
+         * ⚠️ **THE LINES GO WITH IT — Soran, 2026-09-29.** This removes the
+         * layers it opened and the movements, but never its own lines, and
+         * `stock_transfer_items.product_id` is `restrictOnDelete`. Left behind,
+         * they hold a product that a stock move already deleted once used —
+         * the same shape as the returns on PUR-00040. See Section 8.
+         */
+        $this->assertSame(
+            0,
+            DB::table('stock_transfer_items')
+                ->where('stock_transfer_id', $transfer->id)->count(),
+            'the lines outlived the document',
+        );
+
         $this->assertSame(10, $bought->fresh()->quantity_remaining);
         $this->assertSame(0, StockBatch::where('room_id', $this->back->id)->count());
         $this->assertSame(10, $this->product->fresh()->quantity);

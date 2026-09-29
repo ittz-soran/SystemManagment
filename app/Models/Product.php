@@ -190,6 +190,20 @@ class Product extends Model
         'stock_adjustments' => [null, 'stock adjustments'],
         'stock_batches' => [null, 'stock batches'],
         'stock_movements' => [null, 'stock movements'],
+
+        /*
+         * ⚠️ **THESE FOUR WERE MISSING, AND EACH WAS AN ERROR PAGE — Soran,
+         * 2026-09-29.** Swaps, assemblies, stock moves and repair parts were
+         * all built after this list was written, and none was added to it. A
+         * product held by any of them sailed past the sentence below and hit
+         * the foreign key instead, which is precisely what this list exists to
+         * prevent. `HeldProductTest` now reads the keys out of the database, so
+         * the next feature that adds one is told the moment it adds it.
+         */
+        'swaps' => [null, 'swaps'],
+        'assembly_items' => ['assembly_id', 'assemblies'],
+        'stock_transfer_items' => ['stock_transfer_id', 'stock moves'],
+        'repair_items' => ['repair_id', 'repairs'],
     ];
 
     /**
@@ -280,6 +294,10 @@ class Product extends Model
                 'purchase returns' => trans_choice('{1}:count purchase return|[2,*]:count purchase returns', $count, $n),
                 'stock adjustments' => trans_choice('{1}:count stock adjustment|[2,*]:count stock adjustments', $count, $n),
                 'stock batches' => trans_choice('{1}:count stock batch|[2,*]:count stock batches', $count, $n),
+                'swaps' => trans_choice('{1}:count swap|[2,*]:count swaps', $count, $n),
+                'assemblies' => trans_choice('{1}:count assembly|[2,*]:count assemblies', $count, $n),
+                'stock moves' => trans_choice('{1}:count stock move|[2,*]:count stock moves', $count, $n),
+                'repairs' => trans_choice('{1}:count repair|[2,*]:count repairs', $count, $n),
                 default => trans_choice('{1}:count stock movement|[2,*]:count stock movements', $count, $n),
             };
         }

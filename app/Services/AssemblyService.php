@@ -273,6 +273,28 @@ class AssemblyService
 
         $this->fifo->reverseMovements($movements);
 
+        /*
+         * ⚠️ **THE LAYERS THIS DOCUMENT OPENED GO WITH IT — Soran, 2026-09-29:
+         * *"now delete products are come added from ASM and now ASM is
+         * deleted"*.**
+         *
+         * `takeApart` creates the piece products and opens a batch for each.
+         * Reversing the movements empties those batches but left the rows, and
+         * `stock_batches.product_id` is `restrictOnDelete` — so a piece this
+         * assembly had made could never be destroyed afterwards. It was held by
+         * an empty layer belonging to a document the shop had already deleted,
+         * and the shop was told "This product is on 1 stock batch", which was
+         * true and impossible to act on.
+         *
+         * `PurchaseService::reverseStock` and `TransferService::delete` both
+         * already remove the layers they opened. This is the same rule, and
+         * safe for the same reason: `assertStillReversible` has already proved
+         * nothing has drawn on them.
+         */
+        StockBatch::where('source_type', StockBatch::SOURCE_ASSEMBLY)
+            ->where('source_id', $assembly->id)
+            ->delete();
+
         $assembly->items()->delete();
     }
 
@@ -301,6 +323,8 @@ class AssemblyService
                 throw new RuntimeException($state['reason']);
             }
 
+            // unwind() drops the lines already — see Section 8, "a document's
+            // delete keeps its header and drops its lines".
             $this->unwind($assembly);
 
             $assembly->delete();

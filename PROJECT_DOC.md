@@ -905,6 +905,24 @@ Every edit writes an `activity_logs` row with before/after in the description an
 
 **Already-stranded rows are cleared by a migration.** This fault has been shipping, so a shop already running has orphaned lines under its deleted returns. The migration removes the lines of returns that are already soft-deleted — the exact rows that were blocking PUR-00040 — and touches nothing belonging to a live document.
 
+### A product an assembly made could never be destroyed — Soran, 2026-09-29
+
+*"now delete products are come added from ASM and now ASM is deleted"*.
+
+**This is a different fault from the one above, and the resemblance is a trap.** Taking a bundle apart *creates* the piece products — Board and CPU come into existence as products, each with a stock batch the assembly opened. Deleting the assembly reverses the movements and drops its lines correctly. **But the batch rows stay, emptied**, and `stock_batches.product_id` is `restrictOnDelete`.
+
+So the shop was told *"This product is on 1 stock batch"* — true, and impossible to act on. The batch belonged to a document that had already been deleted, and no screen can reach it.
+
+⚠️ **`PurchaseService::reverseStock` and `TransferService::delete` both already remove the layers they opened.** The assembly was the one that did not. It does now, and it is safe for the same reason they are: `assertStillReversible` has already proved nothing has drawn on those layers, which is what makes the delete allowed at all.
+
+⚠️ **A STOCK TRANSFER DOES LEAVE ITS LINES**, and that one really is the fault above: `TransferService::delete` removes the batches it opened and the movements, but never its `stock_transfer_items`. Fixed with it.
+
+⚠️ **THE ASSEMBLY WAS NOT LEAVING ITS LINES, AND THE FIRST VERSION OF THIS FIX SAID IT WAS.** `unwind()` had been deleting them all along; the duplicate call added to `delete()` did nothing, and the write-up claimed a bug that was not there. The test is what showed it — the piece was still held, but by a *stock batch*, not by an assembly line. **Pattern-matching a new report onto the last fix is how a wrong diagnosis gets written down as fact.**
+
+⚠️ **AND THE FRIENDLY CHECK HAD FALLEN BEHIND THE SCHEMA.** `Product::HELD_BY` exists so that destroying a product is refused *in a sentence*, before the button, "rather than discovered afterwards as an integrity-constraint error page" — its own words. It listed seven tables. **Eleven hold a `product_id`.** Swaps, assemblies, stock transfers and repair parts were all added after that list was written, and none was added to it, so each of them turned the sentence it promises into the error page it exists to prevent.
+
+⚠️ **A LIST THAT HAS TO BE KEPT IN STEP WITH THE SCHEMA WILL FALL OUT OF STEP.** So a test now reads the foreign keys out of the database and fails if any table pointing at `products` is missing from `HELD_BY`. The next feature that adds one is told at the moment it adds it, rather than by a shopkeeper a year later.
+
 ---
 
 ## 8d. Sold on a plan — storage and connection
