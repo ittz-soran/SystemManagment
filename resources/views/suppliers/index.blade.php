@@ -82,7 +82,7 @@
     @endif
 
     @can('suppliers.edit')
-        <x-person-edit-modal id="supplier-edit"
+        <x-person-edit-modal kind="suppliers" id="supplier-edit"
                              :title="__('Edit supplier')"
                              :save="__('Save supplier')" />
     @endcan
@@ -99,7 +99,9 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="supplier-name" class="form-label">{{ __('Name') }}</label>
-                            <input id="supplier-name" name="name" class="form-control" required>
+                            <input id="supplier-name" name="name" class="form-control" required
+                                   data-word-help="words-supplier-name" data-word-help-row="row-supplier-name">
+                            <x-word-help kind="suppliers" for="supplier-name" />
                         </div>
                         <div class="mb-3">
                             <label for="supplier-phone" class="form-label">{{ __('Phone') }}</label>

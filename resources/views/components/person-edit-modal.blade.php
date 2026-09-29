@@ -1,4 +1,4 @@
-@props(['id', 'title', 'save'])
+@props(['id', 'title', 'save', 'kind'])
 
 {{--
     One modal for the whole list, filled from whichever pencil was pressed.
@@ -21,7 +21,12 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label for="{{ $id }}-name" class="form-label">{{ __('Name') }}</label>
-                    <input id="{{ $id }}-name" name="name" class="form-control" required>
+                    <input id="{{ $id }}-name" name="name" class="form-control" required
+                           data-word-help="words-{{ $id }}-name" data-word-help-row="row-{{ $id }}-name">
+                    {{-- Section 9: the names this shop already writes. Which
+                         column they come from is the caller's business — a
+                         supplier's name has no place finishing a customer's. --}}
+                    <x-word-help :kind="$kind" :for="$id.'-name'" />
                 </div>
                 <div class="mb-3">
                     <label for="{{ $id }}-phone" class="form-label">{{ __('Phone') }}</label>

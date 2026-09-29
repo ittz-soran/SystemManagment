@@ -78,7 +78,7 @@
     <div class="mt-3">{{ $transactions->links() }}</div>
 
     @can('suppliers.edit')
-        <x-person-edit-modal id="supplier-edit"
+        <x-person-edit-modal kind="suppliers" id="supplier-edit"
                              :title="__('Edit supplier')"
                              :save="__('Save supplier')" />
     @endcan
