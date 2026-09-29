@@ -199,6 +199,16 @@ class TransferService
                 user: $user,
             );
 
+            /*
+             * ⚠️ **THE LINES GO, THE HEADER STAYS.** The same fault as the
+             * assembly's, found in the same sweep: these rows hold
+             * `product_id` with `restrictOnDelete`, so a stock move the shop
+             * had already deleted would still refuse to let its product be
+             * destroyed. See Section 8, "A deleted document's lines outlived
+             * it".
+             */
+            $transfer->items()->delete();
+
             $transfer->delete();
         });
     }

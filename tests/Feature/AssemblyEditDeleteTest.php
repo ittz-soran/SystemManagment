@@ -15,6 +15,7 @@ use App\Services\AssemblyService;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -467,5 +468,54 @@ class AssemblyEditDeleteTest extends TestCase
             $page->getContent(),
             'the delete button is still live on a document that cannot be undone',
         );
+    }
+
+    /**
+     * ⚠️ **HIS SECOND REPORT — Soran, 2026-09-29:** *"now delete products are
+     * come added from ASM and now ASM is deleted"*.
+     *
+     * `takeApart` CREATES the piece products, each with a stock layer the
+     * assembly opened. Deleting the assembly reverses the movements and drops
+     * its lines correctly — but it left those layers behind, emptied, and
+     * `stock_batches.product_id` is `restrictOnDelete`. So the shop was told
+     * "This product is on 1 stock batch": true, and impossible to act on, since
+     * the batch belonged to a document already deleted.
+     *
+     * ⚠️ **The resemblance to the returns was a trap.** The lines were never
+     * the problem here — `unwind()` had been dropping them all along.
+     */
+    public function test_a_deleted_assembly_lets_go_of_the_products_it_made(): void
+    {
+        $assembly = $this->split();
+        $board = $this->piece('Board');
+
+        app(AssemblyService::class)->delete($assembly->fresh(), $this->user());
+
+        $this->assertSame(0, DB::table('assembly_items')
+            ->where('assembly_id', $assembly->id)->count(), 'the lines outlived the document');
+
+        $this->assertSame(0, DB::table('stock_batches')
+            ->where('product_id', $board->id)->count(), 'the emptied layer outlived the document');
+
+        // Nothing holds the piece now, so it can be destroyed outright.
+        $board->delete();
+
+        $lock = $board->fresh()->canBePurged();
+
+        $this->assertTrue($lock['allowed'], 'still held by: '.$lock['reason']);
+    }
+
+    /** ⚠️ A LIVE assembly keeps its lines and still refuses — in a sentence. */
+    public function test_a_live_assembly_says_so_rather_than_crashing(): void
+    {
+        $this->split();
+        $board = $this->piece('Board');
+
+        $board->delete();
+
+        $lock = $board->fresh()->canBePurged();
+
+        $this->assertFalse($lock['allowed']);
+        $this->assertStringContainsString('assembly', $lock['reason']);
     }
 }
