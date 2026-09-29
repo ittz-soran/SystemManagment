@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -120,9 +121,15 @@ class HeldProductTest extends TestCase
             'unit' => 'pcs', 'purchase_price' => 1000, 'sale_price' => 2000, 'quantity' => 0,
         ]);
 
+        /*
+         * ⚠️ **The real user, not the number 1.** Hard-coding the id passed on
+         * SQLite, where the seeded admin happens to be row 1, and failed on
+         * MariaDB with `assemblies_user_id_foreign` — in the very test written
+         * to stop the code and the database disagreeing.
+         */
         $assemblyId = DB::table('assemblies')->insertGetId([
             'document_no' => 'ASM-00001', 'direction' => 'together', 'total_cost' => 1000,
-            'assembled_at' => now(), 'user_id' => 1,
+            'assembled_at' => now(), 'user_id' => User::firstOrFail()->id,
             'created_at' => now(), 'updated_at' => now(),
             'deleted_at' => now(),
         ]);
