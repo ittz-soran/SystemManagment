@@ -292,6 +292,20 @@ class RepairController extends Controller
         $this->log->log('delete', 'repairs', $repair->id,
             __('Deleted repair :number', ['number' => $repair->document_no]), user: $request->user());
 
+        /*
+         * ⚠️ **THE LINES GO, THE HEADER STAYS — Soran, 2026-09-29.**
+         *
+         * Section 8: a document's delete keeps its header as a tombstone and
+         * drops its lines. Left behind, `repair_items` holds `product_id` with
+         * `restrictOnDelete`, so a part this job had listed could never be
+         * destroyed afterwards — held by a repair the shop had already deleted
+         * and no screen can reach.
+         *
+         * A collected, paid-for repair cannot be deleted at all (the guard
+         * above), so these are always the lines of a job that never completed.
+         */
+        $repair->items()->delete();
+
         $repair->delete();
 
         return redirect()->route('repairs.index')->with('success', __('Repair deleted'));

@@ -138,12 +138,12 @@ class PurgeProductTest extends TestCase
     /**
      * The check has to ask the question the foreign key asks.
      *
-     * stock_adjustments is soft-deleted AND carries the archived-period scope,
-     * so counting it through Eloquent would report nothing while MySQL still
-     * refuses the delete. That gap is the difference between a sentence and a
-     * 500.
+     * An adjustment can be out of sight of every screen — the archived-period
+     * scope hides old ones — and still be a row MySQL will refuse to orphan.
+     * Counting through Eloquent would report nothing while the delete failed,
+     * which is the difference between a sentence and a 500.
      */
-    public function test_a_hidden_adjustment_still_holds_the_product(): void
+    public function test_an_adjustment_out_of_sight_still_holds_the_product(): void
     {
         $product = $this->product('Adjusted once', 'ADJ1');
 
@@ -153,15 +153,13 @@ class PurgeProductTest extends TestCase
             user: $this->admin, purchaseDate: now(), amountPaid: 0,
         );
 
-        $adjustment = app(StockAdjustmentService::class)->create(
+        app(StockAdjustmentService::class)->create(
             product: $product->refresh(), direction: StockAdjustment::DIRECTION_OUT,
             quantity: 1, reason: 'damage', user: $this->admin,
         );
 
-        // Out of sight of every screen, and still in the table.
-        $adjustment->delete();
-
         $this->assertFalse($product->canBePurged()['allowed']);
+        $this->assertStringContainsString('stock adjustment', $product->canBePurged()['reason']);
 
         $product->delete();
 
@@ -170,6 +168,78 @@ class PurgeProductTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertDatabaseHas('products', ['id' => $product->id]);
+    }
+
+    /**
+     * ⚠️ **DELETING THE ADJUSTMENT USED TO CHANGE NOTHING — Soran, 2026-09-29:**
+     * *"if i delete an product and already have ADJ … i still have ADJ product
+     * not delete permanetly"*.
+     *
+     * The refusal asks you to deal with the adjustment. Deleting it unwinds the
+     * batch and the movement properly — and left the `stock_adjustments` row,
+     * which still holds `product_id`, so the very same sentence came back after
+     * doing the only thing it had asked for. No screen can reach a deleted
+     * adjustment, so there was nothing left to try.
+     *
+     * ⚠️ This test replaced one that soft-deleted the adjustment and asserted
+     * the product was still held. That test passed for the wrong reason: the
+     * product it used also had a PURCHASE, which blocks on its own, so the
+     * adjustment was never what the assertion proved.
+     */
+    public function test_an_adjustment_already_deleted_lets_the_product_go(): void
+    {
+        $product = $this->product('Counted wrong', 'ADJ2');
+
+        $adjustment = app(StockAdjustmentService::class)->create(
+            product: $product, direction: StockAdjustment::DIRECTION_IN,
+            quantity: 5, reason: 'other', user: $this->admin, unitCost: 10_000,
+        );
+
+        // While it is live it holds the product, and says so.
+        $this->assertFalse($product->fresh()->canBePurged()['allowed']);
+
+        app(StockAdjustmentService::class)->delete($adjustment->fresh(), $this->admin);
+
+        // Its batch and its movement are gone; only the tombstone remained.
+        $this->assertTrue($product->fresh()->canBePurged()['allowed']);
+
+        $product->delete();
+
+        $this->actingAs($this->admin)
+            ->delete(route('products.purge', $product))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('products', ['id' => $product->id]);
+        $this->assertDatabaseMissing('stock_adjustments', ['id' => $adjustment->id]);
+    }
+
+    /**
+     * ⚠️ **THE SAFETY RAIL ON A DESTRUCTIVE DELETE.** `releasedByPurge()` may
+     * only ever remove documents that are ALREADY deleted. `canBePurged()`
+     * refuses while a live one exists, so this should be unreachable — but
+     * this method destroys rows outright, and a method that destroys rows
+     * proves its own limits rather than borrowing another method's.
+     */
+    public function test_releasing_a_product_never_touches_a_live_document(): void
+    {
+        $product = $this->product('Counted twice', 'ADJ3');
+
+        $live = app(StockAdjustmentService::class)->create(
+            product: $product, direction: StockAdjustment::DIRECTION_IN,
+            quantity: 5, reason: 'other', user: $this->admin, unitCost: 10_000,
+        );
+
+        $gone = app(StockAdjustmentService::class)->create(
+            product: $product->fresh(), direction: StockAdjustment::DIRECTION_OUT,
+            quantity: 1, reason: 'damage', user: $this->admin,
+        );
+
+        app(StockAdjustmentService::class)->delete($gone->fresh(), $this->admin);
+
+        $product->fresh()->releasedByPurge();
+
+        $this->assertDatabaseHas('stock_adjustments', ['id' => $live->id]);
+        $this->assertDatabaseMissing('stock_adjustments', ['id' => $gone->id]);
     }
 
     /** Nothing goes from the shelf to gone in one press. */

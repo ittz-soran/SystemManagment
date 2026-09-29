@@ -207,6 +207,43 @@ class Product extends Model
     ];
 
     /**
+     * The two documents whose OWN ROW is the reference, with no lines to drop.
+     *
+     * ⚠️ **Deleting one of these used to be a dead end — Soran, 2026-09-29.**
+     * A stock adjustment against a product says so and asks you to delete it;
+     * deleting it unwinds the batch and the movement properly but leaves the
+     * row, which still holds `product_id`, and no screen can reach a deleted
+     * adjustment. The same sentence came back after doing the only thing it
+     * had asked for.
+     *
+     * Destroying a product is admin-only, takes a backup first, and is refused
+     * while anything LIVE holds it. A document the shop has already deleted,
+     * about a product being destroyed outright, is not history anybody can
+     * reach — so it goes with it, and `releasedByPurge()` is what removes it.
+     *
+     * @var list<string>
+     */
+    private const RELEASED_BY_PURGE = ['stock_adjustments', 'swaps'];
+
+    /**
+     * Clear the tombstones that would otherwise refuse this product's removal.
+     *
+     * ⚠️ Called from inside the purge's transaction, immediately before
+     * `forceDelete()`, so the count above and the foreign key never disagree.
+     * Only rows already soft-deleted: a live document has refused the purge
+     * long before this runs.
+     */
+    public function releasedByPurge(): void
+    {
+        foreach (self::RELEASED_BY_PURGE as $table) {
+            DB::table($table)
+                ->where('product_id', $this->getKey())
+                ->whereNotNull('deleted_at')
+                ->delete();
+        }
+    }
+
+    /**
      * What still points at this product, counted the way the database counts.
      *
      * Asked with the query builder and not through relations on purpose. A
@@ -231,6 +268,13 @@ class Product extends Model
                     ? 'COUNT(DISTINCT '.$parent.') as total'
                     : 'COUNT(*) as total')
                 ->whereIn('product_id', $ids)
+                // ⚠️ A document already deleted is NOT counted, because
+                // releasedByPurge() removes it moments before the product goes
+                // — so this still counts exactly what MySQL will see. See
+                // Section 8, "A document you have already deleted still held
+                // its product".
+                ->when(in_array($table, self::RELEASED_BY_PURGE, true),
+                    fn ($q) => $q->whereNull('deleted_at'))
                 ->groupBy('product_id')
                 ->get();
 

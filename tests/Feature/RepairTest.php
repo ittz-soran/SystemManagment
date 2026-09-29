@@ -640,4 +640,34 @@ class RepairTest extends TestCase
 
         $this->assertFalse($late->fresh()->isOverdue(), 'a finished job was still counted as late');
     }
+
+    /**
+     * ⚠️ **THE LINES GO, THE HEADER STAYS — Soran, 2026-09-29.**
+     *
+     * Section 8: a document's delete keeps its header as a tombstone and drops
+     * its lines. This one never did, and `repair_items.product_id` is
+     * `restrictOnDelete` — so a part this job had listed could never be
+     * destroyed afterwards, held by a repair already deleted that no screen
+     * can reach. A collected, paid-for job cannot be deleted at all, so these
+     * are always the lines of a job that never completed.
+     */
+    public function test_deleting_a_repair_takes_its_lines_with_it(): void
+    {
+        $repair = $this->takeIn();
+
+        $this->assertSame(2, DB::table('repair_items')->where('repair_id', $repair->id)->count());
+
+        $this->actingAs($this->user())
+            ->delete(route('repairs.destroy', $repair))
+            ->assertRedirect(route('repairs.index'));
+
+        $this->assertSoftDeleted('repairs', ['id' => $repair->id]);
+        $this->assertSame(0, DB::table('repair_items')->where('repair_id', $repair->id)->count());
+
+        // And the part it listed is no longer held by a job nobody can open.
+        $this->assertArrayNotHasKey(
+            'repairs',
+            Product::purgeBlockers([$this->part->id])[$this->part->id],
+        );
+    }
 }
