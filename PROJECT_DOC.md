@@ -2304,6 +2304,36 @@ Three things on top of the shop's own words:
 
 **4. A near miss still finds the word.** Type `sikn` and nothing starts with it — but *Sikenai* is one letter away, so it is offered. ⚠️ **Only when nothing matches properly**, only from four letters, only one letter out, and at most two of them: a wrong suggestion is worse than none, and this is the one rule here that can produce one.
 
+**It keeps itself, while the shop works — Soran, 2026-09-29: *"while users work in system automatically updated dictionary to more comprehensive and clean"*.**
+
+**Nothing is ever typed into a dictionary.** It is worked out from what the shop has already saved, so the moment a product, a customer, a repair or an expense is written, its words are in the box on the very next screen. There is no list to maintain and nothing to go out of date: a product removed from the catalogue takes its words with it.
+
+⚠️ **A word used ONCE, one letter from a word the shop uses OFTEN, is a slip and is not offered.** His own catalogue has *Wirless* — typed once, in *Earphone Joyroom True Wirless JR-T03S Pro* — beside *Wireless* in two other products. Offering both is how a dictionary built from real typing goes bad: the slip gets completed, saved again, and becomes a word in its own right. So it is dropped from what the box offers.
+
+The bar is deliberately high, because refusing to offer a word somebody meant is the worse mistake:
+
+- the suspect word must be used **exactly once** — twice is a habit, not a slip;
+- the word it loses to must be used **at least twice**, or be one of the starter words, which are curated;
+- both must be **five letters or longer and all letters** — `PD`, `30W` and `GF244` are codes, and a code is never a misspelling of another code;
+- they must be **one letter apart** — not two.
+
+⚠️ **Cleaning changes nothing that is stored.** *Wirless* stays exactly as it is on that product, on its invoices and in every report. The only thing that changes is whether the box offers to type it for you again. Nothing in this system quietly rewrites a name somebody saved.
+
+⚠️ **And the near miss picks it up anyway**: typing `wirl` now finds *Wireless*, because nothing starts with those letters and *Wireless* is one letter away. So the slip is not merely hidden — the right word takes its place.
+
+**Where each box gets its words, in full:**
+
+| box | learns from |
+|---|---|
+| Product name | `products.name`, `categories.name` |
+| Customer name | `customers.name` |
+| Supplier name | `suppliers.name` — companies only, never a walk-in seller |
+| Repair — device | `repairs.device` |
+| Expense title | `expenses.title`, `expense_categories.name` |
+
+**Built once and kept until something changes.** The list is cached against a fingerprint of the table — how many rows and when the last one was touched — so a shop with three thousand products pays for the work on the first screen after a change and on no screen after that. ⚠️ **The fingerprint is the guard against staleness**: a saved product moves it, so the next page rebuilds. The edit screens, which leave the row being edited out of its own words, are not cached at all — one screen is not worth a second cache key.
+
+
 
 ### Finding a walk-in sale by the name on it — Soran, 2026-09-27
 

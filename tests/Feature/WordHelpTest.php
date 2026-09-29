@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\ExpenseCategory;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\User;
@@ -380,6 +381,145 @@ class WordHelpTest extends TestCase
         $this->product('Holder Sivpuls Magnetic');
 
         $this->assertArrayNotHasKey('holder', WordList::pairs('products'));
+    }
+
+    // ---- it keeps itself, while the shop works ---------------------------
+
+    /**
+     * Soran, 2026-09-29: *"while users work in system automatically updated
+     * dictionary to more comprehensive and clean"*.
+     *
+     * Nothing is ever typed into a dictionary — it is worked out from what the
+     * shop has saved, so a product written now is in the box on the next
+     * screen, and a product removed takes its words with it.
+     */
+    public function test_a_word_arrives_and_leaves_with_the_product(): void
+    {
+        $this->seed();
+
+        $this->assertNotContains('Sivpuls', array_column(WordList::for('products'), 'w'));
+
+        $product = $this->product('Cooler Sivpuls Magnetic');
+        $this->assertContains('Sivpuls', array_column(WordList::for('products'), 'w'));
+
+        $product->delete();
+        $this->assertNotContains('Sivpuls', array_column(WordList::for('products'), 'w'));
+    }
+
+    /**
+     * ⚠️ **THE ONE HIS OWN CATALOGUE NEEDED.** *Wirless* is typed once, in
+     * *Earphone Joyroom True Wirless JR-T03S Pro*, beside *Wireless* in two
+     * other products. Offering both is how a dictionary built from real typing
+     * goes bad: the slip gets completed, saved again, and becomes a word.
+     */
+    public function test_a_word_typed_once_beside_a_word_typed_often_is_a_slip(): void
+    {
+        $this->seed();
+        $this->product('Earphone Joyroom True Wirless JR-T03S Pro');
+        $this->product('Mic Wireless Hoco Dual');
+        $this->product('Mouse Rapoo Wireless M10');
+
+        $words = array_column(WordList::for('products'), 'w');
+
+        $this->assertContains('Wireless', $words);
+        $this->assertNotContains('Wirless', $words);
+    }
+
+    /** ⚠️ **Nothing stored changes.** The slip stays on the product it is on. */
+    public function test_cleaning_the_dictionary_never_touches_a_saved_name(): void
+    {
+        $this->seed();
+        $product = $this->product('Earphone Joyroom True Wirless JR-T03S Pro');
+        $this->product('Mic Wireless Hoco Dual');
+        $this->product('Mouse Rapoo Wireless M10');
+
+        WordList::for('products');
+
+        $this->assertSame('Earphone Joyroom True Wirless JR-T03S Pro', $product->fresh()->name);
+    }
+
+    /** Twice is a habit, not a slip — the shop meant it. */
+    public function test_a_word_typed_twice_is_never_treated_as_a_slip(): void
+    {
+        $this->seed();
+        $this->product('Earphone Joyroom Wirless One');
+        $this->product('Earphone Joyroom Wirless Two');
+        $this->product('Mic Wireless Hoco Dual');
+        $this->product('Mouse Rapoo Wireless M10');
+
+        $this->assertContains('Wirless', array_column(WordList::for('products'), 'w'));
+    }
+
+    /**
+     * ⚠️ A code is never a misspelling of another code. `GF244` and `GF245`
+     * are one character apart and are two different monitors.
+     */
+    public function test_a_model_code_is_never_treated_as_a_slip(): void
+    {
+        $this->seed();
+        $this->product('Monitor MSI GF244 24"');
+        $this->product('Monitor MSI GF245 27"');
+        $this->product('Monitor MSI GF245 32"');
+
+        $words = array_column(WordList::for('products'), 'w');
+
+        $this->assertContains('GF244', $words);
+        $this->assertContains('GF245', $words);
+    }
+
+    /**
+     * Two letters apart is a different word, not a slip.
+     *
+     * ⚠️ `Magnatik` is exactly two from `Magnetic` — measured, not guessed. An
+     * earlier version of this test used a word three apart, which no widening
+     * of the rule could have caught, so it proved nothing about the boundary.
+     */
+    public function test_two_letters_apart_is_a_different_word(): void
+    {
+        $this->seed();
+        $this->product('Holder Magnetic Baseus');
+        $this->product('Holder Magnetic Hoco');
+        $this->product('Case Magnatik Xiaomi');
+
+        $this->assertSame(2, levenshtein('magnatik', 'magnetic'), 'the example stopped being two apart');
+        $this->assertContains('Magnatik', array_column(WordList::for('products'), 'w'));
+    }
+
+    /** A curated starter word is trusted enough to catch a slip on its own. */
+    public function test_a_starter_word_can_catch_a_slip(): void
+    {
+        $this->seed();
+        $this->product('Cable Wirless Charging Pad');
+
+        $words = array_column(WordList::for('products'), 'w');
+
+        $this->assertContains('Wireless', $words);
+        $this->assertNotContains('Wirless', $words);
+    }
+
+    /** The shop's own names for what it spends on. */
+    public function test_the_expense_words_include_the_category_names(): void
+    {
+        $this->seed();
+        ExpenseCategory::firstOrCreate(['name' => 'Generator Diesel']);
+
+        $this->assertContains('Generator', array_column(WordList::for('expenses'), 'w'));
+    }
+
+    /**
+     * ⚠️ **The fingerprint is the guard against a stale list.** The list is
+     * kept until something changes; a saved product must move it, or the shop
+     * types against last week's words.
+     */
+    public function test_a_saved_product_reaches_the_very_next_screen(): void
+    {
+        $this->seed();
+
+        $this->assertNotContains('Sivpuls', array_column(WordList::for('products'), 'w'));
+
+        $this->product('Cooler Sivpuls Magnetic');
+
+        $this->assertContains('Sivpuls', array_column(WordList::for('products'), 'w'));
     }
 
     /**

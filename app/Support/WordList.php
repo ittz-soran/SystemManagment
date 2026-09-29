@@ -5,11 +5,13 @@ namespace App\Support;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\Product;
 use App\Models\Repair;
 use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * The words this shop writes, so it never has to write one twice — Soran,
@@ -72,7 +74,11 @@ final class WordList
             'customers' => [[fn () => Customer::query(), 'name']],
             'suppliers' => [[fn () => Supplier::companies(), 'name']],
             'devices' => [[fn () => Repair::query(), 'device']],
-            'expenses' => [[fn () => Expense::query(), 'title']],
+            'expenses' => [
+                [fn () => Expense::query(), 'title'],
+                // The shop's own names for what it spends on: Fuel, Rent.
+                [fn () => ExpenseCategory::query(), 'name'],
+            ],
         ];
     }
 
@@ -93,6 +99,40 @@ final class WordList
      */
     public static function for(string $kind, ?int $ignore = null): array
     {
+        /*
+         * ⚠️ **Kept until something changes, and the fingerprint is what makes
+         * that safe.** How many rows there are and when the last one was
+         * touched: a saved product moves it, so the next screen rebuilds. The
+         * edit screens leave the row being edited out of its own words and are
+         * not cached — one screen is not worth a second key.
+         */
+        if ($ignore !== null) {
+            return self::build($kind, $ignore);
+        }
+
+        return Cache::remember(
+            'words.'.$kind.'.'.self::fingerprint($kind),
+            now()->addDay(),
+            fn () => self::build($kind),
+        );
+    }
+
+    /** What has been saved into this box's tables since the list was last built. */
+    private static function fingerprint(string $kind): string
+    {
+        $marks = [];
+
+        foreach (self::kinds()[$kind] ?? throw new \InvalidArgumentException("No word list for [{$kind}].") as [$query]) {
+            $rows = $query();
+            $marks[] = $rows->count().':'.($rows->max('updated_at') ?? '');
+        }
+
+        return md5(implode('|', $marks));
+    }
+
+    /** @return list<array{w: string, n: int}> */
+    private static function build(string $kind, ?int $ignore = null): array
+    {
         $out = [];
         $mine = self::spellings($kind, $ignore);
 
@@ -106,10 +146,83 @@ final class WordList
             }
         }
 
+        $out = self::withoutSlips($out);
+
         usort($out, fn (array $a, array $b) => [$b['n'], mb_strlen($a['w']), $a['w']]
             <=> [$a['n'], mb_strlen($b['w']), $b['w']]);
 
         return array_slice($out, 0, self::MOST);
+    }
+
+    /**
+     * A word used once, one letter from a word the shop uses often, is a slip.
+     *
+     * Soran's own catalogue has *Wirless*, typed once, beside *Wireless* in two
+     * other products. Offering both is how a dictionary built from real typing
+     * goes bad: the slip gets completed, saved again, and becomes a word in its
+     * own right.
+     *
+     * ⚠️ **NOTHING STORED CHANGES.** *Wirless* stays exactly as it is on that
+     * product, on its invoices and in every report. The only thing decided here
+     * is whether the box offers to type it again.
+     *
+     * ⚠️ **The bar is deliberately high**, because refusing a word somebody
+     * meant is the worse mistake: used exactly once, losing to a word used at
+     * least twice or to a curated starter word, both five letters or longer and
+     * all letters — `PD`, `30W` and `GF244` are codes, and a code is never a
+     * misspelling of another code — and one letter apart, not two.
+     *
+     * @param  list<array{w: string, n: int}>  $words
+     * @return list<array{w: string, n: int}>
+     */
+    private static function withoutSlips(array $words): array
+    {
+        /*
+         * Bucketed by first letter and length before anything is compared. A
+         * one-letter slip keeps both, and a shop with three thousand products
+         * has far too many words to compare each against every other.
+         */
+        $trusted = [];
+
+        foreach ($words as $word) {
+            if (($word['n'] >= 2 || $word['n'] === 0) && self::spellable($word['w'])) {
+                $trusted[mb_strtolower(mb_substr($word['w'], 0, 1)).mb_strlen($word['w'])][] = mb_strtolower($word['w']);
+            }
+        }
+
+        return array_values(array_filter($words, function (array $word) use ($trusted) {
+            if ($word['n'] !== 1 || ! self::spellable($word['w'])) {
+                return true;
+            }
+
+            $key = mb_strtolower($word['w']);
+            $first = mb_strtolower(mb_substr($word['w'], 0, 1));
+            $length = mb_strlen($word['w']);
+
+            /*
+             * ⚠️ **Three lengths, not one.** *Wirless* is seven letters and
+             * *Wireless* is eight — a dropped letter is the commonest slip
+             * there is, and bucketing by exact length alone would have missed
+             * the very word this was built for.
+             */
+            foreach ([$length - 1, $length, $length + 1] as $near) {
+                foreach ($trusted[$first.$near] ?? [] as $other) {
+                    if ($other !== $key && levenshtein($key, $other) === 1) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }));
+    }
+
+    /** Long enough and plain enough for one letter out to mean a misspelling. */
+    private static function spellable(string $word): bool
+    {
+        return mb_strlen($word) >= 5
+            && preg_match('/^\p{L}+$/u', $word) === 1
+            && mb_check_encoding($word, 'ASCII');
     }
 
     /**
