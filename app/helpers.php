@@ -433,3 +433,36 @@ if (! function_exists('after_delete')) {
         return $safe ? $carried : $fallback;
     }
 }
+
+if (! function_exists('problem')) {
+    /**
+     * What to put in front of a shopkeeper when something went wrong.
+     *
+     * ⚠️ **A DATABASE ERROR IS NEVER SHOWN — Soran, 2026-09-29.** He pressed
+     * Delete on PUR-00040 and his screen filled with `SQLSTATE[23000]`, the
+     * failing constraint, the SQL, the connection, the host and the name of his
+     * database. The controller was not careless: it catches `RuntimeException`,
+     * and `QueryException` extends `PDOException` extends `RuntimeException`,
+     * so it caught that too and printed what it was handed.
+     *
+     * The sentences this system throws are written for the person reading them
+     * — "Locked: more than 24 hours old." — and those come straight through. A
+     * database's own words never do: the reader is told in one line that the
+     * system refused and that the detail is in the log, and the detail really
+     * is in the log.
+     */
+    function problem(\Throwable $e): string
+    {
+        if (! $e instanceof \Illuminate\Database\QueryException) {
+            return $e->getMessage();
+        }
+
+        \Illuminate\Support\Facades\Log::error('Refused by the database', [
+            'message' => $e->getMessage(),
+            'url' => request()->fullUrl(),
+            'user' => optional(request()->user())->id,
+        ]);
+
+        return __('The system could not finish that. Something else in the shop still depends on this record — try removing that first. The details are in the error log.');
+    }
+}

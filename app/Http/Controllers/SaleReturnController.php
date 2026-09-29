@@ -177,7 +177,7 @@ class SaleReturnController extends Controller
                 faultyLines: $faulty,
             );
         } catch (RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()
@@ -210,7 +210,7 @@ class SaleReturnController extends Controller
         try {
             $this->returns->delete($saleReturn, $request->user());
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()

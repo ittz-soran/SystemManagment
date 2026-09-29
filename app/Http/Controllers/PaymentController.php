@@ -161,7 +161,7 @@ class PaymentController extends Controller
                 }
             });
         } catch (RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()

@@ -210,7 +210,7 @@ class GoodsBackController extends Controller
                 note: $data['note'] ?? null,
             );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('swaps.show', $swap)
@@ -245,7 +245,7 @@ class GoodsBackController extends Controller
                 faulty: (bool) ($data['faulty'] ?? false),
             );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('sales.show', $done['sale'])
@@ -279,7 +279,7 @@ class GoodsBackController extends Controller
                 faultyLines: ($data['faulty'] ?? false) ? [$line->id] : [],
             );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('sale-returns.show', $return)
@@ -308,7 +308,7 @@ class GoodsBackController extends Controller
                 paymentMethod: $data['payment_method'],
             );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('purchase-returns.show', $return)

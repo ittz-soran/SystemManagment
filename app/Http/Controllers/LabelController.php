@@ -37,7 +37,7 @@ class LabelController extends Controller
                 copies: (int) ($data['copies'] ?? 1),
             );
         } catch (RuntimeException $e) {
-            return redirect()->route('products.show', $product)->with('error', $e->getMessage());
+            return redirect()->route('products.show', $product)->with('error', problem($e));
         }
 
         return view('labels.sheet', [
@@ -64,7 +64,7 @@ class LabelController extends Controller
 
             $this->printer->send($this->labels->tspl($spec));
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return back()->with('success', trans_choice(

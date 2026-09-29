@@ -142,7 +142,7 @@ class PurchaseReturnController extends Controller
                 paymentMethod: $data['payment_method'],
             );
         } catch (RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()
@@ -171,7 +171,7 @@ class PurchaseReturnController extends Controller
         try {
             $this->returns->delete($purchaseReturn, $request->user());
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()

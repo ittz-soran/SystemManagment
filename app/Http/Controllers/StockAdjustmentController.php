@@ -136,7 +136,7 @@ class StockAdjustmentController extends Controller
                 adjustedAt: Carbon::parse($data['adjusted_at']),
             );
         } catch (InsufficientStockException|RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return back()->with('success', __('Adjustment saved'));
@@ -185,7 +185,7 @@ class StockAdjustmentController extends Controller
                 adjustedAt: Carbon::parse($data['adjusted_at']),
             );
         } catch (InsufficientStockException|RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return back()->with('success', __('Adjustment saved'));
@@ -196,7 +196,7 @@ class StockAdjustmentController extends Controller
         try {
             $this->adjustments->delete($stockAdjustment, $request->user());
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         // An adjustment is always a note about one product's shelf, so that

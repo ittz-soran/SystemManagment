@@ -206,6 +206,22 @@ class PurchaseReturnService
             // the inbound payment is the reversal — the till nets to where it was.
             $return->payments()->get()->each->delete();
 
+            /*
+             * ⚠️ **THE LINES GO, THE HEADER STAYS — Soran, 2026-09-29.**
+             *
+             * Section 8: a document's delete keeps its header as a tombstone
+             * and drops its lines, which is exactly what PurchaseService does
+             * with `purchase_items`. This did not, and the left-behind rows
+             * pointed at `purchase_items` with `restrictOnDelete` — so deleting
+             * the PURCHASE later hit the foreign key and put raw SQL on his
+             * screen, with rule 3 unable to see the deleted return at all.
+             *
+             * Nothing reads a deleted document's lines: the audit that reads
+             * deleted documents takes only `document_no` from the header, and
+             * no document but a product can ever be restored.
+             */
+            $return->items()->delete();
+
             $return->delete();
 
             $this->purchases->recalculateStatus($return->purchase->refresh());

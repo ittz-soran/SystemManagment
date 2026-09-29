@@ -57,7 +57,7 @@ class DataTransferController extends Controller
                 Carbon::parse($data['to']),
             );
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return $this->sendAndDelete($path, 'period-'.Carbon::parse($data['to'])->toDateString().'.zip');
@@ -87,7 +87,7 @@ class DataTransferController extends Controller
                 freeze: $request->boolean('freeze', true),
             );
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         session()->flash('success', __('Archived :count documents up to :date. Nothing was deleted — the lists just stop showing them.', [
@@ -161,7 +161,7 @@ class DataTransferController extends Controller
         } catch (RuntimeException $e) {
             Storage::disk('local')->delete($path);
 
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return view('data.preview', [
@@ -193,7 +193,7 @@ class DataTransferController extends Controller
         try {
             $result = $this->transfer->import($entity, $path, $request->user());
         } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         } finally {
             Storage::disk('local')->delete($data['token']);
         }

@@ -2066,6 +2066,7 @@
     "The stylesheet": "ستایلشیتەکە",
     "The sum of the parts. You do not type this — a machine is worth what its parts cost.": "کۆی پارچەکان. تۆ ئەمە نانووسیت — ئامێرێک هێندەی ئەوە دەیەوێت کە پارچەکانی تێچوویانە.",
     "the supplier": "دابینکەرەکە",
+    "The system could not finish that. Something else in the shop still depends on this record — try removing that first. The details are in the error log.": "سیستەم نەیتوانی ئەمە تەواو بکات. شتێکی تر لە دوکانەکەدا هێشتا پشت بەم تۆمارە دەبەستێت — سەرەتا ئەوە لاببە. وردەکارییەکان لە لۆگی هەڵەدان.",
     "The ten you bought at 10,000 and the ten you bought at 12,000 are the same product on the shelf, but the system remembers them as two batches, each with the price you actually paid for it.": "ئەو دەیەی بە ١٠٬٠٠٠ کڕیوتە و ئەو دەیەی بە ١٢٬٠٠٠ کڕیوتە هەمان بەرهەمن لەسەر ڕەفە، بەڵام سیستەم وەک دوو بەش لەبیریان دەهێڵێتەوە، هەریەکە بەو نرخەی بەڕاستی بۆت داوە.",
     "The thing you are taking apart": "ئەو شتەی لێکی دەکەیتەوە",
     "The till, not the ledger: a sale on credit is revenue today and cash next month.": "سندوقەکە، نەک دەفتەرەکە: فرۆشتنی قەرز ئەمڕۆ داهاتە و مانگی داهاتوو پارە.",

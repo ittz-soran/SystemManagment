@@ -163,7 +163,7 @@ class SwapController extends Controller
                 note: $data['note'] ?? null,
             );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('swaps.show', $swap)
@@ -205,7 +205,7 @@ class SwapController extends Controller
         try {
             $this->swaps->delete($swap, $request->user());
         } catch (RuntimeException|Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()->route('swaps.index')

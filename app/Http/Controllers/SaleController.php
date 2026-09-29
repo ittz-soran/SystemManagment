@@ -346,9 +346,9 @@ class SaleController extends Controller
             // Section 10b T8: nothing is written and no document number is
             // consumed, because the counter increments inside the same
             // transaction that just rolled back.
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         } catch (\RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         // The held cart has become a real sale, so it stops being a note to
@@ -496,7 +496,7 @@ class SaleController extends Controller
                 walkInName: $data['walk_in_name'] ?? null,
             );
         } catch (InsufficientStockException|\RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('sales.show', $sale)->with('success', __('Sale saved'));
@@ -507,7 +507,7 @@ class SaleController extends Controller
         try {
             $this->sales->delete($sale, $request->user());
         } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()

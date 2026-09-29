@@ -388,6 +388,16 @@ class SaleReturnService
             // payment is the reversal — the till nets to where it was.
             $return->payments()->get()->each->delete();
 
+            /*
+             * ⚠️ **THE LINES GO, THE HEADER STAYS** — the same fault the
+             * purchase side had, found on PUR-00040 and fixed in both at once.
+             * Left behind, these rows point at `sale_items` with
+             * `restrictOnDelete`, so deleting the SALE later fails on the
+             * foreign key while rule 2 cannot see the deleted return. See
+             * Section 8, "A deleted document's lines outlived it".
+             */
+            $return->items()->delete();
+
             $return->delete();
 
             $return->sale->refresh()->recalculateStatus();
