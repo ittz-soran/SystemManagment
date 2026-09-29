@@ -919,6 +919,36 @@ So the shop was told *"This product is on 1 stock batch"* — true, and impossib
 
 ⚠️ **THE ASSEMBLY WAS NOT LEAVING ITS LINES, AND THE FIRST VERSION OF THIS FIX SAID IT WAS.** `unwind()` had been deleting them all along; the duplicate call added to `delete()` did nothing, and the write-up claimed a bug that was not there. The test is what showed it — the piece was still held, but by a *stock batch*, not by an assembly line. **Pattern-matching a new report onto the last fix is how a wrong diagnosis gets written down as fact.**
 
+### A document you have already deleted still held its product — Soran, 2026-09-29
+
+*"if i delete an product and already have ADJ are this products delete ADJ with product, because i still have ADJ product not delete permanetly"*.
+
+**Reproduced, and it is a dead end.** A product with a stock adjustment against it says:
+
+> This product is on 1 stock adjustment, 1 stock batch and 1 stock movement, so it cannot be destroyed.
+
+Right, and actionable: delete the adjustment. Doing so unwinds it properly — the batch and the movement go — and then the message says:
+
+> This product is on **1 stock adjustment**, so it cannot be destroyed.
+
+**The same sentence, after doing the only thing it asked for.** The adjustment is soft-deleted, its row still holds `product_id`, and there is no screen anywhere that can reach a deleted adjustment to remove it. Section 8's promise — *"delete the dependent record first and the parent unlocks"* — is broken here, because the dependent has been deleted and the parent has not unlocked.
+
+⚠️ **THIS IS THE SHAPE WHERE THE DOCUMENT'S OWN ROW IS THE REFERENCE.** It has no lines to drop, so the rule that fixed the returns cannot apply. Three documents are built this way, and all three dead-end the same:
+
+| document | what holds the product |
+|---|---|
+| Stock adjustment | the `stock_adjustments` row itself |
+| Swap | the `swaps` row itself |
+| Repair | its `repair_items`, which a deleted repair leaves behind |
+
+**The repair is the odd one and gets the ordinary rule**: it *has* lines, and its delete simply never dropped them. It does now, like every other document. A repair that has been collected and paid for cannot be deleted at all, so the lines being dropped are always those of a job that never completed.
+
+**For the other two, the answer is the one the purge already implies.** Destroying a product outright is admin-only, takes a backup first, and is refused while anything *live* holds it. A document that the shop has already deleted, about a product being destroyed outright, is not history anybody can reach — its subject is going. **So those tombstones go with it.**
+
+⚠️ **THE FRIENDLY CHECK AND THE DATABASE MUST STILL AGREE.** `purgeBlockers` counts with the query builder precisely because *"a foreign key sees every row in the table — it does not know about soft deletes"*. That reasoning stands: the count now excludes an adjustment or a swap that is already deleted **only because the purge removes those rows before it removes the product**. The check counts exactly what will still be there when MySQL is asked, which is the whole point of counting that way.
+
+⚠️ **A LIVE adjustment, swap or repair still refuses, in a sentence naming it.** Nothing about that changes, and that refusal is correct: the document is on a screen, and deleting it is a thing the shop can actually do.
+
 ⚠️ **AND THE FRIENDLY CHECK HAD FALLEN BEHIND THE SCHEMA.** `Product::HELD_BY` exists so that destroying a product is refused *in a sentence*, before the button, "rather than discovered afterwards as an integrity-constraint error page" — its own words. It listed seven tables. **Eleven hold a `product_id`.** Swaps, assemblies, stock transfers and repair parts were all added after that list was written, and none was added to it, so each of them turned the sentence it promises into the error page it exists to prevent.
 
 ⚠️ **A LIST THAT HAS TO BE KEPT IN STEP WITH THE SCHEMA WILL FALL OUT OF STEP.** So a test now reads the foreign keys out of the database and fails if any table pointing at `products` is missing from `HELD_BY`. The next feature that adds one is told at the moment it adds it, rather than by a shopkeeper a year later.

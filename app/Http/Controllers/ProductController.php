@@ -459,6 +459,15 @@ class ProductController extends Controller
              * destroyed what, and when. That is the row that must never be
              * removable from a screen.
              */
+            /*
+             * The documents the shop has already deleted that still hold this
+             * product — an adjustment, a swap. Without this they refuse the
+             * removal below, and there is no screen that can reach them to
+             * clear the way. See Section 8, "A document you have already
+             * deleted still held its product".
+             */
+            $product->releasedByPurge();
+
             $product->forceDelete();
 
             // After the row, not before: forceDelete fires the observer, which
