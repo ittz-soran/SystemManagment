@@ -221,7 +221,7 @@ class SecondHandController extends Controller
                 boughtAt: Carbon::parse($data['bought_at']),
             );
         } catch (RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()

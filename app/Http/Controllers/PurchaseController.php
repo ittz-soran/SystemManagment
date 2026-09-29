@@ -235,7 +235,7 @@ class PurchaseController extends Controller
                 paymentMethod: $data['payment_method'],
             );
         } catch (\RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         // The held cart has become a real purchase, so it stops being a note
@@ -487,7 +487,7 @@ class PurchaseController extends Controller
                 roomId: $data['room_id'] ?? null,
             );
         } catch (\RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('purchases.show', $purchase)->with('success', __('Purchase saved'));
@@ -498,7 +498,7 @@ class PurchaseController extends Controller
         try {
             $this->purchases->delete($purchase, $request->user());
         } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()

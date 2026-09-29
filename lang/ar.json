@@ -2066,6 +2066,7 @@
     "The stylesheet": "ملف الأنماط",
     "The sum of the parts. You do not type this — a machine is worth what its parts cost.": "مجموع القطع. أنت لا تكتب هذا — قيمة الجهاز هي ما كلّفته قطعه.",
     "the supplier": "المورّد",
+    "The system could not finish that. Something else in the shop still depends on this record — try removing that first. The details are in the error log.": "لم يتمكن النظام من إتمام ذلك. لا يزال شيء آخر في المتجر يعتمد على هذا السجل — احذف ذلك أولاً. التفاصيل في سجل الأخطاء.",
     "The ten you bought at 10,000 and the ten you bought at 12,000 are the same product on the shelf, but the system remembers them as two batches, each with the price you actually paid for it.": "العشر التي اشتريتها بـ١٠٬٠٠٠ والعشر التي اشتريتها بـ١٢٬٠٠٠ هي المنتج نفسه على الرف، لكن النظام يتذكّرهما كدفعتين، كلٌّ بالسعر الذي دفعته فعلاً.",
     "The thing you are taking apart": "الشيء الذي تفكّكه",
     "The till, not the ledger: a sale on credit is revenue today and cash next month.": "الصندوق لا الدفتر: البيع بالآجل إيراد اليوم ونقد الشهر القادم.",

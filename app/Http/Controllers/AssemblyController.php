@@ -137,7 +137,7 @@ class AssemblyController extends Controller
                 note: $data['note'] ?? null,
             );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('assemblies.show', $assembly)
@@ -149,7 +149,7 @@ class AssemblyController extends Controller
         try {
             $this->assemblies->delete($assembly, $request->user());
         } catch (RuntimeException|Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()->route('assemblies.index')
@@ -191,7 +191,7 @@ class AssemblyController extends Controller
                     note: $data['note'] ?? null,
                 );
         } catch (RuntimeException|Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('assemblies.show', $assembly)

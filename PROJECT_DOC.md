@@ -885,6 +885,26 @@ Delete the dependent record first (if it's within its own 24h), and the parent u
 ### Audit
 Every edit writes an `activity_logs` row with before/after in the description and the full previous version in `old_values` JSON.
 
+### A deleted document's lines outlived it — Soran, 2026-09-29
+
+*"delete purchase and delete that items are creates ASM and now i deleted ASM but not delete permanetly"*, with the shop showing this on PUR-00040:
+
+> SQLSTATE[23000]: Integrity constraint violation: 1451 Cannot delete or update a parent row … `purchase_return_items_purchase_item_id_foreign` … delete from `purchase_items` where `purchase_id` = 48
+
+**What actually happened.** A purchase return had been made against PUR-00040 and then deleted. Deleting it reversed everything that mattered — the stock movements were removed, `quantity_returned` was put back, the ledger was reversed, the refund was un-paid — and soft-deleted the return itself. **But its lines were left behind.** `purchase_return_items` still held rows pointing at `purchase_items` with `restrictOnDelete`, so when the purchase's own delete came to remove its lines, the database refused.
+
+⚠️ **THE GUARD COULD NOT SEE WHAT THE DATABASE COULD.** Rule 3 asks `returns()->exists()`, and `PurchaseReturn` soft-deletes — so a deleted return is invisible to the guard and perfectly visible to the foreign key. Every lock rule that walks a soft-deleting relation has this shape, and this is the first time it cost anything.
+
+⚠️ **A DOCUMENT'S DELETE KEEPS ITS HEADER AND DROPS ITS LINES.** That is already the rule the parents follow: `PurchaseService::delete` soft-deletes the `purchases` row and *hard*-deletes `purchase_items`. Nothing reads a deleted document's lines — the audit that reads deleted documents takes only `document_no` from the header, and no document but a product can ever be restored. **The returns simply were not following their own parents' rule.** Now they do: deleting a purchase return or a sale return takes its lines with it, and the header stays as the tombstone.
+
+⚠️ **A swap IS the line reference**, with no lines of its own — `swaps.sale_item_id` is `restrictOnDelete` and `Swap` soft-deletes, so a deleted swap blocks its sale's delete in exactly the same way. A swap tombstone against a sale that is being deleted is not history anybody can use, so it goes with the sale.
+
+**Why `restrictOnDelete` stays.** The tempting fix is to make these columns nullable and `nullOnDelete`, which would let the parent delete succeed and keep every tombstone whole. It is rejected: that constraint is the backstop that caught this bug at all, and trading it away for "the guard will notice" is the reasoning that produced the bug. The rows that should not exist are removed instead.
+
+⚠️ **THE SHOP WAS SHOWN THE DATABASE'S OWN WORDS, AND THAT IS ITS OWN FAULT.** `QueryException` extends `PDOException`, which extends `RuntimeException` — so `catch (RuntimeException)` in the controller caught it and put the raw SQL, the table names, the connection and the database name on a shopkeeper's screen. A delete now catches `QueryException` **first** and says one plain sentence; the detail goes to the log, where it belongs.
+
+**Already-stranded rows are cleared by a migration.** This fault has been shipping, so a shop already running has orphaned lines under its deleted returns. The migration removes the lines of returns that are already soft-deleted — the exact rows that were blocking PUR-00040 — and touches nothing belonging to a live document.
+
 ---
 
 ## 8d. Sold on a plan — storage and connection

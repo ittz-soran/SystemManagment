@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMovement;
+use App\Models\Swap;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -350,6 +351,20 @@ class SaleService
             ->get();
 
         $this->fifo->reverseMovements($movements);
+
+        /*
+         * ⚠️ **A SWAP IS THE LINE REFERENCE, with no lines of its own.**
+         *
+         * `swaps.sale_item_id` is `restrictOnDelete` and `Swap` soft-deletes,
+         * so a swap the shop has already deleted still holds the line below
+         * and would refuse this delete with raw SQL — the same fault found on
+         * PUR-00040, in its third shape. A swap tombstone against a sale that
+         * is going is not history anybody can use, so it goes with the sale.
+         *
+         * Only the already-deleted ones: a LIVE swap moved stock after this
+         * sale, which rule 3 of canBeModified refuses long before here.
+         */
+        Swap::onlyTrashed()->where('sale_id', $sale->id)->forceDelete();
 
         $sale->items()->delete();
     }

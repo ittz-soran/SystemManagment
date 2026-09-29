@@ -103,7 +103,7 @@ class RepairController extends Controller
                 technician: ($data['technician_id'] ?? null) === null ? null : User::find($data['technician_id']),
             );
         } catch (Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         $this->log->log('create', 'repairs', $repair->id,
@@ -180,7 +180,7 @@ class RepairController extends Controller
             $this->log->log('update', 'repairs', $repair->id,
                 __('Changed repair :number', ['number' => $repair->document_no]), $before, $request->user());
         } catch (Throwable $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('repairs.show', $repair)->with('success', __('Repair saved'));
@@ -209,7 +209,7 @@ class RepairController extends Controller
                 note: $request->string('note')->toString() ?: null,
             );
         } catch (Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         $this->log->log('update', 'repairs', $repair->id,
@@ -226,7 +226,7 @@ class RepairController extends Controller
         try {
             $this->repairs->setStatus($repair, $request->string('status')->toString(), $request->user());
         } catch (Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return back()->with('success', __('Repair updated'));
@@ -253,7 +253,7 @@ class RepairController extends Controller
                 paymentMethod: $data['payment_method'],
             );
         } catch (Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         $this->log->log('create', 'repairs', $repair->id,
@@ -272,7 +272,7 @@ class RepairController extends Controller
         try {
             $this->repairs->handBack($repair, $request->user(), $request->string('why')->toString() ?: null);
         } catch (Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         $this->log->log('update', 'repairs', $repair->id,
@@ -434,7 +434,7 @@ class RepairController extends Controller
                 user: $request->user(),
             );
         } catch (Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return response()->json(['message' => problem($e)], 422);
         }
 
         $product = $bought['product'];

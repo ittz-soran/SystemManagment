@@ -155,7 +155,7 @@ class StockTransferController extends Controller
              * reading it has a cart half filled in. Losing it would make them
              * type the whole thing again to see the same message.
              */
-            return back()->withInput()->with('error', $e->getMessage());
+            return back()->withInput()->with('error', problem($e));
         }
 
         return redirect()->route('stock-transfers.show', $transfer)
@@ -174,7 +174,7 @@ class StockTransferController extends Controller
         try {
             $this->transfers->delete($stockTransfer, $request->user());
         } catch (Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return redirect()->route('stock-transfers.index')->with('success', __('Stock move undone'));

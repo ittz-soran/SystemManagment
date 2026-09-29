@@ -330,7 +330,7 @@ class SettingController extends Controller
         try {
             $result = $backups->run($request->user());
         } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         $message = __('Backed up :size to :path', [
@@ -365,7 +365,7 @@ class SettingController extends Controller
         try {
             $result = $reset->run($request->user());
         } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', problem($e));
         }
 
         return back()->with('success', __('Cleared :summary. A backup was saved first as :backup.', [
