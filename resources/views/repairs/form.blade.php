@@ -27,8 +27,11 @@
                             <label for="device" class="form-label">{{ __('What is it') }}</label>
                             <input id="device" name="device" required autofocus maxlength="160"
                                    value="{{ old('device', $repair?->device) }}"
+                                   data-word-help="words-device" data-word-help-row="row-device"
                                    class="form-control @error('device') is-invalid @enderror"
                                    placeholder="{{ __('iPhone 13, PlayStation 4, laptop, TV') }}">
+                            {{-- Section 9: the devices this bench has seen. --}}
+                            <x-word-help kind="devices" for="device" :ignore="$repair?->id" />
                             @error('device')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 

@@ -14,7 +14,12 @@
                          taught otherwise — which is what the three helps below
                          the box are for. --}}
                     <input id="name" name="name" value="{{ old('name', $product->name) }}" spellcheck="true"
+                           data-word-help="words-name" data-word-help-row="row-name"
                            class="form-control @error('name') is-invalid @enderror" required autofocus>
+                    {{-- Section 9: the words this shop already writes, so none
+                         of them has to be typed twice. On an edit the product
+                         itself is left out, the same as its other advice. --}}
+                    <x-word-help kind="products" for="name" :ignore="$product->id" />
                     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
 
                     {{-- Section 9 — "Help with the name of a product". Filled

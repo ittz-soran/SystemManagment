@@ -151,43 +151,18 @@ final class ProductName
     /**
      * Every word the shop's products use, spelled the way the shop spells it.
      *
-     * ⚠️ **The commonest form wins.** A tie goes to the one carrying more
-     * capitals — `PS4` over `ps4`, which is almost always what a shop means —
-     * and then alphabetically, so the same catalogue always gives the same
-     * answer and a name does not change casing between two saves.
+     * The counting, the ranking and the tie-break all live in WordList, which
+     * the boxes that finish a word as you type read as well — one idea, one
+     * place, whether it is correcting a name on save or completing one live.
      *
      * @return array<string, list<string>> lowercase word => its spellings, best first
      */
     public static function houseStyle(?int $ignore = null): array
     {
-        $counts = [];
-
-        foreach (self::catalogue($ignore)->pluck('name') as $name) {
-            foreach (explode(' ', trim(preg_replace('/\s+/u', ' ', (string) $name) ?? '')) as $word) {
-                if ($word === '') {
-                    continue;
-                }
-
-                $counts[mb_strtolower($word)][$word] ??= 0;
-                $counts[mb_strtolower($word)][$word]++;
-            }
-        }
-
-        $house = [];
-
-        foreach ($counts as $key => $forms) {
-            uksort($forms, fn (string $a, string $b) => [$forms[$b], self::capitals($b), $a] <=> [$forms[$a], self::capitals($a), $b]);
-
-            $house[$key] = array_keys($forms);
-        }
-
-        return $house;
-    }
-
-    /** How many capital letters a word carries, for breaking a tie. */
-    private static function capitals(string $word): int
-    {
-        return (int) preg_match_all('/\p{Lu}/u', $word);
+        return array_map(
+            fn (array $word) => $word['forms'],
+            WordList::spellings('products', $ignore),
+        );
     }
 
     /**

@@ -2685,3 +2685,337 @@ document.addEventListener('DOMContentLoaded', () => {
         form.addEventListener('submit', () => guard.release());
     });
 });
+
+/**
+ * Finishing the word as you type — Soran, 2026-09-27: *"how add words
+ * sugetions for ex i type "monit" auto show "Monitor" click or tab to replase
+ * it, this is very importnat"*. Section 9 of the doc.
+ *
+ * `moni` → Monitor → Tab → `ms` → MSI → Tab. Eleven keystrokes for a
+ * twenty-four character name, every word carrying the shop's own capitals.
+ *
+ * ⚠️ **THE WORD LIST CAME WITH THE PAGE.** No request per keystroke: a shop
+ * counts with a customer waiting, and a suggestion that lands after the next
+ * letter is worse than none. `<x-word-help>` prints it as JSON and this reads
+ * it here — at DOMContentLoaded, which is after the markup exists.
+ *
+ * ⚠️ **This lives in app.js and reaches OUT to the pages.** The cart
+ * leave-guard was written the other way round, a page calling into app.js, and
+ * silently did nothing: app.js is a deferred module, so a page's inline script
+ * runs first.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    /** Two letters before it says anything; at one, every box offers the alphabet. */
+    const FROM = 2;
+    const MOST = 3;
+
+    document.querySelectorAll('input[data-word-help]').forEach((input) => {
+        const source = document.getElementById(input.dataset.wordHelp);
+        const row = document.getElementById(input.dataset.wordHelpRow);
+
+        if (! source || ! row) {
+            return;
+        }
+
+        let list = null;
+
+        try {
+            list = JSON.parse(source.textContent);
+        } catch (e) {
+            return;
+        }
+
+        if (! list?.w?.length) {
+            return;
+        }
+
+        finishWords(input, row, list.w, list.after ?? {});
+    });
+
+    function finishWords(input, row, words, after) {
+        let hits = [];      // what is on offer
+        let at = 0;         // which one is showing
+        let base = '';      // everything before the word being typed
+        let typed = '';     // that word, exactly as the reader pressed it
+        let inserting = true;
+
+        /*
+         * ⚠️ **THE READER'S OWN LETTERS, KEPT SEPARATELY, AND A BROWSER SHOWED
+         * WHY.** A completion re-writes what is in the box to the shop's
+         * casing, so reading the word back out of the box returns the shop's
+         * letters, not the reader's. Type `play` where the shop has `PLUS` and
+         * the box goes `PL` → `PLay` — a casing mistake the feature invented,
+         * which the tidy then keeps because it carries a capital. So the
+         * letters actually pressed are tracked here, and the box is put back
+         * to them the moment nothing matches.
+         */
+        let raw = '';
+
+        const clear = () => { hits = []; base = ''; typed = ''; draw(); };
+
+        /*
+         * Best first: the word used most, then the shortest, then
+         * alphabetical — so the same three letters always offer the same word.
+         * The server sorted the list that way, so filtering preserves it, and
+         * everything the shop has written already sorts above the starter
+         * words it has not.
+         */
+        function matches(word, previous) {
+            const key = word.toLowerCase();
+            const follows = after[previous] ?? [];
+            const first = [];
+            const rest = [];
+
+            for (const entry of words) {
+                const w = entry.w.toLowerCase();
+
+                if (w.length > key.length && w.startsWith(key)) {
+                    // `Cable ` then `sik` puts Sikenai in front, because the
+                    // shop has written that pair before.
+                    (follows.includes(w) ? first : rest).push(entry.w);
+
+                    if (first.length + rest.length === MOST && first.length) {
+                        break;
+                    }
+                }
+            }
+
+            const found = [...first, ...rest].slice(0, MOST);
+
+            return found.length ? found : nearMisses(key);
+        }
+
+        /*
+         * ⚠️ **Only when nothing starts with what was typed.** `sikn` finds
+         * nothing, but *Sikenai* is one letter away and is almost certainly
+         * what was meant. From four letters, one letter out, at most two
+         * offered — this is the one rule here that can produce a suggestion
+         * nobody wanted, so it is kept on a short lead.
+         */
+        function nearMisses(key) {
+            if (key.length < 4) {
+                return [];
+            }
+
+            const found = [];
+
+            for (const entry of words) {
+                const w = entry.w.toLowerCase();
+
+                /*
+                 * ⚠️ **A WORD THE SHOP ALREADY KNOWS IS NEVER A NEAR MISS.**
+                 * `Cable` is a complete, correct word that nothing extends —
+                 * and without this the near miss went hunting, found something
+                 * one letter away, and turned `Cable ` into `Table `. Nothing
+                 * about a correctly typed word may be rewritten.
+                 */
+                if (w === key) {
+                    return [];
+                }
+
+                /*
+                 * ⚠️ **The first letter must survive.** A typo is hardly ever
+                 * the first letter, and changing it is the one rewrite nobody
+                 * expects: `sikn` → *Sikenai* is a save, `tabl` → *Cable* is a
+                 * different word.
+                 */
+                if (entry.w.length > key.length
+                    && w[0] === key[0]
+                    && oneApart(w.slice(0, key.length), key)) {
+                    found.push(entry.w);
+                }
+            }
+
+            return found.slice(0, 2);
+        }
+
+        /** Two strings of the same length, differing in exactly one place. */
+        function oneApart(a, b) {
+            let off = 0;
+
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i] && ++off > 1) {
+                    return false;
+                }
+            }
+
+            return off === 1;
+        }
+
+        function draw() {
+            row.textContent = '';
+
+            hits.forEach((word, i) => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'btn btn-sm app-word' + (i === at ? ' app-word-on' : '');
+                chip.tabIndex = -1;
+
+                const head = document.createElement('span');
+                head.textContent = word.slice(0, typed.length);
+                const tail = document.createElement('span');
+                tail.className = 'opacity-75';
+                tail.textContent = word.slice(typed.length);
+                chip.append(head, tail);
+
+                // mousedown, not click: the box must not lose focus first, or
+                // blur puts back what was typed and the tap does nothing.
+                chip.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    at = i;
+                    accept();
+                });
+
+                row.append(chip);
+            });
+        }
+
+        /*
+         * The rest of the word goes in the box and is selected, the way a
+         * browser's address bar does it. ⚠️ The letters already typed are
+         * re-written to the shop's casing — `ms` becomes `MSI`, never `msI`.
+         */
+        function offer() {
+            const word = hits[at];
+
+            input.value = base + word;
+            input.setSelectionRange(base.length + typed.length, base.length + word.length);
+        }
+
+        function accept() {
+            if (! hits.length) {
+                return;
+            }
+
+            input.value = base + hits[at] + ' ';
+            input.setSelectionRange(input.value.length, input.value.length);
+            input.focus();
+            clear();
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        /** Exactly the letters that were pressed, and nothing nobody chose. */
+        function revert() {
+            if (! hits.length) {
+                return;
+            }
+
+            input.value = base + typed;
+            input.setSelectionRange(input.value.length, input.value.length);
+            clear();
+        }
+
+        input.addEventListener('beforeinput', (event) => {
+            inserting = event.inputType === 'insertText' || event.inputType === 'insertCompositionText';
+
+            /*
+             * ⚠️ Backspace on a completion nobody took means "drop it", not
+             * "delete a letter of it" — the way a browser's address bar
+             * behaves. Without this the shop's capitals survive the delete and
+             * the next letters are typed onto them: `pl` offers *PLUS*, the
+             * box holds `PL`, and backspacing then typing gives `PLay`.
+             */
+            if (event.inputType.startsWith('delete') && hits.length
+                && input.selectionStart === base.length + typed.length
+                && input.selectionEnd === input.value.length) {
+                event.preventDefault();
+                revert();
+
+                return;
+            }
+
+            if (! inserting || event.data === null) {
+                raw = '';
+
+                return;
+            }
+
+            // A space ends a word; anything else extends the one in hand. When
+            // nothing is on offer the box holds the reader's own letters
+            // already, so that is where the next word starts from.
+            const cut = input.value.lastIndexOf(' ') + 1;
+
+            raw = event.data === ' ' ? '' : (hits.length ? raw : input.value.slice(cut)) + event.data;
+        });
+
+        input.addEventListener('input', (event) => {
+            if (event.isComposing) {
+                return;
+            }
+
+            /*
+             * ⚠️ Only after an insertion, and only at the end of the box.
+             * Offering again on a delete would make a suggested word
+             * impossible to erase, and re-writing text under a cursor that is
+             * mid-string is unusable.
+             */
+            if (! inserting || input.selectionStart !== input.value.length) {
+                clear();
+
+                return;
+            }
+
+            const cut = input.value.lastIndexOf(' ') + 1;
+            const word = input.value.slice(cut);
+
+            if (word.length < FROM) {
+                clear();
+
+                return;
+            }
+
+            // The word before this one, which decides what tends to follow it.
+            const before = input.value.slice(0, Math.max(0, cut - 1));
+            const previous = before.slice(before.lastIndexOf(' ') + 1).toLowerCase();
+
+            const found = matches(raw || word, previous);
+            const mine = raw || word;
+
+            if (! found.length) {
+                // ⚠️ Put the reader's own letters back before letting go: the
+                // box may be holding half of a completion nobody took.
+                if (mine !== word) {
+                    input.value = input.value.slice(0, cut) + mine;
+                    input.setSelectionRange(input.value.length, input.value.length);
+                }
+
+                clear();
+
+                return;
+            }
+
+            hits = found;
+            at = 0;
+            base = input.value.slice(0, cut);
+            typed = mine;
+            offer();
+            draw();
+        });
+
+        input.addEventListener('keydown', (event) => {
+            // ⚠️ With nothing on offer every key does what it always did —
+            // Tab still leaves the field.
+            if (! hits.length) {
+                return;
+            }
+
+            if (event.key === 'Tab' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                accept();
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                at = (at + (event.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length;
+                offer();
+                draw();
+            } else if (event.key === 'Escape' || event.key === 'Enter') {
+                // ⚠️ Enter is what a barcode scanner presses. It puts the
+                // suggestion away and never takes it.
+                event.preventDefault();
+                revert();
+            }
+        });
+
+        // Walking away must not leave half a word nobody chose in the box.
+        input.addEventListener('blur', revert);
+    }
+});

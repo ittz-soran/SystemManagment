@@ -84,7 +84,7 @@
     @endif
 
     @can('customers.edit')
-        <x-person-edit-modal id="customer-edit"
+        <x-person-edit-modal kind="customers" id="customer-edit"
                              :title="__('Edit customer')"
                              :save="__('Save customer')" />
     @endcan
@@ -101,7 +101,9 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="customer-name" class="form-label">{{ __('Name') }}</label>
-                            <input id="customer-name" name="name" class="form-control" required>
+                            <input id="customer-name" name="name" class="form-control" required
+                                   data-word-help="words-customer-name" data-word-help-row="row-customer-name">
+                            <x-word-help kind="customers" for="customer-name" />
                         </div>
                         <div class="mb-3">
                             <label for="customer-phone" class="form-label">{{ __('Phone') }}</label>

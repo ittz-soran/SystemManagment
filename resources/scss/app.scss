@@ -2139,3 +2139,46 @@ a.stat-tile {
         border-top: 1px solid var(--bs-border-color);
     }
 }
+
+/*
+ * Finishing the word as you type — Section 9, Soran 2026-09-27.
+ *
+ * The row under a name box holding the words the shop already uses. It keeps
+ * its height whether or not there is anything in it, so the form below does
+ * not jump every time a suggestion appears.
+ */
+.app-word-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  min-height: 1.85rem;
+  align-items: center;
+  margin-top: .35rem;
+}
+
+.app-word {
+  --bs-btn-padding-y: .1rem;
+  --bs-btn-padding-x: .5rem;
+  --bs-btn-font-size: .78rem;
+  --bs-btn-border-radius: 999px;
+  --bs-btn-color: var(--bs-secondary-color);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-color: var(--bs-body-color);
+  --bs-btn-hover-border-color: var(--bs-primary);
+  --bs-btn-hover-bg: var(--bs-tertiary-bg);
+  font-family: var(--bs-font-monospace);
+
+  /* ⚠️ A suggestion is never a target for the Tab key: Tab takes the word,
+     it does not walk into the row. app.js sets tabindex, this backs it up. */
+  &:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+  }
+}
+
+.app-word-on {
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-primary);
+  --bs-btn-bg: rgba(var(--bs-primary-rgb), .1);
+  font-weight: 500;
+}

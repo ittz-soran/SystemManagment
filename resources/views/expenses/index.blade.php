@@ -143,7 +143,9 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="expense-title" class="form-label">{{ __('Title') }}</label>
-                            <input id="expense-title" name="title" class="form-control" required>
+                            <input id="expense-title" name="title" class="form-control" required
+                                   data-word-help="words-expense-title" data-word-help-row="row-expense-title">
+                            <x-word-help kind="expenses" for="expense-title" />
                         </div>
                         <div class="mb-3">
                             <label for="expense-category" class="form-label">{{ __('Category') }}</label>

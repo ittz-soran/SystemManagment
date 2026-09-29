@@ -2242,6 +2242,99 @@ The reason it was held back is real and has not gone away: this shop's catalogue
 
 ⚠️ **This is the only one of the four that the shop cannot teach.** A browser spellchecker has no API to add a word to, so *Sikenai* will keep its red line forever. That is exactly why help 3 exists and is the one that corrects: **the shop's catalogue is the dictionary that knows this shop.** This fourth one is the dictionary that knows English, offered on top of it rather than instead of it.
 
+### Finishing the word as you type — Soran, 2026-09-27
+
+*"how add words sugetions for ex i type "monit" auto show "Monitor" click or tab to replase it , this is very importnat"*.
+
+He tried it on a page before any of it was built and chose: **the letters inside the box and the row of words underneath, both**; **the word only, not the whole product name**; and **on the other name boxes too**.
+
+`moni` → **Monitor** → Tab → `ms` → **MSI** → Tab → `gf` → **GF244** → Tab → `180` → **180Hz** → Tab. Eleven keystrokes for a name of twenty-four characters, and every word lands with the shop's own capitals.
+
+⚠️ **THE WORD LIST GOES TO THE BROWSER ONCE, WITH THE PAGE.** Not a request per keystroke. A shop counts at a counter with a customer waiting and a connection that is sometimes a phone's; a suggestion that arrives after the next letter has been typed is worse than none. His catalogue is 94 words; a three-thousand-product shop is under 40 KB, and the list is capped at the 2,000 commonest words so it cannot grow without limit.
+
+**Where each box's words come from** — its own column, never mixed:
+
+| box | words from |
+|---|---|
+| Product name | `products.name` |
+| Customer name | `customers.name` |
+| Supplier name | `suppliers.name` |
+| Repair — device | `repairs.device` |
+| Expense title | `expenses.title` |
+
+**Ranked the way the shop uses them**: commonest first, then shortest, then alphabetical — so the same three letters always offer the same word, and the answer never wobbles between two page loads.
+
+**The keys.** Tab or → takes the word and adds a space · ↓ ↑ step through the other matches · Esc puts back exactly what was typed · Backspace drops a suggestion rather than nibbling at it · on a phone you tap one of the words underneath.
+
+⚠️ **THE READER'S OWN LETTERS ARE KEPT SEPARATELY FROM THE BOX, and a browser showed why.** A completion re-writes what is on screen into the shop's casing, so reading the word back out of the box returns the shop's letters rather than the ones pressed. Typing `play` where the shop writes `PLUS` went `PL` → `PLay` — a capital in the middle of a word that the feature itself invented, and that the tidy then kept because it carries a capital. So what was actually pressed is tracked alongside, and the box is put back to it the moment nothing matches, on Esc, on Backspace and on leaving the field.
+
+⚠️ **ENTER NEVER TAKES A SUGGESTION.** A barcode scanner types the code and then presses Enter, which is why saving anything in this shop needs a press and hold. Enter here dismisses the suggestion and does nothing else.
+
+⚠️ **TAB MUST STILL LEAVE THE FIELD.** With nothing on offer every key behaves exactly as it did before — otherwise the one shortcut every form user has in their fingers is gone.
+
+⚠️ **It never types for anybody.** The box changes on Tab, → or a tap, and on nothing else. Two letters before it says anything, at most three words offered, and typing straight on simply replaces what was suggested.
+
+⚠️ **Deleting must not bring it straight back**, or a suggested word could not be erased. The completion is only offered after an *insertion*, and only when the cursor is at the end — never mid-string, where re-writing the text under the cursor would be unusable.
+
+⚠️ **The letters already typed are re-written to the shop's casing** — `ms` becomes `MSI`, not `msI`. That is the point of the feature and it means the tidy on save has less to correct.
+
+⚠️ **Nothing half-chosen is ever left behind.** Leaving the field puts back exactly what was typed, so a selected completion nobody accepted cannot be saved by accident.
+
+**It is `resources/js/app.js`, not a page script** — five boxes across five screens use it, and each page emits only its word list and one attribute on the input. The list is rendered as `<script type="application/json">` by `<x-word-help>`, and `app.js` reads it at `DOMContentLoaded`, which is after the markup exists. ⚠️ **Deliberately not the other way round**: the cart leave-guard was written as a page calling into `app.js` and silently did nothing for a week, because `app.js` is a deferred module and a page's inline script runs first.
+
+**No new permission.** The words are taken from names the reader is already looking at on a screen they already opened.
+
+**⚠️ EACH LIST IS SCOPED THE WAY ITS SCREEN IS — found by the suite, 2026-09-29.** The supplier list read every supplier, and a walk-in seller is a supplier row. So the names of people who sold the shop a second-hand phone were handed to the supplier screen, which exists precisely not to show them. A word list is not a private thing, and it inherits the scope of the page it is printed on, never the whole table.
+
+**Fuller, and cleverer about what it offers — Soran, 2026-09-29: *"make Full of words Dictionary to more smartest"*.**
+
+Three things on top of the shop's own words:
+
+**1. More of the shop's own writing.** The product box also learns from **category names**, because *Cables* and *Accessories* are words this shop uses about its products and were sitting unused one table away.
+
+**2. A starter list, so day one is not empty.** A shop that has just been set up has no words at all, and the box can do nothing until somebody has typed for a week — which is exactly when they need it most. So the trade's own vocabulary ships with the system: about 250 words of phone-and-computer shop for the product box, device names for the repair bench, and the running costs a shop actually pays for the expense box.
+
+⚠️ **THE STARTER LIST OFFERS AND NEVER CORRECTS.** It finishes a word somebody is typing; it is never consulted by the tidy on save and never by the spelling advice. Section 9's rule stands untouched: **the shop's catalogue is the only authority on what a word IS**. This one only saves typing.
+
+⚠️ **The shop always outranks it.** A word the shop has written comes first, in the shop's own casing; the starter word for it is dropped, not shown twice. And the ranking puts everything the shop has written above everything it has not, so a starter word is only ever the last thing offered.
+
+**No starter list for customers or suppliers.** There is no such thing as a common person's name, and guessing at one would be both useless and rude.
+
+**3. It knows which words follow which.** After `Cable `, typing `sik` puts **Sikenai** first, because *Cable Sikenai* is a pair the shop has written before. Only pairs used at least twice are kept, and at most 3,000 of them, so the page does not grow a tail of one-off model codes.
+
+**4. A near miss still finds the word.** Type `sikn` and nothing starts with it — but *Sikenai* is one letter away, so it is offered. ⚠️ **Only when nothing matches properly**, only from four letters, only one letter out, and at most two of them: a wrong suggestion is worse than none, and this is the one rule here that can produce one.
+
+**It keeps itself, while the shop works — Soran, 2026-09-29: *"while users work in system automatically updated dictionary to more comprehensive and clean"*.**
+
+**Nothing is ever typed into a dictionary.** It is worked out from what the shop has already saved, so the moment a product, a customer, a repair or an expense is written, its words are in the box on the very next screen. There is no list to maintain and nothing to go out of date: a product removed from the catalogue takes its words with it.
+
+⚠️ **A word used ONCE, one letter from a word the shop uses OFTEN, is a slip and is not offered.** His own catalogue has *Wirless* — typed once, in *Earphone Joyroom True Wirless JR-T03S Pro* — beside *Wireless* in two other products. Offering both is how a dictionary built from real typing goes bad: the slip gets completed, saved again, and becomes a word in its own right. So it is dropped from what the box offers.
+
+The bar is deliberately high, because refusing to offer a word somebody meant is the worse mistake:
+
+- the suspect word must be used **exactly once** — twice is a habit, not a slip;
+- the word it loses to must be used **at least twice**, or be one of the starter words, which are curated;
+- both must be **five letters or longer and all letters** — `PD`, `30W` and `GF244` are codes, and a code is never a misspelling of another code;
+- they must be **one letter apart** — not two.
+
+⚠️ **Cleaning changes nothing that is stored.** *Wirless* stays exactly as it is on that product, on its invoices and in every report. The only thing that changes is whether the box offers to type it for you again. Nothing in this system quietly rewrites a name somebody saved.
+
+⚠️ **And the near miss picks it up anyway**: typing `wirl` now finds *Wireless*, because nothing starts with those letters and *Wireless* is one letter away. So the slip is not merely hidden — the right word takes its place.
+
+**Where each box gets its words, in full:**
+
+| box | learns from |
+|---|---|
+| Product name | `products.name`, `categories.name` |
+| Customer name | `customers.name` |
+| Supplier name | `suppliers.name` — companies only, never a walk-in seller |
+| Repair — device | `repairs.device` |
+| Expense title | `expenses.title`, `expense_categories.name` |
+
+**Built once and kept until something changes.** The list is cached against a fingerprint of the table — how many rows and when the last one was touched — so a shop with three thousand products pays for the work on the first screen after a change and on no screen after that. ⚠️ **The fingerprint is the guard against staleness**: a saved product moves it, so the next page rebuilds. The edit screens, which leave the row being edited out of its own words, are not cached at all — one screen is not worth a second cache key.
+
+
+
 ### Finding a walk-in sale by the name on it — Soran, 2026-09-27
 
 *"system can search for walk-in names"*.
