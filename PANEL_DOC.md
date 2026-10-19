@@ -165,6 +165,8 @@ database_user
 status                trial | active | suspended | ended
 monthly_fee           integer IQD, never decimal (PROJECT_DOC Section 2)
 storage_limit_mb      mirrors what is written to their .env
+sections_off          mirrors SHOP_SECTIONS_OFF in their .env (Section 6b)
+sections_on           mirrors SHOP_SECTIONS_ON — testing sections this shop has
 language              the language their install starts in
 started_on, notes, timestamps, soft deletes
 ```
@@ -195,6 +197,7 @@ database_bytes, backups_bytes, uploads_bytes, storage_limit_mb
 migrations_run, migrations_total
 last_activity_at, users_count, products_count, sales_count
 licence_state            what THEIR system thinks — a cross-check against ours
+sections_off             what THEIR system says is off — a cross-check against customers
 data_check_passed, data_check_total
 error
 ```
@@ -235,6 +238,55 @@ So a renewal is:
 
 ---
 
+## 6b. Sections — what each shop has — Soran, 2026-10-19
+
+*"i want manage from panel, and some time i want add new page to system and just
+want have for some store to test"*
+
+The shop side is PROJECT_DOC Section 8h and does not change here: six sections —
+stock rooms, second-hand, repairs, take apart & build, swaps, currencies — that a
+shop can do without, switched by `SHOP_SECTIONS_OFF` and `SHOP_SECTIONS_ON` in its
+`.env`. The real case is Halabja-phone, which needs no stock rooms, second-hand or
+repairs. **Built together with the shop side**, by Soran's choice: neither half
+exists yet.
+
+**On the One customer page, a Sections card.** Every section the shop reports,
+each with a switch, *testing* beside the ones not yet released, and the shop's
+own reason on a switch it may not turn off.
+
+Switching one is:
+
+1. **The shop is asked first**: `shop:sections --json`. The list, and what holds
+   each section, is the shop's own answer — never the panel's reading of the
+   shop's tables.
+2. **A section holding something live is refused**, with the shop's sentence on
+   the disabled switch: *"2 repair jobs are open"*, *"14 units are in the back
+   room"*. Section 9b of PROJECT_DOC: the reason before the button, not after it.
+3. **The two lines in `.env` are rewritten**, using only names step 1 returned —
+   a name typed by hand is how `repair` gets written for `repairs` and switches
+   nothing off. The old file is kept as `.env.bak`.
+4. **The shop's config cache is cleared**, so it takes effect at once.
+5. **The shop is asked again, and its answer is shown back.** `sections_off` and
+   `sections_on` on `customers` are set from that answer, never from what was
+   written.
+6. **Logged** in `actions`, from → to.
+
+**No hold-to-confirm.** Switching is not destructive: nothing in the shop is
+deleted, and switching back brings everything back as it was, including who
+could use it. A switch that holds for two seconds is a switch that teaches people
+to hold without reading.
+
+**Trying a new page** is the same card. A testing section is listed with its
+badge and is off everywhere; turning it on for one shop is the whole of "try it
+here". Once a later update releases it, every shop has it, and it is listed like
+any other.
+
+⚠️ **The tables of a testing section reach every shop**, not only the ones trying
+it — `shop:update` migrates every customer from the one codebase. Only the
+screens are switched.
+
+---
+
 ## 7. What the panel may do, and the guard rails
 
 Soran chose: **everything, with a hold-to-confirm on anything destructive.** The hosting supports it — `proc_open` allowed, all three binaries present, UAPI answering.
@@ -247,6 +299,7 @@ Soran chose: **everything, with a hold-to-confirm on anything destructive.** The
 | Suspend and resume a shop | Hold to confirm, typed shop name. |
 | Run a shop's backup, and download it | Logged. |
 | Run a shop's migrations | Hold to confirm. Backup taken first. |
+| Turn a section on or off | Refused while the shop says it holds something live. Logged, from → to. |
 | Read a shop's health and data check | Read-only by construction. |
 
 **The same guard rails as the shop system** (PROJECT_DOC Section 9b): a two-second hold and a typed confirmation for anything that cannot be undone, the reason shown on a disabled button rather than discovered after pressing it, and a backup before anything irreversible.
@@ -276,7 +329,7 @@ Mockups were built and approved against the shop system's own stylesheet, so the
 |---|---|
 | **Overview** | Only what needs Soran this week: licences running out, storage near its limit, shops nobody has used. Everything else is a number. |
 | **Customers** | The working screen. Shop, licence state, expiry, storage, last used, code version, monthly fee. Filter by "needs chasing". |
-| **One customer** | Licence with its full history, storage broken into database/backups/uploads, whether they are actually using it, their code version, and the danger zone. |
+| **One customer** | Licence with its full history, storage broken into database/backups/uploads, whether they are actually using it, their code version, which sections it has (Section 6b), and the danger zone. |
 | **Renew** | The paste-and-verify flow from Section 6, with what-will-happen shown beside it. |
 | **New customer** | One form replacing six manual steps. |
 | **Subscriptions** | Who has paid, who has not, what the month is worth. |
@@ -301,7 +354,8 @@ What crosses between them is deliberately small and one-directional:
 
 - The panel **reads** `PANEL_DOC.md` and `PROJECT_DOC.md` for the rules.
 - The panel **runs** the shop system's artisan commands with `SHOP_HOME` set —
-  `install:sql`, `licence:show`, `shop:update`, `backup:run`, the data check.
+  `install:sql`, `licence:show`, `shop:sections`, `shop:update`, `backup:run`,
+  the data check.
   It does this as a subprocess against the shared codebase on the server, not
   by importing any of its classes.
 
@@ -366,10 +420,13 @@ that unlikely rather than impossible.
 4. **Reading a shop** — the service from Section 8, with the hourly health check.
 5. **Customers, one customer, Overview** — the screens that only read.
 6. **Renew** — paste, verify, deliver, confirm. *(Task #42)*
-7. **New customer** — UAPI database creation, provision, seed from `install:sql`, issue.
-8. **Subscriptions and payments.**
-9. **Deploy** — `smart-store` and `panel` on the server, `panel.soranstore.com`.
-10. **Soran's own shop first**, then Halabja-phone rebuilt through the panel.
+7. **Sections** — Section 6b, with the shop side from PROJECT_DOC Section 8h
+   built in the same piece of work, in the shop system's repository.
+8. **New customer** — UAPI database creation, provision, seed from `install:sql`, issue.
+9. **Subscriptions and payments.**
+10. **Deploy** — `smart-store` and `panel` on the server, `panel.soranstore.com`.
+11. **Soran's own shop first**, then Halabja-phone rebuilt through the panel —
+    with stock rooms, second-hand and repairs off.
 
 ---
 
@@ -377,6 +434,7 @@ that unlikely rather than impossible.
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-10-19 | **Sections** (Section 6b), decided with Soran: a Sections card on the One customer page that switches what a shop has, through two lines in its `.env`, asking the shop before and after. The shop side is PROJECT_DOC Section 8h. Written down only; both halves are built together, as build step 7. | Panel scaffold |
 | 2026-08-31 | **The last open questions closed**, all four from Soran. The panel gets its own GitHub repository, so its source never travels to a customer's hosting with the shop system. The `sys` folder beside `public_html` was a mistake and is deleted. Halabja-phone is backed up, and its database stays in cPanel because that is what a rebuilt install restores from. And File Usage reads `48,130 / ∞` — **there is no inode limit on this account**, so the ceiling the shared codebase was first argued from does not exist. Section 3 corrected rather than quietly left: the decision stands, but on updating once instead of once per customer, which was always the larger half of it. The only ceiling left is how many databases the plan allows, still unknown. | Confirm the repository name, then `shop:provision` |
 | 2026-08-31 | **One codebase, many shops** (Section 3). `SHOP_HOME` and `SHOP_PUBLIC` move a shop's `.env`, storage, compiled caches and public folder; everything else is shared. Built the naive way first on purpose, against two real MariaDB databases with config cached on both, and watched the second shop report the first shop's database, shop name and administrator with its own paths still looking correct — then fixed it and verified each shop reads only its own. `ShopIsolationTest` spawns real processes because `SHOP_HOME` is a constant. Two findings: `Container::when()` is contextual binding and would have returned the wrong object from `bootstrap/app.php`; and `config:cache` re-requires `bootstrapPath('app.php')`, so a shop needs a one-line file there. Also corrected a hardcoded `SHOP_HOME.'/public'` that assumed a layout this hosting does not allow. Suite: 614 tests, 613 passing, 1 skipped. | `shop:provision` |
 | 2026-08-31 | **Hosting measured** (Section 4), by three checkers run on the real account. `proc_open` allowed with all three binaries, cPanel UAPI answering, PHP 8.3.33, MariaDB 11.4.13. Document roots cannot leave `public_html` — tested, cPanel ignored the path and made its own folder. Found Halabja-phone's install serving `.env` and `laravel.log` to anyone; the folder has since been deleted, and its database must be kept. | — |
