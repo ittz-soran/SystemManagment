@@ -81,6 +81,23 @@
   exist (`no-such-tool-<random>`), and the suite is proved both ways: with the
   client on PATH and without.
 - If a decision changes, **update this file** — don't just say it in chat.
+- **A new session starts ready — Soran, 2026-10-19: *"Can add to project to work
+  easily"*.** `CLAUDE.md` loads by itself in every Claude Code session and points
+  here; it holds only what is about *working* on the code — the commands, the
+  push rule, the traps — so this file stays the one place for decisions. A
+  `SessionStart` hook (`.claude/hooks/session-start.sh`) readies a cloud
+  container: `composer install`, `.env` with a key, a migrated SQLite database,
+  `npm install`. Without the key every test that encrypts fails with *"No
+  application encryption key has been specified"* — `phpunit.xml` sets none.
+  ⚠️ **It never runs `npm run build`** (that would rewrite committed
+  `public/build` on every start) **and never installs MariaDB** (see the
+  `BackupTest` note above). First run in a bare container ~9 minutes, almost all
+  of it Composer; every later start, from the cached container, ~3 seconds.
+- ⚠️ **`package.json` has a `name` for a reason.** Without one npm names the
+  package after the *folder*, and folders differ by machine — so every fresh
+  container rewrote `package-lock.json` and left a diff waiting to be committed
+  by accident. With the name, a plain `npm install` leaves the lock alone in any
+  folder; that was checked in a folder named differently, not assumed.
 
 ---
 

@@ -527,7 +527,12 @@ class WordHelpTest extends TestCase
      *
      * The shop never runs `npm run build` — the built files are committed — so
      * a change to app.js that was not rebuilt is a change the shop never gets,
-     * with every test still green. The timestamp is the part that catches it.
+     * with every test still green.
+     *
+     * ⚠️ **By what it says, never by its timestamp.** Git does not keep file
+     * times: a fresh clone writes app.js and the bundle in whatever order it
+     * likes, so comparing them failed at random on a clean checkout with
+     * nothing stale at all.
      */
     public function test_the_behaviour_is_in_the_built_bundle(): void
     {
@@ -537,11 +542,5 @@ class WordHelpTest extends TestCase
 
         $this->assertStringContainsString('data-word-help', $bundle);
         $this->assertStringContainsString('wordHelpRow', $bundle);
-
-        $this->assertGreaterThanOrEqual(
-            filemtime(resource_path('js/app.js')),
-            filemtime($built),
-            'app.js has been edited since the bundle was built — run npm run build',
-        );
     }
 }
