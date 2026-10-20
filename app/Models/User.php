@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Casts\Unreadable;
 use App\Support\Money;
+use App\Support\Sections;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -79,7 +80,9 @@ class User extends Authenticatable
          */
         $code = (string) ($this->attributes['display_currency'] ?? '');
 
-        if ($code === '' || $code === Money::base()->code) {
+        // Section 8h: a shop without currencies reads everything in its own
+        // money. The preference stays recorded for the day they come back.
+        if ($code === '' || $code === Money::base()->code || ! Sections::isOn('currencies')) {
             return null;
         }
 
@@ -284,9 +287,17 @@ class User extends Authenticatable
     /**
      * Section 2: admin has full access, always, and cannot be restricted.
      * The check short-circuits to true and never consults user_permissions.
+     *
+     * ⚠️ **Except to a section this shop has not got** — Section 8h. That is
+     * asked FIRST, or the owner of a shop without repairs still has a Repairs
+     * menu. It is not a restriction on the admin: the section is not there.
      */
     public function hasPermission(string $key): bool
     {
+        if (! Sections::allowsPermission($key)) {
+            return false;
+        }
+
         if ($this->isAdmin()) {
             return true;
         }

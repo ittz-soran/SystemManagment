@@ -13,7 +13,9 @@ use App\Models\Supplier;
 use App\Services\BulkDeleteService;
 use App\Services\PurchaseService;
 use App\Support\Money;
+use App\Support\Sections;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -172,13 +174,7 @@ class PurchaseController extends Controller
                 : ($held ? HeldCartController::rebuild($held, fn ($p) => null) : null),
             'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
 
-            /*
-             * Where a delivery may be booked. Active rooms only — a closed room
-             * is one the shop has stopped using, and offering it would let
-             * somebody book stock into a place nothing can be moved into.
-             */
-            'rooms' => StockRoom::where('is_active', true)
-                ->orderByDesc('is_main')->orderBy('sort_order')->orderBy('name')->get(),
+            'rooms' => $this->bookableRooms(),
             // Section 6b: pre-filled from settings, editable per purchase,
             // because the rate you actually paid at is the one that matters.
             ...$this->currencyChoices(),
@@ -231,7 +227,9 @@ class PurchaseController extends Controller
                 amountPaid: (int) ($data['amount_paid'] ?? 0),
                 supplierInvoiceNo: $data['supplier_invoice_no'] ?? null,
                 exchangeRate: $data['exchange_rate'] ?? null,
-                roomId: $data['room_id'] ?? null,
+                // Section 8h: without stock rooms everything arrives on the
+                // shop floor, whatever a stale form still carries.
+                roomId: Sections::isOn('stock_rooms') ? ($data['room_id'] ?? null) : null,
                 paymentMethod: $data['payment_method'],
             );
         } catch (\RuntimeException $e) {
@@ -265,13 +263,7 @@ class PurchaseController extends Controller
             'cartLines' => $this->cartLines($purchase),
             'suppliers' => Supplier::companies()->where('is_active', true)->orderBy('name')->get(),
 
-            /*
-             * Where a delivery may be booked. Active rooms only — a closed room
-             * is one the shop has stopped using, and offering it would let
-             * somebody book stock into a place nothing can be moved into.
-             */
-            'rooms' => StockRoom::where('is_active', true)
-                ->orderByDesc('is_main')->orderBy('sort_order')->orderBy('name')->get(),
+            'rooms' => $this->bookableRooms(),
             // Section 6b: the rate this purchase was actually entered at, so
             // re-saving it does not silently reprice the USD lines.
             ...$this->currencyChoices($purchase),
@@ -288,10 +280,26 @@ class PurchaseController extends Controller
      *
      * @return list<string>
      */
+    /**
+     * Where a delivery may be booked. Active rooms only — a closed room is one
+     * the shop has stopped using, and offering it would let somebody book stock
+     * into a place nothing can be moved into.
+     *
+     * Section 8h: a shop without stock rooms has one, the main room, so the
+     * box is not drawn — exactly as for a shop that never added a second.
+     *
+     * @return Collection<int, StockRoom>
+     */
+    private function bookableRooms(): Collection
+    {
+        return StockRoom::where('is_active', true)
+            ->when(! Sections::isOn('stock_rooms'), fn ($query) => $query->where('is_main', true))
+            ->orderByDesc('is_main')->orderBy('sort_order')->orderBy('name')->get();
+    }
+
     private function currencyCodes(?Purchase $purchase = null): array
     {
-        return collect(Currency::cached())
-            ->filter(fn (Currency $c) => $c->is_active)
+        return collect(Currency::offered())
             ->keys()
             ->merge($purchase?->items->pluck('entered_currency')->filter()->all() ?? [])
             ->unique()
@@ -319,8 +327,8 @@ class PurchaseController extends Controller
     {
         $base = Money::base();
 
-        $foreign = collect(Currency::cached())
-            ->filter(fn (Currency $c) => $c->is_active && $c->code !== $base->code)
+        $foreign = collect(Currency::offered())
+            ->filter(fn (Currency $c) => $c->code !== $base->code)
             ->values();
 
         /*
@@ -406,8 +414,10 @@ class PurchaseController extends Controller
              * base units as the box above, so switching the invoice currency
              * can fill that box in.
              */
-            'currencyMeta' => collect(Currency::cached())
-                ->filter(fn (Currency $c) => $c->is_active)
+            // What the screen can show: everything it offers, and the one an
+            // old document was written in if that is no longer offered.
+            'currencyMeta' => collect(Currency::offered())
+                ->merge($foreign->keyBy('code'))
                 ->map(fn (Currency $c) => [
                     'code' => $c->code,
                     'mark' => $c->mark(),
@@ -484,7 +494,10 @@ class PurchaseController extends Controller
                 discountAmount: (int) ($data['discount_amount'] ?? 0),
                 supplierInvoiceNo: $data['supplier_invoice_no'] ?? null,
                 exchangeRate: $data['exchange_rate'] ?? null,
-                roomId: $data['room_id'] ?? null,
+                // ⚠️ Section 8h: a purchase booked into a back room before the
+                // section went off keeps that room. Moving it to the shop floor
+                // on paper would be a stock move nobody made.
+                roomId: Sections::isOn('stock_rooms') ? ($data['room_id'] ?? null) : $purchase->room_id,
             );
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', problem($e));

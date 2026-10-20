@@ -6,6 +6,7 @@ use App\Models\Permission;
 use App\Models\User;
 use App\Support\Guide;
 use App\Support\Navigation;
+use App\Support\Sections;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
@@ -212,8 +213,14 @@ class GuideTest extends TestCase
             $this->assertNotEmpty($topic['sections'], "{$slug} has no body");
 
             foreach ($topic['sections'] as $section) {
-                $this->assertCount(2, $section, "{$slug}: a section is a heading and its paragraphs");
+                // A third element names the Section 8h section the passage is
+                // about, and must be one that exists or it would never show.
+                $this->assertContains(count($section), [2, 3], "{$slug}: a section is a heading and its paragraphs");
                 $this->assertNotEmpty($section[1], "{$slug}: [{$section[0]}] has no paragraphs");
+
+                if (count($section) === 3) {
+                    $this->assertArrayHasKey($section[2], Sections::LIST, "{$slug}: [{$section[0]}] names no section");
+                }
             }
         }
     }

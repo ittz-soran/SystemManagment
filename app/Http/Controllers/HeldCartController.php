@@ -40,7 +40,7 @@ class HeldCartController extends Controller
             //
             // Section 2b: whichever currencies the shop keeps, not two codes.
             'lines.*.entered_currency' => ['nullable', 'string', Rule::in(
-                collect(Currency::cached())->filter(fn (Currency $c) => $c->is_active)->keys()->all()
+                array_keys(Currency::offered())
             )],
             'lines.*.entered_amount' => ['nullable', 'integer', 'min:0'],
             // Whoever had been chosen, if anybody had. The whole point of this

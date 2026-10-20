@@ -201,10 +201,7 @@ class SettingController extends Controller
              * not there.
              */
             'purchase_currency' => ['nullable', 'string', 'max:8', Rule::in(
-                collect(Currency::cached())
-                    ->filter(fn (Currency $c) => $c->is_active)
-                    ->keys()
-                    ->all()
+                array_keys(Currency::offered())
             )],
             'books_closed_before' => ['nullable', 'date'],
             'low_stock_threshold' => ['required', 'integer', 'min:0'],

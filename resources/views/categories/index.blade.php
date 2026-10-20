@@ -46,11 +46,19 @@
                                  but they are not on the product list, so their
                                  counts lead to the screens that do show them. --}}
                             <td class="small">
+                                {{-- Section 8h: the count stays without the section,
+                                     because the items are still on the shelf and
+                                     still sell — only the screen it led to is gone. --}}
                                 @if($category->used_count > 0)
-                                    <a href="{{ route('second-hand.index') }}" class="text-decoration-none">
-                                        {{ trans_choice('{1}:count second-hand item|[2,*]:count second-hand items',
-                                            $category->used_count, ['count' => number_format($category->used_count)]) }}
-                                    </a>
+                                    @php
+                                        $usedLabel = trans_choice('{1}:count second-hand item|[2,*]:count second-hand items',
+                                            $category->used_count, ['count' => number_format($category->used_count)]);
+                                    @endphp
+                                    @if(App\Support\Sections::isOn('second_hand'))
+                                        <a href="{{ route('second-hand.index') }}" class="text-decoration-none">{{ $usedLabel }}</a>
+                                    @else
+                                        <span class="d-block">{{ $usedLabel }}</span>
+                                    @endif
                                 @endif
                                 @if($category->service_count > 0)
                                     <a href="{{ route('services.index') }}" class="text-decoration-none d-block">

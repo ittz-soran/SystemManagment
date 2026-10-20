@@ -171,12 +171,17 @@
                                 </div>
                                 <div class="form-text">{{ __('Pre-fills the purchase form; editable per purchase.') }}</div>
                             </div>
+                            {{-- ⚠️ Section 8h: not drawn at all without the currencies
+                                 section — and not drawn half-empty either. A select
+                                 that no longer offers USD posts its first option, and
+                                 saving the shop's phone number would quietly put
+                                 purchases back into dinars. Not posted is not written. --}}
+                            @if(App\Support\Sections::isOn('currencies'))
                             <div class="col-6">
                                 <label for="purchase_currency" class="form-label">{{ __('Purchases are written in') }}</label>
                                 @php
                                     $purchaseCurrency = old('purchase_currency', setting('purchase_currency'));
-                                    $purchaseChoices = collect(App\Models\Currency::cached())
-                                        ->filter(fn ($currency) => $currency->is_active);
+                                    $purchaseChoices = collect(App\Models\Currency::offered());
                                 @endphp
                                 <select id="purchase_currency" name="purchase_currency" class="form-select">
                                     <option value="">{{ __('The shop\'s own money') }}</option>
@@ -189,6 +194,7 @@
                                 <div class="form-text">{{ __('Which currency a new purchase opens in; still changeable on the purchase itself.') }}</div>
                                 @error('purchase_currency')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
+                            @endif
                             <div class="col-6">
                                 <label for="low_stock_threshold" class="form-label">{{ __('Low stock threshold') }}</label>
                                 <input id="low_stock_threshold" type="number" step="1" min="0" name="low_stock_threshold"
@@ -478,7 +484,9 @@
 
         {{-- Section 2b — the currencies a shop can type and read in.
              Its own page rather than a card here: each currency is a row with
-             five fields, and this form holds scalars. --}}
+             five fields, and this form holds scalars. Section 8h: gone with the
+             section. --}}
+        @if(App\Support\Sections::isOn('currencies'))
         <div class="card mt-3">
             <div class="card-header d-flex align-items-center gap-2">
                 <i class="bi bi-currency-exchange"></i>{{ __('Currencies') }}
@@ -493,6 +501,7 @@
                 </a>
             </div>
         </div>
+        @endif
 
         {{-- Section 10b ends with six assertions "to run globally, after every
              test". They live in the acceptance test, guarding the engine. This

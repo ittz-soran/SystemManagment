@@ -566,10 +566,7 @@ class SaleController extends Controller
      */
     private function currencyCodes(): array
     {
-        return collect(Currency::cached())
-            ->filter(fn (Currency $c) => $c->is_active)
-            ->keys()
-            ->all();
+        return array_keys(Currency::offered());
     }
 
     /**
@@ -586,8 +583,8 @@ class SaleController extends Controller
     {
         $base = Money::base();
 
-        $foreign = collect(Currency::cached())
-            ->filter(fn (Currency $c) => $c->is_active && $c->code !== $base->code)
+        $foreign = collect(Currency::offered())
+            ->filter(fn (Currency $c) => $c->code !== $base->code)
             ->values();
 
         $was = $sale !== null
@@ -616,8 +613,10 @@ class SaleController extends Controller
             'documentCurrency' => $chosen?->code ?? $base->code,
             'documentRate' => (int) ($sale?->exchange_rate
                 ?: ($chosen ? (int) round($chosen->rate / Money::RATE_SCALE) : 0)),
-            'currencyMeta' => collect(Currency::cached())
-                ->filter(fn (Currency $c) => $c->is_active)
+            // What the screen can show: everything it offers, and the one an
+            // old document was written in if that is no longer offered.
+            'currencyMeta' => collect(Currency::offered())
+                ->merge($foreign->keyBy('code'))
                 ->map(fn (Currency $c) => [
                     'code' => $c->code,
                     'mark' => $c->mark(),

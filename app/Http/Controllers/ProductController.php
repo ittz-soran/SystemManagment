@@ -21,6 +21,7 @@ use App\Services\MasterDataTransfer;
 use App\Services\ProductCodeService;
 use App\Services\StockAdjustmentService;
 use App\Support\ProductName;
+use App\Support\Sections;
 use App\Support\Units;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -235,7 +236,10 @@ class ProductController extends Controller
              * whether there is more than one room, and two calls could not
              * disagree today but a third would.
              */
-            'rooms' => StockRoom::query()->inOrder()->get(),
+            // Section 8h: without stock rooms there is only the shop floor.
+            'rooms' => StockRoom::query()
+                ->when(! Sections::isOn('stock_rooms'), fn ($query) => $query->where('is_main', true))
+                ->inOrder()->get(),
 
             /*
              * Ninety days of this one thing, drawn the same way the reports

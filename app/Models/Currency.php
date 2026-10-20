@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Money;
+use App\Support\Sections;
 use Database\Factories\CurrencyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -85,6 +86,27 @@ class Currency extends Model
         }
 
         return self::build($rows) ?? self::build(self::reread()) ?? [];
+    }
+
+    /**
+     * The currencies a screen may OFFER: the active ones — or, in a shop
+     * without the currencies section, the base alone (PROJECT_DOC Section 8h).
+     *
+     * ⚠️ **Never narrow `cached()` instead.** That is also how a document
+     * already written in dollars finds its currency to print, and narrowing it
+     * would strip the second figure off last month's purchase invoices.
+     *
+     * @return array<string, Currency>
+     */
+    public static function offered(): array
+    {
+        $active = array_filter(self::cached(), fn (self $currency) => $currency->is_active);
+
+        if (Sections::isOn('currencies')) {
+            return $active;
+        }
+
+        return array_filter($active, fn (self $currency) => $currency->code === Money::base()->code);
     }
 
     /**

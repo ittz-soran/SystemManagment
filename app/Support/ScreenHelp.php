@@ -27,7 +27,8 @@ namespace App\Support;
  *   intro    one sentence on what it is for
  *   steps    the ordered thing to do — a heading and a line each
  *   warning  the mistake people actually make here, said plainly
- *   notes    what a reader would not discover on their own
+ *   notes    what a reader would not discover on their own — a note about
+ *            one Section 8h section is written [text, section]
  */
 final class ScreenHelp
 {
@@ -38,7 +39,22 @@ final class ScreenHelp
             return null;
         }
 
-        return self::all()[$route] ?? null;
+        $help = self::all()[$route] ?? null;
+
+        if ($help === null || ! isset($help['notes'])) {
+            return $help;
+        }
+
+        // Section 8h: a note may name the section it is about, as
+        // [text, section]. One about a section this shop has not got goes.
+        $help['notes'] = array_values(array_filter(array_map(
+            fn (string|array $note) => is_array($note)
+                ? (Sections::isOn($note[1]) ? $note[0] : null)
+                : $note,
+            $help['notes'],
+        )));
+
+        return $help;
     }
 
     public static function has(?string $route): bool
@@ -87,7 +103,7 @@ final class ScreenHelp
                 'notes' => [
                     __('A discount on the whole purchase does not change what each item cost. That is deliberate — the cost is what you actually paid per piece.'),
                     __('Buying the same product again at a different price is normal. The system keeps each batch separate and sells the oldest first.'),
-                    __('Prices in dollars: type the rate and the USD amount, and it converts once, to whole dinars.'),
+                    [__('Prices in dollars: type the rate and the USD amount, and it converts once, to whole dinars.'), 'currencies'],
                 ],
             ],
 
@@ -201,10 +217,10 @@ final class ScreenHelp
                 ],
                 'notes' => [
                     __('A different product asks for the new one, then shows what is owed: nothing when the prices match, the difference either way when they do not. It can go on the customer’s account.'),
-                    __('Nothing on the shelf? The swap is not offered, and the screen says why rather than hiding the button.'),
+                    [__('Nothing on the shelf? The swap is not offered, and the screen says why rather than hiding the button.'), 'swaps'],
                     __('Tick “it came back faulty” and the broken one goes to the supplier it was bought from, at the price they were paid, in the same breath.'),
                     __('A supplier return comes off that purchase’s own batch, never the oldest — those goods go back to that supplier.'),
-                    __('A swap costs you something only when the replacement comes off a newer, dearer batch. That shows on the profit report as Faulty goods replaced.'),
+                    [__('A swap costs you something only when the replacement comes off a newer, dearer batch. That shows on the profit report as Faulty goods replaced.'), 'swaps'],
                 ],
             ],
 

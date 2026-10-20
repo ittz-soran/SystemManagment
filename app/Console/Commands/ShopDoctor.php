@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\Licence;
 use App\Services\SchemaVersion;
 use App\Services\ShopHealth;
+use App\Support\Sections;
 use BaconQrCode\Writer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,7 @@ class ShopDoctor extends Command
              */
             'assets' => app(ShopHealth::class)->assetFacts(),
             'licence' => app(ShopHealth::class)->licenceFacts(),
+            'sections' => $this->sections(),
             'health' => $this->health(),
             'errors' => $this->errors((int) $this->option('errors')),
         ];
@@ -96,6 +98,37 @@ class ShopDoctor extends Command
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * PROJECT_DOC Section 8h, one line per section — read from the same report
+     * `shop:sections` prints, so the two cannot disagree.
+     *
+     * @return array<string, string>
+     */
+    private function sections(): array
+    {
+        $report = Sections::report();
+        $lines = [];
+
+        foreach ($report['sections'] as $row) {
+            $lines[$row['key']] = trim(implode('  ', array_filter([
+                $row['on'] ? 'on' : 'OFF',
+                $row['why'] === 'default' ? null : '('.$row['why'].')',
+                $row['testing'] ? 'testing' : null,
+                $row['holds'] !== null ? 'holds: '.$row['holds'] : null,
+            ])));
+        }
+
+        foreach ($report['unknown'] as $name) {
+            $lines['unknown: '.$name] = 'NEEDS A PERSON  in .env but not a section, so it switched nothing';
+        }
+
+        if (! $report['holds_checked']) {
+            $lines['holds'] = 'did not run  the database did not answer';
+        }
+
+        return $lines;
     }
 
     /**

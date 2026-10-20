@@ -156,9 +156,13 @@ final class Notifications
             'second_hand', 'services', 'stock',
         ]));
 
+        // Section 8h: nothing from a section this shop has not got. Most of
+        // them fall out at the permission already; the currency list sits
+        // behind `settings.manage` and has to be asked by name.
         return array_values(array_filter(
             $modules,
-            fn (string $module) => $user->hasPermission(self::permissionFor($module)),
+            fn (string $module) => Sections::allowsModule($module)
+                && $user->hasPermission(self::permissionFor($module)),
         ));
     }
 
