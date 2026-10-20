@@ -81,6 +81,23 @@
   exist (`no-such-tool-<random>`), and the suite is proved both ways: with the
   client on PATH and without.
 - If a decision changes, **update this file** — don't just say it in chat.
+- **A new session starts ready — Soran, 2026-10-19: *"Can add to project to work
+  easily"*.** `CLAUDE.md` loads by itself in every Claude Code session and points
+  here; it holds only what is about *working* on the code — the commands, the
+  push rule, the traps — so this file stays the one place for decisions. A
+  `SessionStart` hook (`.claude/hooks/session-start.sh`) readies a cloud
+  container: `composer install`, `.env` with a key, a migrated SQLite database,
+  `npm install`. Without the key every test that encrypts fails with *"No
+  application encryption key has been specified"* — `phpunit.xml` sets none.
+  ⚠️ **It never runs `npm run build`** (that would rewrite committed
+  `public/build` on every start) **and never installs MariaDB** (see the
+  `BackupTest` note above). First run in a bare container ~9 minutes, almost all
+  of it Composer; every later start, from the cached container, ~3 seconds.
+- ⚠️ **`package.json` has a `name` for a reason.** Without one npm names the
+  package after the *folder*, and folders differ by machine — so every fresh
+  container rewrote `package-lock.json` and left a diff waiting to be committed
+  by accident. With the name, a plain `npm install` leaves the lock alone in any
+  folder; that was checked in a folder named differently, not assumed.
 
 ---
 
@@ -1174,6 +1191,132 @@ so what the tests hold is that the command refuses cleanly rather than producing
 something that is not MySQL, and that the options the notes tell people to type
 all exist. The real check is the one that matters and has to be done by hand:
 import the file into an empty database, point .env at it, and sign in.
+
+## 8h. Sections a shop can do without — Soran, 2026-10-19
+
+*"one of stores not need all or fully system sections, like repair or secomd
+hand, real case i have halabja phone and say don't need stok rooms and second
+hand and repair service, i want manage from panel, and some time i want add new
+page to system and just want have for some store to test"*
+
+**Decided with Soran, 2026-10-19:**
+
+- **Six sections can be switched off**, and nothing else: stock rooms,
+  second-hand, repairs, take apart & build, swaps and currencies. Everything
+  else is the shop itself — selling, buying, returns, payments, products,
+  people, reports, settings — and is always there.
+- **Repairs means the workshop only.** Services — a price line such as *Screen
+  replacement* added to a sale — stays on when repairs are off.
+- **Sections are not priced.** They are about what a shop needs, not what it
+  pays for, so the switch is in `.env` and changes at once. If a section is ever
+  sold as an extra, the switch moves into the signed licence (Section 8f),
+  because a priced feature in a file is a feature anybody with the file can turn
+  on.
+- **Managed from the panel, and built with it.** Nothing here is built until
+  the panel work starts; the shop side and the panel's page are one piece of
+  work. The panel side is `PANEL_DOC.md` Section 6b.
+
+### Where the switch lives
+
+```
+SHOP_SECTIONS_OFF=stock_rooms,second_hand,repairs     # Halabja-phone
+SHOP_SECTIONS_ON=                                     # sections still in testing that this shop has
+```
+
+**`.env` and nowhere else**, the same rule as `STORAGE_LIMIT_MB` (Section 8d):
+the shop's Settings cannot change it, because the buyer does not decide what the
+seller ships. The panel owns `.env` outright and never writes to a shop's own
+tables (`PANEL_DOC.md` Section 7), so a switch kept in `settings` would be one
+the panel is not allowed to touch. With both lines unset every released section
+is on — Soran's own shop, a developer's machine and the test suite see no change
+at all.
+
+The keys are the permission groups the sections already have (`stock_rooms`,
+`second_hand`, `repairs`, `assemblies`, `swaps`), plus `currencies`, which has
+none because its page sits under Settings.
+
+### What "off" means
+
+⚠️ **An off section is a permission nobody holds — the admin included.**
+`User::hasPermission()` returns true for an admin before it looks at anything;
+the section check has to come before that, or the owner of a shop without
+repairs still has a Repairs menu. Every screen is already opened by a permission
+key: the sidebar and *Find anything* read them through `Navigation`, and the
+route middleware asks `hasPermission()` directly — so one check there hides the
+section from all three.
+
+- **Its address answers 404**, as a page that does not exist would. The shop
+  does not advertise what it has not got.
+- **Its guide topics, screen help, dashboard pieces and notifications go too**,
+  and the permissions editor does not list its group.
+- **The users' keys stay saved.** Turning a section back on brings back exactly
+  who could do what, with nobody re-ticking boxes.
+
+⚠️ **NOTHING IS DELETED AND NOTHING IN THE BOOKS MOVES.** Switching a section off
+hides screens; it never touches a row. Reports go on counting every dinar the
+section ever made or cost — a line that belongs to an off section shows only
+when it has figures in the period being read — so the books agree with
+themselves whichever sections are on (`AccountingAgreesTest` must pass with all
+six off). The data check, the FIFO audit, shop health, backups, archive and
+start fresh always cover the whole shop. A rule that protects the books keeps
+running whether its screen is showing or not.
+
+| Section | Key | Off hides | Still works | Cannot be switched off while |
+|---|---|---|---|---|
+| Stock rooms | `stock_rooms` | rooms, stock moves, the room box on a purchase | all stock is on the shop floor, exactly as a shop with one room works today | **stock sits in any room but the main one** — the till sells only from the main room, and with the section off nobody could carry it forward |
+| Second-hand | `second_hand` | buying from people, the second-hand list, sellers | used items already on the shelf still sell at the till | — |
+| Repairs | `repairs` | repair jobs, technicians, buying a part from a job, the per-technician figures | services; parts bought for jobs stay ordinary purchases | **a job is open** (received, quoted, working or ready) — a customer's device is in the shop |
+| Take apart & build | `assemblies` | the take-apart and build screens | what they made is ordinary stock; the cart's bundle-or-pieces rule still holds | — |
+| Swaps | `swaps` | the swap answer at *Goods coming back*, the swap list | the counter offers the other two answers: a different product, or money back | — |
+| Currencies | `currencies` | the currency page, the reader's currency lens, the currency box on entry screens | everything is typed and read in the base currency; a document already written in another currency keeps its frozen rate and prints as it did | — |
+
+**The refusals are the shop's to report and the panel's to enforce.** A section
+holding something live is shown with the reason on a disabled switch, never
+switched off and discovered afterwards (Section 9b).
+
+### A new page, for one shop first
+
+Every section has a default in the code: **released** — on, unless
+`SHOP_SECTIONS_OFF` names it — or **testing** — off, unless `SHOP_SECTIONS_ON`
+names it. A new page ships as testing and is turned on from the panel for the
+shops that try it. Releasing it is a one-word change in a later update, and from
+then every shop has it except one that has it in `SHOP_SECTIONS_OFF`.
+
+⚠️ **A testing section's TABLES reach every shop.** One codebase, one schema
+(`PANEL_DOC.md` Section 3): `shop:update` runs its migrations on every customer,
+not only the ones trying it. Only the screens are switched. A testing section's
+migration must therefore be as safe for a shop that never sees it as for one
+that does.
+
+### How a shop says what it has
+
+`php artisan shop:sections --json` — the shop's own answer, read-only, the same
+shape of command as `licence:show`. Every section with its key and name, on or
+off, why (its default, or `.env`), testing or released, and what holds it
+(*"2 repair jobs are open"*). `shop:doctor` prints the same lines.
+
+⚠️ **A NAME IT DOES NOT KNOW IS REPORTED, NEVER IGNORED.** `SHOP_SECTIONS_OFF=repair`
+switches nothing off, and a shop that was meant to lose a section and did not is
+a fault nobody notices. The command lists every unknown name, and the panel only
+ever writes names it has read from this command.
+
+⚠️ **A cached config does not see a new `.env`.** The panel clears the shop's
+config cache after writing, exactly as it does when delivering a licence.
+
+### To build, with the panel
+
+- the section list in one place in the code, with each section's key, name,
+  permission group, routes and default;
+- the check in `hasPermission()`, ahead of the admin short-circuit;
+- the guide, screen help, dashboard, notifications and permissions editor
+  reading the same list;
+- the stock-rooms and repairs refusals;
+- `shop:sections --json`, and its lines in `shop:doctor`.
+
+Tests: each off section is a 404 for the admin and missing from the menu,
+search and guide; every report still agrees with all six off; a section holding
+something live refuses; an unknown name is reported; a testing section is off
+until `.env` turns it on.
 
 ## 8b. Technical Standards
 
@@ -2844,6 +2987,7 @@ it before it has been read destroys the only record of what went wrong.
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-10-19 | **Sections a shop can do without** (Section 8h), decided with Soran and written down; **nothing built yet**, by his choice. Halabja-phone needs no stock rooms, second-hand or repairs, and he wants to try a new page on one shop before every shop has it. Six sections are switchable — stock rooms, second-hand, repairs, take apart & build, swaps, currencies — by `SHOP_SECTIONS_OFF` and `SHOP_SECTIONS_ON` in the shop's `.env`, which the panel owns. Not priced, so not in the licence. Off is a permission nobody holds, the admin included; nothing is deleted and the books never move; stock in a back room or an open repair job refuses the switch. The panel's half is `PANEL_DOC.md` Section 6b. | Build it with the panel |
 | 2026-09-11 | **The suite runs on MariaDB now, and CI runs it there on every pull request.** This is the root cause of both outages this week, not a nicety: SQLite cannot see a MySQL fault, so `as lines` and the 1690 overflow were each green across 767 tests while the shop was down. A first honest run gave **540 passed, 230 failed** — and reading all 230 rather than the first few is what made this tractable, because **227 of them were one cascade and only three were real**. The cascade: four test classes genuinely destroy the database they run against, and they are right to — restoring a backup means dropping every table, proving the batch lock means committing what a rollback would hide, and one test drops `migrations` on purpose to see what the banner does when it cannot ask. On SQLite that costs nothing, because `:memory:` is a private throwaway. **On MySQL, DDL commits**, taking the transaction `RefreshDatabase` was relying on and the shared schema with it — so one such test near the front left every later test failing with *"table doesn't exist"*, pointing nowhere near the culprit. `tests/UsesItsOwnDatabase.php` gives each of those four a scratch database to wreck and drops it afterwards; the run now leaks nothing. **The three real faults** were all in tests rather than in the shop, which is itself the finding: `DB::statement('drop index …')` is SQLite syntax and MySQL wants `ALTER TABLE`, so it goes through the schema builder; `assertSame(3, …->sum(…))` failed because **MySQL returns an aggregate as a string** where SQLite gives an int — every figure in the app already casts, the assertion had not; and two `install:sql` cases assert what happens on a driver that *cannot* be dumped, which on MySQL does not exist, so they skip rather than being reworded until they go green on both engines and test neither. Four other failures looked real and were not — each passed alone, and only the cascade made them look like bugs, which is the argument for isolating before diagnosing. Result: **MySQL 770 tests, 768 passing, 2 skipped; SQLite 770, 769 passing, 1 skipped**, and no change to SQLite's runtime. The workflow also gained `main` to its push branches — CI had never once fired on the default branch. Verified against MariaDB 10.11 by hand; MySQL 8 is untested, and the shops run MariaDB. | Panel: schema and migrations |
 | 2026-09-12 | **"Customers owe the shop: 222,000" and half an empty card — Soran drew a question mark in the space, and he was right to.** A total cannot tell a shopkeeper the one thing that decides what to do about it: whether that is one customer who has not paid or twenty who each owe a little. The first is a phone call this afternoon; the second is how a shop works, and 222,000 looks identical either way. So the card now carries the total, **how many accounts it is spread across, and the three largest by name** — "ring Hawkar" is something a person can act on before lunch and a number is not. Three, because this sits in half a card beside a figure and a list long enough to scroll has stopped being a summary. **Two things the existing suite caught, both correctly.** The first version used `@continue` to drop the card for a reader without the permission, and `SecurityTest` failed with the rule written into it in words: *"a missing one says the shop has no such figure; a masked one says there is one and it is not theirs."* The card stays, masked, and only the NAMES are withheld. And a test manufacturing an overpaid supplier to prove a credit balance could not net off a real debt was stopped by the suite's own invariant check — Section 4 forbids a negative balance outright, so that guard was defending against an impossible state; the filter's real job is keeping SETTLED accounts out of the count, and the comment claiming otherwise was corrected rather than left to be believed. Suite: 803 tests, 801 passing. | Soran's list is done |
 | 2026-09-12 | **The row buttons were 32×38 and the category filter was the wrong control entirely — both measured rather than eyeballed.** Soran circled the action buttons and wrote *"fix his input sizes"*, and opening the rendered page with a ruler is what turned two matters of taste into two defects. **The buttons were 32 wide by 38 tall**: not square, and narrower than a thumb. This shop is run from an iPad behind a counter and 32px is under every touch-target guideline there is — they felt wrong because they were being missed. Now 38×38, and **44×44 under `pointer: coarse`**, which asks the real question rather than guessing from screen width: a small laptop with a trackpad wants the compact row. **The category filter was `<select multiple size="1">`, and the size was the symptom.** A multiple select is a LIST BOX and no browser will render one as a dropdown however small you ask — Chrome gave it 40px beside 31px fields, and iOS Safari collapsed it to a box reading **"0 Items"**, the operating system's own wording, saying nothing about categories at all. Replaced by a dropdown of checkboxes: same field name, same values, nothing behind the screen knows the difference, and it says "All categories" or "Mobile accessories" or "3 chosen" in the shop's own language. Every control on that row now measures 31px, and a checkbox is a far bigger thing to hit with a thumb than a row in a native list box. Verified by measuring again afterwards, and under both pointer types. Suite: 799 tests, 797 passing. | The last of Soran's list: the customer/supplier owes-cards |
