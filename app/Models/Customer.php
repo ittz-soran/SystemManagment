@@ -8,10 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'phone', 'address', 'balance', 'is_system', 'is_active'])]
+#[Fillable(['name', 'phone', 'address', 'balance', 'is_system', 'is_active', 'type'])]
 class Customer extends Model
 {
     use SoftDeletes;
+
+    /**
+     * The two kinds of customer besides the Cash Customer — PROJECT_DOC
+     * Section 9, Soran, 2026-10-20. A government department gets its own list
+     * and its sale invoice prints on A5, laid out as his legal invoice book.
+     */
+    public const NORMAL = 'normal';
+
+    public const GOVERNMENT = 'government';
+
+    public const TYPES = [self::NORMAL, self::GOVERNMENT];
 
     protected function casts(): array
     {
@@ -50,5 +61,16 @@ class Customer extends Model
     public function displayName(): string
     {
         return $this->is_system ? __('Cash Customer') : $this->name;
+    }
+
+    /**
+     * ⚠️ The raw attribute, as `User::lens()` reads its own: this app runs
+     * Eloquent strictly, so a customer loaded without the column would THROW
+     * on `$this->type`, and the invoice is the last place that should fall over.
+     */
+    public function isGovernment(): bool
+    {
+        return ! ($this->attributes['is_system'] ?? false)
+            && ($this->attributes['type'] ?? self::NORMAL) === self::GOVERNMENT;
     }
 }

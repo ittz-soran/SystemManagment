@@ -46,13 +46,20 @@ class SecondHandService
     public const DEFAULT_CATEGORY = 'Second-hand';
 
     /**
+     * The most bought at once — Soran, 2026-10-20. A slip that types 200 would
+     * make two hundred products with two hundred barcodes in one press.
+     */
+    public const MOST_AT_ONCE = 20;
+
+    /**
      * @param  array{
      *     name: string, cost: int, sale_price: int,
      *     seller_name: string, seller_phone?: string|null, seller_id?: int|null,
      *     condition_note?: string|null, category_id?: int|null,
      *     unit?: string|null, amount_paid?: int|null, payment_method?: string|null,
+     *     quantity?: int|null,
      * }  $input
-     * @return array{product: Product, purchase: Purchase, seller: Supplier}
+     * @return array{product: Product, products: list<Product>, purchase: Purchase, seller: Supplier}
      */
     public function buy(array $input, User $user, ?Carbon $boughtAt = null): array
     {
@@ -62,53 +69,83 @@ class SecondHandService
             throw new RuntimeException(__('The price paid cannot be negative.'));
         }
 
-        return DB::transaction(function () use ($input, $user, $boughtAt) {
+        /*
+         * ⚠️ Several of the same — Soran, 2026-10-20: *"today i bought 2
+         * laptop dell both same"*. Each is still its own item holding one unit,
+         * for the reason at the top of this class; they share one purchase,
+         * because it was one deal with one person. PROJECT_DOC Section 9.
+         */
+        $howMany = (int) ($input['quantity'] ?? 1);
+
+        if ($howMany < 1 || $howMany > self::MOST_AT_ONCE) {
+            throw new RuntimeException(__('Buy between 1 and :most at a time.', ['most' => self::MOST_AT_ONCE]));
+        }
+
+        return DB::transaction(function () use ($input, $user, $boughtAt, $howMany) {
             $seller = $this->seller(
                 $input['seller_name'],
                 $input['seller_phone'] ?? null,
                 $input['seller_id'] ?? null,
             );
 
-            $codes = $this->codes->resolve([]);
+            $products = [];
 
-            $product = Product::create([
-                'name' => trim($input['name']),
-                'kind' => Product::KIND_USED,
-                'sku' => $codes['sku'],
-                'barcode' => $codes['barcode'],
-                'category_id' => $input['category_id'] ?? $this->defaultCategory()->id,
-                'unit' => $input['unit'] ?? Units::default(),
-                'condition_note' => $input['condition_note'] ?? null,
-                'acquired_from_id' => $seller->id,
-                'purchase_price' => (int) $input['cost'],
-                'sale_price' => (int) $input['sale_price'],
-                // Section 4: a cache of the batches, which the purchase is about
-                // to write. Never set by hand.
-                'quantity' => 0,
-                // One of a kind: there is no level at which to reorder it.
-                'reorder_level' => 0,
-                'is_active' => true,
-            ]);
+            for ($i = 0; $i < $howMany; $i++) {
+                $products[] = $this->item($input, $seller);
+            }
 
             $purchase = $this->purchases->create(
                 supplier: $seller,
-                lines: [[
+                lines: array_map(fn (Product $product) => [
                     'product_id' => $product->id,
                     'quantity' => 1,
                     'unit_price' => (int) $input['cost'],
-                ]],
+                ], $products),
                 user: $user,
                 purchaseDate: $boughtAt,
                 amountPaid: (int) ($input['amount_paid'] ?? 0),
                 paymentMethod: $input['payment_method'] ?? 'cash',
             );
 
+            $products = array_map(fn (Product $product) => $product->refresh(), $products);
+
             return [
-                'product' => $product->refresh(),
+                'product' => $products[0],
+                'products' => $products,
                 'purchase' => $purchase,
                 'seller' => $seller->refresh(),
             ];
         });
+    }
+
+    /**
+     * One second-hand item: its own row, its own codes, nothing in stock until
+     * the purchase opens its batch.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    private function item(array $input, Supplier $seller): Product
+    {
+        $codes = $this->codes->resolve([]);
+
+        return Product::create([
+            'name' => trim($input['name']),
+            'kind' => Product::KIND_USED,
+            'sku' => $codes['sku'],
+            'barcode' => $codes['barcode'],
+            'category_id' => $input['category_id'] ?? $this->defaultCategory()->id,
+            'unit' => $input['unit'] ?? Units::default(),
+            'condition_note' => $input['condition_note'] ?? null,
+            'acquired_from_id' => $seller->id,
+            'purchase_price' => (int) $input['cost'],
+            'sale_price' => (int) $input['sale_price'],
+            // Section 4: a cache of the batches, which the purchase is about
+            // to write. Never set by hand.
+            'quantity' => 0,
+            // One of a kind: there is no level at which to reorder it.
+            'reorder_level' => 0,
+            'is_active' => true,
+        ]);
     }
 
     /**

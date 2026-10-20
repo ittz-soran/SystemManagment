@@ -7,13 +7,19 @@ use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CustomerController extends Controller
 {
     public function index(Request $request): View
     {
+        // Two lists — Soran, 2026-10-20: government departments apart from
+        // everybody else. The Cash Customer heads the ordinary one, as before.
+        $type = $request->input('type') === Customer::GOVERNMENT ? Customer::GOVERNMENT : Customer::NORMAL;
+
         $customers = Customer::query()
+            ->where('type', $type)
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
             // The Cash Customer sits first; it is the one Soran reaches for most.
             ->orderByDesc('is_system')
@@ -25,6 +31,8 @@ class CustomerController extends Controller
             // Section 2b — the currency this reader wants these figures in.
             'lens' => $request->user()->lens(),
             'customers' => $customers,
+            'type' => $type,
+            'counts' => Customer::query()->selectRaw('type, COUNT(*) as aggregate')->groupBy('type')->pluck('aggregate', 'type'),
         ]);
     }
 
@@ -92,6 +100,9 @@ class CustomerController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:32'],
             'address' => ['nullable', 'string', 'max:255'],
+            // Left out, it is not touched: the cart's quick add sends no type,
+            // and a new customer from there is an ordinary one.
+            'type' => ['sometimes', Rule::in(Customer::TYPES)],
         ]);
     }
 }

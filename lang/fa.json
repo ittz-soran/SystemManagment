@@ -2476,5 +2476,19 @@
     "— Sold and Earned count only what was sold between these dates, the same as the profit report.": "— «فروخته‌شده» و «درآمد» تنها آنچه را که میان این دو تاریخ فروخته شده می‌شمارند، درست مانند گزارش سود.",
     "“:product” is gone for good. Its SKU and barcode are free to use again. A backup was saved first: :backup": "«:product» برای همیشه حذف شد. کد کالا و بارکد آن دوباره قابل استفاده‌اند. ابتدا یک پشتیبان ذخیره شد: :backup",
     "“Not aged” is money on the ledger that belongs to no document. An opening balance is the ordinary reason. Anything else means the documents and the ledger disagree — worth a look at Settings → Data check.": "«سن‌بندی‌نشده» پولی است در دفتر که به هیچ سندی تعلق ندارد. مانده افتتاحیه دلیل معمول آن است. هر چیز دیگری یعنی اسناد و دفتر با هم نمی‌خوانند — تنظیمات ← بررسی داده را ببینید.",
-    "⚠ This file does not end the way a finished backup does.": "⚠ این فایل آن‌گونه که یک پشتیبان کامل پایان می‌یابد، تمام نمی‌شود."
+    "⚠ This file does not end the way a finished backup does.": "⚠ این فایل آن‌گونه که یک پشتیبان کامل پایان می‌یابد، تمام نمی‌شود.",
+    ":count × :item bought from :seller, each with its own barcode": ":count × :item از :seller خریداری شد، هر کدام با بارکد خودش",
+    "Buy between 1 and :most at a time.": "هر بار بین 1 تا :most عدد بخرید.",
+    "Customer type": "نوع مشتری",
+    "Government": "دولتی",
+    "Government customer — their sale invoices print on A5.": "مشتری دولتی — فاکتورهای فروش او روی A5 چاپ می‌شوند.",
+    "Government — invoices print on A5": "دولتی — فاکتورها روی A5 چاپ می‌شوند",
+    "Invoice tagline": "شعار فاکتور",
+    "Normal": "عادی",
+    "Printed in the banner of a government customer's A5 invoice.": "در سربرگ فاکتور A5 مشتری دولتی چاپ می‌شود.",
+    "Print the ordinary invoice instead": "به‌جای آن فاکتور معمولی را چاپ کن",
+    "Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.": "دو یا چند عدد از یک چیز: هر کدام کالای جداگانه با بارکد خودش می‌شود، با قیمت توافق‌شده برای هر عدد.",
+    "What the shop does, one line per language": "کار فروشگاه، هر زبان در یک خط",
+    "A5 invoice paper": "کاغذ فاکتور A5",
+    "A picture of your blank A5 invoice, the whole page, PNG or JPG. A government customer's invoice is printed on it.": "تصویر فاکتور A5 خالی شما، کل صفحه، PNG یا JPG. فاکتور مشتری دولتی روی آن چاپ می‌شود."
 }

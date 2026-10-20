@@ -706,6 +706,9 @@ Route::middleware(['auth'])->group(function () {
     // ---- Printable documents (Section 9b) --------------------------------
     Route::get('sales/{sale}/print', [PrintController::class, 'sale'])
         ->middleware('permission:sales.view')->name('sales.print');
+    // The shop's blank A5 invoice, which a government customer's sale prints on.
+    Route::get('branding/a5-paper', [BrandingController::class, 'paper'])
+        ->middleware('permission:sales.view')->name('branding.paper');
     Route::get('purchases/{purchase}/print', [PrintController::class, 'purchase'])
         ->middleware('permission:purchases.view')->name('purchases.print');
     Route::get('sale-returns/{saleReturn}/print', [PrintController::class, 'saleReturn'])

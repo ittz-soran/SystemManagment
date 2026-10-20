@@ -34,7 +34,7 @@ class SettingController extends Controller
     private const SHOP_KEYS = [
         'shop_name', 'shop_name_ku', 'shop_name_ar', 'shop_name_fa',
         'shop_address', 'shop_phone', 'shop_phone_2',
-        'shop_email', 'shop_website', 'invoice_footer',
+        'shop_email', 'shop_website', 'invoice_footer', 'invoice_tagline',
     ];
 
     /** Layer 2 — appearance, applied as CSS custom properties in the layout. */
@@ -173,6 +173,8 @@ class SettingController extends Controller
             'shop_email' => ['nullable', 'email', 'max:255'],
             'shop_website' => ['nullable', 'string', 'max:255'],
             'invoice_footer' => ['nullable', 'string', 'max:500'],
+            // The banner of the A5 government invoice, one line per language.
+            'invoice_tagline' => ['nullable', 'string', 'max:300'],
 
             'primary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'secondary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
@@ -261,6 +263,10 @@ class SettingController extends Controller
             // Section 8c: store logos as files with only the path in settings —
             // never base64 in the database.
             'shop_logo' => ['nullable', 'image', 'max:2048'],
+            // Section 9: a picture of the whole blank A5 sheet, which a
+            // government customer's sale is printed on. A 300 dpi PNG of it is
+            // a few hundred kilobytes; a phone photo can be several megabytes.
+            BrandingController::PAPER => ['nullable', 'image', 'mimes:png,jpg,jpeg', 'max:8192'],
         ]);
 
         // Back to the one string the settings table holds. The rows were only
@@ -271,7 +277,7 @@ class SettingController extends Controller
 
         DB::transaction(function () use ($data, $request) {
             foreach ($data as $key => $value) {
-                if ($key === 'shop_logo') {
+                if ($key === 'shop_logo' || $key === BrandingController::PAPER) {
                     continue;
                 }
 
@@ -287,12 +293,16 @@ class SettingController extends Controller
                 Setting::put('label_show_'.$field, $request->boolean('label_show_'.$field) ? '1' : '0');
             }
 
-            if ($request->hasFile('shop_logo')) {
-                $previous = BrandingController::path();
+            foreach (['shop_logo', BrandingController::PAPER] as $file) {
+                if (! $request->hasFile($file)) {
+                    continue;
+                }
+
+                $previous = BrandingController::path($file);
 
                 // The disk path, not a URL: BrandingController serves the file,
                 // so nothing depends on the /storage symlink existing.
-                Setting::put('shop_logo', $request->file('shop_logo')->store('branding', 'local'));
+                Setting::put($file, $request->file($file)->store('branding', 'local'));
 
                 if ($previous !== null) {
                     Storage::disk($previous[0])->delete($previous[1]);

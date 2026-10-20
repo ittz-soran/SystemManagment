@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Serve the shop's logo.
+ * Serve the shop's logo — and its A5 invoice paper, which is kept the same way.
  *
  * Section 8c: "store logos as files with only the path in settings — never
  * base64 in the database." The path was being turned into a /storage/… URL,
@@ -21,32 +21,58 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class BrandingController extends Controller
 {
+    /** The setting that holds the A5 invoice paper's path. */
+    public const PAPER = 'invoice_a5_paper';
+
     public function logo(): Response
     {
-        $path = self::path();
+        return self::send(self::path(), private: false);
+    }
 
+    /**
+     * The shop's own blank A5 invoice — PROJECT_DOC Section 9, Soran,
+     * 2026-10-20: *"please use this without change any thing"*. Only the
+     * government invoice prints it, so unlike the logo it is behind the login.
+     */
+    public function paper(): Response
+    {
+        return self::send(self::path(self::PAPER), private: true);
+    }
+
+    /**
+     * @param  array{0: string, 1: string}|null  $path
+     * @param  bool  $private  for what only a signed-in reader sees
+     */
+    private static function send(?array $path, bool $private): Response
+    {
         abort_if($path === null, 404);
 
         [$disk, $file] = $path;
 
-        return response()->file(Storage::disk($disk)->path($file), [
-            // The URL carries a hash of the stored path, so a new logo is a new
+        $response = response()->file(Storage::disk($disk)->path($file), [
+            // The URL carries a hash of the stored path, so a new file is a new
             // URL and this can be cached hard.
-            'Cache-Control' => 'public, max-age=31536000, immutable',
+            'Cache-Control' => 'max-age=31536000, immutable',
         ]);
+
+        // ⚠️ A file response marks itself public whatever the header says, so
+        // the paper's has to be told otherwise.
+        $private ? $response->setPrivate() : $response->setPublic();
+
+        return $response;
     }
 
     /**
-     * Where the logo actually lives, or null when there is none.
+     * Where the logo — or the paper — actually lives, or null when there is none.
      *
      * Tolerates the older setting value, which was a /storage/… URL rather than
      * a disk path, so an install that already has a logo keeps it.
      *
      * @return array{0: string, 1: string}|null
      */
-    public static function path(): ?array
+    public static function path(string $key = 'shop_logo'): ?array
     {
-        $value = setting('shop_logo');
+        $value = setting($key);
 
         if (! is_string($value) || $value === '') {
             return null;
@@ -74,5 +100,13 @@ class BrandingController extends Controller
         return self::path() === null
             ? null
             : route('branding.logo', ['v' => substr(md5((string) setting('shop_logo')), 0, 8)]);
+    }
+
+    /** The same for the A5 invoice paper; null while the shop has none. */
+    public static function paperUrl(): ?string
+    {
+        return self::path(self::PAPER) === null
+            ? null
+            : route('branding.paper', ['v' => substr(md5((string) setting(self::PAPER)), 0, 8)]);
     }
 }

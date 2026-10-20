@@ -14,7 +14,25 @@
 @section('content')
     <x-lens-note :lens="$lens" />
 
+    {{-- Two lists — Soran, 2026-10-20: government departments apart from
+         everybody else. PROJECT_DOC Section 9. --}}
+    <ul class="nav nav-tabs mb-3">
+        @foreach([App\Models\Customer::NORMAL => __('Customers'), App\Models\Customer::GOVERNMENT => __('Government')] as $tab => $label)
+            <li class="nav-item">
+                <a href="{{ route('customers.index', $tab === App\Models\Customer::GOVERNMENT ? ['type' => $tab] : []) }}"
+                   @class(['nav-link', 'active' => $type === $tab])
+                   @if($type === $tab) aria-current="page" @endif>
+                    {{ $label }}
+                    <span class="badge text-bg-light ms-1">{{ number_format($counts[$tab] ?? 0) }}</span>
+                </a>
+            </li>
+        @endforeach
+    </ul>
+
     <form method="GET" class="card card-body mb-3">
+        @if($type === App\Models\Customer::GOVERNMENT)
+            <input type="hidden" name="type" value="{{ $type }}">
+        @endif
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label for="search" class="form-label small">{{ __('Search') }}</label>
@@ -23,7 +41,7 @@
             </div>
             <div class="col-md-3 d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary">{{ __('Filter') }}</button>
-                <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
+                <a href="{{ route('customers.index', $type === App\Models\Customer::GOVERNMENT ? ['type' => $type] : []) }}" class="btn btn-sm btn-outline-secondary">{{ __('Clear') }}</a>
             </div>
         </div>
     </form>
@@ -69,6 +87,7 @@
                                         'name' => $customer->name,
                                         'phone' => $customer->phone,
                                         'address' => $customer->address,
+                                        'type' => $customer->type,
                                     ]"
                                     :delete="Gate::allows('customers.delete') && ! ($customer->is_system ?? false) ? route('customers.destroy', $customer) : null"
                                     :delete-label="__('Delete :name?', ['name' => $customer->displayName()])" />
@@ -84,7 +103,7 @@
     @endif
 
     @can('customers.edit')
-        <x-person-edit-modal kind="customers" id="customer-edit"
+        <x-person-edit-modal kind="customers" id="customer-edit" :types="true"
                              :title="__('Edit customer')"
                              :save="__('Save customer')" />
     @endcan
@@ -112,6 +131,13 @@
                         <div>
                             <label for="customer-address" class="form-label">{{ __('Address') }}</label>
                             <input id="customer-address" name="address" class="form-control">
+                        </div>
+                        <div class="mt-3">
+                            <label for="customer-type" class="form-label">{{ __('Customer type') }}</label>
+                            <select id="customer-type" name="type" class="form-select">
+                                <option value="{{ App\Models\Customer::NORMAL }}" @selected($type === App\Models\Customer::NORMAL)>{{ __('Normal') }}</option>
+                                <option value="{{ App\Models\Customer::GOVERNMENT }}" @selected($type === App\Models\Customer::GOVERNMENT)>{{ __('Government — invoices print on A5') }}</option>
+                            </select>
                         </div>
                     </div>
                     <div class="modal-footer">
