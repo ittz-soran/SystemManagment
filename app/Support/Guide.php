@@ -37,12 +37,23 @@ namespace App\Support;
  *   minutes     honest reading time, rounded up
  *   route       optional: the screen this is about
  *   permission  what that link needs, or null when anyone may go there
- *   sections    the body — a heading and its paragraphs
+ *   section     optional: the Section 8h section it belongs to, if any
+ *   sections    the body — a heading and its paragraphs, and optionally the
+ *               Section 8h section that passage belongs to
  */
 final class Guide
 {
     /** @return array<string, string> */
     public static function groups(): array
+    {
+        // Section 8h: a heading with no topic left under it is not drawn.
+        $used = array_column(self::topics(), 'group');
+
+        return array_filter(self::headings(), fn (string $key) => in_array($key, $used, true), ARRAY_FILTER_USE_KEY);
+    }
+
+    /** @return array<string, string> */
+    private static function headings(): array
     {
         return [
             'start' => __('Getting started'),
@@ -107,6 +118,23 @@ final class Guide
      */
     public static function whatsNew(): array
     {
+        return array_values(array_filter(self::news(), fn (array $item) => self::inThisShop($item['section'] ?? null)));
+    }
+
+    /**
+     * Section 8h: what belongs to a section this shop has not got is not in
+     * its guide — a topic, a passage, or a line of news. A section names itself
+     * on a topic as `section`, on a passage as a third element after the
+     * paragraphs, and on a news item as `section`.
+     */
+    private static function inThisShop(?string $section): bool
+    {
+        return $section === null || Sections::isOn($section);
+    }
+
+    /** @return list<array{date: string, title: string, body: string, section?: string}> */
+    private static function news(): array
+    {
         return [
             [
                 'date' => '2026-09-24',
@@ -115,11 +143,13 @@ final class Guide
             ],
             [
                 'date' => '2026-09-23',
+                'section' => 'swaps',
                 'title' => __('A faulty item comes back'),
                 'body' => __('Swaps. Scan the broken thing, pick the invoice that sold it, and hand over the same item again — the customer’s invoice is left alone, and the broken one goes back to the supplier who sold it to you.'),
             ],
             [
                 'date' => '2026-09-22',
+                'section' => 'repairs',
                 'title' => __('Repairs, for anything with a fault'),
                 'body' => __('Phones, consoles, laptops, televisions. Take the device in, put parts and labour on the job, get the customer to agree, and collect — which makes an ordinary invoice. The shop warns you if a device it fixed comes back while the work is still covered.'),
             ],
@@ -156,8 +186,33 @@ final class Guide
         ];
     }
 
-    /** @return array<string, array<string, mixed>> */
+    /**
+     * Every topic this shop has, with the passages it has.
+     *
+     * @return array<string, array<string, mixed>>
+     */
     public static function topics(): array
+    {
+        $topics = [];
+
+        foreach (self::allTopics() as $slug => $topic) {
+            if (! self::inThisShop($topic['section'] ?? null)) {
+                continue;
+            }
+
+            $topic['sections'] = array_values(array_filter(
+                $topic['sections'],
+                fn (array $part) => self::inThisShop($part[2] ?? null),
+            ));
+
+            $topics[$slug] = $topic;
+        }
+
+        return $topics;
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private static function allTopics(): array
     {
         return [
             /* ---- Getting started ------------------------------------- */
@@ -373,7 +428,7 @@ final class Guide
                     ]],
                     [__('What a swap costs you'), [
                         __('Usually nothing. It costs something when the replacement comes off a newer, dearer batch than the broken one did, because the supplier only gives back what they were paid. That difference shows on your profit report as “Faulty goods replaced”.'),
-                    ]],
+                    ], 'swaps'],
                 ],
             ],
 
@@ -402,6 +457,7 @@ final class Guide
 
             'repair-taking-in' => [
                 'group' => 'repairs',
+                'section' => 'repairs',
                 'icon' => 'tools',
                 'title' => __('Somebody brings in a broken device'),
                 'blurb' => __('Write down what came in and what is wrong with it, before anybody picks up a screwdriver.'),
@@ -429,6 +485,7 @@ final class Guide
 
             'repair-doing-the-job' => [
                 'group' => 'repairs',
+                'section' => 'repairs',
                 'icon' => 'clipboard-check',
                 'title' => __('Doing the job, and getting paid for it'),
                 'blurb' => __('Parts and labour, the customer saying yes, and the invoice at the end.'),
@@ -462,6 +519,7 @@ final class Guide
 
             'repair-comes-back' => [
                 'group' => 'repairs',
+                'section' => 'repairs',
                 'icon' => 'shield-check',
                 'title' => __('A device you fixed comes back'),
                 'blurb' => __('How the shop knows it has seen this one before, and whether the work is still covered.'),
@@ -504,7 +562,7 @@ final class Guide
                     ]],
                     [__('Buying in dollars'), [
                         __('Type the rate and the amount in dollars and it converts once, to whole dinars. The dinar figure is what is stored — the rate is not remembered and will not change what you paid when it moves next week.'),
-                    ]],
+                    ], 'currencies'],
                 ],
             ],
 

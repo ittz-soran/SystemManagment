@@ -23,8 +23,7 @@
 
     $base = Money::base();
 
-    $offered = collect(Currency::cached())
-        ->filter(fn ($c) => $c->is_active)
+    $offered = collect(Currency::offered())
         ->sortBy(fn ($c) => $c->code === $base->code ? '' : $c->code)
         ->values();
 

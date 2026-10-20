@@ -37,6 +37,14 @@
         -->
         <env name="LICENCE_PUBLIC_KEY" value=""/>
         <env name="LICENCE_KEY" value=""/>
+        <!--
+            Every section on, whatever a developer's own .env switches off
+            (PROJECT_DOC Section 8h). SectionsTest switches them per case. A
+            variable set in the shell still wins, which is how the suite is run
+            with every section off to prove the books do not move.
+        -->
+        <env name="SHOP_SECTIONS_OFF" value=""/>
+        <env name="SHOP_SECTIONS_ON" value=""/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

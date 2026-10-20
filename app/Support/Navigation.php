@@ -18,9 +18,50 @@ use App\Models\User;
 final class Navigation
 {
     /**
+     * The map, less any screen of a section this shop has not got.
+     *
+     * ⚠️ Section 8h: filtered HERE, not only by each reader's permission. The
+     * users form previews the menu a person will get, and for an admin that
+     * preview takes every screen on the map — so a map that still listed
+     * Repairs promised the owner of a shop without repairs a Repairs menu.
+     * Found by opening the form in a browser; every PHP test was green.
+     *
      * @return array<string|int, list<array{route: string, permission: ?string, icon: string, label: string, admin?: bool}>>
      */
     public static function groups(): array
+    {
+        return array_map(
+            fn (array $items) => array_values(array_filter($items, fn (array $item) => self::inThisShop($item))),
+            self::map(),
+        );
+    }
+
+    /**
+     * A screen belongs to an off section when none of the keys that open it
+     * survive the section check. A list is OR, as everywhere else here: Goods
+     * coming back stays for the returns when swaps are off.
+     *
+     * @param  array{permission: string|list<string>|null}  $item
+     */
+    private static function inThisShop(array $item): bool
+    {
+        if ($item['permission'] === null) {
+            return true;
+        }
+
+        foreach ((array) $item['permission'] as $permission) {
+            if (Sections::allowsPermission($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string|int, list<array{route: string, permission: ?string, icon: string, label: string, admin?: bool}>>
+     */
+    private static function map(): array
     {
         return [
             '' => [

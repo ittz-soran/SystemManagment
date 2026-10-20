@@ -6,6 +6,7 @@ use App\Models\Permission;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\Navigation;
+use App\Support\Sections;
 use App\Support\StaffPresets;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -250,7 +251,9 @@ class UserController extends Controller
             ->map(fn (array $preset) => [
                 'label' => $preset['label'],
                 'note' => $preset['note'],
-                'ids' => collect($preset['keys'])->map(fn (string $key) => $ids[$key] ?? null)
+                'ids' => collect($preset['keys'])
+                    ->filter(fn (string $key) => Sections::allowsPermission($key))
+                    ->map(fn (string $key) => $ids[$key] ?? null)
                     ->filter()->values()->all(),
             ])
             ->values()
@@ -275,7 +278,22 @@ class UserController extends Controller
     {
         $before = $user->permissions()->pluck('key')->sort()->values();
 
-        $user->permissions()->sync($user->isAdmin() ? [] : $permissionIds);
+        /*
+         * ⚠️ Section 8h: a section this shop has not got is not on the form, so
+         * its keys are never posted — and sync() removes everything not posted.
+         * Without this, saving somebody while repairs are off would drop their
+         * repair keys for good. They are carried over as they were; any posted
+         * for an off section are ignored, since no checkbox could have sent them.
+         */
+        $kept = $user->permissions()->get()
+            ->reject(fn (Permission $permission) => Sections::allowsPermission($permission->key))
+            ->pluck('id');
+
+        $posted = Permission::whereIn('id', $permissionIds)->get()
+            ->filter(fn (Permission $permission) => Sections::allowsPermission($permission->key))
+            ->pluck('id');
+
+        $user->permissions()->sync($user->isAdmin() ? [] : $posted->merge($kept)->unique()->values()->all());
 
         $after = $user->permissions()->pluck('key')->sort()->values();
 
@@ -310,10 +328,12 @@ class UserController extends Controller
      */
     private function permissionGroups()
     {
+        // Section 8h: and not a section this shop has not got.
         return Permission::whereNot('group', 'users')
             ->orderBy('group')
             ->orderBy('key')
             ->get()
+            ->filter(fn (Permission $permission) => Sections::allowsPermission($permission->key))
             ->groupBy('group');
     }
 }

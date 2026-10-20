@@ -4,6 +4,7 @@ use App\Http\Middleware\EnforceLicence;
 use App\Http\Middleware\EnforceStorageQuota;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\HideSwitchedOffSections;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetUserPreferences;
 use App\Support\AlreadyDeleted;
@@ -79,6 +80,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             SetUserPreferences::class,
             SecurityHeaders::class,
+
+            // Section 8h: a section this shop has not got is a page that does
+            // not exist — for the admin as much as anybody.
+            HideSwitchedOffSections::class,
 
             // Only does anything on an install sold with STORAGE_LIMIT_MB set,
             // and even then only refuses writes once the space is actually

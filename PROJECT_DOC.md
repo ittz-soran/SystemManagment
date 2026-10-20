@@ -1212,14 +1212,24 @@ page to system and just want have for some store to test"*
   sold as an extra, the switch moves into the signed licence (Section 8f),
   because a priced feature in a file is a feature anybody with the file can turn
   on.
-- **Managed from the panel, and built with it.** Nothing here is built until
-  the panel work starts; the shop side and the panel's page are one piece of
-  work. The panel side is `PANEL_DOC.md` Section 6b.
+- **Managed from the panel.** The panel side is Section 6b of the panel's own
+  `PANEL_DOC.md`, in `ittz-soran/Soran-Panel`.
+
+⚠️ **Corrected 2026-10-20: the panel was already built.** The 2026-10-19 entry
+said to wait for the panel and build both halves with it. That was read off the
+copy of `PANEL_DOC.md` in this repository, which stopped being updated on
+2026-08-31 and still says *"the panel itself is not written yet"*. The real one
+lives in the panel's repository and says it has been running since September.
+Soran, told so: *"start"* — **the shop side is built first**, because the
+panel's card asks the shop what it has and needs this half to answer.
+
+And the real case has a new name. **Halabja-phone came back on 2026-09-11 as
+Hamza** (the panel's Section 11, step 10), so the line below is Hamza's.
 
 ### Where the switch lives
 
 ```
-SHOP_SECTIONS_OFF=stock_rooms,second_hand,repairs     # Halabja-phone
+SHOP_SECTIONS_OFF=stock_rooms,second_hand,repairs     # Hamza, once Halabja-phone
 SHOP_SECTIONS_ON=                                     # sections still in testing that this shop has
 ```
 
@@ -1303,20 +1313,97 @@ ever writes names it has read from this command.
 ⚠️ **A cached config does not see a new `.env`.** The panel clears the shop's
 config cache after writing, exactly as it does when delivering a licence.
 
-### To build, with the panel
+### Five places one check does not reach — found 2026-10-20
 
-- the section list in one place in the code, with each section's key, name,
-  permission group, routes and default;
-- the check in `hasPermission()`, ahead of the admin short-circuit;
-- the guide, screen help, dashboard, notifications and permissions editor
-  reading the same list;
-- the stock-rooms and repairs refusals;
-- `shop:sections --json`, and its lines in `shop:doctor`.
+Mapped before building, by reading every route, link and list each section
+touches. Most of a section disappears through the permission check alone. These
+five do not, and each would have been a hole:
 
-Tests: each off section is a 404 for the admin and missing from the menu,
-search and guide; every report still agrees with all six off; a section holding
-something live refuses; an unknown name is reported; a testing section is off
-until `.env` turns it on.
+1. **Buying second-hand opens with `purchases.create`**, not a second-hand key —
+   buying from a person is a purchase. A permission check alone leaves those
+   screens answering. So **the 404 is decided by ADDRESS**: each section lists
+   its paths, and one middleware turns them away while the section is off.
+   `SectionsTest` reads every route guarded by a section's permission and fails
+   if its path is missing from that section's list, so a screen added later
+   cannot slip out of its section.
+2. **Currencies have no permission of their own**, and two questions are asked
+   of them. *Which currency does this reader read and type in?* is
+   `User::lens()`, which says none while the section is off — every screen that
+   reads in another currency asks it. *Which currencies may a screen offer?* is
+   `Currency::offered()`: the active ones, or the base alone while the section is
+   off; the ten places that filtered `Currency::cached()` themselves ask it now.
+   ⚠️ **`cached()` itself is never narrowed.** It is also how a document already
+   written in dollars finds its currency to print, and narrowing it would strip
+   the second figure off last month's purchase invoices.
+3. **"Purchases are written in" is left alone, not saved over.** The box is not
+   drawn while currencies are off — and it must not be drawn half-empty either:
+   a select that no longer offers *USD* posts its first option, and saving the
+   shop's phone number would quietly put purchases back into dinars. A field that
+   is not posted is not written, so the setting waits, untouched, for the section
+   to come back.
+4. **The permissions editor keeps what it does not show.** It saves with
+   `sync()`, which removes every key not posted, so saving a user while repairs
+   are off would have dropped their repair keys for good — the opposite of
+   *turning it back on brings back who could do what*. The keys of an off
+   section are carried over from what the user already had; any posted for one
+   are ignored.
+5. **Stock rooms: the room box goes, and an old purchase keeps its room.** A new
+   purchase goes to the main room. One booked into a back room before the section
+   went off keeps that room when edited, rather than being moved on paper.
+
+Smaller ones, settled the same way: a category's *"3 second-hand items"* count
+stays but stops being a link; the currencies card on Settings goes; the guide's
+repair topics, its *Buying in dollars* and *What a swap costs you* passages, and
+the two What's-new entries about repairs and swaps go with their sections.
+
+### Built — 2026-10-20, the shop's half
+
+- **`App\Support\Sections`** is the one list: each section's key, name,
+  permission group, paths, bell modules and whether it is in testing.
+  `config/sections.php` reads the two `.env` lines.
+- **`User::hasPermission()`** asks it first, ahead of the admin short-circuit,
+  so the sidebar, *Find anything*, every `@can` and every `permission:` route
+  follow. **`HideSwitchedOffSections`** answers 404 by address, on the web
+  group, ahead of any permission.
+- **`Navigation::groups()`** leaves out a screen whose keys all belong to an off
+  section. ⚠️ **Found in a browser, not by a test:** the users form previews the
+  menu a person will get, and for an admin that preview takes every screen on
+  the map — so the owner of a shop without repairs was being promised a Repairs
+  menu. Every PHP test was green.
+- **`Currency::offered()`** and **`User::lens()`**, as above; the ten places that
+  offered currencies ask `offered()`.
+- **The guide, screen help and bell.** A topic or a What's-new item names its
+  section as `section`; a passage names it as a third element after its
+  paragraphs; a screen-help note is written `[text, section]`. The bell asks
+  `Sections::allowsModule()`, because the currency list sits behind
+  `settings.manage` rather than a key of its own.
+- **`php artisan shop:sections`** and **`--json`** for the panel, and a
+  *Sections* block in `shop:doctor`, both from one `Sections::report()`. The
+  JSON carries `holds_checked`: false when the database did not answer, because
+  *could not ask* is not *nothing holds it*.
+- ⚠️ **The suite pins both lines empty** in `phpunit.xml`. It read the developer's
+  own `.env` before that, and a shop switched off locally to look at it turned
+  four tests red — a suite whose answer depends on the machine it runs on is not
+  an answer. A variable set in the shell still wins, which is how the books were
+  proved below.
+
+**Proved.** `SectionsTest`, 28 tests: each off section is a 404 for the admin;
+every route guarded by a section's permission is inside its paths; the menu,
+the users form, the guide and the bell leave it out; a dollar purchase still
+prints its dollars; saving a user or the settings with a section off loses
+nothing; back-room stock and open jobs hold their sections; an unknown name is
+reported; a testing section stays off until `SHOP_SECTIONS_ON` names it. **Each
+of seventeen guards was broken on purpose and its test failed for that reason**
+— including drawing the currency box half-empty, which really did save
+*Purchases are written in* back to nothing. With all six off,
+`AccountingAgreesTest`, `DataCheckTest`, `AcceptanceTest`, `FifoAuditTest` and
+`ProfitBreakdownTest` pass unchanged: the books do not move. Driven in Chromium
+as Hamza — stock rooms, second-hand and repairs off — signed in as the admin:
+the menu lost exactly those, their addresses answered 404, the purchase had no
+room box, the guide had no Repairs heading, and no page raised an error.
+
+**Still to build: the panel's half**, in `ittz-soran/Soran-Panel` (its
+`PANEL_DOC.md` Section 6b), and then Hamza's line written through it.
 
 ## 8b. Technical Standards
 
@@ -2987,6 +3074,7 @@ it before it has been read destroys the only record of what went wrong.
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-10-20 | **Sections: the shop's half, built** (Section 8h). The 2026-10-19 row below waited for a panel that had been running since September — read off this repository's stale copy of `PANEL_DOC.md`; corrected in 8h. Mapped first, which found five places one permission check does not reach — buying second-hand opens with `purchases.create`, currencies have no key, a half-drawn currency box would reset a setting on save, the users editor's `sync()` would drop hidden keys, and the purchase room box — and each was built for. A browser found a sixth: the users form's menu preview. `SectionsTest` 28 tests, seventeen guards sabotaged and caught, the accounting tests green with all six off, and Hamza's three driven in Chromium. Suite: 1,578 tests, 3 skipped as before. | The panel's Sections card, in its own repository |
 | 2026-10-19 | **Sections a shop can do without** (Section 8h), decided with Soran and written down; **nothing built yet**, by his choice. Halabja-phone needs no stock rooms, second-hand or repairs, and he wants to try a new page on one shop before every shop has it. Six sections are switchable — stock rooms, second-hand, repairs, take apart & build, swaps, currencies — by `SHOP_SECTIONS_OFF` and `SHOP_SECTIONS_ON` in the shop's `.env`, which the panel owns. Not priced, so not in the licence. Off is a permission nobody holds, the admin included; nothing is deleted and the books never move; stock in a back room or an open repair job refuses the switch. The panel's half is `PANEL_DOC.md` Section 6b. | Build it with the panel |
 | 2026-09-11 | **The suite runs on MariaDB now, and CI runs it there on every pull request.** This is the root cause of both outages this week, not a nicety: SQLite cannot see a MySQL fault, so `as lines` and the 1690 overflow were each green across 767 tests while the shop was down. A first honest run gave **540 passed, 230 failed** — and reading all 230 rather than the first few is what made this tractable, because **227 of them were one cascade and only three were real**. The cascade: four test classes genuinely destroy the database they run against, and they are right to — restoring a backup means dropping every table, proving the batch lock means committing what a rollback would hide, and one test drops `migrations` on purpose to see what the banner does when it cannot ask. On SQLite that costs nothing, because `:memory:` is a private throwaway. **On MySQL, DDL commits**, taking the transaction `RefreshDatabase` was relying on and the shared schema with it — so one such test near the front left every later test failing with *"table doesn't exist"*, pointing nowhere near the culprit. `tests/UsesItsOwnDatabase.php` gives each of those four a scratch database to wreck and drops it afterwards; the run now leaks nothing. **The three real faults** were all in tests rather than in the shop, which is itself the finding: `DB::statement('drop index …')` is SQLite syntax and MySQL wants `ALTER TABLE`, so it goes through the schema builder; `assertSame(3, …->sum(…))` failed because **MySQL returns an aggregate as a string** where SQLite gives an int — every figure in the app already casts, the assertion had not; and two `install:sql` cases assert what happens on a driver that *cannot* be dumped, which on MySQL does not exist, so they skip rather than being reworded until they go green on both engines and test neither. Four other failures looked real and were not — each passed alone, and only the cascade made them look like bugs, which is the argument for isolating before diagnosing. Result: **MySQL 770 tests, 768 passing, 2 skipped; SQLite 770, 769 passing, 1 skipped**, and no change to SQLite's runtime. The workflow also gained `main` to its push branches — CI had never once fired on the default branch. Verified against MariaDB 10.11 by hand; MySQL 8 is untested, and the shops run MariaDB. | Panel: schema and migrations |
 | 2026-09-12 | **"Customers owe the shop: 222,000" and half an empty card — Soran drew a question mark in the space, and he was right to.** A total cannot tell a shopkeeper the one thing that decides what to do about it: whether that is one customer who has not paid or twenty who each owe a little. The first is a phone call this afternoon; the second is how a shop works, and 222,000 looks identical either way. So the card now carries the total, **how many accounts it is spread across, and the three largest by name** — "ring Hawkar" is something a person can act on before lunch and a number is not. Three, because this sits in half a card beside a figure and a list long enough to scroll has stopped being a summary. **Two things the existing suite caught, both correctly.** The first version used `@continue` to drop the card for a reader without the permission, and `SecurityTest` failed with the rule written into it in words: *"a missing one says the shop has no such figure; a masked one says there is one and it is not theirs."* The card stays, masked, and only the NAMES are withheld. And a test manufacturing an overpaid supplier to prove a credit balance could not net off a real debt was stopped by the suite's own invariant check — Section 4 forbids a negative balance outright, so that guard was defending against an impossible state; the filter's real job is keeping SETTLED accounts out of the count, and the comment claiming otherwise was corrected rather than left to be believed. Suite: 803 tests, 801 passing. | Soran's list is done |
