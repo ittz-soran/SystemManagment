@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use App\Support\InvoiceLayout;
+use App\Support\InvoiceOptions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -68,7 +69,11 @@ class InvoiceDesignTest extends TestCase
     {
         return $this->actingAs($this->admin)
             ->from(route('invoice-design.edit'))
-            ->put(route('invoice-design.update'), ['layout' => json_encode($layout), ...$extra]);
+            ->put(route('invoice-design.update'), [
+                'layout' => json_encode($layout),
+                'options' => json_encode(InvoiceOptions::DEFAULTS),
+                ...$extra,
+            ]);
     }
 
     private function sale(int $lines = 1): Sale
@@ -167,7 +172,7 @@ class InvoiceDesignTest extends TestCase
     public function test_a_layout_that_cannot_be_read_is_refused(): void
     {
         $this->actingAs($this->admin)->from(route('invoice-design.edit'))
-            ->put(route('invoice-design.update'), ['layout' => '{not json'])
+            ->put(route('invoice-design.update'), ['layout' => '{not json', 'options' => json_encode(InvoiceOptions::DEFAULTS)])
             ->assertSessionHasErrors('layout');
 
         $layout = $this->layout();
@@ -229,7 +234,7 @@ class InvoiceDesignTest extends TestCase
 
         $this->assertSame(1, substr_count($html, 'class="inv-sheet"'));
         $this->assertSame(13, substr_count($html, 'data-item'));
-        $this->assertStringContainsString('<div class="inv-name" dir="auto">Toner HP 85A no.13</div>', $html);
+        $this->assertStringContainsString('<div class="inv-name" dir="auto" data-cell="name">Toner HP 85A no.13</div>', $html);
         $this->assertStringContainsString('invoice-print', $html);
         $this->assertMatchesRegularExpression('/data-layer="words"\s+data-last-only/', $html);
         $this->assertMatchesRegularExpression('/data-layer="total"\s+data-last-only/', $html);

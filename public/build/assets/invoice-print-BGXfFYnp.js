@@ -1,1 +1,0 @@
-import{n as e,r as t}from"./layers-v9ub3Kgr.js";var n=(async()=>{await document.fonts.ready;let n=document.querySelector(`.inv-sheet`);n&&(t(n),e(document)),document.body.dataset.ready=`true`})();document.querySelectorAll(`[data-print]`).forEach(e=>{e.addEventListener(`click`,async()=>{await n,window.print()})});

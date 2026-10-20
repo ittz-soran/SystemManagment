@@ -39,6 +39,8 @@ class SettingSeeder extends Seeder
         // the invoice designer. Null is the book's places and the shop's font.
         'invoice_a5_layout' => null,
         'invoice_font' => null,
+        // What it says and how: digits, currency, number, empty layers, units.
+        'invoice_a5_options' => null,
 
         // Layer 2 — appearance. Emitted as CSS custom properties in the layout
         // head; stylesheets are never regenerated at runtime.

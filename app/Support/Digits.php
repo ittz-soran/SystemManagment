@@ -38,4 +38,24 @@ final class Digits
     {
         return strtr($value, self::EASTERN + ['٫' => '.', '٬' => '']);
     }
+
+    /**
+     * The other way, for a page that prints its figures in the reader's
+     * digits — the A5 government invoice, PROJECT_DOC Section 9: Soran,
+     * 2026-10-20, *"set numbers language"*.
+     *
+     * 'arabic' is ٠١٢٣, which Kurdish and Arabic both write; 'persian' is
+     * ۰۱۲۳; 'latin' leaves the figure alone. Only the digits change — the
+     * commas and the letters of INV- stay as they are.
+     */
+    public static function in(string $value, string $digits): string
+    {
+        $eastern = match ($digits) {
+            'arabic' => array_slice(self::EASTERN, 0, 10, true),
+            'persian' => array_slice(self::EASTERN, 10, 10, true),
+            default => [],
+        };
+
+        return $eastern === [] ? $value : strtr($value, array_flip($eastern));
+    }
 }

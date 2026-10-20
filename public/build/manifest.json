@@ -1,6 +1,6 @@
 {
-  "_layers-v9ub3Kgr.js": {
-    "file": "assets/layers-v9ub3Kgr.js",
+  "_layers-DaynZFj4.js": {
+    "file": "assets/layers-DaynZFj4.js",
     "name": "layers"
   },
   "_rolldown-runtime-hePW80VL.js": {
@@ -149,22 +149,22 @@
     ]
   },
   "resources/js/invoice-designer.js": {
-    "file": "assets/invoice-designer-CRHIgEVC.js",
+    "file": "assets/invoice-designer-BfR9wHmQ.js",
     "name": "invoice-designer",
     "src": "resources/js/invoice-designer.js",
     "isEntry": true,
     "imports": [
       "_rolldown-runtime-hePW80VL.js",
-      "_layers-v9ub3Kgr.js"
+      "_layers-DaynZFj4.js"
     ]
   },
   "resources/js/invoice-print.js": {
-    "file": "assets/invoice-print-BGXfFYnp.js",
+    "file": "assets/invoice-print-DVFENHRS.js",
     "name": "invoice-print",
     "src": "resources/js/invoice-print.js",
     "isEntry": true,
     "imports": [
-      "_layers-v9ub3Kgr.js"
+      "_layers-DaynZFj4.js"
     ]
   },
   "resources/scss/app.scss": {

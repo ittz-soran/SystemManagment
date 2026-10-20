@@ -334,7 +334,8 @@ class GovernmentCustomerTest extends TestCase
         $this->assertMatchesRegularExpression($layer('words', 'rtl', 'تەنها حەفتا هەزار دینار'), $html);
         $this->assertMatchesRegularExpression($layer('total', 'ltr', '70,000'), $html);
         $this->assertMatchesRegularExpression($layer('date', 'ltr', now()->format('Y-m-d')), $html);
-        $this->assertStringContainsString('<div class="inv-name" dir="auto">Toner HP 85A no.1</div>', $html);
-        $this->assertStringContainsString('<div class="inv-num">70,000</div>', $html);
+        $this->assertStringContainsString('<div class="inv-name" dir="auto" data-cell="name">Toner HP 85A no.1</div>', $html);
+        $this->assertStringContainsString('<div class="inv-num" data-cell="amount">70,000</div>', $html);
+        $this->assertStringContainsString('<div class="inv-qty" dir="auto" data-cell="qty">2 pcs</div>', $html);
     }
 }

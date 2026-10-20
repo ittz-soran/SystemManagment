@@ -92,3 +92,45 @@ export function paginate(first) {
 
     return sheets;
 }
+
+/** ٠١٢٣ for Kurdish and Arabic, ۰۱۲۳ for Persian; 123 left alone. */
+const EASTERN = { arabic: '٠١٢٣٤٥٦٧٨٩', persian: '۰۱۲۳۴۵۶۷۸۹' };
+
+export function digits(value, style) {
+    const set = EASTERN[style];
+    return set ? String(value).replace(/[0-9]/g, (d) => set[d]) : String(value);
+}
+
+/**
+ * Each layer's text with the shop's invoice options applied — the designer's
+ * sample, written again as the options change.
+ *
+ * ⚠️ App\Support\GovernmentInvoice::present() is this on the server, for the
+ * print. A change here is a change there; the browser check holds the two to
+ * the same words.
+ */
+export function present(fill, options) {
+    const figure = (value) => digits(value, options.digits);
+    const orDash = (value) => (String(value ?? '').trim() === '' ? (options.empty === 'dash' ? '-' : '') : String(value));
+
+    const end = String(fill.number).match(/(\d+)$/);
+    const number = options.number === 'number' && end ? end[1] : fill.number;
+
+    return {
+        customer: orDash(fill.customer),
+        date: orDash(figure(fill.date)),
+        address: orDash(fill.address),
+        rows: fill.rows.map((row) => {
+            const word = options.units?.[row.unit] ?? row.unit;
+            return {
+                price: figure(row.price),
+                qty: figure(row.qty) + (options.unit && word !== '' ? ` ${word}` : ''),
+                name: row.name,
+                amount: figure(row.amount),
+            };
+        }),
+        words: orDash(fill.words),
+        total: figure(fill.total) + (options.currency ? ` ${fill.mark}` : ''),
+        number: orDash(figure(number)),
+    };
+}

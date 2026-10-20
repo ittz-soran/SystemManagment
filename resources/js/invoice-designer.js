@@ -9,7 +9,7 @@
  * `layout` field after every change, so holding Save sends what is on screen.
  */
 import interact from 'interactjs';
-import { fillBlankRows, fitLines } from './invoice/layers.js';
+import { fillBlankRows, fitLines, present } from './invoice/layers.js';
 
 const data = JSON.parse(document.getElementById('design-data').textContent);
 const limits = data.limits;
@@ -17,12 +17,16 @@ const limits = data.limits;
 const sheet = document.getElementById('design-sheet');
 const stage = document.getElementById('design-stage');
 const field = document.getElementById('design-layout');
+const optionsField = document.getElementById('design-options');
 const tag = document.getElementById('design-tag');
 const panelTitle = document.getElementById('design-panel-title');
 const panelBody = document.getElementById('design-panel-body');
 const linesFields = document.getElementById('design-lines-fields');
 
 let layout = JSON.parse(field.value);
+let options = JSON.parse(optionsField.value);
+// An empty word list comes over as [], which takes no names.
+if (Array.isArray(options.units)) options.units = {};
 let selected = null;
 const history = [];
 
@@ -35,14 +39,15 @@ const layerOf = (key) => sheet.querySelector(`.inv-layer[data-layer="${key}"]`);
 const keyOf = (element) => element.closest('.inv-layer')?.dataset.layer;
 
 function remember() {
-    history.push(JSON.stringify(layout));
+    history.push(JSON.stringify({ layout, options }));
     if (history.length > 200) history.shift();
 }
 
 function undo() {
     const last = history.pop();
     if (last) {
-        layout = JSON.parse(last);
+        ({ layout, options } = JSON.parse(last));
+        showOptions();
         render();
     }
 }
@@ -69,7 +74,7 @@ function keepColumns(lines) {
 function draw(key) {
     const layer = layout[key];
     const element = layerOf(key);
-    ['x', 'y', 'w', 'h', 'size'].forEach((f) => element.style.setProperty(`--${f}`, layer[f]));
+    ['x', 'y', 'w', 'h', 'size', 'color'].forEach((f) => element.style.setProperty(`--${f}`, layer[f]));
     element.classList.toggle('is-bold', !!layer.bold);
     element.classList.toggle('is-off', !layer.show);
 
@@ -92,8 +97,27 @@ function quick(key) {
     placeTag();
 }
 
+/** The sample's words, the invoice options applied — as the print writes them. */
+function write() {
+    const shown = present(data.fill, options);
+
+    Object.keys(layout).forEach((key) => {
+        const value = layerOf(key).querySelector(':scope > .inv-value');
+        if (value) value.textContent = shown[key] ?? '';
+    });
+
+    layerOf('lines').querySelectorAll('[data-item]').forEach((row, i) => {
+        row.querySelectorAll('[data-cell]').forEach((cell) => {
+            cell.textContent = shown.rows[i]?.[cell.dataset.cell] ?? '';
+        });
+    });
+
+    optionsField.value = JSON.stringify(options);
+}
+
 function render() {
     Object.keys(layout).forEach(draw);
+    write();
     field.value = JSON.stringify(layout);
     fillBlankRows(layerOf('lines'));
     fitLines(sheet);
@@ -272,6 +296,8 @@ panelBody.addEventListener('change', (event) => {
     if (input.dataset.column !== undefined) {
         layer.columns[input.dataset.column] = tenth(Number(input.value) || 0);
         keepColumns(layer);
+    } else if (input.type === 'color') {
+        layer.color = input.value.toLowerCase();
     } else if (input.type === 'checkbox') {
         layer[input.dataset.field] = input.checked;
     } else {
@@ -287,7 +313,10 @@ panelBody.addEventListener('change', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-    const typing = event.target.closest('input, textarea, select');
+    // A box being typed in keeps its own undo; a tick box or a colour has
+    // none, and Ctrl+Z after ticking one is meant for the design — found by
+    // driving it, when undoing "unit after the quantity" did nothing.
+    const typing = event.target.closest('textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="color"])');
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !typing) {
         event.preventDefault();
@@ -295,8 +324,9 @@ document.addEventListener('keydown', (event) => {
         return;
     }
 
+    // A list moves its choice with the arrows, so they stay the list's.
     const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
-    if (!step || !selected || typing) return;
+    if (!step || !selected || typing || event.target.closest('select')) return;
 
     event.preventDefault();
     remember();
@@ -307,6 +337,36 @@ document.addEventListener('keydown', (event) => {
     keepInside(layer);
     render();
 });
+
+// ---- the invoice options --------------------------------------------------
+
+function showOptions() {
+    document.querySelectorAll('[data-option]').forEach((control) => {
+        const value = options[control.dataset.option];
+        if (control.type === 'checkbox') control.checked = !!value;
+        else control.value = value;
+    });
+    document.querySelectorAll('[data-unit]').forEach((input) => {
+        input.value = options.units[input.dataset.unit] ?? '';
+    });
+}
+
+document.getElementById('design-options-card').addEventListener('change', (event) => {
+    const control = event.target;
+    remember();
+
+    if (control.dataset.option) {
+        options[control.dataset.option] = control.type === 'checkbox' ? control.checked : control.value;
+    } else if (control.dataset.unit !== undefined) {
+        const word = control.value.trim();
+        if (word === '') delete options.units[control.dataset.unit];
+        else options.units[control.dataset.unit] = word;
+    }
+
+    render();
+});
+
+showOptions();
 
 document.getElementById('design-undo').addEventListener('click', undo);
 
