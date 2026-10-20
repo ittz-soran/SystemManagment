@@ -26,6 +26,14 @@
 
     // The book has ten ruled lines; a short invoice still looks like it.
     $blankRows = max(0, 10 - $sale->items->count());
+
+    // In Kurdish whatever the screen is in, after تەنها, as Soran writes it on
+    // the book — "تەنها بیست و پێنج هەزار دینار". The locale is set for this one
+    // call so the words come from the one vocabulary the rest of the system uses.
+    $screenLocale = app()->getLocale();
+    app()->setLocale('ckb');
+    $inWords = 'تەنها '.App\Support\AmountInWords::for($sale->total_amount);
+    app()->setLocale($screenLocale);
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $currentLanguage }}" dir="ltr" data-bs-theme="light">
@@ -72,17 +80,16 @@
         .lines td { border-inline: 0.3mm solid var(--rule); border-bottom: 0.15mm solid #b9b9b9; padding: 0.8mm 1.5mm; height: 6.2mm; font-size: 9pt; vertical-align: middle; }
         .lines .num { text-align: center; direction: ltr; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .lines tfoot td { background: var(--fill); color: var(--on-fill); border: 0.3mm solid var(--rule); font-weight: 700; height: 9mm; }
-        .lines tfoot .label { text-align: end; line-height: 1.2; font-size: 8.5pt; }
+        .lines tfoot .band { display: flex; justify-content: space-between; align-items: center; gap: 3mm; }
+        .lines tfoot .in-words { font-size: 8.5pt; }
+        .lines tfoot .label { text-align: end; line-height: 1.2; font-size: 8.5pt; white-space: nowrap; }
         .col-price { width: 23mm; } .col-qty { width: 13mm; } .col-amount { width: 26mm; }
-
-        .words { margin-top: 1.5mm; font-size: 8.5pt; font-weight: 600; }
 
         .notes { display: flex; justify-content: space-between; gap: 4mm; margin-top: 2.5mm; color: var(--warn); font-size: 8pt; line-height: 1.3; }
         .notes .end { text-align: end; }
 
-        .signs { display: flex; gap: 5mm; align-items: flex-end; margin-top: 7mm; }
-        .sign { flex: 1; border-top: 0.3mm solid #333; padding-top: 0.8mm; font-size: 7.5pt; text-align: center; line-height: 1.25; }
-        .stamp { width: 25mm; height: 22mm; flex: none; border: 0.3mm dashed #555; border-radius: 2mm; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 1mm; font-size: 7pt; color: #555; text-align: center; line-height: 1.2; }
+        /* The book's own empty room for the signature and the stamp. */
+        .signing-room { height: 24mm; }
 
         .foot { margin-top: 4mm; font-size: 8.5pt; }
         .foot .row-line { display: flex; justify-content: space-between; align-items: baseline; gap: 3mm; }
@@ -182,18 +189,17 @@
             </tbody>
             <tfoot>
             <tr>
-                <td colspan="3" class="label">
-                    <span class="rtl">کۆی گشتی/ المجموع</span><br>The Total
+                <td colspan="3">
+                    <div class="band">
+                        <span class="in-words rtl">{{ $inWords }}</span>
+                        <span class="label"><span class="rtl">کۆی گشتی/ المجموع</span><br>The Total</span>
+                    </div>
                 </td>
                 <td class="num">{{ $say($sale->total_amount) }} {{ $mark }}</td>
             </tr>
             </tfoot>
         </table>
     </div>
-
-    {{-- The total written out, as on every invoice: a digit can be changed
-         with a pen and a sentence cannot. --}}
-    <div class="words" dir="auto">{{ App\Support\AmountInWords::for($sale->total_amount) }}</div>
 
     <div class="notes">
         <div><span class="rtl">واژوو/ توقيع</span><br>Signature</div>
@@ -203,13 +209,9 @@
         </div>
     </div>
 
-    {{-- Soran chose these on top of the paper's own: a line for whoever
-         receives it, and a box for the department's stamp. --}}
-    <div class="signs">
-        <div class="sign"><span class="rtl">فرۆشیار/ البائع</span><br>Seller</div>
-        <div class="sign"><span class="rtl">وەرگر/ المستلم</span><br>Received by</div>
-        <div class="stamp"><span><span class="rtl">مۆر/ الختم</span><br>Stamp</span></div>
-    </div>
+    {{-- Nothing added to the book — Soran, 2026-10-20: it "already have aria
+         to signurate and stamp". This is that room. --}}
+    <div class="signing-room"></div>
 
     <footer class="foot">
         <div class="row-line">

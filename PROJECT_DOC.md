@@ -1653,14 +1653,24 @@ screen prints the ordinary invoice instead, for the day somebody asks.
   الكمية*, *Content — ناوەڕۆک / محتويات*, *Amount — کۆ / إجمالي*, left to right as
   on the paper, the logo faint behind the lines. Padded to ten rows so a short
   invoice still looks like the book; a long one runs on, its headings repeated.
-- **The total**, in the brand colour: *The Total — کۆی گشتی / المجموع*, and the
-  amount in words beneath it, as on every invoice.
+- **The total**, in the brand colour: *The Total — کۆی گشتی / المجموع*, and in
+  the same yellow band, beside it, the amount in words **in Kurdish, after
+  *تەنها*** — *تەنها بیست و پێنج هەزار دینار* — whatever language the screen is
+  in, like every other label on the page.
 - **Below**: in red, *Signature — واژوو / توقيع* and *Fault goes back to both
-  sides — هەڵە دەگەڕێتەوە بۆ هەردوو لا / الغلط و السهو مرجوع للطرفين*. And — Soran
-  chose these too — a line for who received it and an empty box for the
-  department's stamp.
+  sides — هەڵە دەگەڕێتەوە بۆ هەردوو لا / الغلط و السهو مرجوع للطرفين*, and under
+  them the empty space the book leaves for the signature and the stamp.
+
 - **The foot**: *Inv. No. — ژ.م وەصڵ* with the document number, the shop's
   phones and its website.
+
+⚠️ **Reversed the same day — Soran, 2026-10-20: *"Use my uploaded invoice
+without change anything, because already have aria to signurate and stamp, and
+have total text near total on yellow background"*.** He had picked a
+receiver's line and a stamp box on top of the book's own; the book already has
+the room for both, so they are gone, and the page is the book with nothing
+added. The amount in words moved off the line under the table and into the
+total band, in Kurdish, as he wrote it.
 
 ⚠️ **The labels are the paper's, in its three languages, whatever language the
 screen is in.** An official document reads the same whoever printed it. The
@@ -1673,7 +1683,9 @@ the banner.
 The receipt rule is unchanged: **one currency on a receipt** (Section 2b).
 
 **Built 2026-10-20**: `customers.type`, the two lists, the type on both customer
-forms, `print/sale-government.blade.php`, `invoice_tagline`.
+forms, `print/sale-government.blade.php`, `invoice_tagline`. The words are
+written with the locale set to `ckb` for that one call, so the amount-in-words
+vocabulary stays the one list the rest of the system uses.
 `GovernmentCustomerTest`. Printed from Chromium to PDF: one page, 420 × 595
 points, which is A5.
 
@@ -3161,7 +3173,7 @@ it before it has been read destroys the only record of what went wrong.
 
 | Date | Done | Next |
 |---|---|---|
-| 2026-10-20 | **Second-hand several at once, and government customers with an A5 invoice** (Section 9), both decided with Soran first. *How many* on the second-hand form makes that many one-unit items, each with its own barcode, on one purchase; paid now is checked against the whole deal. `customers.type` (normal / government) gives Customers two lists; a government customer's sale invoice prints on A5 portrait, laid out as his own legal invoice book, with a receiver's line and a stamp box he asked for, and `invoice_tagline` for its banner. Twelve new strings in Sorani, Arabic and Persian. Ten guards sabotaged and caught; a browser found the tagline cutting the letter م in two. Suite: 1,598 tests, 3 skipped as before. | Soran to set the tagline and mark his government customers |
+| 2026-10-20 | **Second-hand several at once, and government customers with an A5 invoice** (Section 9), both decided with Soran first. *How many* on the second-hand form makes that many one-unit items, each with its own barcode, on one purchase; paid now is checked against the whole deal. `customers.type` (normal / government) gives Customers two lists; a government customer's sale invoice prints on A5 portrait, laid out as his own legal invoice book, nothing added to the book — a receiver's line and a stamp box were tried and taken out at his word, because the book has the room — the amount in words in Kurdish after تەنها in the total band, and `invoice_tagline` for its banner. Twelve new strings in Sorani, Arabic and Persian. Ten guards sabotaged and caught; a browser found the tagline cutting the letter م in two. Suite: 1,599 tests, 3 skipped as before. | Soran to set the tagline and mark his government customers |
 | 2026-10-20 | **Sections: the shop's half, built** (Section 8h). The 2026-10-19 row below waited for a panel that had been running since September — read off this repository's stale copy of `PANEL_DOC.md`; corrected in 8h. Mapped first, which found five places one permission check does not reach — buying second-hand opens with `purchases.create`, currencies have no key, a half-drawn currency box would reset a setting on save, the users editor's `sync()` would drop hidden keys, and the purchase room box — and each was built for. A browser found a sixth: the users form's menu preview. `SectionsTest` 28 tests, seventeen guards sabotaged and caught, the accounting tests green with all six off, and Hamza's three driven in Chromium. Suite: 1,578 tests, 3 skipped as before. | The panel's Sections card, in its own repository |
 | 2026-10-19 | **Sections a shop can do without** (Section 8h), decided with Soran and written down; **nothing built yet**, by his choice. Halabja-phone needs no stock rooms, second-hand or repairs, and he wants to try a new page on one shop before every shop has it. Six sections are switchable — stock rooms, second-hand, repairs, take apart & build, swaps, currencies — by `SHOP_SECTIONS_OFF` and `SHOP_SECTIONS_ON` in the shop's `.env`, which the panel owns. Not priced, so not in the licence. Off is a permission nobody holds, the admin included; nothing is deleted and the books never move; stock in a back room or an open repair job refuses the switch. The panel's half is `PANEL_DOC.md` Section 6b. | Build it with the panel |
 | 2026-09-11 | **The suite runs on MariaDB now, and CI runs it there on every pull request.** This is the root cause of both outages this week, not a nicety: SQLite cannot see a MySQL fault, so `as lines` and the 1690 overflow were each green across 767 tests while the shop was down. A first honest run gave **540 passed, 230 failed** — and reading all 230 rather than the first few is what made this tractable, because **227 of them were one cascade and only three were real**. The cascade: four test classes genuinely destroy the database they run against, and they are right to — restoring a backup means dropping every table, proving the batch lock means committing what a rollback would hide, and one test drops `migrations` on purpose to see what the banner does when it cannot ask. On SQLite that costs nothing, because `:memory:` is a private throwaway. **On MySQL, DDL commits**, taking the transaction `RefreshDatabase` was relying on and the shared schema with it — so one such test near the front left every later test failing with *"table doesn't exist"*, pointing nowhere near the culprit. `tests/UsesItsOwnDatabase.php` gives each of those four a scratch database to wreck and drops it afterwards; the run now leaks nothing. **The three real faults** were all in tests rather than in the shop, which is itself the finding: `DB::statement('drop index …')` is SQLite syntax and MySQL wants `ALTER TABLE`, so it goes through the schema builder; `assertSame(3, …->sum(…))` failed because **MySQL returns an aggregate as a string** where SQLite gives an int — every figure in the app already casts, the assertion had not; and two `install:sql` cases assert what happens on a driver that *cannot* be dumped, which on MySQL does not exist, so they skip rather than being reworded until they go green on both engines and test neither. Four other failures looked real and were not — each passed alone, and only the cascade made them look like bugs, which is the argument for isolating before diagnosing. Result: **MySQL 770 tests, 768 passing, 2 skipped; SQLite 770, 769 passing, 1 skipped**, and no change to SQLite's runtime. The workflow also gained `main` to its push branches — CI had never once fired on the default branch. Verified against MariaDB 10.11 by hand; MySQL 8 is untested, and the shops run MariaDB. | Panel: schema and migrations |

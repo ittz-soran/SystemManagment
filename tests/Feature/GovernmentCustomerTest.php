@@ -19,8 +19,9 @@ use Tests\TestCase;
  *
  * Soran, 2026-10-20: *"goverment customers (i want show as deferet list in
  * customers) like "بەڕێوەبەرایەتی پۆلیسی پاریزگای ‌هەڵەبجە" and this type need
- * A5 invoice"* — laid out as the legal invoice book he sent the same day, with
- * signature lines and a stamp box added at his choice.
+ * A5 invoice"* — laid out as the legal invoice book he sent the same day, and
+ * nothing added to it: *"Use my uploaded invoice without change anything,
+ * because already have aria to signurate and stamp"*.
  */
 class GovernmentCustomerTest extends TestCase
 {
@@ -165,13 +166,32 @@ class GovernmentCustomerTest extends TestCase
             ->assertSee('Content')
             ->assertSee('The Total')
             ->assertSee('Fault goes back to both sides.')
-            ->assertSee('Received by')
-            ->assertSee('Stamp')
+            ->assertDontSee('Received by')
+            ->assertDontSee('Stamp')
             ->assertSee('Inv. No. : '.$sale->document_no)
             ->assertSee('سۆران ستۆر')
             ->assertSee('for electronics and programming')
             ->assertSee('www.soranstore.com')
             ->assertSee('70,000');
+    }
+
+    /**
+     * The total in words sits in the total band, in Kurdish after تەنها, as
+     * Soran writes it on the book — whatever language the screen is in, and
+     * without leaving the screen in Kurdish afterwards.
+     */
+    public function test_the_total_is_written_in_kurdish_words_in_the_total_band(): void
+    {
+        app()->setLocale('en');
+        $sale = $this->saleTo($this->department());
+        $sale->forceFill(['total_amount' => 25_000])->save();
+
+        $html = $this->actingAs($this->admin)->get(route('sales.print', $sale))->assertOk()->getContent();
+        $tfoot = substr($html, strpos($html, '<tfoot>'), strpos($html, '</tfoot>') - strpos($html, '<tfoot>'));
+
+        $this->assertStringContainsString('تەنها بیست و پێنج هەزار دینار', $tfoot);
+        $this->assertStringContainsString('The Total', $tfoot);
+        $this->assertSame('en', app()->getLocale());
     }
 
     /** The book has ten ruled lines, and a short invoice still looks like it. */
