@@ -2488,5 +2488,7 @@
     "Printed in the banner of a government customer's A5 invoice.": "لە سەرپەڕەی پسووڵەی A5ی کڕیاری حکومی چاپ دەکرێت.",
     "Print the ordinary invoice instead": "لە جیاتی ئەوە پسووڵەی ئاسایی چاپ بکە",
     "Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.": "دوو یان زیاتر لە هەمان شت: هەریەکە دەبێتە کاڵایەکی جیا بە بارکۆدی خۆی، بە نرخی ڕێککەوتوو بۆ هەر دانەیەک.",
-    "What the shop does, one line per language": "دوکانەکە چی دەکات، هەر زمانێک لە دێڕێکدا"
+    "What the shop does, one line per language": "دوکانەکە چی دەکات، هەر زمانێک لە دێڕێکدا",
+    "A5 invoice paper": "کاغەزی پسووڵەی A5",
+    "A picture of your blank A5 invoice, the whole page, PNG or JPG. A government customer's invoice is printed on it.": "وێنەی پسووڵەی A5ی بەتاڵی خۆت، هەموو پەڕەکە، PNG یان JPG. پسووڵەی کڕیاری حکومی لەسەری چاپ دەکرێت."
 }

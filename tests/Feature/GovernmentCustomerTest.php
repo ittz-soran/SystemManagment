@@ -12,6 +12,8 @@ use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -21,7 +23,9 @@ use Tests\TestCase;
  * customers) like "بەڕێوەبەرایەتی پۆلیسی پاریزگای ‌هەڵەبجە" and this type need
  * A5 invoice"* — laid out as the legal invoice book he sent the same day, and
  * nothing added to it: *"Use my uploaded invoice without change anything,
- * because already have aria to signurate and stamp"*.
+ * because already have aria to signurate and stamp"*. Then the paper itself:
+ * *"please use this without change any thing, and text need rtl if arabic and
+ * kurdish, and lrt if english"*.
  */
 class GovernmentCustomerTest extends TestCase
 {
@@ -254,5 +258,154 @@ class GovernmentCustomerTest extends TestCase
         $this->actingAs($this->admin)->get(route('customers.show', $this->department()))
             ->assertOk()
             ->assertSee(__('Government customer — their sale invoices print on A5.'));
+    }
+
+    // ---- on the shop's own paper -------------------------------------------
+
+    /** A paper in place, as the Settings form would leave it. */
+    private function withPaper(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('branding/paper.png', base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        ));
+        Setting::put('invoice_a5_paper', 'branding/paper.png');
+        Setting::flushCache();
+    }
+
+    /** What the Settings form posts besides the file. */
+    private function settingsForm(array $overrides = []): array
+    {
+        return array_merge([
+            'shop_name' => 'Soran Store', 'primary_color' => '#0d6efd', 'secondary_color' => '#6c757d',
+            'font_family' => 'system-ui, sans-serif', 'sidebar_style' => 'expanded', 'default_theme' => 'light',
+            'timezone' => 'Asia/Baghdad', 'usd_rate' => 1320, 'low_stock_threshold' => 5, 'sku_prefix' => 'SS',
+            'date_format' => 'Y-m-d', 'units' => "pcs\nkg", 'default_unit' => 'pcs',
+            'backup_frequency' => 'daily', 'backup_time' => '02:15', 'backup_weekday' => 5,
+            'backup_keep_daily' => 30, 'backup_keep_monthly' => 12, 'label_size' => '50x30',
+        ], $overrides);
+    }
+
+    public function test_the_paper_is_uploaded_in_settings_and_replaces_the_last_one(): void
+    {
+        $this->withPaper();
+
+        $this->actingAs($this->admin)->put(route('settings.update'), $this->settingsForm([
+            'invoice_a5_paper' => UploadedFile::fake()->image('a5.png', 1748, 2481),
+        ]))->assertSessionHasNoErrors();
+
+        Setting::flushCache();
+
+        $this->assertStringStartsWith('branding/', (string) setting('invoice_a5_paper'));
+        $this->assertNotSame('branding/paper.png', setting('invoice_a5_paper'));
+        Storage::disk('local')->assertMissing('branding/paper.png');
+        Storage::disk('local')->assertExists((string) setting('invoice_a5_paper'));
+
+        // The logo is its own file, untouched by the paper.
+        $this->assertNull(setting('shop_logo'));
+    }
+
+    /** A PDF cannot be laid under a page here; the shop sends a picture of it. */
+    public function test_a_paper_that_is_not_a_picture_is_refused(): void
+    {
+        Storage::fake('local');
+
+        $this->actingAs($this->admin)->put(route('settings.update'), $this->settingsForm([
+            'invoice_a5_paper' => UploadedFile::fake()->create('A5.pdf', 270, 'application/pdf'),
+        ]))->assertSessionHasErrors('invoice_a5_paper');
+
+        Setting::flushCache();
+        $this->assertNull(setting('invoice_a5_paper'));
+    }
+
+    public function test_the_paper_is_for_signed_in_readers_only(): void
+    {
+        $this->withPaper();
+
+        $this->get(route('branding.paper'))->assertRedirect(route('login'));
+
+        $response = $this->actingAs($this->admin)->get(route('branding.paper'))->assertOk();
+        $this->assertStringContainsString('private', $response->headers->get('cache-control'));
+    }
+
+    /**
+     * With the paper, nothing of the book is drawn: its labels, lines and
+     * notes are on the paper. Only the sale is written, on top of it.
+     */
+    public function test_with_a_paper_only_the_sale_is_written_on_it(): void
+    {
+        $this->withPaper();
+        $sale = $this->saleTo($this->department());
+
+        $this->actingAs($this->admin)->get(route('sales.print', $sale))
+            ->assertOk()
+            ->assertSee('size: A5 portrait; margin: 0;', false)
+            ->assertSee(route('branding.paper'), false)
+            ->assertSee(self::POLICE)
+            ->assertSee('INV-', false)
+            ->assertSee('70,000')
+            ->assertDontSee('Fault goes back to both sides.')
+            ->assertDontSee('Mr./ M/s.');
+    }
+
+    /** A setting naming a file that has gone prints the drawn page, not a blank one. */
+    public function test_a_paper_whose_file_is_gone_falls_back_to_the_drawn_page(): void
+    {
+        Storage::fake('local');
+        Setting::put('invoice_a5_paper', 'branding/deleted.png');
+        Setting::flushCache();
+
+        $this->actingAs($this->admin)->get(route('sales.print', $this->saleTo($this->department())))
+            ->assertOk()
+            ->assertSee('Fault goes back to both sides.')
+            ->assertDontSee(route('branding.paper'), false);
+    }
+
+    /**
+     * Soran: *"text need rtl if arabic and kurdish, and lrt if english"*. Each
+     * value carries its own direction, so it starts at the end of the line its
+     * language starts from; figures are always left to right.
+     */
+    public function test_each_value_on_the_paper_reads_in_its_own_direction(): void
+    {
+        $this->withPaper();
+        $sale = $this->saleTo($this->department());
+
+        $html = $this->actingAs($this->admin)->get(route('sales.print', $sale))->getContent();
+
+        $this->assertMatchesRegularExpression('/<div class="at customer" dir="auto"[^>]*>'.preg_quote(self::POLICE, '/').'</u', $html);
+        $this->assertMatchesRegularExpression('/<div class="at address" dir="auto"[^>]*>Halabja</u', $html);
+        $this->assertMatchesRegularExpression('/<div class="at cell wrap content" dir="auto"[^>]*>Toner HP 85A no.1</u', $html);
+        $this->assertMatchesRegularExpression('/<div class="at cell in-words strong" dir="rtl"[^>]*>تەنها حەفتا هەزار دینار</u', $html);
+        $this->assertMatchesRegularExpression('/<div class="at cell mid ltr amount"[^>]*>70,000</u', $html);
+    }
+
+    /** The paper has eleven lines; a longer sale goes on to another sheet. */
+    public function test_a_long_sale_goes_on_to_a_second_sheet_with_the_total_on_the_last(): void
+    {
+        $this->withPaper();
+        $sale = $this->saleTo($this->department(), lines: 13);
+
+        $html = $this->actingAs($this->admin)->get(route('sales.print', $sale))->getContent();
+        $sheets = array_slice(explode('<div class="sheet">', $html), 1);
+
+        $this->assertCount(2, $sheets);
+        $this->assertSame(11, substr_count($sheets[0], 'class="at cell mid ltr amount"'));
+        $this->assertSame(2, substr_count($sheets[1], 'class="at cell mid ltr amount"'));
+
+        // The customer and the number on both; the total and its words on the last.
+        foreach ($sheets as $sheet) {
+            $this->assertStringContainsString(self::POLICE, $sheet);
+            $this->assertStringContainsString($sale->document_no, $sheet);
+        }
+        $this->assertStringNotContainsString('in-words', $sheets[0]);
+        $this->assertStringContainsString('in-words', $sheets[1]);
+    }
+
+    public function test_the_paper_is_a_setting(): void
+    {
+        $this->actingAs($this->admin)->get(route('settings.edit'))
+            ->assertOk()
+            ->assertSee('name="invoice_a5_paper"', false);
     }
 }

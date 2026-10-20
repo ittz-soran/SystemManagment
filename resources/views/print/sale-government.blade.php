@@ -27,13 +27,7 @@
     // The book has ten ruled lines; a short invoice still looks like it.
     $blankRows = max(0, 10 - $sale->items->count());
 
-    // In Kurdish whatever the screen is in, after تەنها, as Soran writes it on
-    // the book — "تەنها بیست و پێنج هەزار دینار". The locale is set for this one
-    // call so the words come from the one vocabulary the rest of the system uses.
-    $screenLocale = app()->getLocale();
-    app()->setLocale('ckb');
-    $inWords = 'تەنها '.App\Support\AmountInWords::for($sale->total_amount);
-    app()->setLocale($screenLocale);
+    // $inWords comes from PrintController: Kurdish, after تەنها.
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $currentLanguage }}" dir="ltr" data-bs-theme="light">
@@ -70,7 +64,7 @@
         .banner .en { font-size: 15pt; font-weight: 700; }
 
         .field { display: flex; align-items: baseline; gap: 1.5mm; margin-top: 3.5mm; font-size: 9pt; }
-        .field .value { flex: 1; border-bottom: 0.25mm dotted #333; min-height: 5mm; padding: 0 1mm; text-align: center; }
+        .field .value { flex: 1; border-bottom: 0.25mm dotted #333; min-height: 5mm; padding: 0 1mm; text-align: start; }
         .field .label { white-space: nowrap; }
 
         .table-wrap { position: relative; margin-top: 3.5mm; }
@@ -80,7 +74,7 @@
         .lines td { border-inline: 0.3mm solid var(--rule); border-bottom: 0.15mm solid #b9b9b9; padding: 0.8mm 1.5mm; height: 6.2mm; font-size: 9pt; vertical-align: middle; }
         .lines .num { text-align: center; direction: ltr; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .lines tfoot td { background: var(--fill); color: var(--on-fill); border: 0.3mm solid var(--rule); font-weight: 700; height: 9mm; }
-        .lines tfoot .band { display: flex; justify-content: space-between; align-items: center; gap: 3mm; }
+        .lines tfoot .band { display: flex; justify-content: flex-end; align-items: center; gap: 3mm; }
         .lines tfoot .in-words { font-size: 8.5pt; }
         .lines tfoot .label { text-align: end; line-height: 1.2; font-size: 8.5pt; white-space: nowrap; }
         .col-price { width: 23mm; } .col-qty { width: 13mm; } .col-amount { width: 26mm; }

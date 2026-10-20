@@ -2488,5 +2488,7 @@
     "Printed in the banner of a government customer's A5 invoice.": "يُطبع في ترويسة فاتورة A5 للزبون الحكومي.",
     "Print the ordinary invoice instead": "اطبع الفاتورة العادية بدلاً من ذلك",
     "Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.": "اثنان أو أكثر من الشيء نفسه: يصبح كل واحد صنفاً مستقلاً بباركود خاص به، بالسعر المتفق عليه لكل واحد.",
-    "What the shop does, one line per language": "ما يقدمه المتجر، سطر لكل لغة"
+    "What the shop does, one line per language": "ما يقدمه المتجر، سطر لكل لغة",
+    "A5 invoice paper": "ورقة فاتورة A5",
+    "A picture of your blank A5 invoice, the whole page, PNG or JPG. A government customer's invoice is printed on it.": "صورة فاتورة A5 الفارغة الخاصة بك، الصفحة كاملة، PNG أو JPG. تُطبع عليها فاتورة الزبون الحكومي."
 }

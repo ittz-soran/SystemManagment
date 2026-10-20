@@ -33,6 +33,8 @@ class SettingSeeder extends Seeder
         'shop_logo' => null,
         'invoice_footer' => null,
         'invoice_tagline' => null,
+        // The shop's blank A5 invoice, a path like the logo (Section 9).
+        'invoice_a5_paper' => null,
 
         // Layer 2 — appearance. Emitted as CSS custom properties in the layout
         // head; stylesheets are never regenerated at runtime.

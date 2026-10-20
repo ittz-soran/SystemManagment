@@ -2488,5 +2488,7 @@
     "Printed in the banner of a government customer's A5 invoice.": "در سربرگ فاکتور A5 مشتری دولتی چاپ می‌شود.",
     "Print the ordinary invoice instead": "به‌جای آن فاکتور معمولی را چاپ کن",
     "Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.": "دو یا چند عدد از یک چیز: هر کدام کالای جداگانه با بارکد خودش می‌شود، با قیمت توافق‌شده برای هر عدد.",
-    "What the shop does, one line per language": "کار فروشگاه، هر زبان در یک خط"
+    "What the shop does, one line per language": "کار فروشگاه، هر زبان در یک خط",
+    "A5 invoice paper": "کاغذ فاکتور A5",
+    "A picture of your blank A5 invoice, the whole page, PNG or JPG. A government customer's invoice is printed on it.": "تصویر فاکتور A5 خالی شما، کل صفحه، PNG یا JPG. فاکتور مشتری دولتی روی آن چاپ می‌شود."
 }
