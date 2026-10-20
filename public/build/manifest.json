@@ -1,4 +1,12 @@
 {
+  "_layers-v9ub3Kgr.js": {
+    "file": "assets/layers-v9ub3Kgr.js",
+    "name": "layers"
+  },
+  "_rolldown-runtime-hePW80VL.js": {
+    "file": "assets/rolldown-runtime-hePW80VL.js",
+    "name": "rolldown-runtime"
+  },
   "node_modules/@fontsource/cairo/files/cairo-arabic-400-normal.woff": {
     "file": "assets/cairo-arabic-400-normal-CAYwymWN.woff",
     "src": "node_modules/@fontsource/cairo/files/cairo-arabic-400-normal.woff"
@@ -132,10 +140,32 @@
     "src": "resources/fonts/bootstrap-icons-subset.woff2"
   },
   "resources/js/app.js": {
-    "file": "assets/app-12DOQyvM.js",
+    "file": "assets/app-DM8x7wLa.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_rolldown-runtime-hePW80VL.js"
+    ]
+  },
+  "resources/js/invoice-designer.js": {
+    "file": "assets/invoice-designer-CRHIgEVC.js",
+    "name": "invoice-designer",
+    "src": "resources/js/invoice-designer.js",
+    "isEntry": true,
+    "imports": [
+      "_rolldown-runtime-hePW80VL.js",
+      "_layers-v9ub3Kgr.js"
+    ]
+  },
+  "resources/js/invoice-print.js": {
+    "file": "assets/invoice-print-BGXfFYnp.js",
+    "name": "invoice-print",
+    "src": "resources/js/invoice-print.js",
+    "isEntry": true,
+    "imports": [
+      "_layers-v9ub3Kgr.js"
+    ]
   },
   "resources/scss/app.scss": {
     "file": "assets/app-BqfGcDkr.css",

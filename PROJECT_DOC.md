@@ -1479,6 +1479,8 @@ Used on printed invoices, the login page, and the browser title.
 | `invoice_footer` | e.g. return policy, thank-you line |
 | `invoice_tagline` | one line per language, printed in the banner of the A5 government invoice (Section 9) |
 | `invoice_a5_paper` | image path — the shop's own blank A5 invoice, printed under a government customer's sale (Section 9) |
+| `invoice_a5_layout` | JSON — where each layer of the A5 invoice sits, its size and font size; set in the invoice designer (Section 9) |
+| `invoice_font` | font file path — the font the A5 invoice prints in (Section 9) |
 
 > Store logos as files with only the path in `settings` — never base64 in the database.
 
@@ -1679,6 +1681,9 @@ above came close to his paper and was still not his paper — not his logo
 artwork, his letters, the yellow S behind the lines. So when a shop has its
 paper, **the page prints the paper itself and writes only the sale on it**:
 
+*(The places, the eleven lines and where the paper is uploaded were replaced
+the same day by the invoice designer, below.)*
+
 - **Settings → A5 invoice paper**: a picture of the blank page, the whole A5
   sheet, portrait — PNG or JPG. His PDF was turned into a 300 dpi PNG here and
   handed to him to upload; a cPanel host cannot be relied on to read a PDF.
@@ -1727,6 +1732,104 @@ sabotaged and caught.
 Symfony's `BinaryFileResponse` does it in its constructor. The paper is behind
 the login, so it is set private after the fact; the test that asks for
 `private` is what found it.
+
+#### The invoice designer — Soran, 2026-10-20
+
+*"i need more flexible -> should layers are changeable and sizes with fonts,
+for ex i want use specific font, and products lines issuse -> some time product
+have more one line -> for this case invoice need have line after full name text
+then next line"*, and while it was being planned: *"use best tool to design
+invoice inside system"*. Asked, he chose: **the row grows to fit the whole name
+and its line comes after it**; **drag the boxes on the paper**; **upload his own
+font file**.
+
+This replaces the fixed places and the eleven printed lines above; the paper
+itself is still printed as it is.
+
+**Settings → Invoice designer** (`settings.manage`) is one page with three
+parts:
+
+- **The paper** — the upload moves here from the Settings form, unchanged
+  (`invoice_a5_paper`).
+- **The font** — a font file, `.ttf`, `.otf`, `.woff` or `.woff2`, up to 5 MB,
+  checked by its first bytes rather than by what the browser calls it. Kept like
+  the logo under `branding/`, its path in **`invoice_font`**, sent behind the
+  login. Every layer of the invoice prints in it — on the paper and on the drawn
+  page — and the designer shows it. Without one, the shop's own font, as now.
+- **The layers**, drawn on the paper at its real proportions, each a box to
+  drag and resize, with a sample of what it will hold, in the font, at its
+  size:
+
+  | Layer | Holds | Starts at (mm: left, top, width, height) |
+  |---|---|---|
+  | Customer | the name after *Mr./M/s.* | 21, 54.5, 103.7, 5.4 |
+  | Date | the sale date | 15, 64.7, 25.4, 5.4 |
+  | Address | the customer's address | 84.2, 64.7, 32.4, 5.4 |
+  | Item lines | the item rows, Price · Qty · Content · Amount | 2.4, 81.3, 143.1, 90.2 |
+  | Total in words | تەنها … دینار | 4, 172, 90, 7.9 |
+  | Total | the figure | 118.8, 172, 26.5, 7.9 |
+  | Invoice number | after *Inv. No.* | 17.5, 196.4, 20.5, 5.4 |
+
+  Each layer has its **font size** (6–28 pt), **bold**, and **show** — a paper
+  with no address line hides that layer. *Item lines* also has its **row
+  height** (8.2 mm on his book) and the three **column dividers**, dragged
+  inside its box to sit on the paper's printed column lines (25.7, 39.5, 116.1
+  mm from its left edge). Arrow keys nudge the chosen layer by 0.5 mm, Shift
+  with an arrow by 0.1 mm; the numbers are also typed. Undo steps back. *Back to
+  the book's places* puts every layer where it started. Nothing is kept until
+  Save is held, as everywhere.
+
+  Kept as one JSON setting, **`invoice_a5_layout`**, checked on save: every box
+  inside the sheet, at least 3 mm each way, sizes and row height in range, the
+  dividers in order at least 5 mm apart. A layer the setting does not mention
+  takes its starting place, so a layer added later needs no data step.
+
+**The item rows grow.** The system draws the rows: each item is one row, at
+least the row height, as tall as its name needs — the name wraps inside
+*Content*, the figures sit on its first line — with a thin grey line after it,
+like the book's. Under the last item, empty rows to the bottom of the box, so a
+short invoice still looks like the book. The paper's own printed row lines would
+now be drawn twice, so **the paper's item area is uploaded without them**; his
+was handed back that way, the rest of it untouched. The column lines stay on the
+paper.
+
+**More items than fit** go on to another sheet of the paper, with the customer,
+date and number again and the total and its words on the last. How much a name
+wraps depends on the font, so it is the browser that measures and splits, after
+the font has loaded; the server sends every row once. A single line that is too
+long for its box — a long name, a long amount in words — is made smaller until
+it fits, down to 6 pt, rather than cut.
+
+**The tool**: the designer is the invoice's own page — the same boxes, the same
+CSS millimetres — so what is placed is what prints. Dragging and resizing are
+**interact.js** (MIT, pinned at 1.10.27), the standard library for exactly this:
+pointer and touch, edges and corners, kept inside the sheet. A canvas editor
+(Fabric, Konva) was not chosen: it draws text its own way, and the print is HTML,
+so the two would disagree on where a Kurdish line wraps. A page builder
+(GrapesJS) designs free HTML, which is more than a layout of fixed fields needs
+and would put stored markup into a printed page.
+
+**Built 2026-10-20**: `App\Support\InvoiceLayout`, `App\Support\GovernmentInvoice`,
+`InvoiceDesignController`, `App\Rules\FontFile`, the shared
+`print/partials/invoice-layers*` and `invoice-font`, `resources/js/invoice-print.js`
+and `invoice-designer.js`. `InvoiceDesignTest`, sixteen guards sabotaged and
+caught, and the sheet-splitting switched off in the browser to see the long sale
+crowd on to one sheet. Driven in Chromium on his paper: drag, resize from every
+edge, the column lines, arrow keys, undo, a font previewed and saved, a 13-line
+and an 11-line sale with long Kurdish, Arabic and English names over two sheets.
+His paper was handed back with the printed row lines taken out of the item area
+and nothing else touched.
+
+⚠️ **Three things only the browser found.** (1) A box made smaller leaves the
+pointer over the paper, and the browser's own picture-dragging started and
+cancelled the resize: a 6 mm pull resized 1 mm. The paper is not draggable now.
+(2) A font over the host's upload limit (2 MB here) was refused and the page came
+back with the saved places, every move thrown away; it now comes back with what
+was on screen, and the message names the limit. (3) A Kurdish line in a Latin
+font draws from a second font and comes out a little taller than its
+line-height, so with equal room above and below every such row grew and the
+book's eleven lines held ten; the room under the text is now smaller than over
+it.
 
 ⚠️ **The labels are the paper's, in its three languages, whatever language the
 screen is in.** An official document reads the same whoever printed it. The
@@ -3229,6 +3332,7 @@ it before it has been read destroys the only record of what went wrong.
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-10-20 | **The invoice designer** (Section 9). *"should layers are changeable and sizes with fonts … product have more one line … use best tool to design invoice inside system"*. Settings → Invoice designer: his paper with every layer drawn on it, dragged and resized with interact.js, font size, bold and show per layer, the item lines' row height and column lines; his own font uploaded, checked by its first bytes; the item rows grow with their names and draw their line after, and the browser moves what does not fit on to more sheets. The paper upload moved here from Settings. 42 new strings in Sorani, Arabic and Persian. Sixteen guards sabotaged and caught; three faults found only by driving it. Suite: 1,625 tests, 3 skipped as before. | Soran to upload his cleaned paper and his font, and print one |
 | 2026-10-20 | **The government invoice on Soran's own paper** (Section 9). He sent the book's design as a PDF — *"please use this without change any thing, and text need rtl if arabic and kurdish, and lrt if english"*. Settings takes a picture of the blank A5 sheet (`invoice_a5_paper`); with it, the page prints the sheet whole and writes only the sale on it, at places measured off his PDF in millimetres, eleven lines a sheet and more sheets for more. Every value reads in its own direction, on the paper and on the drawn page. Without a paper, the drawn page, as before. Two new strings in Sorani, Arabic and Persian. Nine guards sabotaged and caught; a test found the file response caching the paper publicly. Suite: 1,607 tests, 3 skipped as before. | Soran to upload his paper in Settings |
 | 2026-10-20 | **Second-hand several at once, and government customers with an A5 invoice** (Section 9), both decided with Soran first. *How many* on the second-hand form makes that many one-unit items, each with its own barcode, on one purchase; paid now is checked against the whole deal. `customers.type` (normal / government) gives Customers two lists; a government customer's sale invoice prints on A5 portrait, laid out as his own legal invoice book, nothing added to the book — a receiver's line and a stamp box were tried and taken out at his word, because the book has the room — the amount in words in Kurdish after تەنها in the total band, and `invoice_tagline` for its banner. Twelve new strings in Sorani, Arabic and Persian. Ten guards sabotaged and caught; a browser found the tagline cutting the letter م in two. Suite: 1,599 tests, 3 skipped as before. | Soran to set the tagline and mark his government customers |
 | 2026-10-20 | **Sections: the shop's half, built** (Section 8h). The 2026-10-19 row below waited for a panel that had been running since September — read off this repository's stale copy of `PANEL_DOC.md`; corrected in 8h. Mapped first, which found five places one permission check does not reach — buying second-hand opens with `purchases.create`, currencies have no key, a half-drawn currency box would reset a setting on save, the users editor's `sync()` would drop hidden keys, and the purchase room box — and each was built for. A browser found a sixth: the users form's menu preview. `SectionsTest` 28 tests, seventeen guards sabotaged and caught, the accounting tests green with all six off, and Hamza's three driven in Chromium. Suite: 1,578 tests, 3 skipped as before. | The panel's Sections card, in its own repository |

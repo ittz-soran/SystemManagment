@@ -21,7 +21,13 @@ export default defineConfig(({ command }) => ({
     base: command === 'build' ? './' : '',
     plugins: [
         laravel({
-            input: ['resources/scss/app.scss', 'resources/js/app.js'],
+            input: [
+                'resources/scss/app.scss',
+                'resources/js/app.js',
+                // Section 9: the A5 invoice — its print, and its designer.
+                'resources/js/invoice-print.js',
+                'resources/js/invoice-designer.js',
+            ],
             refresh: true,
         }),
     ],

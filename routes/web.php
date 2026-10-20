@@ -17,6 +17,7 @@ use App\Http\Controllers\GoodsBackController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HeldCartController;
 use App\Http\Controllers\InstallController;
+use App\Http\Controllers\InvoiceDesignController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
@@ -641,6 +642,9 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:settings.manage')->group(function () {
         Route::get('settings', [SettingController::class, 'edit'])->name('settings.edit');
         Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
+        // Section 9: the A5 invoice designer — paper, font and layers.
+        Route::get('settings/invoice-design', [InvoiceDesignController::class, 'edit'])->name('invoice-design.edit');
+        Route::put('settings/invoice-design', [InvoiceDesignController::class, 'update'])->name('invoice-design.update');
         Route::post('settings/reset', [SettingController::class, 'reset'])->name('settings.reset');
         Route::post('settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
         Route::delete('settings/transactions', [SettingController::class, 'resetTransactions'])
@@ -706,9 +710,13 @@ Route::middleware(['auth'])->group(function () {
     // ---- Printable documents (Section 9b) --------------------------------
     Route::get('sales/{sale}/print', [PrintController::class, 'sale'])
         ->middleware('permission:sales.view')->name('sales.print');
-    // The shop's blank A5 invoice, which a government customer's sale prints on.
-    Route::get('branding/a5-paper', [BrandingController::class, 'paper'])
-        ->middleware('permission:sales.view')->name('branding.paper');
+    /*
+     * The A5 invoice's paper and font (Section 9). Any signed-in reader: the
+     * print uses them under sales.view and the designer under settings.manage,
+     * and neither says more than a printed invoice does.
+     */
+    Route::get('branding/a5-paper', [BrandingController::class, 'paper'])->name('branding.paper');
+    Route::get('branding/invoice-font', [BrandingController::class, 'font'])->name('branding.font');
     Route::get('purchases/{purchase}/print', [PrintController::class, 'purchase'])
         ->middleware('permission:purchases.view')->name('purchases.print');
     Route::get('sale-returns/{saleReturn}/print', [PrintController::class, 'saleReturn'])

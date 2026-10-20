@@ -8,7 +8,7 @@ use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\Swap;
 use App\Services\SetupProgress;
-use App\Support\AmountInWords;
+use App\Support\GovernmentInvoice;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -43,30 +43,9 @@ class PrintController extends Controller
          */
         $paper = BrandingController::paperUrl();
 
-        return view($paper ? 'print.sale-government-paper' : 'print.sale-government', [
-            'sale' => $sale,
-            'paper' => $paper,
-            'inWords' => self::inKurdishWords($sale->total_amount),
-        ]);
-    }
-
-    /**
-     * The total in words for the government invoice's total band: in Kurdish
-     * after تەنها, as Soran writes it on the book — "تەنها بیست و پێنج هەزار
-     * دینار" — whatever the screen is in. The locale is switched for this one
-     * call so the words come from the vocabulary the rest of the system uses,
-     * and switched back whatever happens, or the rest of the page would follow.
-     */
-    private static function inKurdishWords(int $amount): string
-    {
-        $screen = app()->getLocale();
-        app()->setLocale('ckb');
-
-        try {
-            return 'تەنها '.AmountInWords::for($amount);
-        } finally {
-            app()->setLocale($screen);
-        }
+        return $paper
+            ? view('print.sale-government-paper', ['sale' => $sale, 'paper' => $paper, 'fill' => GovernmentInvoice::fill($sale)])
+            : view('print.sale-government', ['sale' => $sale, 'inWords' => GovernmentInvoice::words($sale->total_amount)]);
     }
 
     public function purchase(Purchase $purchase): View

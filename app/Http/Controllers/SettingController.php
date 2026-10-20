@@ -263,10 +263,6 @@ class SettingController extends Controller
             // Section 8c: store logos as files with only the path in settings —
             // never base64 in the database.
             'shop_logo' => ['nullable', 'image', 'max:2048'],
-            // Section 9: a picture of the whole blank A5 sheet, which a
-            // government customer's sale is printed on. A 300 dpi PNG of it is
-            // a few hundred kilobytes; a phone photo can be several megabytes.
-            BrandingController::PAPER => ['nullable', 'image', 'mimes:png,jpg,jpeg', 'max:8192'],
         ]);
 
         // Back to the one string the settings table holds. The rows were only
@@ -277,7 +273,7 @@ class SettingController extends Controller
 
         DB::transaction(function () use ($data, $request) {
             foreach ($data as $key => $value) {
-                if ($key === 'shop_logo' || $key === BrandingController::PAPER) {
+                if ($key === 'shop_logo') {
                     continue;
                 }
 
@@ -293,16 +289,12 @@ class SettingController extends Controller
                 Setting::put('label_show_'.$field, $request->boolean('label_show_'.$field) ? '1' : '0');
             }
 
-            foreach (['shop_logo', BrandingController::PAPER] as $file) {
-                if (! $request->hasFile($file)) {
-                    continue;
-                }
-
-                $previous = BrandingController::path($file);
+            if ($request->hasFile('shop_logo')) {
+                $previous = BrandingController::path();
 
                 // The disk path, not a URL: BrandingController serves the file,
                 // so nothing depends on the /storage symlink existing.
-                Setting::put($file, $request->file($file)->store('branding', 'local'));
+                Setting::put('shop_logo', $request->file('shop_logo')->store('branding', 'local'));
 
                 if ($previous !== null) {
                     Storage::disk($previous[0])->delete($previous[1]);
