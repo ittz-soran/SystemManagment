@@ -95,20 +95,13 @@
                             <div class="form-text">{{ __('Printed in the banner of a government customer\'s A5 invoice.') }}</div>
                         </div>
 
-                        {{-- Section 9: the shop's own blank A5 invoice. With it, a
-                             government customer's sale is written onto the paper
-                             itself rather than onto the drawn page. --}}
+                        {{-- Section 9: the A5 invoice's paper, font and layers have a
+                             page of their own. --}}
                         <div class="mt-3">
-                            <label for="invoice_a5_paper" class="form-label">{{ __('A5 invoice paper') }}</label>
-                            @if($paper = App\Http\Controllers\BrandingController::paperUrl())
-                                <div class="mb-2">
-                                    <img src="{{ $paper }}" alt="" height="96" class="border">
-                                </div>
-                            @endif
-                            <input id="invoice_a5_paper" type="file" name="invoice_a5_paper" accept="image/png,image/jpeg"
-                                   class="form-control @error('invoice_a5_paper') is-invalid @enderror">
-                            <div class="form-text">{{ __('A picture of your blank A5 invoice, the whole page, PNG or JPG. A government customer\'s invoice is printed on it.') }}</div>
-                            @error('invoice_a5_paper')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <a href="{{ route('invoice-design.edit') }}" class="btn btn-outline-secondary">
+                                {{ __('Invoice designer') }}
+                            </a>
+                            <div class="form-text">{{ __('The paper, the font and where each line prints on a government customer\'s A5 invoice.') }}</div>
                         </div>
                     </div>
                 </div>

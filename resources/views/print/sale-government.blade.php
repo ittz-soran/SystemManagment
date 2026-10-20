@@ -39,6 +39,8 @@
     {{-- The shop's fonts, which carry the Kurdish and Arabic letters. --}}
     @vite(['resources/scss/app.scss'])
     @include('partials.brand')
+    {{-- The shop's invoice font, from the invoice designer, when it has one. --}}
+    @include('print.partials.invoice-font')
 
     <style>
         @page { size: A5 portrait; margin: 8mm; }
@@ -52,7 +54,7 @@
             --warn: #d0021b;
         }
 
-        body { background: #fff; color: #111; font-family: var(--bs-body-font-family); font-size: 9.5pt; margin: 0; }
+        body { background: #fff; color: #111; font-family: var(--invoice-font); font-size: 9.5pt; margin: 0; }
         .sheet { width: 132mm; margin: 0 auto; }
         .rtl { direction: rtl; unicode-bidi: isolate; }
 

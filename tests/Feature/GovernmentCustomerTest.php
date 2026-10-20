@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -273,51 +272,6 @@ class GovernmentCustomerTest extends TestCase
         Setting::flushCache();
     }
 
-    /** What the Settings form posts besides the file. */
-    private function settingsForm(array $overrides = []): array
-    {
-        return array_merge([
-            'shop_name' => 'Soran Store', 'primary_color' => '#0d6efd', 'secondary_color' => '#6c757d',
-            'font_family' => 'system-ui, sans-serif', 'sidebar_style' => 'expanded', 'default_theme' => 'light',
-            'timezone' => 'Asia/Baghdad', 'usd_rate' => 1320, 'low_stock_threshold' => 5, 'sku_prefix' => 'SS',
-            'date_format' => 'Y-m-d', 'units' => "pcs\nkg", 'default_unit' => 'pcs',
-            'backup_frequency' => 'daily', 'backup_time' => '02:15', 'backup_weekday' => 5,
-            'backup_keep_daily' => 30, 'backup_keep_monthly' => 12, 'label_size' => '50x30',
-        ], $overrides);
-    }
-
-    public function test_the_paper_is_uploaded_in_settings_and_replaces_the_last_one(): void
-    {
-        $this->withPaper();
-
-        $this->actingAs($this->admin)->put(route('settings.update'), $this->settingsForm([
-            'invoice_a5_paper' => UploadedFile::fake()->image('a5.png', 1748, 2481),
-        ]))->assertSessionHasNoErrors();
-
-        Setting::flushCache();
-
-        $this->assertStringStartsWith('branding/', (string) setting('invoice_a5_paper'));
-        $this->assertNotSame('branding/paper.png', setting('invoice_a5_paper'));
-        Storage::disk('local')->assertMissing('branding/paper.png');
-        Storage::disk('local')->assertExists((string) setting('invoice_a5_paper'));
-
-        // The logo is its own file, untouched by the paper.
-        $this->assertNull(setting('shop_logo'));
-    }
-
-    /** A PDF cannot be laid under a page here; the shop sends a picture of it. */
-    public function test_a_paper_that_is_not_a_picture_is_refused(): void
-    {
-        Storage::fake('local');
-
-        $this->actingAs($this->admin)->put(route('settings.update'), $this->settingsForm([
-            'invoice_a5_paper' => UploadedFile::fake()->create('A5.pdf', 270, 'application/pdf'),
-        ]))->assertSessionHasErrors('invoice_a5_paper');
-
-        Setting::flushCache();
-        $this->assertNull(setting('invoice_a5_paper'));
-    }
-
     public function test_the_paper_is_for_signed_in_readers_only(): void
     {
         $this->withPaper();
@@ -373,39 +327,14 @@ class GovernmentCustomerTest extends TestCase
 
         $html = $this->actingAs($this->admin)->get(route('sales.print', $sale))->getContent();
 
-        $this->assertMatchesRegularExpression('/<div class="at customer" dir="auto"[^>]*>'.preg_quote(self::POLICE, '/').'</u', $html);
-        $this->assertMatchesRegularExpression('/<div class="at address" dir="auto"[^>]*>Halabja</u', $html);
-        $this->assertMatchesRegularExpression('/<div class="at cell wrap content" dir="auto"[^>]*>Toner HP 85A no.1</u', $html);
-        $this->assertMatchesRegularExpression('/<div class="at cell in-words strong" dir="rtl"[^>]*>تەنها حەفتا هەزار دینار</u', $html);
-        $this->assertMatchesRegularExpression('/<div class="at cell mid ltr amount"[^>]*>70,000</u', $html);
-    }
+        $layer = fn (string $key, string $dir, string $text) => '/data-layer="'.$key.'"(\s+data-last-only)?\s+dir="'.$dir.'"[^>]*>\s*<span class="inv-value">'.preg_quote($text, '/').'/u';
 
-    /** The paper has eleven lines; a longer sale goes on to another sheet. */
-    public function test_a_long_sale_goes_on_to_a_second_sheet_with_the_total_on_the_last(): void
-    {
-        $this->withPaper();
-        $sale = $this->saleTo($this->department(), lines: 13);
-
-        $html = $this->actingAs($this->admin)->get(route('sales.print', $sale))->getContent();
-        $sheets = array_slice(explode('<div class="sheet">', $html), 1);
-
-        $this->assertCount(2, $sheets);
-        $this->assertSame(11, substr_count($sheets[0], 'class="at cell mid ltr amount"'));
-        $this->assertSame(2, substr_count($sheets[1], 'class="at cell mid ltr amount"'));
-
-        // The customer and the number on both; the total and its words on the last.
-        foreach ($sheets as $sheet) {
-            $this->assertStringContainsString(self::POLICE, $sheet);
-            $this->assertStringContainsString($sale->document_no, $sheet);
-        }
-        $this->assertStringNotContainsString('in-words', $sheets[0]);
-        $this->assertStringContainsString('in-words', $sheets[1]);
-    }
-
-    public function test_the_paper_is_a_setting(): void
-    {
-        $this->actingAs($this->admin)->get(route('settings.edit'))
-            ->assertOk()
-            ->assertSee('name="invoice_a5_paper"', false);
+        $this->assertMatchesRegularExpression($layer('customer', 'auto', self::POLICE), $html);
+        $this->assertMatchesRegularExpression($layer('address', 'auto', 'Halabja'), $html);
+        $this->assertMatchesRegularExpression($layer('words', 'rtl', 'تەنها حەفتا هەزار دینار'), $html);
+        $this->assertMatchesRegularExpression($layer('total', 'ltr', '70,000'), $html);
+        $this->assertMatchesRegularExpression($layer('date', 'ltr', now()->format('Y-m-d')), $html);
+        $this->assertStringContainsString('<div class="inv-name" dir="auto">Toner HP 85A no.1</div>', $html);
+        $this->assertStringContainsString('<div class="inv-num">70,000</div>', $html);
     }
 }

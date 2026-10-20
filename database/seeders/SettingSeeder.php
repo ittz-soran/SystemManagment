@@ -35,6 +35,10 @@ class SettingSeeder extends Seeder
         'invoice_tagline' => null,
         // The shop's blank A5 invoice, a path like the logo (Section 9).
         'invoice_a5_paper' => null,
+        // Where each layer of that invoice prints, and the font it prints in —
+        // the invoice designer. Null is the book's places and the shop's font.
+        'invoice_a5_layout' => null,
+        'invoice_font' => null,
 
         // Layer 2 — appearance. Emitted as CSS custom properties in the layout
         // head; stylesheets are never regenerated at runtime.
