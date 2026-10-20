@@ -9,6 +9,7 @@ use App\Models\SaleReturn;
 use App\Models\Swap;
 use App\Services\SetupProgress;
 use App\Support\GovernmentInvoice;
+use App\Support\InvoiceOptions;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -44,7 +45,11 @@ class PrintController extends Controller
         $paper = BrandingController::paperUrl();
 
         return $paper
-            ? view('print.sale-government-paper', ['sale' => $sale, 'paper' => $paper, 'fill' => GovernmentInvoice::fill($sale)])
+            ? view('print.sale-government-paper', [
+                'sale' => $sale,
+                'paper' => $paper,
+                'fill' => GovernmentInvoice::present(GovernmentInvoice::fill($sale), InvoiceOptions::current()),
+            ])
             : view('print.sale-government', ['sale' => $sale, 'inWords' => GovernmentInvoice::words($sale->total_amount)]);
     }
 

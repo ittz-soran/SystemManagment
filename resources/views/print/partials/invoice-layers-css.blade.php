@@ -27,6 +27,7 @@
         /* A point is 0.3528 mm. */
         font-size: calc(var(--size) * 0.3528 * var(--mm));
         line-height: 1.25;
+        color: var(--color, #111111);
     }
     .inv-layer.is-bold { font-weight: 700; }
 
@@ -69,5 +70,6 @@
         min-width: 0;
     }
     .inv-row .inv-num { text-align: center; direction: ltr; white-space: nowrap; }
+    .inv-row .inv-qty { text-align: center; white-space: nowrap; }
     .inv-row .inv-name { text-align: start; }
 </style>

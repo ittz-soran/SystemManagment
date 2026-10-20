@@ -33,9 +33,12 @@ final class GovernmentInvoice
     }
 
     /**
-     * Each layer's text for one sale.
+     * The parts of one sale the layers are written from, before the shop's
+     * invoice options — the figures in 123, the unit as typed, the currency
+     * apart from the total. present() writes the layers from these; the
+     * designer does the same in the browser as the options change.
      *
-     * @return array{customer: string, date: string, address: ?string, rows: list<array{price: string, qty: string, name: string, amount: string}>, words: string, total: string, number: string}
+     * @return array{customer: string, date: string, address: ?string, rows: list<array{price: string, qty: string, unit: string, name: string, amount: string}>, words: string, total: string, mark: string, number: string}
      */
     public static function fill(Sale $sale): array
     {
@@ -44,7 +47,6 @@ final class GovernmentInvoice
         // ONE currency on a receipt — Section 2b. The rate comes off the document.
         $writtenIn = $sale->writtenIn();
         $say = fn (int $base) => $writtenIn ? $sale->asWritten($base) : money($base, false);
-        $mark = $writtenIn ? $writtenIn->mark() : Money::base()->mark();
 
         return [
             'customer' => $sale->soldTo(),
@@ -52,13 +54,57 @@ final class GovernmentInvoice
             'address' => $sale->customer->address,
             'rows' => $sale->items->map(fn ($item) => [
                 'price' => $say($item->unit_price),
-                'qty' => qty($item->quantity, $item->product->unit),
+                // As qty() writes it, the unit apart.
+                'qty' => number_format((float) $item->quantity),
+                'unit' => trim((string) $item->product->unit),
                 'name' => $item->product->name,
                 'amount' => $say($item->lineTotal()),
             ])->values()->all(),
             'words' => self::words($sale->total_amount),
-            'total' => $say($sale->total_amount).' '.$mark,
+            'total' => $say($sale->total_amount),
+            'mark' => $writtenIn ? $writtenIn->mark() : Money::base()->mark(),
             'number' => $sale->document_no,
+        ];
+    }
+
+    /**
+     * Each layer's text, the shop's invoice options applied — PROJECT_DOC
+     * Section 9. ⚠️ resources/js/invoice/layers.js present() is this again for
+     * the designer's sample; a change here is a change there, and the browser
+     * check holds the two to the same words.
+     *
+     * @param  array<string, mixed>  $fill  from fill() or sample()
+     * @param  array<string, mixed>  $options  InvoiceOptions::current()
+     * @return array<string, mixed>
+     */
+    public static function present(array $fill, array $options): array
+    {
+        $figure = fn (string $value) => Digits::in($value, $options['digits']);
+        $orDash = fn (?string $value) => trim((string) $value) === ''
+            ? ($options['empty'] === 'dash' ? '-' : '')
+            : (string) $value;
+
+        $number = $options['number'] === 'number' && preg_match('/(\d+)$/', $fill['number'], $m)
+            ? $m[1]
+            : $fill['number'];
+
+        return [
+            'customer' => $orDash($fill['customer']),
+            'date' => $orDash($figure($fill['date'])),
+            'address' => $orDash($fill['address']),
+            'rows' => array_map(function (array $row) use ($figure, $options) {
+                $word = $options['units'][$row['unit']] ?? $row['unit'];
+
+                return [
+                    'price' => $figure($row['price']),
+                    'qty' => $figure($row['qty']).($options['unit'] && $word !== '' ? ' '.$word : ''),
+                    'name' => $row['name'],
+                    'amount' => $figure($row['amount']),
+                ];
+            }, $fill['rows']),
+            'words' => $orDash($fill['words']),
+            'total' => $figure($fill['total']).($options['currency'] ? ' '.$fill['mark'] : ''),
+            'number' => $orDash($figure($number)),
         ];
     }
 
@@ -77,12 +123,13 @@ final class GovernmentInvoice
             'date' => now()->format(setting('date_format', 'Y-m-d')),
             'address' => 'هەڵەبجە',
             'rows' => [
-                ['price' => $say(250_000), 'qty' => '1 pcs', 'name' => 'HP LaserJet Pro M404dn printer, duplex, network, with a spare toner cartridge', 'amount' => $say(250_000)],
-                ['price' => $say(15_000), 'qty' => '2 pcs', 'name' => 'کیبۆردی لۆجیتێک K120', 'amount' => $say(30_000)],
-                ['price' => $say(35_000), 'qty' => '1 pcs', 'name' => 'Toner HP 85A', 'amount' => $say(35_000)],
+                ['price' => $say(250_000), 'qty' => '1', 'unit' => Units::ALWAYS, 'name' => 'HP LaserJet Pro M404dn printer, duplex, network, with a spare toner cartridge', 'amount' => $say(250_000)],
+                ['price' => $say(15_000), 'qty' => '2', 'unit' => Units::ALWAYS, 'name' => 'کیبۆردی لۆجیتێک K120', 'amount' => $say(30_000)],
+                ['price' => $say(35_000), 'qty' => '1', 'unit' => Units::ALWAYS, 'name' => 'Toner HP 85A', 'amount' => $say(35_000)],
             ],
             'words' => self::words(315_000),
-            'total' => $say(315_000).' '.Money::base()->mark(),
+            'total' => $say(315_000),
+            'mark' => Money::base()->mark(),
             'number' => 'INV-00001',
         ];
     }

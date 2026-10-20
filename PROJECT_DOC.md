@@ -1481,6 +1481,7 @@ Used on printed invoices, the login page, and the browser title.
 | `invoice_a5_paper` | image path — the shop's own blank A5 invoice, printed under a government customer's sale (Section 9) |
 | `invoice_a5_layout` | JSON — where each layer of the A5 invoice sits, its size and font size; set in the invoice designer (Section 9) |
 | `invoice_font` | font file path — the font the A5 invoice prints in (Section 9) |
+| `invoice_a5_options` | JSON — the A5 invoice's numbers, currency symbol, invoice number, empty layers, quantity units (Section 9) |
 
 > Store logos as files with only the path in `settings` — never base64 in the database.
 
@@ -1830,6 +1831,66 @@ font draws from a second font and comes out a little taller than its
 line-height, so with equal room above and below every such row grew and the
 book's eleven lines held ten; the room under the text is now smaller than over
 it.
+
+#### What the invoice says, and how — Soran, 2026-10-20
+
+*"add more changeable -> set numbers language -> have curency Symbol or not ->
+text color -> INV-009 show as 009 or not -> if one of Layers not text show as
+" - " or empty " " -> in kurdish 1 psc is "١ دانە" or just show " ١ ""*.
+
+Five choices for the whole invoice, on the designer under **Invoice options**,
+and a colour for each layer. The starting value of each is what the invoice
+printed before, so nothing changes until a shop changes it.
+
+| Option | Choices | Starts at |
+|---|---|---|
+| **Numbers** | 123 · ١٢٣ (Kurdish and Arabic) · ۱۲۳ (Persian) | 123 |
+| **Currency symbol** on the total | shown · not shown | shown |
+| **Invoice number** | as it is, *INV-00009* · the number only, *00009* | as it is |
+| **A layer with nothing to say** — an address never typed | left empty · *-* | left empty |
+| **Quantity** | with its unit, *١ دانە* · the number only, *١* | with its unit |
+
+- **Numbers** changes the digits of the figures only — the date, the prices,
+  quantities and amounts, the total and the invoice number. A customer's name,
+  an address or a product name is written as it was typed, since *LBP6030* is a
+  model, not a figure. The commas stay commas.
+- **The unit's word.** A unit is a label the shop typed (*pcs*), so the invoice
+  has its own word for each: under the quantity choice, every unit the shop
+  uses with a box for what the invoice prints — *pcs → دانە*. An empty box
+  prints the unit as typed.
+- **The number only** is the digits at the end of the document number —
+  *INV-00009* → *00009*, the zeros kept, as Soran wrote it.
+- **Text colour**: each layer has its own, black to start, in the layer's panel
+  beside its size. The item rows take their layer's colour; their lines stay
+  grey.
+
+Kept as one JSON setting, **`invoice_a5_options`**, checked on save like the
+layout; anything it does not hold takes its starting value. The colour is a
+field of each layer in `invoice_a5_layout`. The designer shows every choice on
+the sample as it is made, written by the browser with the same rules the server
+prints with — and a test in the browser holds the two to the same words.
+
+These choices are for the invoice on the shop's paper — the one the designer
+places. The drawn page a shop without a paper prints is unchanged.
+
+**Kurdish hundreds are two words** — Soran, the same day: *"for 674,000 should
+show "تەنها شەش سەد و حەفتا و چوار هەزار دینار""*. The vocabulary had joined
+them, *شەشسەد*; it writes *شەش سەد* now. That is the one list every Kurdish
+amount in words comes from, so the line under the total on the sale screen
+changes with it.
+
+**Built 2026-10-20**: `App\Support\InvoiceOptions`, `GovernmentInvoice::fill()`
+now the sale's raw parts and `present()` the options applied, `Digits::in()`,
+`present()` again in `resources/js/invoice/layers.js` for the designer, a colour
+on every layer. `InvoiceOptionsTest`, sixteen guards sabotaged and caught.
+Driven in Chromium on INV-00006 for 674,000: every option set, saved, and the
+designer's words compared with the printed page's, layer by layer — the same;
+with the browser's digits broken on purpose, six layers differed.
+
+⚠️ **Found by driving it:** Ctrl+Z after ticking a box did nothing, because
+the shortcut stood aside for any field with the focus, so a text box keeps its
+own undo. A tick box, a list or a colour has none; it stands aside for text
+boxes only now.
 
 ⚠️ **The labels are the paper's, in its three languages, whatever language the
 screen is in.** An official document reads the same whoever printed it. The
@@ -3332,6 +3393,7 @@ it before it has been read destroys the only record of what went wrong.
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-10-20 | **What the invoice says, and how** (Section 9). *"set numbers language -> have curency Symbol or not -> text color -> INV-009 show as 009 or not -> … " - " or empty " " -> … "١ دانە" or just show " ١ ""*. Invoice options on the designer: 123 · ١٢٣ · ۱۲۳ for the figures, the currency symbol on the total, the invoice number as it is or the number only, a dash or nothing for an empty layer, the quantity with its unit or without, and the invoice's own word for each unit (pcs → دانە); a text colour on every layer. The designer shows each choice as it is made, and the browser was held to the print's own words. Kurdish hundreds are two words now — *شەش سەد* — everywhere, at his word. 14 new strings. Sixteen guards sabotaged and caught. Suite: 1,645 tests, 3 skipped as before. | Soran to choose his options |
 | 2026-10-20 | **The invoice designer** (Section 9). *"should layers are changeable and sizes with fonts … product have more one line … use best tool to design invoice inside system"*. Settings → Invoice designer: his paper with every layer drawn on it, dragged and resized with interact.js, font size, bold and show per layer, the item lines' row height and column lines; his own font uploaded, checked by its first bytes; the item rows grow with their names and draw their line after, and the browser moves what does not fit on to more sheets. The paper upload moved here from Settings. 42 new strings in Sorani, Arabic and Persian. Sixteen guards sabotaged and caught; three faults found only by driving it. Suite: 1,625 tests, 3 skipped as before. | Soran to upload his cleaned paper and his font, and print one |
 | 2026-10-20 | **The government invoice on Soran's own paper** (Section 9). He sent the book's design as a PDF — *"please use this without change any thing, and text need rtl if arabic and kurdish, and lrt if english"*. Settings takes a picture of the blank A5 sheet (`invoice_a5_paper`); with it, the page prints the sheet whole and writes only the sale on it, at places measured off his PDF in millimetres, eleven lines a sheet and more sheets for more. Every value reads in its own direction, on the paper and on the drawn page. Without a paper, the drawn page, as before. Two new strings in Sorani, Arabic and Persian. Nine guards sabotaged and caught; a test found the file response caching the paper publicly. Suite: 1,607 tests, 3 skipped as before. | Soran to upload his paper in Settings |
 | 2026-10-20 | **Second-hand several at once, and government customers with an A5 invoice** (Section 9), both decided with Soran first. *How many* on the second-hand form makes that many one-unit items, each with its own barcode, on one purchase; paid now is checked against the whole deal. `customers.type` (normal / government) gives Customers two lists; a government customer's sale invoice prints on A5 portrait, laid out as his own legal invoice book, nothing added to the book — a receiver's line and a stamp box were tried and taken out at his word, because the book has the room — the amount in words in Kurdish after تەنها in the total band, and `invoice_tagline` for its banner. Twelve new strings in Sorani, Arabic and Persian. Ten guards sabotaged and caught; a browser found the tagline cutting the letter م in two. Suite: 1,599 tests, 3 skipped as before. | Soran to set the tagline and mark his government customers |

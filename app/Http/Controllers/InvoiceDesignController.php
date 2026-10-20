@@ -9,6 +9,8 @@ use App\Rules\FontFile;
 use App\Services\ActivityLogger;
 use App\Support\GovernmentInvoice;
 use App\Support\InvoiceLayout;
+use App\Support\InvoiceOptions;
+use App\Support\Units;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,10 +44,20 @@ class InvoiceDesignController extends Controller
         // found by driving it, when a refused font threw away every move.
         $unsaved = json_decode((string) old('layout'), true);
         $layout = InvoiceLayout::check($unsaved) === [] ? InvoiceLayout::clean($unsaved) : InvoiceLayout::current();
+        $unsaved = json_decode((string) old('options'), true);
+        $options = InvoiceOptions::check($unsaved) === [] ? InvoiceOptions::clean($unsaved) : InvoiceOptions::current();
+
+        $fill = $lastSale ? GovernmentInvoice::fill($lastSale) : GovernmentInvoice::sample();
 
         return view('settings.invoice-design', [
             'layout' => $layout,
-            'fill' => $lastSale ? GovernmentInvoice::fill($lastSale) : GovernmentInvoice::sample(),
+            'options' => $options,
+            // The sale's own parts for the browser to write again as the
+            // options change, and the page as it prints with them now.
+            'fill' => $fill,
+            'shown' => GovernmentInvoice::present($fill, $options),
+            // Every unit the shop uses, and any on the sale shown.
+            'units' => collect(Units::all())->merge(collect($fill['rows'])->pluck('unit'))->filter()->unique()->values()->all(),
             'lastSale' => $lastSale,
             'paper' => BrandingController::paperUrl(),
             'font' => BrandingController::fontUrl(),
@@ -56,6 +68,7 @@ class InvoiceDesignController extends Controller
     {
         $request->validate([
             'layout' => ['required', 'string', 'max:20000'],
+            'options' => ['required', 'string', 'max:20000'],
             // A picture of the whole blank A5 sheet. A 300 dpi PNG of it is a
             // few hundred kilobytes; a phone photo can be several megabytes.
             BrandingController::PAPER => ['nullable', 'image', 'mimes:png,jpg,jpeg', 'max:8192'],
@@ -70,16 +83,19 @@ class InvoiceDesignController extends Controller
         ]);
 
         $layout = json_decode($request->string('layout')->value(), true);
-        $problems = InvoiceLayout::check($layout);
+        $options = json_decode($request->string('options')->value(), true);
+
+        $problems = array_filter(['layout' => InvoiceLayout::check($layout), 'options' => InvoiceOptions::check($options)]);
 
         if ($problems !== []) {
-            throw ValidationException::withMessages(['layout' => $problems]);
+            throw ValidationException::withMessages($problems);
         }
 
         $previous = Setting::cached();
 
-        DB::transaction(function () use ($request, $layout) {
+        DB::transaction(function () use ($request, $layout, $options) {
             Setting::put(InvoiceLayout::SETTING, json_encode(InvoiceLayout::clean($layout)));
+            Setting::put(InvoiceOptions::SETTING, json_encode(InvoiceOptions::clean($options), JSON_UNESCAPED_UNICODE));
 
             if ($request->hasFile(BrandingController::PAPER)) {
                 $this->replace(BrandingController::PAPER, $request->file(BrandingController::PAPER)->store('branding', 'local'));
@@ -102,7 +118,7 @@ class InvoiceDesignController extends Controller
             module: 'settings',
             description: __('Updated the invoice design'),
             oldValues: array_intersect_key($previous, array_flip([
-                InvoiceLayout::SETTING, BrandingController::PAPER, BrandingController::FONT,
+                InvoiceLayout::SETTING, InvoiceOptions::SETTING, BrandingController::PAPER, BrandingController::FONT,
             ])),
         );
 

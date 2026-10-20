@@ -53,6 +53,7 @@
         @csrf
         @method('PUT')
         <input type="hidden" name="layout" id="design-layout" value="{{ json_encode($layout) }}">
+        <input type="hidden" name="options" id="design-options" value="{{ json_encode($options, JSON_UNESCAPED_UNICODE) }}">
 
         <div class="row g-4">
             <div class="col-xl-8">
@@ -68,7 +69,7 @@
                         @unless($paper)
                             <div class="design-nopaper" id="design-nopaper">{{ __('Choose your blank A5 invoice under Paper to see it here.') }}</div>
                         @endunless
-                        @include('print.partials.invoice-layers', ['layout' => $layout, 'fill' => $fill, 'designer' => true])
+                        @include('print.partials.invoice-layers', ['layout' => $layout, 'fill' => $shown, 'designer' => true])
                         <div class="design-tag d-none" id="design-tag"></div>
                     </div>
                 </div>
@@ -112,7 +113,11 @@
                                 <input type="number" step="0.5" min="{{ App\Support\InvoiceLayout::SIZE_MIN }}" max="{{ App\Support\InvoiceLayout::SIZE_MAX }}"
                                        class="form-control form-control-sm" id="f-size" data-field="size">
                             </div>
-                            <div class="col-6 d-flex flex-column justify-content-end gap-1">
+                            <div class="col-6">
+                                <label class="form-label small mb-1" for="f-color">{{ __('Text colour') }}</label>
+                                <input type="color" class="form-control form-control-sm form-control-color w-100" id="f-color" data-field="color">
+                            </div>
+                            <div class="col-12 d-flex flex-wrap gap-3">
                                 <div class="form-check mb-0">
                                     <input type="checkbox" class="form-check-input" id="f-bold" data-field="bold">
                                     <label class="form-check-label small" for="f-bold">{{ __('Bold') }}</label>
@@ -136,6 +141,63 @@
                                            aria-label="{{ __('Column line :n', ['n' => $i + 1]) }}">
                                 </div>
                             @endforeach
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Soran, 2026-10-20: "set numbers language -> have curency Symbol
+                     or not -> … INV-009 show as 009 or not -> if one of Layers not
+                     text show as " - " or empty " " -> in kurdish 1 psc is "١ دانە"
+                     or just show " ١ "". --}}
+                <div class="card mb-3" id="design-options-card">
+                    <div class="card-header">{{ __('Invoice options') }}</div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small mb-1" for="o-digits">{{ __('Numbers') }}</label>
+                                <select class="form-select form-select-sm" id="o-digits" data-option="digits">
+                                    <option value="latin">123</option>
+                                    <option value="arabic">١٢٣ — {{ __('Kurdish and Arabic') }}</option>
+                                    <option value="persian">۱۲۳ — {{ __('Persian') }}</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small mb-1" for="o-number">{{ __('Invoice number') }}</label>
+                                <select class="form-select form-select-sm" id="o-number" data-option="number">
+                                    <option value="full">INV-00009</option>
+                                    <option value="number">00009</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small mb-1" for="o-empty">{{ __('A layer with nothing to say') }}</label>
+                                <select class="form-select form-select-sm" id="o-empty" data-option="empty">
+                                    <option value="blank">{{ __('Left empty') }}</option>
+                                    <option value="dash">-</option>
+                                </select>
+                            </div>
+                            <div class="col-6 d-flex flex-column justify-content-end gap-1">
+                                <div class="form-check mb-0">
+                                    <input type="checkbox" class="form-check-input" id="o-currency" data-option="currency">
+                                    <label class="form-check-label small" for="o-currency">{{ __('Currency symbol on the total') }}</label>
+                                </div>
+                                <div class="form-check mb-0">
+                                    <input type="checkbox" class="form-check-input" id="o-unit" data-option="unit">
+                                    <label class="form-check-label small" for="o-unit">{{ __('Unit after the quantity') }}</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3" id="design-units">
+                            <div class="small text-secondary mb-1">{{ __('Each unit as the invoice writes it — leave empty for the unit as typed.') }}</div>
+                            <div class="row g-2">
+                                @foreach($units as $unit)
+                                    <div class="col-6 input-group input-group-sm">
+                                        <span class="input-group-text" dir="auto">{{ $unit }}</span>
+                                        <input type="text" class="form-control" dir="auto" maxlength="30" data-unit="{{ $unit }}"
+                                               placeholder="{{ $unit }}" aria-label="{{ __('The invoice\'s word for :unit', ['unit' => $unit]) }}">
+                                    </div>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -174,6 +236,7 @@
 
     <script type="application/json" id="design-data">{!! json_encode([
         'defaults' => App\Support\InvoiceLayout::DEFAULTS,
+        'fill' => $fill,
         'alwaysShown' => App\Support\InvoiceLayout::ALWAYS_SHOWN,
         'names' => collect(App\Support\InvoiceLayout::DEFAULTS)->map(fn ($layer, $key) => App\Support\InvoiceLayout::name($key)),
         'limits' => [

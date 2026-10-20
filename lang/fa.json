@@ -2530,5 +2530,19 @@
     "the font size must be between :min and :max.": "اندازه فونت باید بین :min و :max باشد.",
     "the row height must be between :min and :max mm.": "ارتفاع ردیف باید بین :min و :max میلی‌متر باشد.",
     "the columns could not be read.": "ستون‌ها خوانده نشدند.",
-    "every column must be at least :mm mm wide.": "هر ستون باید دست‌کم :mm میلی‌متر عرض داشته باشد."
+    "every column must be at least :mm mm wide.": "هر ستون باید دست‌کم :mm میلی‌متر عرض داشته باشد.",
+    "Invoice options": "گزینه‌های فاکتور",
+    "Kurdish and Arabic": "کردی و عربی",
+    "Persian": "فارسی",
+    "A layer with nothing to say": "لایه‌ای که چیزی ندارد",
+    "Left empty": "خالی بماند",
+    "Currency symbol on the total": "نماد ارز روی جمع کل",
+    "Unit after the quantity": "واحد پس از مقدار",
+    "Each unit as the invoice writes it — leave empty for the unit as typed.": "هر واحد همان‌طور که فاکتور می‌نویسد — خالی بگذارید تا همان‌طور که تایپ شده بماند.",
+    "The invoice's word for :unit": "واژه فاکتور برای :unit",
+    "Text colour": "رنگ متن",
+    "the colour is not one the designer gives.": "رنگ از رنگ‌هایی نیست که طراح می‌دهد.",
+    "The invoice options could not be read. Reload the designer and try again.": "گزینه‌های فاکتور خوانده نشدند. طراح را دوباره بارگذاری و دوباره تلاش کنید.",
+    "The unit words could not be read.": "واژه‌های واحد خوانده نشدند.",
+    "A unit's word on the invoice can be at most :n letters.": "واژه واحد روی فاکتور حداکثر می‌تواند :n حرف باشد."
 }

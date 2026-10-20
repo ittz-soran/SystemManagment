@@ -40,20 +40,26 @@ final class InvoiceLayout
     public const COLUMN_MIN = 5.0;
 
     /**
+     * Each layer's text colour starts black — Soran, 2026-10-20: *"text
+     * color"*. A layout saved before there was a colour reads as this.
+     */
+    public const INK = '#111111';
+
+    /**
      * His book. `columns` are the three dividers of the item lines — between
      * Price, Qty, Content and Amount — as distances from the box's left edge.
      */
     public const DEFAULTS = [
-        'customer' => ['x' => 21.0, 'y' => 54.5, 'w' => 103.7, 'h' => 5.4, 'size' => 10, 'bold' => false, 'show' => true],
-        'date' => ['x' => 15.0, 'y' => 64.7, 'w' => 25.4, 'h' => 5.4, 'size' => 10, 'bold' => false, 'show' => true],
-        'address' => ['x' => 84.2, 'y' => 64.7, 'w' => 32.4, 'h' => 5.4, 'size' => 10, 'bold' => false, 'show' => true],
+        'customer' => ['x' => 21.0, 'y' => 54.5, 'w' => 103.7, 'h' => 5.4, 'size' => 10, 'bold' => false, 'show' => true, 'color' => self::INK],
+        'date' => ['x' => 15.0, 'y' => 64.7, 'w' => 25.4, 'h' => 5.4, 'size' => 10, 'bold' => false, 'show' => true, 'color' => self::INK],
+        'address' => ['x' => 84.2, 'y' => 64.7, 'w' => 32.4, 'h' => 5.4, 'size' => 10, 'bold' => false, 'show' => true, 'color' => self::INK],
         'lines' => [
-            'x' => 2.4, 'y' => 81.3, 'w' => 143.1, 'h' => 90.2, 'size' => 10, 'bold' => false, 'show' => true,
+            'x' => 2.4, 'y' => 81.3, 'w' => 143.1, 'h' => 90.2, 'size' => 10, 'bold' => false, 'show' => true, 'color' => self::INK,
             'row' => 8.2, 'columns' => [25.7, 39.5, 116.1],
         ],
-        'words' => ['x' => 4.0, 'y' => 172.0, 'w' => 90.0, 'h' => 7.9, 'size' => 10, 'bold' => true, 'show' => true],
-        'total' => ['x' => 118.8, 'y' => 172.0, 'w' => 26.5, 'h' => 7.9, 'size' => 10, 'bold' => true, 'show' => true],
-        'number' => ['x' => 17.5, 'y' => 196.4, 'w' => 20.5, 'h' => 5.4, 'size' => 9, 'bold' => true, 'show' => true],
+        'words' => ['x' => 4.0, 'y' => 172.0, 'w' => 90.0, 'h' => 7.9, 'size' => 10, 'bold' => true, 'show' => true, 'color' => self::INK],
+        'total' => ['x' => 118.8, 'y' => 172.0, 'w' => 26.5, 'h' => 7.9, 'size' => 10, 'bold' => true, 'show' => true, 'color' => self::INK],
+        'number' => ['x' => 17.5, 'y' => 196.4, 'w' => 20.5, 'h' => 5.4, 'size' => 9, 'bold' => true, 'show' => true, 'color' => self::INK],
     ];
 
     /** The item lines are the invoice; the rest a paper may not have room for. */
@@ -176,6 +182,10 @@ final class InvoiceLayout
             $problems[] = __('it is smaller than :mm mm.', ['mm' => self::SMALLEST]);
         }
 
+        if (isset($layer['color']) && ! (is_string($layer['color']) && preg_match('/^#[0-9a-fA-F]{6}$/', $layer['color']))) {
+            $problems[] = __('the colour is not one the designer gives.');
+        }
+
         $size = $layer['size'] ?? null;
         if (! self::isNumber($size) || $size < self::SIZE_MIN || $size > self::SIZE_MAX) {
             $problems[] = __('the font size must be between :min and :max.', ['min' => self::SIZE_MIN, 'max' => self::SIZE_MAX]);
@@ -222,6 +232,7 @@ final class InvoiceLayout
             'size' => round((float) $layer['size'] * 2) / 2,
             'bold' => filter_var($layer['bold'] ?? false, FILTER_VALIDATE_BOOL),
             'show' => in_array($key, self::ALWAYS_SHOWN, true) || filter_var($layer['show'] ?? true, FILTER_VALIDATE_BOOL),
+            'color' => strtolower($layer['color'] ?? self::INK),
         ];
 
         if ($key === 'lines') {
