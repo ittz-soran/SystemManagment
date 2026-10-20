@@ -2476,5 +2476,17 @@
     "— Sold and Earned count only what was sold between these dates, the same as the profit report.": "— فرۆشراو و دەستکەوت تەنها ئەوە دەژمێرن کە لەنێوان ئەم بەروارانەدا فرۆشراوە، هەروەک ڕاپۆرتی قازانج.",
     "“:product” is gone for good. Its SKU and barcode are free to use again. A backup was saved first: :backup": "«:product» بە هەمیشەیی نەما. SKU و بارکۆدەکەی ئێستا بەردەستن بۆ بەکارهێنانی دووبارە. سەرەتا پاڵپشتییەک پاشەکەوت کرا: :backup",
     "“Not aged” is money on the ledger that belongs to no document. An opening balance is the ordinary reason. Anything else means the documents and the ledger disagree — worth a look at Settings → Data check.": "«تەمەنی بۆ دانەنراوە» ئەو پارەیەیە لە دەفتەردا کە سەر بە هیچ بەڵگەنامەیەک نییە. باڵانسی سەرەتایی هۆکارە ئاساییەکەیە. هەر شتێکی تر واتە بەڵگەنامەکان و دەفتەرەکە یەک ناگرنەوە — سەیری ڕێکخستن ← پشکنینی داتا بکە.",
-    "⚠ This file does not end the way a finished backup does.": "⚠ ئەم فایلە بەو شێوەیە کۆتایی نایەت کە پاشەکەوتێکی تەواو کۆتایی پێدێت."
+    "⚠ This file does not end the way a finished backup does.": "⚠ ئەم فایلە بەو شێوەیە کۆتایی نایەت کە پاشەکەوتێکی تەواو کۆتایی پێدێت.",
+    ":count × :item bought from :seller, each with its own barcode": "‏:count × :item لە :seller کڕدرا، هەریەکە بە بارکۆدی خۆی",
+    "Buy between 1 and :most at a time.": "لە یەک جاردا لە ١ تا :most دانە بکڕە.",
+    "Customer type": "جۆری کڕیار",
+    "Government": "حکومی",
+    "Government customer — their sale invoices print on A5.": "کڕیاری حکومی — پسووڵەی فرۆشتنەکانی لەسەر A5 چاپ دەکرێن.",
+    "Government — invoices print on A5": "حکومی — پسووڵەکان لەسەر A5 چاپ دەکرێن",
+    "Invoice tagline": "دروشمی پسووڵە",
+    "Normal": "ئاسایی",
+    "Printed in the banner of a government customer's A5 invoice.": "لە سەرپەڕەی پسووڵەی A5ی کڕیاری حکومی چاپ دەکرێت.",
+    "Print the ordinary invoice instead": "لە جیاتی ئەوە پسووڵەی ئاسایی چاپ بکە",
+    "Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.": "دوو یان زیاتر لە هەمان شت: هەریەکە دەبێتە کاڵایەکی جیا بە بارکۆدی خۆی، بە نرخی ڕێککەوتوو بۆ هەر دانەیەک.",
+    "What the shop does, one line per language": "دوکانەکە چی دەکات، هەر زمانێک لە دێڕێکدا"
 }

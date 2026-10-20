@@ -2476,5 +2476,17 @@
     "— Sold and Earned count only what was sold between these dates, the same as the profit report.": "— «المباع» و«المكتسب» يحسبان ما بيع بين هذين التاريخين فقط، مثل تقرير الأرباح تماماً.",
     "“:product” is gone for good. Its SKU and barcode are free to use again. A backup was saved first: :backup": "تم حذف «:product» نهائيًا. رمز المنتج والباركود متاحان للاستخدام مرة أخرى. تم حفظ نسخة احتياطية أولًا: :backup",
     "“Not aged” is money on the ledger that belongs to no document. An opening balance is the ordinary reason. Anything else means the documents and the ledger disagree — worth a look at Settings → Data check.": "«غير مُعمَّر» هو مال في دفتر الحساب لا ينتمي إلى مستند. الرصيد الافتتاحي هو السبب المعتاد. أي شيء آخر يعني أن المستندات ودفتر الحساب لا يتفقان — راجع الإعدادات ← فحص البيانات.",
-    "⚠ This file does not end the way a finished backup does.": "⚠ هذا الملف لا ينتهي كما تنتهي نسخة احتياطية مكتملة."
+    "⚠ This file does not end the way a finished backup does.": "⚠ هذا الملف لا ينتهي كما تنتهي نسخة احتياطية مكتملة.",
+    ":count × :item bought from :seller, each with its own barcode": "تم شراء :count × :item من :seller، لكل واحد باركود خاص به",
+    "Buy between 1 and :most at a time.": "اشترِ ما بين 1 و :most في المرة الواحدة.",
+    "Customer type": "نوع الزبون",
+    "Government": "حكومي",
+    "Government customer — their sale invoices print on A5.": "زبون حكومي — تُطبع فواتير مبيعاته على ورق A5.",
+    "Government — invoices print on A5": "حكومي — تُطبع الفواتير على A5",
+    "Invoice tagline": "شعار الفاتورة",
+    "Normal": "عادي",
+    "Printed in the banner of a government customer's A5 invoice.": "يُطبع في ترويسة فاتورة A5 للزبون الحكومي.",
+    "Print the ordinary invoice instead": "اطبع الفاتورة العادية بدلاً من ذلك",
+    "Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.": "اثنان أو أكثر من الشيء نفسه: يصبح كل واحد صنفاً مستقلاً بباركود خاص به، بالسعر المتفق عليه لكل واحد.",
+    "What the shop does, one line per language": "ما يقدمه المتجر، سطر لكل لغة"
 }

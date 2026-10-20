@@ -16,7 +16,8 @@
                     data-action="{{ route('customers.update', $customer) }}"
                     data-name="{{ $customer->name }}"
                     data-phone="{{ $customer->phone }}"
-                    data-address="{{ $customer->address }}">
+                    data-address="{{ $customer->address }}"
+                    data-type="{{ $customer->type }}">
                 <i class="bi bi-pencil me-1"></i>{{ __('Edit') }}
             </button>
         @endif
@@ -29,6 +30,14 @@
 
 @section('content')
     <x-lens-note :lens="$lens" />
+
+    {{-- Section 9, 2026-10-20: said once, where it matters — its invoices
+         print on A5. --}}
+    @if($customer->isGovernment())
+        <div class="alert alert-info py-2 small d-flex align-items-center gap-2">
+            <i class="bi bi-building"></i>{{ __('Government customer — their sale invoices print on A5.') }}
+        </div>
+    @endif
 
     {{-- Section 9: a balance statement, read from the ledger. Section 4:
          account_transactions is the truth; the balance column is a cache. --}}
@@ -78,7 +87,7 @@
     <div class="mt-3">{{ $transactions->links() }}</div>
 
     @can('customers.edit')
-        <x-person-edit-modal kind="customers" id="customer-edit"
+        <x-person-edit-modal kind="customers" id="customer-edit" :types="true"
                              :title="__('Edit customer')"
                              :save="__('Save customer')" />
     @endcan

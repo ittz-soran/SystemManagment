@@ -34,7 +34,7 @@ class SettingController extends Controller
     private const SHOP_KEYS = [
         'shop_name', 'shop_name_ku', 'shop_name_ar', 'shop_name_fa',
         'shop_address', 'shop_phone', 'shop_phone_2',
-        'shop_email', 'shop_website', 'invoice_footer',
+        'shop_email', 'shop_website', 'invoice_footer', 'invoice_tagline',
     ];
 
     /** Layer 2 — appearance, applied as CSS custom properties in the layout. */
@@ -173,6 +173,8 @@ class SettingController extends Controller
             'shop_email' => ['nullable', 'email', 'max:255'],
             'shop_website' => ['nullable', 'string', 'max:255'],
             'invoice_footer' => ['nullable', 'string', 'max:500'],
+            // The banner of the A5 government invoice, one line per language.
+            'invoice_tagline' => ['nullable', 'string', 'max:300'],
 
             'primary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'secondary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],

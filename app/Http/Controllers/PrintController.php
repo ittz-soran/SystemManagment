@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\Swap;
 use App\Services\SetupProgress;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
@@ -16,16 +17,23 @@ use Illuminate\View\View;
  */
 class PrintController extends Controller
 {
-    public function sale(Sale $sale, SetupProgress $setup): View
+    public function sale(Request $request, Sale $sale, SetupProgress $setup): View
     {
         // The last step of the setup checklist, and the only one that cannot be
         // read from the shop's own data: printing leaves no trace of its own.
         // Written at most once, ever, and only from the page that does it.
         $setup->recordPrinted();
 
-        return view('print.sale', [
-            'sale' => $sale->load('customer', 'user', 'items.product'),
-        ]);
+        $sale->load('customer', 'user', 'items.product');
+
+        /*
+         * A government customer's invoice is A5, laid out as Soran's legal
+         * invoice book — PROJECT_DOC Section 9, 2026-10-20. `?paper=a4` prints
+         * the ordinary one instead, for the day somebody asks for it.
+         */
+        $government = $sale->customer->isGovernment() && $request->query('paper') !== 'a4';
+
+        return view($government ? 'print.sale-government' : 'print.sale', ['sale' => $sale]);
     }
 
     public function purchase(Purchase $purchase): View

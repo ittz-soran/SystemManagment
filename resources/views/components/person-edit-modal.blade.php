@@ -1,4 +1,4 @@
-@props(['id', 'title', 'save', 'kind'])
+@props(['id', 'title', 'save', 'kind', 'types' => false])
 
 {{--
     One modal for the whole list, filled from whichever pencil was pressed.
@@ -36,6 +36,16 @@
                     <label for="{{ $id }}-address" class="form-label">{{ __('Address') }}</label>
                     <input id="{{ $id }}-address" name="address" class="form-control">
                 </div>
+                {{-- Customers only — Soran, 2026-10-20. PROJECT_DOC Section 9. --}}
+                @if($types)
+                    <div class="mt-3">
+                        <label for="{{ $id }}-type" class="form-label">{{ __('Customer type') }}</label>
+                        <select id="{{ $id }}-type" name="type" class="form-select">
+                            <option value="{{ App\Models\Customer::NORMAL }}">{{ __('Normal') }}</option>
+                            <option value="{{ App\Models\Customer::GOVERNMENT }}">{{ __('Government — invoices print on A5') }}</option>
+                        </select>
+                    </div>
+                @endif
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
@@ -66,8 +76,13 @@
 
             form.action = opener.dataset.action ?? '';
 
-            ['name', 'phone', 'address'].forEach((field) => {
-                form.querySelector(`[name="${field}"]`).value = opener.dataset[field] ?? '';
+            ['name', 'phone', 'address', 'type'].forEach((field) => {
+                const input = form.querySelector(`[name="${field}"]`);
+
+                // The type box is only on the customers' form.
+                if (input) {
+                    input.value = opener.dataset[field] ?? input.value;
+                }
             });
         });
     })();

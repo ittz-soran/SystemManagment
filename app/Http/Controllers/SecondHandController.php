@@ -185,6 +185,8 @@ class SecondHandController extends Controller
             'condition_note' => ['nullable', 'string', 'max:255'],
             'category_id' => ['nullable', 'exists:categories,id'],
             'unit' => ['nullable', 'string', 'max:32'],
+            // Several of the same, each its own item — Section 9, 2026-10-20.
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:'.SecondHandService::MOST_AT_ONCE],
 
             // Section 2: IQD is whole numbers, never decimal.
             // Section 2b: `Amount` rather than `integer`, so the boxes can
@@ -192,9 +194,8 @@ class SecondHandController extends Controller
             // base-currency units either way.
             'cost' => ['required', new Amount($lens, min: 0)],
             'sale_price' => ['required', new Amount($lens, min: 0)],
-            // `lte` still holds: both boxes take the same currency, so
-            // comparing what was typed in them compares like with like.
-            'amount_paid' => ['nullable', new Amount($lens, min: 0), 'lte:cost'],
+            // Checked against the whole deal below, once the quantity is known.
+            'amount_paid' => ['nullable', new Amount($lens, min: 0)],
             'payment_method' => ['nullable', 'in:cash,bank,transfer'],
 
             'seller_name' => ['required', 'string', 'max:255'],
@@ -204,14 +205,22 @@ class SecondHandController extends Controller
             'seller_id' => ['nullable', 'integer', 'exists:suppliers,id'],
 
             'bought_at' => ['required', 'date'],
-        ], [
-            'amount_paid.lte' => __('Paid amount cannot exceed the price agreed.'),
         ]);
 
         // Section 2b: the three figures, as the base-currency integers stored.
         // Nothing is an edit here, so nothing can be untouched.
         foreach (['cost', 'sale_price', 'amount_paid'] as $field) {
             $data[$field] = MoneyInput::fromRequest($request, $field, $lens);
+        }
+
+        // What was paid can be anything up to the whole deal: the price agreed
+        // is for EACH one, so two laptops at 300,000 allow 600,000 paid.
+        $data['quantity'] = (int) ($data['quantity'] ?? 1);
+
+        if ((int) ($data['amount_paid'] ?? 0) > $data['cost'] * $data['quantity']) {
+            return back()->withInput()->withErrors([
+                'amount_paid' => __('Paid amount cannot exceed the price agreed.'),
+            ]);
         }
 
         try {
@@ -226,10 +235,16 @@ class SecondHandController extends Controller
 
         return redirect()
             ->route('second-hand.index')
-            ->with('success', __(':item bought from :seller', [
-                'item' => $result['product']->name,
-                'seller' => $result['seller']->name,
-            ]));
+            ->with('success', count($result['products']) > 1
+                ? __(':count × :item bought from :seller, each with its own barcode', [
+                    'count' => count($result['products']),
+                    'item' => $result['product']->name,
+                    'seller' => $result['seller']->name,
+                ])
+                : __(':item bought from :seller', [
+                    'item' => $result['product']->name,
+                    'seller' => $result['seller']->name,
+                ]));
     }
 
     /**

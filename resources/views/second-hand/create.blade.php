@@ -40,6 +40,22 @@
                             @error('condition_note')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
+                        {{-- Several of the same — Soran, 2026-10-20. Each still becomes its
+                             own item, so each gets its own barcode. PROJECT_DOC Section 9. --}}
+                        <div class="row g-3 mb-3">
+                            <div class="col-6 col-sm-4">
+                                <label for="quantity" class="form-label">{{ __('How many') }}</label>
+                                <input id="quantity" type="number" name="quantity" dir="ltr" required
+                                       min="1" max="{{ App\Services\SecondHandService::MOST_AT_ONCE }}" step="1"
+                                       value="{{ old('quantity', 1) }}"
+                                       class="form-control @error('quantity') is-invalid @enderror">
+                                @error('quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12 col-sm-8 form-text mt-sm-4 pt-sm-2">
+                                {{ __('Two or more of the same: each becomes its own item with its own barcode, at the price agreed for each.') }}
+                            </div>
+                        </div>
+
                         <div class="row g-3">
                             <div class="col-12 col-sm-4">
                                 <label for="category_id" class="form-label">{{ __('Category') }}</label>
