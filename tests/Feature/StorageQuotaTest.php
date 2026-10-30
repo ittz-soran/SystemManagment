@@ -72,7 +72,9 @@ class StorageQuotaTest extends TestCase
         $this->assertSame(StorageQuota::OK, $quota->state());
         $this->assertFalse($quota->isFull());
 
-        $this->get(route('settings.edit'))->assertOk()->assertDontSee(__('Storage'), false);
+        // The meter's heading, not the bare word: every page's menu script
+        // says sessionStorage, which contains it (2026-10-30).
+        $this->get(route('settings.edit'))->assertOk()->assertDontSee('<i class="bi bi-hdd"></i>'.__('Storage'), false);
 
         $this->post(route('categories.store'), ['name' => 'Cables'])
             ->assertSessionHasNoErrors();
@@ -388,7 +390,7 @@ class StorageQuotaTest extends TestCase
 
         $this->get(route('settings.edit'))
             ->assertOk()
-            ->assertSee(__('Storage'), false)
+            ->assertSee('<i class="bi bi-hdd"></i>'.__('Storage'), false)
             ->assertSee(__('The shop’s records'), false)
             ->assertSee(__('Backups kept'), false)
             ->assertSee(__('Uploaded files'), false);

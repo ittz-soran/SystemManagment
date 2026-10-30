@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $purchase->document_no)
+@section('steps')<x-document-steps :document="$purchase" />@endsection
 @section('subheading')
     {{ $purchase->purchase_date->format(setting('date_format', 'Y-m-d')) }} · {{ $purchase->supplier->name }}
 @endsection

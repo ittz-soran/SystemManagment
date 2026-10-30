@@ -2544,5 +2544,10 @@
     "the colour is not one the designer gives.": "رنگ از رنگ‌هایی نیست که طراح می‌دهد.",
     "The invoice options could not be read. Reload the designer and try again.": "گزینه‌های فاکتور خوانده نشدند. طراح را دوباره بارگذاری و دوباره تلاش کنید.",
     "The unit words could not be read.": "واژه‌های واحد خوانده نشدند.",
-    "A unit's word on the invoice can be at most :n letters.": "واژه واحد روی فاکتور حداکثر می‌تواند :n حرف باشد."
+    "A unit's word on the invoice can be at most :n letters.": "واژه واحد روی فاکتور حداکثر می‌تواند :n حرف باشد.",
+    "Previous and next": "قبلی و بعدی",
+    "Previous: :number": "قبلی: :number",
+    "Next: :number": "بعدی: :number",
+    "This is the first": "این اولی است",
+    "This is the last": "این آخری است"
 }

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $transfer->document_no)
+@section('steps')<x-document-steps :document="$transfer" />@endsection
 
 @section('content')
     <div class="card mb-3">

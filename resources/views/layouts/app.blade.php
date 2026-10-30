@@ -182,6 +182,7 @@
             </div>
 
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <div class="d-flex flex-wrap align-items-center gap-3">
                 <div>
                     {{-- Printed raw on purpose, and only safe because of what
                          is on the other end: every page sets its title with
@@ -202,6 +203,10 @@
                     @hasSection('subheading')
                         <div class="text-secondary small">@yield('subheading')</div>
                     @endif
+                </div>
+                {{-- A numbered document's previous and next, beside its number —
+                     Soran, 2026-10-30. See <x-document-steps>. --}}
+                @yield('steps')
                 </div>
                 {{-- ⚠️ `flex-wrap`, and a phone is why.
 

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $payment->document_no)
+@section('steps')<x-document-steps :document="$payment" />@endsection
 @section('subheading')
     {{ $payment->paid_at->format(setting('date_format', 'Y-m-d')) }}
     · {{ Str::headline($payment->payment_method) }}
