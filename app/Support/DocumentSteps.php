@@ -11,6 +11,7 @@ use App\Models\Repair;
 use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\StockAdjustment;
+use App\Models\StockCheck;
 use App\Models\StockTransfer;
 use App\Models\Swap;
 use Illuminate\Database\Eloquent\Builder;
@@ -45,6 +46,7 @@ final class DocumentSteps
         Repair::class => 'repairs.show',
         Swap::class => 'swaps.show',
         Assembly::class => 'assemblies.show',
+        StockCheck::class => 'stock-checks.show',
     ];
 
     /**

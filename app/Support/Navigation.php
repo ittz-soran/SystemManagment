@@ -97,6 +97,7 @@ final class Navigation
                 ['route' => 'services.index', 'permission' => 'services.view', 'icon' => 'magic', 'label' => __('Services')],
                 ['route' => 'repairs.index', 'permission' => 'repairs.view', 'icon' => 'tools', 'label' => __('Repairs')],
                 ['route' => 'stock-adjustments.index', 'permission' => 'stock_adjustments.view', 'icon' => 'sliders', 'label' => __('Stock adjustments')],
+                ['route' => 'stock-checks.index', 'permission' => 'stock_checks.view', 'icon' => 'clipboard-check', 'label' => __('Stock check')],
                 ['route' => 'stock-rooms.index', 'permission' => 'stock_rooms.view', 'icon' => 'building', 'label' => __('Stock rooms')],
                 ['route' => 'stock-transfers.index', 'permission' => 'stock_rooms.view', 'icon' => 'box-arrow-right', 'label' => __('Stock moves')],
                 ['route' => 'assemblies.index', 'permission' => 'assemblies.view', 'icon' => 'boxes', 'label' => __('Take apart & build')],

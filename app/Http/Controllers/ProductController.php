@@ -66,6 +66,12 @@ class ProductController extends Controller
             // WHERE category_id IN (...) — no pivot table needed.
             ->when($request->filled('categories'), fn ($q) => $q->whereIn('category_id', $request->array('categories')))
             ->when($request->boolean('low_stock'), fn ($q) => $q->whereColumn('quantity', '<=', DB::raw('COALESCE(reorder_level, '.(int) setting('low_stock_threshold', 0).')')))
+            // The stock check, 2026-10-30: not counted on a shelf in a month —
+            // read from the rounds' answers, never kept on the product.
+            ->when($request->boolean('unchecked') && $request->user()->hasPermission('stock_checks.view'), fn ($q) => $q->whereNotExists(
+                fn ($sub) => $sub->from('stock_check_lines')->whereColumn('stock_check_lines.product_id', 'products.id')
+                    ->where('stock_check_lines.checked_at', '>=', now()->subDays(30))
+            ))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status') === 'active'))
             ->orderBy('name')
             ->paginate($request->user()->items_per_page)

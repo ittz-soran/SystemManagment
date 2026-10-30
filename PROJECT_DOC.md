@@ -1916,6 +1916,50 @@ also matches the byte 0x85 — the second half of the letter **م** in UTF-8. So
 the م had been. Every test passed, because every test typed English. It splits
 with `/u` now, and a test prints both words.
 
+### Stock check — Soran, 2026-10-30
+
+*"another thing is stock check manually, for ex in Stock Check show PD-17L-UK In stock, batches, movments... and Show Confirm (mean all correct not need movment), Skip (Show another product), Wrong (mean need correction by ADJ or return)"* — and he asked for more options first. Offered three questions, he chose: **a wrong product is counted and fixed now or later**; **rounds with progress**; and **all four extras** — scan to open, a blind count, *last checked* on products, a report at the end.
+
+**A round** is one pass over the shelves, numbered **CHK-00001** like every document (Section 7b), so it has a page, previous and next, and a place in the activity log. Started with:
+
+- **What to count** — every product, one category, or one stock room (only while the stock rooms section is on, Section 8h). Services hold no stock and are never in a round.
+- **Only products the system says are in stock**, ticked to start; untick to take in the ones at zero too, for the shelf that has something the books say it does not.
+- **Blind count**, off to start — see below.
+
+The round lists its products when it starts, in category and then name order, the order a shop's shelves are most likely to be in. **It does not fix their figures then**: a round runs for days, the till keeps selling, and the figure a product is checked against is the one it has *when it is checked*.
+
+**Checking one product** shows its name, codes and category; what the system says it has — and, with rooms on, how much in each room; its **open batches** (date, the document that brought them, what is left, and the cost to a reader who may see cost); its **last movements**; and when it was last checked and by whom. Then three answers:
+
+- **Confirm** — the shelf agrees. Nothing moves.
+- **Skip** — not now. It comes back after every product not yet looked at, so a skipped one is never lost and never in the way.
+- **Wrong** — the count is typed and the difference shown (*system 5, shelf 3: −2*), and then either:
+  - **Make the ADJ now** — Section 4's adjustment, filled in: the product, the direction and the number from the difference, the reason *Stock check CHK-00003*. Out takes the units FIFO at their true cost; in needs a cost, offered as the latest batch's and changed if it is wrong. Only for a reader who may make adjustments (`stock_adjustments.create`), and only against the main room, because that is the room every adjustment acts on (stock rooms, 2026-09-15). If the main room does not hold the units, the refusal says where they are, as it does at the till.
+  - **Fix later**, with a note — *"Hawkar has one, needs a return"*. It goes on the **To fix** list.
+
+⚠️ **The stock is read again when the answer is saved.** If it changed while the shelf was being counted — a sale at the till — the answer is refused and the product shown again with the new figure. A count against a figure that has since moved is not a count of anything, and an adjustment made from it would put a wrong number right by making it wrong the other way.
+
+**Blind count**: the system's figure, the batches and the movements are hidden until the count is typed. Then they are shown: a count that agrees is confirmed, and one that does not goes on as *Wrong* with the count already in. It stops a tired person confirming because the screen said so.
+
+**Scan to open**: in a round, scanning a product's barcode or typing its code opens that product, wherever it is in the list. A code not in this round says so.
+
+**Progress**: *120 of 450 · confirmed 110 · wrong 6 · skipped 4*. A round can be left and continued any day, and **finished** when the shop says so; what was never looked at is reported as *not checked*, not as confirmed.
+
+**To fix** is every *wrong* answer not yet put right, from every round. Each can still have its ADJ made, or be marked **fixed** with a note when the fix was something else — a return, a sale entered late.
+
+**Last checked** on the product page — *Checked 12 days ago by Soran: confirmed* — and on the products list a filter, **not checked for 30 days**. Read from the rounds' answers rather than kept on the product, so it can never disagree with them.
+
+**The report** is the round's own page, and prints: the counts; every wrong product with the system's figure, the count, the difference and its value at cost; how each was put right, or that it is still to fix. The value of an ADJ is its true FIFO cost; a difference not yet adjusted is valued at its latest batch cost and **says it is an estimate**. Values are shown only to a reader who may see cost (Section 4).
+
+**Permissions**: `stock_checks.view` — the rounds, the report, the To fix list; `stock_checks.count` — start a round and answer in it. Making the ADJ needs `stock_adjustments.create` as well. Added to the catalogue and, for a shop already running, by a migration, since an update only migrates.
+
+**Built 2026-10-30**: `stock_checks` and `stock_check_lines` (migration 000062, which adds the two permissions too), `StockCheck`, `StockCheckLine`, `StockCheckService`, `StockCheckController`, the pages under `stock-checks/` and `print/stock-check`, the menu item after Stock adjustments. CHK joins Section 7b's numbering, the integrity check and previous/next (Section 9b), and a counted product is held by its round, so it cannot be purged from under the report (Section 8). The shelf order is *natural* — *Cable no.2* before *Cable no.10*, as a person shelves them, where a plain sort put 10 first.
+
+- ⚠️ **Confirm and Skip are one tap**, not the two-second hold every Save has. Neither moves stock or money, a round can run to four hundred products, and a hold on each would be a quarter of an hour of holding. Start, Wrong, its ADJ, Mark fixed and Finish keep the hold. Soran's to overrule.
+- **Blind is against a tired eye, not a dishonest one.** The figure the screen was built on travels with the form, hidden, so the answer can be checked against the stock as it is now; somebody who opens the page's source can read it.
+- `StockCheckTest`, 23 tests. Nineteen guards sabotaged and caught — three only after the tests were tightened: a service holding stock was never tried, a code from *another* round was never scanned, and the blind count's own refusal of a moved figure had no test at all. The whole suite found one more: the report valued an ADJ out with `unit_cost` multiplied in raw SQL, which `UnsignedCostTest` forbids (Section 5); it uses `StockMovement::VALUE`.
+- Driven in Chromium: a round started, one confirmed, one skipped, a Wrong with the ADJ made (ADJ-00001, −1 at its FIFO cost), a Wrong left to fix with a note, the report — *3 of 14 · confirmed 1 · wrong 2 · skipped 1*, the unadjusted value marked *estimate*, eleven not checked — the To fix list, and a blind round that showed the figure only after a count. No script errors.
+- 104 new strings in Sorani, Arabic and Persian.
+
 ### Repair jobs — Soran, 2026-09-20
 
 **Asked for as "a useful section that is not in my system", and it is the biggest gap a phone shop has.** *Services* already exists and is often mistaken for this: it is a price line — *Screen replacement, 25,000* — added to a sale. It records the money and nothing about the job. Whose phone it is, what is wrong with it, what it looked like when it came in, which stage it is at, and what went into it are all on paper today.
@@ -3406,6 +3450,7 @@ it before it has been read destroys the only record of what went wrong.
 
 | Date | Done | Next |
 |---|---|---|
+| 2026-10-30 | **Stock check** (Section 9). *"another thing is stock check manually, for ex in Stock Check show PD-17L-UK In stock, batches, movments... and Show Confirm …, Skip …, Wrong (mean need correction by ADJ or return)"* — and his four extras. Rounds numbered CHK-00001 over every product, one category or one stock room, in shelf order; each product shows its stock, rooms, open batches and last movements; **Confirm**, **Skip** (it comes back after the rest) or **Wrong** with the count typed, then the ADJ now on the main room or **To fix** with a note. The stock is read again on every answer, so a sale during the count refuses it. Blind count, scan to open, *last checked* on the product and a *not checked for 30 days* filter, and the report — on screen and printed — with values at cost for a reader who sees cost, the unadjusted ones marked *estimate*. `stock_checks.view` and `stock_checks.count`. 104 new strings in Sorani, Arabic and Persian. Nineteen guards sabotaged and caught, three after tightening the tests. Suite: 1,676 tests, 3 skipped as before. | Soran to run the update (migration 000062), give staff the two permissions, and count one shelf |
 | 2026-10-30 | **Previous and next on every numbered document, and a menu that keeps its place** (Section 9b). *"if tab next go INV-00111 if have and back to INV-00109 … for INV,PUR,PRT,SRT,ADJ,PAY,EXP and other page"*: eleven pages carry *‹ INV-00109 · INV-00111 ›* beside the number, by number (length, then text, so past 99,999 too), deleted documents stepped over, greyed at the ends. *"left slide after reload … not stay show scrolled before reload"*: the sidebar's scroll is kept for the tab and put back before the first paint. Pagination's corners put right in right-to-left, which every list's page numbers had wrong. Five new strings. Seven guards sabotaged and caught, two more in the browser. Suite: 1,653 tests, 3 skipped as before. | — |
 | 2026-10-20 | **What the invoice says, and how** (Section 9). *"set numbers language -> have curency Symbol or not -> text color -> INV-009 show as 009 or not -> … " - " or empty " " -> … "١ دانە" or just show " ١ ""*. Invoice options on the designer: 123 · ١٢٣ · ۱۲۳ for the figures, the currency symbol on the total, the invoice number as it is or the number only, a dash or nothing for an empty layer, the quantity with its unit or without, and the invoice's own word for each unit (pcs → دانە); a text colour on every layer. The designer shows each choice as it is made, and the browser was held to the print's own words. Kurdish hundreds are two words now — *شەش سەد* — everywhere, at his word. 14 new strings. Sixteen guards sabotaged and caught. Suite: 1,645 tests, 3 skipped as before. | Soran to choose his options |
 | 2026-10-20 | **The invoice designer** (Section 9). *"should layers are changeable and sizes with fonts … product have more one line … use best tool to design invoice inside system"*. Settings → Invoice designer: his paper with every layer drawn on it, dragged and resized with interact.js, font size, bold and show per layer, the item lines' row height and column lines; his own font uploaded, checked by its first bytes; the item rows grow with their names and draw their line after, and the browser moves what does not fit on to more sheets. The paper upload moved here from Settings. 42 new strings in Sorani, Arabic and Persian. Sixteen guards sabotaged and caught; three faults found only by driving it. Suite: 1,625 tests, 3 skipped as before. | Soran to upload his cleaned paper and his font, and print one |

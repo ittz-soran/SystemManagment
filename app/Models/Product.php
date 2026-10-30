@@ -204,6 +204,9 @@ class Product extends Model
         'assembly_items' => ['assembly_id', 'assemblies'],
         'stock_transfer_items' => ['stock_transfer_id', 'stock moves'],
         'repair_items' => ['repair_id', 'repairs'],
+        // The stock check, 2026-10-30: a product counted is part of a round's
+        // record, like one sold is part of an invoice's.
+        'stock_check_lines' => ['stock_check_id', 'stock checks'],
     ];
 
     /**
@@ -342,6 +345,7 @@ class Product extends Model
                 'assemblies' => trans_choice('{1}:count assembly|[2,*]:count assemblies', $count, $n),
                 'stock moves' => trans_choice('{1}:count stock move|[2,*]:count stock moves', $count, $n),
                 'repairs' => trans_choice('{1}:count repair|[2,*]:count repairs', $count, $n),
+                'stock checks' => trans_choice('{1}:count stock check|[2,*]:count stock checks', $count, $n),
                 default => trans_choice('{1}:count stock movement|[2,*]:count stock movements', $count, $n),
             };
         }

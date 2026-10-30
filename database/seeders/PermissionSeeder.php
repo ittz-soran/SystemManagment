@@ -149,6 +149,16 @@ class PermissionSeeder extends Seeder
             'stock_adjustments.edit' => 'Edit stock adjustments',
             'stock_adjustments.delete' => 'Delete stock adjustments',
         ],
+        /*
+         * The stock check — Soran, 2026-10-30. Its own keys: counting a shelf
+         * is a job a shop gives to somebody it would not let adjust stock, so
+         * making the ADJ from a wrong count needs stock_adjustments.create as
+         * well. A migration adds these to a shop already running.
+         */
+        'stock_checks' => [
+            'stock_checks.view' => 'See stock checks and what is still to fix',
+            'stock_checks.count' => 'Start a stock check and count in it',
+        ],
         'stock' => [
             'stock.recheck' => 'Recheck stock against batch sums',
         ],

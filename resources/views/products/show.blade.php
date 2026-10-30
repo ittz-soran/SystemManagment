@@ -65,6 +65,32 @@
 @section('content')
     <x-lens-note :lens="$lens" />
 
+    {{-- The stock check, 2026-10-30: when the shelf was last counted, read from
+         the rounds' answers rather than kept on the product, so it can never
+         disagree with them. --}}
+    @if(! $product->isService())
+        @can('stock_checks.view')
+            @php
+                $lastCheck = App\Models\StockCheckLine::where('product_id', $product->id)->whereNotNull('checked_at')
+                    ->with(['checker', 'stockCheck'])->latest('checked_at')->first();
+            @endphp
+            <div class="small text-secondary mb-3" data-last-checked>
+                <i class="bi bi-clipboard-check me-1"></i>
+                @if($lastCheck)
+                    {{ __('Checked :when by :name', ['when' => $lastCheck->checked_at->diffForHumans(), 'name' => $lastCheck->checker?->name]) }}:
+                    @if($lastCheck->status === App\Models\StockCheckLine::CONFIRMED)
+                        {{ __('confirmed') }}
+                    @else
+                        {{ __('wrong') }} ({{ $lastCheck->difference() > 0 ? '+' : '−' }}{{ abs($lastCheck->difference()) }})
+                    @endif
+                    · <a href="{{ route('stock-checks.show', $lastCheck->stockCheck) }}">{{ $lastCheck->stockCheck->document_no }}</a>
+                @else
+                    {{ __('Never checked in a stock check.') }}
+                @endif
+            </div>
+        @endcan
+    @endif
+
     @php
         $batchSum = (int) $product->stockBatches()->sum('quantity_remaining');
         $movementSum = (int) $product->stockMovements()->sum('quantity');

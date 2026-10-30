@@ -132,6 +132,14 @@
                            @checked(request()->boolean('low_stock'))>
                     <label class="form-check-label small" for="low_stock">{{ __('Low stock only') }}</label>
                 </div>
+                {{-- The stock check, 2026-10-30. --}}
+                @can('stock_checks.view')
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="unchecked" name="unchecked" value="1"
+                               @checked(request()->boolean('unchecked'))>
+                        <label class="form-check-label small" for="unchecked">{{ __('Not checked for 30 days') }}</label>
+                    </div>
+                @endcan
             </div>
         </div>
     </form>
