@@ -228,10 +228,13 @@ class StockCheckService
                 product: $product,
                 direction: $difference > 0 ? StockAdjustment::DIRECTION_IN : StockAdjustment::DIRECTION_OUT,
                 quantity: abs($difference),
-                reason: __('Stock check :number', ['number' => $check->document_no]),
+                // ⚠️ The reason is an enum of Section 4's five; MariaDB refuses
+                // any other word, where SQLite here stores it. The round's
+                // number goes in the notes.
+                reason: 'miscount',
                 user: $user,
                 unitCost: $difference > 0 ? ($unitCost ?? $this->latestCost($product)) : null,
-                notes: $line->note,
+                notes: __('Stock check :number', ['number' => $check->document_no]).($line->note ? ' — '.$line->note : ''),
             );
 
             $line->forceFill([

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\StockAdjustmentController;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Permission;
@@ -252,7 +253,10 @@ class StockCheckTest extends TestCase
         $this->assertSame([StockCheckLine::WRONG, 5, 3, -2], [$line->status, $line->expected, $line->counted, $line->difference()]);
         $this->assertSame(StockCheckLine::FIX_ADJUSTED, $line->fix);
         $this->assertSame([StockAdjustment::DIRECTION_OUT, 2], [$adjustment->direction, (int) $adjustment->quantity]);
-        $this->assertSame(__('Stock check :number', ['number' => 'CHK-00001']), $adjustment->reason);
+        // One of the column's five reasons — MariaDB refuses any other word.
+        $this->assertSame('miscount', $adjustment->reason);
+        $this->assertContains($adjustment->reason, StockAdjustmentController::REASONS);
+        $this->assertSame(__('Stock check :number', ['number' => 'CHK-00001']).' — two gone', $adjustment->notes);
         $this->assertSame(3, $this->held($cable));
         $this->assertSame(['value' => -2_000, 'estimate' => false], app(StockCheckService::class)->value($line));
     }
