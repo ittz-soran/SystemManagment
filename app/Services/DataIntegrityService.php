@@ -737,6 +737,7 @@ final class DataIntegrityService
             'INV' => 'sales', 'PUR' => 'purchases', 'SRT' => 'sale_returns',
             'PRT' => 'purchase_returns', 'PAY' => 'payments',
             'ADJ' => 'stock_adjustments', 'EXP' => 'expenses',
+            'CHK' => 'stock_checks',
         ];
 
         $counters = DocumentCounter::pluck('next_number', 'prefix');

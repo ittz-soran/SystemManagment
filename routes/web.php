@@ -36,6 +36,7 @@ use App\Http\Controllers\SecondHandController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockCheckController;
 use App\Http\Controllers\StockRoomController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\StockTransferController;
@@ -482,6 +483,34 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:stock_adjustments.edit')->name('stock-adjustments.update');
     Route::delete('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'destroy'])
         ->middleware('permission:stock_adjustments.delete')->name('stock-adjustments.destroy');
+
+    /*
+     * The stock check — PROJECT_DOC Section 9, Soran, 2026-10-30. Seeing the
+     * rounds and the report is one permission; starting a round and answering
+     * in it is another. Making the ADJ also needs stock_adjustments.create,
+     * which the service checks. A line is reached through its own round only.
+     */
+    Route::middleware('permission:stock_checks.view')->group(function () {
+        Route::get('stock-checks', [StockCheckController::class, 'index'])->name('stock-checks.index');
+        Route::get('stock-checks/to-fix', [StockCheckController::class, 'toFix'])->name('stock-checks.to-fix');
+        Route::get('stock-checks/{stockCheck}', [StockCheckController::class, 'show'])->whereNumber('stockCheck')->name('stock-checks.show');
+        Route::get('stock-checks/{stockCheck}/print', [StockCheckController::class, 'print'])->whereNumber('stockCheck')->name('stock-checks.print');
+    });
+    Route::middleware(['permission:stock_checks.view', 'permission:stock_checks.count'])->group(function () {
+        Route::post('stock-checks', [StockCheckController::class, 'store'])->name('stock-checks.store');
+        Route::get('stock-checks/{stockCheck}/next', [StockCheckController::class, 'next'])->name('stock-checks.next');
+        Route::get('stock-checks/{stockCheck}/scan', [StockCheckController::class, 'scan'])->name('stock-checks.scan');
+        Route::post('stock-checks/{stockCheck}/finish', [StockCheckController::class, 'finish'])->name('stock-checks.finish');
+        Route::scopeBindings()->group(function () {
+            Route::get('stock-checks/{stockCheck}/lines/{line}', [StockCheckController::class, 'line'])->name('stock-checks.line');
+            Route::post('stock-checks/{stockCheck}/lines/{line}/confirm', [StockCheckController::class, 'confirm'])->name('stock-checks.confirm');
+            Route::post('stock-checks/{stockCheck}/lines/{line}/skip', [StockCheckController::class, 'skip'])->name('stock-checks.skip');
+            Route::post('stock-checks/{stockCheck}/lines/{line}/count', [StockCheckController::class, 'count'])->name('stock-checks.count');
+            Route::post('stock-checks/{stockCheck}/lines/{line}/answer', [StockCheckController::class, 'answer'])->name('stock-checks.answer');
+        });
+        Route::post('stock-checks/lines/{line}/adjust', [StockCheckController::class, 'adjust'])->name('stock-checks.adjust');
+        Route::post('stock-checks/lines/{line}/fixed', [StockCheckController::class, 'fixed'])->name('stock-checks.fixed');
+    });
 
     Route::middleware('permission:stock.recheck')->group(function () {
         Route::get('stock/recheck', [StockAdjustmentController::class, 'recheckStock'])->name('stock.recheck');

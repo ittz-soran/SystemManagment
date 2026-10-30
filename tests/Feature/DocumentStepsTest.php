@@ -157,14 +157,15 @@ class DocumentStepsTest extends TestCase
     {
         $pages = (new ReflectionClass(DocumentSteps::class))->getConstant('PAGES');
 
-        $this->assertCount(11, $pages);
+        // Twelve since the stock check's rounds, 2026-10-30.
+        $this->assertCount(12, $pages);
 
         foreach ($pages as $model => $route) {
             $this->assertTrue(Route::has($route), "{$route} for {$model}");
         }
 
         foreach (['sales', 'purchases', 'sale-returns', 'purchase-returns', 'payments', 'expenses',
-            'stock-adjustments', 'stock-transfers', 'repairs', 'swaps', 'assemblies'] as $folder) {
+            'stock-adjustments', 'stock-transfers', 'repairs', 'swaps', 'assemblies', 'stock-checks'] as $folder) {
             $this->assertStringContainsString(
                 "@section('steps')<x-document-steps",
                 file_get_contents(resource_path("views/{$folder}/show.blade.php")),

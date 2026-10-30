@@ -76,6 +76,10 @@ php artisan translations:check --sync               # adds empty keys to fill in
 - **Two clocks**: `TradeProfit` is by period, `DocumentProfit` by cohort. Anything
   printing either says which.
 - **Never hard-code ids in tests** — SQLite and MariaDB number rows differently.
+- **An enum column takes any word on SQLite here** — earlier migrations rebuilt
+  the tables without the check. MariaDB refuses it (*data truncated*), and
+  `problem()` shows that as "something else depends on this record". Write only
+  the column's listed values, and assert the value in the test.
 - **Git does not keep file times.** Never compare two files' `filemtime` — a
   fresh clone writes them in any order. Check the built bundle by what it
   contains (`AssetBuildTest`).
