@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $swap->document_no)
+@section('steps')<x-document-steps :document="$swap" />@endsection
 @section('subheading')
     {{ $swap->swapped_at->format(setting('date_format', 'Y-m-d')) }}
     @if($swap->sale?->customer)

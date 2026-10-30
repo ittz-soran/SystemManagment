@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $adjustment->document_no)
+@section('steps')<x-document-steps :document="$adjustment" />@endsection
 @section('subheading')
     {{ $adjustment->adjusted_at->format(setting('date_format', 'Y-m-d')) }}
     · <x-document-link :document="$adjustment->product" :kind="false" />

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $expense->document_no)
+@section('steps')<x-document-steps :document="$expense" />@endsection
 @section('subheading')
     {{ $expense->expense_date->format(setting('date_format', 'Y-m-d')) }}
     · {{ $expense->category->name }}

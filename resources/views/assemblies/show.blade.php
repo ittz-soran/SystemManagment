@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $assembly->document_no)
+@section('steps')<x-document-steps :document="$assembly" />@endsection
 @section('subheading')
     {{ $assembly->assembled_at->format(setting('date_format', 'Y-m-d')) }}
     · {{ $assembly->isApart() ? __('Taken apart') : __('Built from parts') }}

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $return->document_no)
+@section('steps')<x-document-steps :document="$return" />@endsection
 @section('subheading')
     {{ $return->return_date->format(setting('date_format', 'Y-m-d')) }} · {{ $return->customer->displayName() }}
     · @can('sales.view')

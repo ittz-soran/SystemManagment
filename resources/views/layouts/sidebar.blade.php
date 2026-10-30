@@ -88,3 +88,47 @@
     </nav>
     </div>
 </aside>
+
+{{--
+    The menu keeps its place — Soran, 2026-10-30: "left slide after reload
+    browser scroll position if forgetn not stay show scrolled before reload".
+
+    Inline, straight after the menu, and not in app.js: app.js is a deferred
+    module and runs after the first paint, so the menu would be drawn at the
+    top and then jump. Here it is put back before anything is drawn. Kept for
+    the tab, so a reload and a click on an item near the bottom both keep it.
+
+    Both boxes, because which one scrolls depends on the screen: the menu
+    itself beside the page, its body in the phone's drawer.
+--}}
+<script>
+    (() => {
+        const KEY = 'nav:sidebar-scroll';
+        const menu = document.getElementById('app-nav');
+        const boxes = [menu, menu.querySelector('.offcanvas-body')];
+
+        try {
+            const kept = JSON.parse(sessionStorage.getItem(KEY) || '[]');
+            boxes.forEach((box, i) => { if (box && kept[i] > 0) box.scrollTop = kept[i]; });
+        } catch { /* a private window: the menu starts at the top, as before */ }
+
+        // Arriving by a link, this page's own item stays in sight — reached
+        // from the search box, the kept place may be far from it. A reload, or
+        // Back, puts the menu exactly where it was and nowhere else: that is
+        // what was asked for, and the first version's nudge moved it.
+        const how = performance.getEntriesByType?.('navigation')[0]?.type;
+        const active = menu.querySelector('.nav-link.active');
+        if (how === 'navigate' && active && menu.scrollHeight > menu.clientHeight) {
+            const item = active.getBoundingClientRect();
+            const box = menu.getBoundingClientRect();
+            if (item.top < box.top) menu.scrollTop -= box.top - item.top + 8;
+            else if (item.bottom > box.bottom) menu.scrollTop += item.bottom - box.bottom + 8;
+        }
+
+        addEventListener('pagehide', () => {
+            try {
+                sessionStorage.setItem(KEY, JSON.stringify(boxes.map((box) => box?.scrollTop ?? 0)));
+            } catch { /* ignore */ }
+        });
+    })();
+</script>

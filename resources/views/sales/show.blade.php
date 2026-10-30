@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $sale->document_no)
+@section('steps')<x-document-steps :document="$sale" />@endsection
 @section('subheading')
     {{ $sale->sale_date->format(setting('date_format', 'Y-m-d')) }} · {{ $sale->soldTo() }}
 @endsection

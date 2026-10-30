@@ -1170,6 +1170,29 @@ a.stat-tile {
   }
 }
 
+// Pagination reads inside-out in RTL as well — the same physical corners and
+// the same collapsing margin. Found on a document's previous and next in
+// Sorani, 2026-10-30: the two halves were rounded where they meet and square
+// at the ends, and every list's page numbers had been drawn the same way.
+[dir='rtl'] {
+  .page-item:not(:first-child) .page-link {
+    margin-left: 0;
+    margin-right: calc(var(--bs-border-width) * -1);
+  }
+
+  .page-item:first-child .page-link {
+    border-radius: 0 var(--bs-pagination-border-radius) var(--bs-pagination-border-radius) 0;
+  }
+
+  .page-item:last-child .page-link {
+    border-radius: var(--bs-pagination-border-radius) 0 0 var(--bs-pagination-border-radius);
+  }
+
+  .page-item:first-child:last-child .page-link {
+    border-radius: var(--bs-pagination-border-radius);
+  }
+}
+
 // An input group reads inside-out in RTL too, for the same reason as the
 // button group: Bootstrap rounds the outer corners with physical properties.
 //

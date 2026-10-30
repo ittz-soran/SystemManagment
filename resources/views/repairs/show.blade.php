@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', $repair->device)
+@section('steps')<x-document-steps :document="$repair" />@endsection
 @section('subheading', $repair->document_no.' · '.$repair->customer->name)
 
 @section('back')
