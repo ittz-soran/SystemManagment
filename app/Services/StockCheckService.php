@@ -10,6 +10,7 @@ use App\Models\StockCheckLine;
 use App\Models\StockMovement;
 use App\Models\StockRoom;
 use App\Models\User;
+use App\Support\Notifications;
 use App\Support\Sections;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -33,9 +34,16 @@ class StockCheckService
         private ActivityLogger $logger,
     ) {}
 
-    /** Begin a round: what it counts, and the products it walks, in shelf order. */
-    public function start(string $scope, ?int $categoryId, ?int $roomId, bool $withEmpty, bool $blind, User $user): StockCheck
+    /**
+     * Begin a round: what it counts, and the products it walks, in shelf
+     * order — or send it to one person to count (Soran, 2026-10-30).
+     */
+    public function start(string $scope, ?int $categoryId, ?int $roomId, bool $withEmpty, bool $blind, User $user, ?User $assignee = null): StockCheck
     {
+        if ($assignee !== null) {
+            $this->assertMaySend($user, $assignee);
+        }
+
         if (! in_array($scope, [StockCheck::SCOPE_ALL, StockCheck::SCOPE_CATEGORY, StockCheck::SCOPE_ROOM], true)) {
             throw new RuntimeException(__('Choose what to count.'));
         }
@@ -70,7 +78,7 @@ class StockCheckService
             throw new RuntimeException(__('There is nothing to count there.'));
         }
 
-        return DB::transaction(function () use ($scope, $categoryId, $roomId, $withEmpty, $blind, $user, $products) {
+        return DB::transaction(function () use ($scope, $categoryId, $roomId, $withEmpty, $blind, $user, $assignee, $products) {
             $check = StockCheck::create([
                 'document_no' => $this->numbers->next(DocumentNumberService::PREFIX_STOCK_CHECK),
                 'scope' => $scope,
@@ -80,6 +88,7 @@ class StockCheckService
                 'blind' => $blind,
                 'started_at' => now(),
                 'user_id' => $user->id,
+                'assigned_to' => $assignee?->id,
             ]);
 
             $now = now();
@@ -95,12 +104,34 @@ class StockCheckService
                 ])->values()->all());
             }
 
-            $this->logger->log(
-                action: 'create',
-                module: 'stock_checks',
-                recordId: $check->id,
-                description: __('Started stock check :number', ['number' => $check->document_no]),
-            );
+            if ($assignee === null) {
+                $this->logger->log(
+                    action: 'create',
+                    module: 'stock_checks',
+                    recordId: $check->id,
+                    description: __('Started stock check :number', ['number' => $check->document_no]),
+                );
+            } else {
+                /*
+                 * ⚠️ Addressed to the counter, and an alert — the tier that is
+                 * always on. Work sent to somebody by name is not news they
+                 * may have switched off. The name is in the words because the
+                 * phone shows the words alone.
+                 */
+                $words = ['name' => $user->name, 'number' => $check->document_no, 'scope' => $check->scopeName()];
+
+                $this->logger->log(
+                    action: 'create',
+                    module: 'stock_checks',
+                    recordId: $check->id,
+                    description: $blind
+                        ? __(':name sent you stock check :number: :scope, blind count', $words)
+                        : __(':name sent you stock check :number: :scope', $words),
+                    user: $user,
+                    tier: Notifications::ALERT,
+                    recipient: $assignee,
+                );
+            }
 
             return $check;
         });
@@ -134,9 +165,10 @@ class StockCheckService
     }
 
     /** Skip — not now. It comes back after every product not yet looked at. */
-    public function skip(StockCheckLine $line): void
+    public function skip(StockCheckLine $line, User $user): void
     {
         $this->assertOpen($line);
+        $this->assertMayAnswer($line->stockCheck, $user);
 
         if (! in_array($line->status, [StockCheckLine::PENDING, StockCheckLine::SKIPPED], true)) {
             throw new RuntimeException(__('This product has already been answered.'));
@@ -156,6 +188,13 @@ class StockCheckService
     public function answer(StockCheckLine $line, int $seen, int $counted, string $fix, ?string $note, ?int $unitCost, User $user): StockCheckLine
     {
         $this->assertOpen($line);
+        $this->assertMayAnswer($line->stockCheck, $user);
+
+        // ⚠️ Sent to someone: they count, and the admin fixes from To fix —
+        // whatever the form sent, and even when the counter could adjust.
+        if ($line->stockCheck->isSent()) {
+            $fix = StockCheckLine::FIX_LATER;
+        }
 
         if ($counted < 0) {
             throw new RuntimeException(__('A count cannot be below zero.'));
@@ -270,20 +309,74 @@ class StockCheckService
         );
     }
 
-    /** The shop says the round is done. What was never looked at stays "not checked". */
-    public function finish(StockCheck $check): void
+    /**
+     * A blind count that did not agree, kept before the figure is shown. Only
+     * the first: the report sets it beside the answer, so a count typed after
+     * reading the figure cannot pass for one made without it.
+     */
+    public function firstCount(StockCheckLine $line, int $counted, User $user): void
     {
+        $this->assertOpen($line);
+        $this->assertMayAnswer($line->stockCheck, $user);
+
+        if ($line->stockCheck->blind && $line->first_count === null
+            && in_array($line->status, [StockCheckLine::PENDING, StockCheckLine::SKIPPED], true)) {
+            $line->forceFill(['first_count' => max(0, $counted)])->save();
+        }
+    }
+
+    /** The shop says the round is done. What was never looked at stays "not checked". */
+    public function finish(StockCheck $check, User $user): void
+    {
+        if (! $check->finishableBy($user)) {
+            throw new RuntimeException(__('Only the person it was sent to, or the person who sent it, can finish this stock check.'));
+        }
+
         if ($check->isFinished()) {
             return;
         }
 
         $check->forceFill(['finished_at' => now()])->save();
 
+        /*
+         * Sent to someone: the other of the two is told — the sender that it is
+         * done, with what it found; the counter, when the sender stopped it
+         * early, that there is nothing left to count.
+         */
+        $other = match (true) {
+            ! $check->isSent() => null,
+            $check->isSentTo($user) => $check->user,
+            default => $check->assignee,
+        };
+
+        if ($other !== null && ! $other->is($user)) {
+            $progress = $check->progress();
+
+            $this->logger->log(
+                action: 'update',
+                module: 'stock_checks',
+                recordId: $check->id,
+                description: __(':name finished stock check :number: :confirmed confirmed, :wrong wrong, :unchecked not checked', [
+                    'name' => $user->name,
+                    'number' => $check->document_no,
+                    'confirmed' => $progress['confirmed'],
+                    'wrong' => $progress['wrong'],
+                    'unchecked' => $progress['pending'] + $progress['skipped'],
+                ]),
+                user: $user,
+                tier: Notifications::ALERT,
+                recipient: $other,
+            );
+
+            return;
+        }
+
         $this->logger->log(
             action: 'update',
             module: 'stock_checks',
             recordId: $check->id,
             description: __('Finished stock check :number', ['number' => $check->document_no]),
+            user: $user,
         );
     }
 
@@ -332,6 +425,34 @@ class StockCheckService
         return (int) StockBatch::where('product_id', $productId)
             ->when($roomId !== null, fn ($q) => $q->where('room_id', $roomId))
             ->sum('quantity_remaining');
+    }
+
+    /** Sending: by someone who may send, to someone else who may count. */
+    private function assertMaySend(User $sender, User $assignee): void
+    {
+        if (! $sender->hasPermission('stock_checks.assign')) {
+            throw new RuntimeException(__('Sending a stock check to someone needs the permission to send stock checks.'));
+        }
+
+        if ($assignee->is($sender)) {
+            throw new RuntimeException(__('Send it to someone else, or leave it to anyone.'));
+        }
+
+        if (! $assignee->is_active || ! $assignee->hasPermission('stock_checks.count')) {
+            throw new RuntimeException(__(':name may not count stock. Give them the permission first.', ['name' => $assignee->name]));
+        }
+    }
+
+    /** ⚠️ A round sent to someone is answered by them alone — PROJECT_DOC Section 9. */
+    private function assertMayAnswer(StockCheck $check, User $user): void
+    {
+        if ($check->answerableBy($user)) {
+            return;
+        }
+
+        throw new RuntimeException($check->isSent()
+            ? __('This stock check was sent to :name, and only they answer in it.', ['name' => $check->assignee?->name ?? '?'])
+            : __('You may not count in this stock check.'));
     }
 
     private function assertOpen(StockCheckLine $line): void

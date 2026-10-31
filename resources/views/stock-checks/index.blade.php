@@ -9,19 +9,21 @@
     product), Wrong (mean need correction by ADJ or return)".
 --}}
 @section('actions')
-    <a href="{{ route('stock-checks.to-fix') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-exclamation-triangle me-1"></i>{{ __('To fix') }}
-        @if($toFix > 0)
-            <span class="badge text-bg-warning ms-1">{{ $toFix }}</span>
-        @endif
-    </a>
+    @if($seesAll)
+        <a href="{{ route('stock-checks.to-fix') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-exclamation-triangle me-1"></i>{{ __('To fix') }}
+            @if($toFix > 0)
+                <span class="badge text-bg-warning ms-1">{{ $toFix }}</span>
+            @endif
+        </a>
+    @endif
 @endsection
 
 @section('content')
-    @can('stock_checks.count')
+    @if($mayStart || $maySend)
         <form action="{{ route('stock-checks.store') }}" method="POST" class="card mb-4" data-guard-submit>
             @csrf
-            <div class="card-header">{{ __('Start a round') }}</div>
+            <div class="card-header">{{ $maySend ? __('Start a round, or send one') : __('Start a round') }}</div>
             <div class="card-body">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
@@ -62,22 +64,42 @@
                             <label class="form-check-label" for="blind">{{ __('Blind count') }}</label>
                         </div>
                     </div>
+                    {{-- Soran, 2026-10-30: one person per round, told by the
+                         bell, the phone and the dashboard. --}}
+                    @if($maySend)
+                        <div class="col-md-3">
+                            <label for="assigned_to" class="form-label">{{ __('Send to') }}</label>
+                            <select id="assigned_to" name="assigned_to" class="form-select" data-check-send @required(! $mayStart)>
+                                @if($mayStart)
+                                    <option value="">{{ __('Nobody — I count it') }}</option>
+                                @else
+                                    <option value="" disabled @selected(! old('assigned_to'))>{{ __('Choose who counts it') }}</option>
+                                @endif
+                                @foreach($counters as $counter)
+                                    <option value="{{ $counter->id }}" @selected((int) old('assigned_to') === $counter->id)>{{ $counter->name }}</option>
+                                @endforeach
+                            </select>
+                            @if($counters->isEmpty())
+                                <div class="form-text">{{ __('Nobody else may count stock yet. Give someone the permission in Users.') }}</div>
+                            @endif
+                        </div>
+                    @endif
                 </div>
                 <div class="form-text mt-2">
                     {{ __('A blind count hides what the system says until the count is typed, so nobody confirms because the screen said so.') }}
                 </div>
             </div>
             <div class="card-footer">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-clipboard-check me-1"></i>{{ __('Start counting') }}
+                <button type="submit" class="btn btn-primary" data-start-label="{{ __('Start counting') }}" data-send-label="{{ __('Send') }}">
+                    <i class="bi bi-clipboard-check me-1"></i><span data-check-submit>{{ $mayStart ? __('Start counting') : __('Send') }}</span>
                 </button>
             </div>
         </form>
-    @endcan
+    @endif
 
     @if($checks->isEmpty())
         <div class="card">
-            <x-empty-state icon="clipboard-check" :message="__('No stock check yet. Start a round to count the shelves.')" />
+            <x-empty-state icon="clipboard-check" :message="$seesAll ? __('No stock check yet. Start a round to count the shelves.') : __('Nothing has been sent to you to count.')" />
         </div>
     @else
         <div class="card">
@@ -88,6 +110,7 @@
                         <th>{{ __('Round') }}</th>
                         <th>{{ __('What to count') }}</th>
                         <th>{{ __('Started') }}</th>
+                        <th>{{ __('Counted by') }}</th>
                         <th>{{ __('Progress') }}</th>
                         <th>{{ __('Status') }}</th>
                         <th class="text-end">{{ __('Actions') }}</th>
@@ -108,21 +131,30 @@
                                 <span class="app-code">{{ $check->started_at->format(setting('date_format', 'Y-m-d')) }}</span>
                                 <span class="text-secondary">· {{ $check->user->name }}</span>
                             </td>
+                            <td data-label="{{ __('Counted by') }}">
+                                @if($check->isSent())
+                                    <i class="bi bi-person-circle me-1 text-secondary"></i>{{ $check->assignee?->name }}
+                                @else
+                                    <span class="text-secondary">{{ __('Anyone') }}</span>
+                                @endif
+                            </td>
                             <td data-label="{{ __('Progress') }}" style="min-width: 10rem">
                                 @include('stock-checks.partials.progress', ['progress' => $progress, 'slim' => true])
                             </td>
                             <td data-label="{{ __('Status') }}">
                                 @if($check->isFinished())
                                     <span class="badge text-bg-secondary">{{ __('Finished') }}</span>
+                                @elseif($check->isSent() && $progress['done'] + $progress['skipped'] === 0)
+                                    <span class="badge text-bg-warning">{{ __('Waiting for :name', ['name' => $check->assignee?->name]) }}</span>
                                 @else
                                     <span class="badge text-bg-success">{{ __('Open') }}</span>
                                 @endif
                             </td>
                             <td class="list-card-actions text-end">
-                                @if(! $check->isFinished())
-                                    @can('stock_checks.count')
-                                        <a href="{{ route('stock-checks.next', $check) }}" class="btn btn-sm btn-primary">{{ __('Continue') }}</a>
-                                    @endcan
+                                @if(! $check->isFinished() && $check->answerableBy(auth()->user()))
+                                    <a href="{{ route('stock-checks.next', $check) }}" class="btn btn-sm btn-primary">
+                                        {{ $progress['done'] + $progress['skipped'] === 0 ? __('Start') : __('Continue') }}
+                                    </a>
                                 @endif
                                 <a href="{{ route('stock-checks.show', $check) }}" class="btn btn-sm btn-outline-secondary">{{ __('Report') }}</a>
                             </td>
@@ -145,6 +177,16 @@
             });
             scope.addEventListener('change', show);
             show();
+
+            // The button says what it will do: start counting, or send.
+            const send = document.querySelector('[data-check-send]');
+            const label = document.querySelector('[data-check-submit]');
+            const button = label?.closest('button');
+            if (send && label && button) {
+                const say = () => label.textContent = send.value ? button.dataset.sendLabel : button.dataset.startLabel;
+                send.addEventListener('change', say);
+                say();
+            }
         })();
     </script>
 @endsection

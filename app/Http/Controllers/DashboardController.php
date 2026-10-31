@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\StockBatch;
+use App\Models\StockCheck;
 use App\Models\Supplier;
 use App\Services\DailyTotals;
 use App\Services\SetupProgress;
@@ -367,6 +368,13 @@ class DashboardController extends Controller
              * at all. The person setting a new shop up is its owner.
              */
             'setup' => $user->isAdmin() && $setup->shouldShow() ? $setup : null,
+
+            // Soran, 2026-10-30: a stock check sent to this person, on their
+            // dashboard until it is finished — PROJECT_DOC Section 9.
+            'sentToMe' => $user->hasPermission('stock_checks.count')
+                ? StockCheck::where('assigned_to', $user->id)->whereNull('finished_at')
+                    ->with(['category', 'room', 'user'])->orderBy('id')->get()
+                : collect(),
 
             'customersOwe' => $user->hasPermission('customers.view')
                 ? $this->whoOwes(Customer::query())

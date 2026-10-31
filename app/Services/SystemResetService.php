@@ -29,6 +29,12 @@ class SystemResetService
      * the order is the correctness condition, not a preference.
      */
     private const ORDER = [
+        // A stock check counted the testing period's stock (PROJECT_DOC
+        // Section 9). Left behind, it would hold CHK-00001 against the first
+        // real round once the counters go back to one, and its lines would
+        // hold the second-hand products deleted below.
+        'stock_check_lines',
+        'stock_checks',
         'account_transactions',
         'payments',
         'stock_movements',

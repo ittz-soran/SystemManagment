@@ -330,7 +330,7 @@ final class Notifications
     public static function explain(string $tier): string
     {
         return match ($tier) {
-            self::ALERT => __('A sign-in from an address you do not use, a deleted invoice, the books being reset. Always on.'),
+            self::ALERT => __('A stock check sent to you, a sign-in from an address you do not use, a deleted invoice, the books being reset. Always on.'),
             self::NEWS => __('A product added, a price changed, a new customer — worth knowing, not worth interrupting for.'),
             default => __('Every sale, purchase and payment. Hundreds a day in a busy shop.'),
         };

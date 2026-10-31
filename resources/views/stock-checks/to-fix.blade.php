@@ -19,7 +19,7 @@
         </div>
     @else
         <div class="card">
-            <div class="table-responsive">
+            <div class="table-responsive overflow-y-hidden">
                 <table class="table align-middle mb-0 table-cards">
                     <thead>
                     <tr>

@@ -112,7 +112,10 @@
                     <a href="{{ route('stock-transfers.create') }}" class="small">{{ __('Move stock') }}</a>
                 @endcan
             </div>
-            <div class="table-responsive">
+            {{-- ⚠️ Every table box here scrolls sideways only (overflow-y-hidden): rows of
+                 fractional height round to a pixel more than the box, and Windows draws a
+                 scrollbar with arrows for that pixel. Soran, 2026-10-31. --}}
+            <div class="table-responsive overflow-y-hidden">
                 <table class="table table-cards align-middle mb-0">
                     {{-- ⚠️ A header even though the two columns are obvious.
                          `table-cards` turns each row into a card on a phone and
@@ -330,7 +333,7 @@
         @if($batches->isEmpty())
             <x-empty-state icon="layers" :message="__('No stock batches yet. A purchase or an incoming adjustment creates the first one.')" />
         @else
-            <div class="table-responsive">
+            <div class="table-responsive overflow-y-hidden">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
                     <tr>
@@ -379,7 +382,7 @@
         @if($movements->isEmpty())
             <x-empty-state icon="arrow-left-right" :message="__('Nothing has moved yet.')" />
         @else
-            <div class="table-responsive">
+            <div class="table-responsive overflow-y-hidden">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
                     <tr>

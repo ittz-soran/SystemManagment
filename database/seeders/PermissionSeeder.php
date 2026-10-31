@@ -158,6 +158,7 @@ class PermissionSeeder extends Seeder
         'stock_checks' => [
             'stock_checks.view' => 'See stock checks and what is still to fix',
             'stock_checks.count' => 'Start a stock check and count in it',
+            'stock_checks.assign' => 'Send a stock check to someone',
         ],
         'stock' => [
             'stock.recheck' => 'Recheck stock against batch sums',

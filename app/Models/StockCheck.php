@@ -12,9 +12,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * 2026-10-30: *"stock check manually … Confirm … Skip … Wrong"*.
  *
  * Numbered CHK-00001 like every document. Its lines are the products it
- * walks, each with the answer given for it.
+ * walks, each with the answer given for it. `user_id` started it — or sent
+ * it, when `assigned_to` names the one person who counts it.
  */
-#[Fillable(['document_no', 'scope', 'category_id', 'room_id', 'with_empty', 'blind', 'started_at', 'finished_at', 'user_id'])]
+#[Fillable(['document_no', 'scope', 'category_id', 'room_id', 'with_empty', 'blind', 'started_at', 'finished_at', 'user_id', 'assigned_to'])]
 class StockCheck extends Model
 {
     public const SCOPE_ALL = 'all';
@@ -51,6 +52,52 @@ class StockCheck extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** The one person it was sent to, when it was sent to someone. */
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function isSent(): bool
+    {
+        return ($this->attributes['assigned_to'] ?? null) !== null;
+    }
+
+    public function isSentTo(User $user): bool
+    {
+        return $this->isSent() && (int) $this->attributes['assigned_to'] === (int) $user->getKey();
+    }
+
+    /**
+     * Its page and report: whoever may see stock checks, and the person it was
+     * sent to — who needs only `stock_checks.count`.
+     */
+    public function visibleTo(User $user): bool
+    {
+        return $user->hasPermission('stock_checks.view') || $this->isSentTo($user);
+    }
+
+    /**
+     * ⚠️ Who may answer in it. Sent to someone: that person only — not the
+     * sender, not the admin, whose count would read as theirs. Sent to nobody:
+     * anyone who may see and count, as before.
+     */
+    public function answerableBy(User $user): bool
+    {
+        if ($this->isSent()) {
+            return $this->isSentTo($user) && $user->hasPermission('stock_checks.count');
+        }
+
+        return $user->hasPermission('stock_checks.view') && $user->hasPermission('stock_checks.count');
+    }
+
+    /** Whoever may answer, and for a round sent to someone, its sender and anyone who may send. */
+    public function finishableBy(User $user): bool
+    {
+        return $this->answerableBy($user)
+            || ($this->isSent() && ((int) $this->user_id === (int) $user->getKey() || $user->hasPermission('stock_checks.assign')));
     }
 
     public function isFinished(): bool

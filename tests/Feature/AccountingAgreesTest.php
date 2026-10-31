@@ -62,6 +62,17 @@ class AccountingAgreesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        /*
+         * ⚠️ A fixed day in the middle of a month. The history below is
+         * "last month" and days 3 to 8 of "this month", and on the real
+         * calendar both broke: on a 31st after a 30-day month `subMonth()`
+         * lands on the 1st of THIS month (31 October → 1 October), and on the
+         * 1st to the 7th the sales of days 3 to 8 are still in the future.
+         * Found red on 2026-10-31; pinned at Soran's word the same day.
+         */
+        $this->travelTo(Carbon::create(2026, 10, 20, 12));
+
         $this->seed();
         $this->buildAShopWithAHistory();
     }

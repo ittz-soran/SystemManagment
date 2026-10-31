@@ -16,7 +16,11 @@
             · {{ __('skipped :n', ['n' => $progress['skipped']]) }}
         </div>
         <div class="small">
-            {{ __('started :date by :name', ['date' => $check->started_at->format(setting('date_format', 'Y-m-d')), 'name' => $check->user->name]) }}
+            @if($check->isSent())
+                {{ __('sent :date by :sender to :name', ['date' => $check->started_at->format(setting('date_format', 'Y-m-d')), 'sender' => $check->user->name, 'name' => $check->assignee?->name]) }}
+            @else
+                {{ __('started :date by :name', ['date' => $check->started_at->format(setting('date_format', 'Y-m-d')), 'name' => $check->user->name]) }}
+            @endif
             @if($check->isFinished())
                 · {{ __('finished :date', ['date' => $check->finished_at->format(setting('date_format', 'Y-m-d'))]) }}
             @else

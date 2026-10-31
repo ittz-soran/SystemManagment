@@ -80,6 +80,11 @@ php artisan translations:check --sync               # adds empty keys to fill in
   the tables without the check. MariaDB refuses it (*data truncated*), and
   `problem()` shows that as "something else depends on this record". Write only
   the column's listed values, and assert the value in the test.
+- **After a script changes a Blade view, `php artisan view:clear` before the next
+  run.** On 2026-10-31 a compiled copy of a sabotaged view outlived its restore and
+  failed the whole suite. It would not reproduce and the cause was not found, so
+  clear rather than trust it — in both directions: a stale copy can fail a good
+  view or pass a broken one.
 - **Git does not keep file times.** Never compare two files' `filemtime` — a
   fresh clone writes them in any order. Check the built bundle by what it
   contains (`AssetBuildTest`).

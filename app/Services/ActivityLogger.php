@@ -21,6 +21,7 @@ class ActivityLogger
         ?array $oldValues = null,
         ?User $user = null,
         ?string $tier = null,
+        ?User $recipient = null,
     ): ?ActivityLog {
         $user ??= auth()->user();
 
@@ -32,6 +33,9 @@ class ActivityLogger
 
         return ActivityLog::create([
             'user_id' => $user->id,
+            // Addressed to one person: the bell and the phone tell them and
+            // nobody else — see NotificationFeed::visible().
+            'recipient_id' => $recipient?->getKey(),
             'action' => $action,
             'module' => $module,
             'record_id' => $recordId,

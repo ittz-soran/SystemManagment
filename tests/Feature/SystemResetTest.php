@@ -10,6 +10,8 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Setting;
 use App\Models\StockBatch;
+use App\Models\StockCheck;
+use App\Models\StockCheckLine;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
@@ -17,6 +19,7 @@ use App\Services\BackupService;
 use App\Services\PurchaseService;
 use App\Services\SaleReturnService;
 use App\Services\SaleService;
+use App\Services\StockCheckService;
 use App\Services\SystemResetService;
 use Database\Seeders\SettingSeeder;
 use Illuminate\Support\Facades\DB;
@@ -111,6 +114,7 @@ class SystemResetTest extends TestCase
             'sales', 'sale_items', 'purchases', 'purchase_items', 'sale_returns', 'sale_return_items',
             'purchase_returns', 'purchase_return_items', 'payments', 'account_transactions',
             'stock_batches', 'stock_movements', 'stock_adjustments', 'expenses',
+            'stock_checks', 'stock_check_lines',
         ] as $table) {
             $this->assertSame(0, DB::table($table)->count(), "{$table} should be empty after a reset");
         }
@@ -159,6 +163,32 @@ class SystemResetTest extends TestCase
     }
 
     /** Nothing is soft-deleted here — a hidden test sale is still a test sale. */
+    /**
+     * A stock check is the testing period's too (PROJECT_DOC Section 9): the
+     * counters go back to one, so a round left behind would hold CHK-00001
+     * against the first real one — and its lines would hold a second-hand
+     * product the reset deletes.
+     */
+    public function test_stock_checks_go_too_and_the_next_round_is_number_one(): void
+    {
+        $this->trade();
+        $used = Product::create([
+            'name' => 'Xbox from Rebaz', 'sku' => 'USED-1', 'category_id' => $this->product->category_id, 'kind' => Product::KIND_USED,
+            'unit' => 'pcs', 'purchase_price' => 0, 'sale_price' => 0, 'quantity' => 0,
+        ]);
+        app(StockCheckService::class)->start(StockCheck::SCOPE_ALL, null, null, true, false, $this->admin);
+        $this->assertTrue(StockCheckLine::where('product_id', $used->id)->exists());
+
+        app(SystemResetService::class)->run($this->admin);
+
+        $this->assertSame(0, StockCheck::count());
+        $this->assertSame(0, StockCheckLine::count());
+
+        $this->product->refresh();
+        $check = app(StockCheckService::class)->start(StockCheck::SCOPE_ALL, null, null, true, false, $this->admin);
+        $this->assertSame('CHK-00001', $check->document_no);
+    }
+
     public function test_nothing_is_left_behind_as_a_soft_delete(): void
     {
         $this->trade();
