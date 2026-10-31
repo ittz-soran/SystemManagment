@@ -197,7 +197,10 @@
                         @if($lowStock->isEmpty())
                             <x-empty-state icon="check-circle" :message="__('Nothing is running low.')" />
                         @else
-                            <div class="table-responsive">
+                            {{-- ⚠️ Every table box here scrolls sideways only (overflow-y-hidden): rows of
+                                 fractional height round to a pixel more than the box, and Windows draws a
+                                 scrollbar with arrows for that pixel. Soran, 2026-10-31. --}}
+                            <div class="table-responsive overflow-y-hidden">
                                 <table class="table table-sm mb-0 align-middle">
                                     <thead>
                                     <tr>
@@ -236,7 +239,7 @@
                                            :action="Gate::allows('sales.create') ? route('sales.create') : null"
                                            :action-label="__('New sale')" />
                         @else
-                            <div class="table-responsive">
+                            <div class="table-responsive overflow-y-hidden">
                                 <table class="table table-sm mb-0 align-middle">
                                     <thead>
                                     <tr>
