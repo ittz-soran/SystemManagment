@@ -231,7 +231,12 @@
             @endif
 
             <div class="mt-3 d-flex gap-2">
-                <a href="{{ route('stock-checks.next', $check) }}" class="btn btn-outline-primary">{{ __('Next product') }}</a>
+                {{-- Next is the first product still waiting, so on one still waiting
+                     it would open this same product again: only once this one has
+                     an answer (Soran, 2026-10-31). Skip is the way past it. --}}
+                @if($answered && ! $check->isFinished())
+                    <a href="{{ route('stock-checks.next', $check) }}" class="btn btn-outline-primary" data-next-product>{{ __('Next product') }}</a>
+                @endif
                 <a href="{{ route('stock-checks.show', $check) }}" class="btn btn-outline-secondary">{{ __('Report') }}</a>
             </div>
         </div>

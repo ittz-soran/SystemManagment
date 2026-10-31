@@ -782,6 +782,37 @@ class StockCheckTest extends TestCase
             ->assertOk()->assertDontSee('data-system', false)->assertSee('id="blind-count"', false);
     }
 
+    /**
+     * Next product is the first one still waiting: on a product still waiting
+     * it would open that same product again, so it is only there once the one
+     * on screen has an answer — Soran, 2026-10-31.
+     */
+    public function test_next_product_only_once_this_one_has_an_answer(): void
+    {
+        $first = $this->product('Cable A', 4);
+        $this->product('Cable B', 2);
+        $this->start();
+        $check = $this->round();
+
+        $this->actingAs($this->admin)->get(route('stock-checks.line', [$check, $this->lineOf($first)]))
+            ->assertOk()->assertDontSee('data-next-product', false)->assertSee(__('Skip — show another product'));
+
+        $this->actingAs($this->admin)->post(route('stock-checks.confirm', [$check, $this->lineOf($first)]), ['seen' => 4]);
+
+        // Reopened once answered — from the report, or by a scan.
+        $page = $this->actingAs($this->admin)->get(route('stock-checks.line', [$check, $this->lineOf($first)]))->assertOk();
+        $this->assertSame(1, preg_match('/<a href="([^"]+)"[^>]*data-next-product/', $page->getContent(), $link));
+        $this->assertSame(route('stock-checks.next', $check), html_entity_decode($link[1]));
+
+        // And it leads somewhere else: the next one waiting.
+        $this->actingAs($this->admin)->get(route('stock-checks.next', $check))
+            ->assertRedirect(route('stock-checks.line', [$check, $check->lines()->where('status', StockCheckLine::PENDING)->firstOrFail()]));
+
+        // Nowhere to go in a finished round.
+        app(StockCheckService::class)->finish($check, $this->admin);
+        $this->actingAs($this->admin)->get(route('stock-checks.line', [$check, $this->lineOf($first)]))->assertDontSee('data-next-product', false);
+    }
+
     /** "are i type 4 and click on save … create new adj or ....?" — the screen says a matching count is a confirm. */
     public function test_the_save_button_says_confirm_when_the_count_agrees(): void
     {
