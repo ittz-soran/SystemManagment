@@ -14,12 +14,17 @@ use App\Models\StockCheckLine;
 use App\Models\StockRoom;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\ActivityLogger;
+use App\Services\NotificationFeed;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use App\Services\StockCheckService;
 use App\Services\TransferService;
+use App\Support\Navigation;
+use App\Support\Notifications;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -514,7 +519,7 @@ class StockCheckTest extends TestCase
     /** A shop already running gets the permissions by its update, which only migrates. */
     public function test_the_permissions_exist(): void
     {
-        $this->assertSame(2, Permission::whereIn('key', ['stock_checks.view', 'stock_checks.count'])->count());
+        $this->assertSame(3, Permission::whereIn('key', ['stock_checks.view', 'stock_checks.count', 'stock_checks.assign'])->count());
     }
 
     /** A product counted in a round is part of its record, and is not destroyed outright. */
@@ -524,6 +529,295 @@ class StockCheckTest extends TestCase
         $this->start(['with_empty' => 1]);
 
         $this->assertArrayHasKey('stock checks', Product::purgeBlockers([$cable->id])[$cable->id]);
+    }
+
+    // ---- sent to someone (Soran, 2026-10-30) -----------------------------------
+
+    /** "i send check request by blend count and set properties -> user start" — told by the bell, the phone and the dashboard. */
+    public function test_a_round_sent_to_someone_tells_them_and_nobody_else(): void
+    {
+        $this->product('Cable A', 4);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count', 'dashboard.view']);
+        $aram = $this->person('Aram', ['stock_checks.view', 'stock_checks.count', 'products.view']);
+
+        $check = $this->send($hawkar, ['scope' => 'category', 'category_id' => $this->cables->id, 'blind' => 1]);
+
+        $this->assertTrue($check->isSentTo($hawkar));
+        $this->assertTrue($check->blind);
+
+        // The bell, and the phone, which reads the same list: Hawkar only.
+        $told = app(NotificationFeed::class)->visible($hawkar)->get();
+        $this->assertCount(1, $told);
+        $this->assertSame(Notifications::ALERT, $told->first()->tier);
+        $this->assertSame(__(':name sent you stock check :number: :scope, blind count', ['name' => $this->admin->name, 'number' => 'CHK-00001', 'scope' => 'Cables']), $told->first()->description);
+        $this->assertSame(route('stock-checks.show', $check), Notifications::linkFor($told->first()->module, $told->first()->action, $told->first()->record_id));
+        $this->assertFalse(app(NotificationFeed::class)->visible($aram)->where('module', 'stock_checks')->exists());
+        $this->assertFalse(app(NotificationFeed::class)->visible($this->admin)->where('module', 'stock_checks')->exists());
+
+        // ⚠️ Addressed means to that person only, whatever the module — even
+        // one Aram may hear about.
+        $private = app(ActivityLogger::class)->log(action: 'update', module: 'products', description: 'For Hawkar only', user: $this->admin, recipient: $hawkar);
+        $this->assertTrue(app(NotificationFeed::class)->visible($hawkar)->whereKey($private->id)->exists());
+        $this->assertFalse(app(NotificationFeed::class)->visible($aram)->whereKey($private->id)->exists());
+
+        // And the dashboard, until it is finished.
+        $card = $this->actingAs($hawkar)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertStringContainsString('data-sent-to-me', $card);
+        $this->assertStringContainsString('CHK-00001', $card);
+        $this->assertStringContainsString(route('stock-checks.next', $check), $card);
+        $this->actingAs($aram)->get(route('dashboard'))->assertDontSee('data-sent-to-me', false);
+
+        app(StockCheckService::class)->finish($check, $hawkar);
+        $this->actingAs($hawkar)->get(route('dashboard'))->assertDontSee('data-sent-to-me', false);
+    }
+
+    /** ⚠️ One person per round: the one it was sent to answers, nobody else — not even the admin. */
+    public function test_only_the_person_it_was_sent_to_answers(): void
+    {
+        $cable = $this->product('Cable A', 4);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count']);
+        $aram = $this->person('Aram', ['stock_checks.view', 'stock_checks.count']);
+        $check = $this->send($hawkar);
+        $line = $this->lineOf($cable);
+
+        foreach ([$this->admin, $aram] as $somebodyElse) {
+            $this->actingAs($somebodyElse)->get(route('stock-checks.line', [$check, $line]))->assertForbidden();
+            $this->actingAs($somebodyElse)->post(route('stock-checks.confirm', [$check, $line]), ['seen' => 4])->assertForbidden();
+            $this->actingAs($somebodyElse)->post(route('stock-checks.skip', [$check, $line]))->assertForbidden();
+            $this->actingAs($somebodyElse)->post(route('stock-checks.answer', [$check, $line]), ['seen' => 4, 'counted' => 3, 'fix' => 'later'])->assertForbidden();
+        }
+
+        // The service holds the same line, whatever reaches it.
+        try {
+            app(StockCheckService::class)->confirm($line, 4, $this->admin);
+            $this->fail('The admin answered in a round sent to Hawkar.');
+        } catch (RuntimeException $e) {
+            $this->assertSame(__('This stock check was sent to :name, and only they answer in it.', ['name' => 'Hawkar']), $e->getMessage());
+        }
+        $this->assertSame(StockCheckLine::PENDING, $line->fresh()->status);
+
+        $this->actingAs($hawkar)->post(route('stock-checks.confirm', [$check, $line]), ['seen' => 4])->assertRedirect(route('stock-checks.next', $check));
+        $this->assertSame(StockCheckLine::CONFIRMED, $line->fresh()->status);
+        $this->assertSame($hawkar->id, $line->fresh()->checked_by);
+    }
+
+    /** "results show by both user and admin": the counter needs only `count`, and sees only what was sent to them. */
+    public function test_the_counter_sees_their_round_and_nothing_else(): void
+    {
+        $this->product('Cable A', 4);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count']);
+        $theirs = $this->send($hawkar);
+        $this->start();
+        $others = $this->round();
+
+        $this->assertContains('stock-checks.index', array_column(Navigation::pagesFor($hawkar), 'route'));
+        $list = $this->actingAs($hawkar)->get(route('stock-checks.index'))->assertOk();
+        $list->assertSee($theirs->document_no)->assertDontSee($others->document_no)->assertDontSee(route('stock-checks.to-fix'));
+        $list->assertDontSee('name="scope"', false);
+
+        // No previous and next for them: those lead into other people's rounds.
+        $this->actingAs($hawkar)->get(route('stock-checks.show', $theirs))->assertOk()->assertSee(__('Start counting'))
+            ->assertDontSee('aria-label="'.__('Previous and next').'"', false);
+        $this->actingAs($this->admin)->get(route('stock-checks.show', $theirs))->assertSee('aria-label="'.__('Previous and next').'"', false);
+        $this->actingAs($hawkar)->get(route('stock-checks.show', $others))->assertForbidden();
+        $this->actingAs($hawkar)->get(route('stock-checks.print', $others))->assertForbidden();
+        $this->actingAs($hawkar)->get(route('stock-checks.to-fix'))->assertForbidden();
+        $this->actingAs($hawkar)->get(route('stock-checks.next', $others))->assertForbidden();
+        $this->actingAs($hawkar)->get(route('stock-checks.next', $theirs))->assertRedirect();
+
+        // The sender watches it, without counting in it.
+        $page = $this->actingAs($this->admin)->get(route('stock-checks.show', $theirs))->assertOk();
+        $page->assertSee(__('sent :date by :sender to :name', ['date' => now()->format(setting('date_format', 'Y-m-d')), 'sender' => $this->admin->name, 'name' => 'Hawkar']));
+        $page->assertDontSee(route('stock-checks.next', $theirs))->assertSee(route('stock-checks.finish', $theirs));
+        $this->actingAs($this->admin)->get(route('stock-checks.index'))->assertSee(__('Waiting for :name', ['name' => 'Hawkar']));
+    }
+
+    /** "Count only, admin fixes": no ADJ from a sent round, even for a counter who could make one. */
+    public function test_a_sent_round_counts_only_and_the_admin_fixes(): void
+    {
+        $cable = $this->product('Cable A', 5);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count', 'stock_adjustments.create']);
+        $check = $this->send($hawkar);
+        $line = $this->lineOf($cable);
+
+        $this->actingAs($hawkar)->get(route('stock-checks.line', [$check, $line]))->assertOk()
+            ->assertDontSee('id="fix-adjusted"', false)
+            ->assertSee(__('A wrong count goes on the To fix list, and :name puts it right.', ['name' => $this->admin->name]));
+
+        // Whatever the form says.
+        $this->actingAs($hawkar)->post(route('stock-checks.answer', [$check, $line]), ['seen' => 5, 'counted' => 3, 'fix' => 'adjusted'])
+            ->assertRedirect(route('stock-checks.next', $check));
+        $this->assertSame([StockCheckLine::WRONG, StockCheckLine::FIX_LATER, null], [$line->fresh()->status, $line->fresh()->fix, $line->fresh()->stock_adjustment_id]);
+        $this->assertSame(0, StockAdjustment::count());
+        $this->assertSame(5, $this->held($cable));
+
+        // The admin puts it right from To fix.
+        $this->actingAs($this->admin)->post(route('stock-checks.adjust', $line))->assertSessionHas('success');
+        $this->assertSame(3, $this->held($cable));
+    }
+
+    /** Sending: by someone allowed to send, to someone else who may count. */
+    public function test_who_may_send_and_to_whom(): void
+    {
+        $this->product('Cable A', 4);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count']);
+        $aram = $this->person('Aram', ['stock_checks.view', 'stock_checks.count']);
+        $cashier = $this->person('Cashier', ['sales.create']);
+        $gone = $this->person('Gone', ['stock_checks.count']);
+        $gone->forceFill(['is_active' => false])->save();
+
+        // Aram may start a round, but not send one.
+        $this->actingAs($aram)->get(route('stock-checks.index'))->assertOk()->assertDontSee('name="assigned_to"', false);
+        $this->actingAs($aram)->post(route('stock-checks.store'), ['scope' => 'all', 'assigned_to' => $hawkar->id])
+            ->assertSessionHas('error', __('Sending a stock check to someone needs the permission to send stock checks.'));
+
+        $this->actingAs($this->admin)->post(route('stock-checks.store'), ['scope' => 'all', 'assigned_to' => $this->admin->id])
+            ->assertSessionHas('error', __('Send it to someone else, or leave it to anyone.'));
+        foreach ([$cashier, $gone] as $cannot) {
+            $this->actingAs($this->admin)->post(route('stock-checks.store'), ['scope' => 'all', 'assigned_to' => $cannot->id])
+                ->assertSessionHas('error', __(':name may not count stock. Give them the permission first.', ['name' => $cannot->name]));
+        }
+        $this->assertSame(0, StockCheck::count());
+
+        // The box offers only who it can be sent to — read from the box itself:
+        // a category and a room on the same page have ids too.
+        $page = $this->actingAs($this->admin)->get(route('stock-checks.index'))->assertOk()->getContent();
+        $this->assertSame(1, preg_match('/<select id="assigned_to".*?<\/select>/s', $page, $box));
+        $this->assertStringContainsString('<option value="'.$hawkar->id.'"', $box[0]);
+        $this->assertStringContainsString('<option value="'.$aram->id.'"', $box[0]);
+        foreach ([$this->admin, $cashier, $gone] as $not) {
+            $this->assertStringNotContainsString('<option value="'.$not->id.'"', $box[0]);
+        }
+    }
+
+    /** Finishing tells the other of the two: the sender what it found, the counter that it was stopped. */
+    public function test_finishing_tells_the_other_one(): void
+    {
+        $cable = $this->product('Cable A', 5);
+        $this->product('Cable B', 2);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count']);
+        $aram = $this->person('Aram', ['stock_checks.view', 'stock_checks.count']);
+
+        $check = $this->send($hawkar);
+        $this->actingAs($hawkar)->post(route('stock-checks.answer', [$check, $this->lineOf($cable)]), ['seen' => 5, 'counted' => 4, 'fix' => 'later']);
+
+        $this->actingAs($aram)->post(route('stock-checks.finish', $check))
+            ->assertSessionHas('error', __('Only the person it was sent to, or the person who sent it, can finish this stock check.'));
+        $this->assertFalse($check->fresh()->isFinished());
+
+        $this->actingAs($hawkar)->post(route('stock-checks.finish', $check))->assertRedirect(route('stock-checks.show', $check));
+        $told = app(NotificationFeed::class)->visible($this->admin)->where('module', 'stock_checks')->get();
+        $this->assertCount(1, $told);
+        $this->assertSame(__(':name finished stock check :number: :confirmed confirmed, :wrong wrong, :unchecked not checked', [
+            'name' => 'Hawkar', 'number' => 'CHK-00001', 'confirmed' => 0, 'wrong' => 1, 'unchecked' => 1,
+        ]), $told->first()->description);
+
+        // Stopped early by the sender: the counter is told.
+        $second = $this->send($hawkar);
+        $this->actingAs($this->admin)->post(route('stock-checks.finish', $second))->assertRedirect(route('stock-checks.show', $second));
+        $this->assertTrue($second->fresh()->isFinished());
+        $this->assertSame(1, app(NotificationFeed::class)->visible($hawkar)->where('module', 'stock_checks')->where('record_id', $second->id)->where('action', 'update')->count());
+    }
+
+    /** ⚠️ The figure shows after one count (his choice), so the first count is kept and the report sets it beside the answer. */
+    public function test_the_first_blind_count_is_kept_and_reported(): void
+    {
+        $cable = $this->product('Cable A', 4);
+        $hawkar = $this->person('Hawkar', ['stock_checks.count']);
+        $check = $this->send($hawkar, ['blind' => 1]);
+        $line = $this->lineOf($cable);
+
+        $this->actingAs($hawkar)->post(route('stock-checks.count', [$check, $line]), ['seen' => 4, 'counted' => 3])
+            ->assertSessionHas('counted', 3);
+        $this->assertSame(3, $line->fresh()->first_count);
+
+        // A reload shows the figure and the count, not a blind box again —
+        // the second load, once the count carried by the redirect is spent.
+        $this->actingAs($hawkar)->get(route('stock-checks.line', [$check, $line]))->assertSee('data-system', false);
+        $this->actingAs($hawkar)->get(route('stock-checks.line', [$check, $line]))
+            ->assertSee('data-system', false)->assertSee('value="3"', false)->assertDontSee('id="blind-count"', false);
+
+        // Only the first is kept.
+        $this->actingAs($hawkar)->post(route('stock-checks.count', [$check, $line]), ['seen' => 4, 'counted' => 2]);
+        $this->assertSame(3, $line->fresh()->first_count);
+
+        // Recounted, and it agrees: a confirm — and the report says how it got there.
+        $this->actingAs($hawkar)->post(route('stock-checks.answer', [$check, $line]), ['seen' => 4, 'counted' => 4, 'fix' => 'later']);
+        $this->assertSame(StockCheckLine::CONFIRMED, $line->fresh()->status);
+
+        $html = $this->actingAs($this->admin)->get(route('stock-checks.show', $check))->assertOk()->getContent();
+        $recounted = substr($html, strpos($html, 'data-recounted'));
+        $this->assertStringContainsString(__('Counted again').' (1)', $recounted);
+        $this->assertStringContainsString('Cable A', $recounted);
+        $this->assertMatchesRegularExpression('/data-first-count>\s*3 pcs/', $recounted);
+
+        // A recount that says the same as the first count is not "counted
+        // again" — the counter stood by it.
+        $kept = $this->product('Cable C', 4);
+        $third = $this->send($hawkar, ['blind' => 1]);
+        $this->actingAs($hawkar)->post(route('stock-checks.count', [$third, $this->lineOf($kept, $third)]), ['seen' => 4, 'counted' => 3]);
+        $this->actingAs($hawkar)->post(route('stock-checks.answer', [$third, $this->lineOf($kept, $third)]), ['seen' => 4, 'counted' => 3, 'fix' => 'later']);
+        $this->assertSame([3, 3], [$this->lineOf($kept, $third)->first_count, $this->lineOf($kept, $third)->counted]);
+        $this->actingAs($this->admin)->get(route('stock-checks.show', $third))->assertDontSee('data-recounted', false);
+
+        // A count that agreed the first time is not "counted again".
+        $other = $this->product('Cable B', 2);
+        $second = $this->send($hawkar, ['blind' => 1]);
+        $this->actingAs($hawkar)->post(route('stock-checks.count', [$second, $this->lineOf($other, $second)]), ['seen' => 2, 'counted' => 2]);
+        $this->assertNull($this->lineOf($other, $second)->first_count);
+        $this->actingAs($this->admin)->get(route('stock-checks.show', $second))->assertDontSee('data-recounted', false);
+    }
+
+    /** ⚠️ A skipped product is still unanswered: a blind round keeps its figure hidden when it comes back. */
+    public function test_a_skipped_product_stays_blind(): void
+    {
+        $cable = $this->product('Cable A', 4);
+        $this->start(['blind' => 1]);
+        $line = $this->lineOf($cable);
+
+        $this->actingAs($this->admin)->post(route('stock-checks.skip', [$this->round(), $line]));
+        $this->assertSame(StockCheckLine::SKIPPED, $line->fresh()->status);
+
+        $this->actingAs($this->admin)->get(route('stock-checks.line', [$this->round(), $line]))
+            ->assertOk()->assertDontSee('data-system', false)->assertSee('id="blind-count"', false);
+    }
+
+    /** "are i type 4 and click on save … create new adj or ....?" — the screen says a matching count is a confirm. */
+    public function test_the_save_button_says_confirm_when_the_count_agrees(): void
+    {
+        $cable = $this->product('Cable A', 4);
+        $this->start();
+
+        $page = $this->actingAs($this->admin)->get(route('stock-checks.line', [$this->round(), $this->lineOf($cable)]))->assertOk();
+        $page->assertSee('data-agrees="'.e(__('Confirm — the shelf agrees')).'"', false);
+        $page->assertSee('data-when-different', false);
+
+        // Rows of 32.5px round to a pixel more than their box; Windows drew a
+        // scrollbar with arrows for it (his screenshot). Sideways only.
+        $this->assertSame(2, substr_count($page->getContent(), 'class="table-responsive overflow-y-hidden"'));
+        $this->assertSame(0, substr_count($page->getContent(), 'class="table-responsive"'));
+    }
+
+    /** @param  list<string>  $keys */
+    private function person(string $name, array $keys): User
+    {
+        $user = User::create([
+            'name' => $name, 'email' => strtolower($name).'@example.com',
+            'password' => 'a-strong-password-2026', 'role' => User::ROLE_USER,
+            'is_active' => true, 'language' => 'en', 'theme' => 'auto', 'items_per_page' => 25,
+        ]);
+        $user->permissions()->sync(Permission::whereIn('key', $keys)->pluck('id')->all());
+
+        return $user;
+    }
+
+    /** Sent by the admin, as Soran would. */
+    private function send(User $to, array $form = []): StockCheck
+    {
+        $this->actingAs($this->admin)->post(route('stock-checks.store'), ['scope' => 'all', 'assigned_to' => $to->id, ...$form])
+            ->assertSessionMissing('error');
+
+        return $this->round();
     }
 
     /** @param  list<string>  $keys */

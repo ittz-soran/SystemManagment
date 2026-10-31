@@ -46,7 +46,8 @@ class NotificationFeed
                  */
                 $query->where(function (Builder $mine) use ($user, $modules) {
                     $mine->whereIn('module', $modules)
-                        ->where('user_id', '!=', $user->getKey());
+                        ->where('user_id', '!=', $user->getKey())
+                        ->whereNull('recipient_id');
                 })
                     /*
                      * ⚠️ And this person's own account, which is the opposite
@@ -59,7 +60,15 @@ class NotificationFeed
                     ->orWhere(function (Builder $personal) use ($user) {
                         $personal->whereIn('module', Notifications::PERSONAL)
                             ->where('user_id', $user->getKey());
-                    });
+                    })
+                    /*
+                     * ⚠️ And whatever is addressed to this person by name — a
+                     * stock check sent to them (PROJECT_DOC Section 9). Only
+                     * to them: the first rule leaves every addressed entry
+                     * out, whatever its module, so a message to one person
+                     * never becomes everybody's news.
+                     */
+                    ->orWhere('recipient_id', $user->getKey());
             })
             ->orderByDesc('id');
     }

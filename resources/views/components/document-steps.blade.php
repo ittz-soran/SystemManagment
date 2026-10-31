@@ -6,9 +6,14 @@
     At either end the arrow stays, greyed, so the pair does not move under the
     reader's hand. ‹ and › are mirrored by the browser in a right-to-left
     language, so "previous" points the way that reader goes back.
---}}
-@props(['document'])
 
+    `permission`: drawn only for a reader who may open the neighbours too. A
+    stock check's counter sees the rounds sent to them and no others, so the
+    pair would lead them straight into a refusal.
+--}}
+@props(['document', 'permission' => null])
+
+@if($permission === null || auth()->user()?->hasPermission($permission))
 @php
     $steps = App\Support\DocumentSteps::around($document);
 @endphp
@@ -37,3 +42,4 @@
         </li>
     </ul>
 </nav>
+@endif

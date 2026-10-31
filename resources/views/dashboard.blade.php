@@ -14,6 +14,38 @@
         @include('partials.setup-checklist', ['setup' => $setup])
     @endisset
 
+    {{-- A stock check sent to this person — PROJECT_DOC Section 9. First,
+         because it is the one thing on this page somebody asked them to do. --}}
+    @if($sentToMe->isNotEmpty())
+        <div class="card mb-4 border-primary" data-sent-to-me>
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-clipboard-check"></i>{{ __('Sent to you') }}
+            </div>
+            <div class="list-group list-group-flush">
+                @foreach($sentToMe as $check)
+                    @php($progress = $check->progress())
+                    <div class="list-group-item d-flex flex-wrap align-items-center gap-3">
+                        <div class="flex-grow-1" style="min-width: 14rem">
+                            <div class="fw-medium">
+                                {{ $check->document_no }} · {{ $check->scopeName() }}
+                                @if($check->blind)
+                                    <span class="badge text-bg-light">{{ __('Blind') }}</span>
+                                @endif
+                            </div>
+                            <div class="small text-secondary mb-1">
+                                {{ __('from :name', ['name' => $check->user->name]) }} · {{ App\Support\Notifications::when($check->started_at) }}
+                            </div>
+                            @include('stock-checks.partials.progress', ['progress' => $progress, 'slim' => true])
+                        </div>
+                        <a href="{{ route('stock-checks.next', $check) }}" class="btn btn-primary">
+                            {{ $progress['done'] + $progress['skipped'] === 0 ? __('Start') : __('Continue') }}
+                        </a>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     {{--
         Every panel is behind the permission of the screen it summarises — see
         DashboardController. A reader who holds none of them is not shown an

@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * ⚠️ `expected` is what the system said when the answer was SAVED, never when
  * the round began: a round runs for days and the till keeps selling.
  */
-#[Fillable(['stock_check_id', 'product_id', 'position', 'status', 'expected', 'counted', 'stock_adjustment_id', 'fix', 'note', 'fixed_at', 'checked_by', 'checked_at'])]
+#[Fillable(['stock_check_id', 'product_id', 'position', 'status', 'expected', 'counted', 'first_count', 'stock_adjustment_id', 'fix', 'note', 'fixed_at', 'checked_by', 'checked_at'])]
 class StockCheckLine extends Model
 {
     public const PENDING = 'pending';
@@ -37,6 +37,7 @@ class StockCheckLine extends Model
             'position' => 'integer',
             'expected' => 'integer',
             'counted' => 'integer',
+            'first_count' => 'integer',
             'fixed_at' => 'datetime',
             'checked_at' => 'datetime',
         ];

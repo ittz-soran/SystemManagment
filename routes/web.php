@@ -489,15 +489,16 @@ Route::middleware(['auth'])->group(function () {
      * rounds and the report is one permission; starting a round and answering
      * in it is another. Making the ADJ also needs stock_adjustments.create,
      * which the service checks. A line is reached through its own round only.
+     *
+     * ⚠️ A round sent to someone is theirs to see and answer with `count`
+     * alone, so the round's own routes let either permission in and the
+     * controller asks the round: StockCheck::visibleTo(), answerableBy(),
+     * finishableBy().
      */
-    Route::middleware('permission:stock_checks.view')->group(function () {
+    Route::middleware('permission:stock_checks.view,stock_checks.count')->group(function () {
         Route::get('stock-checks', [StockCheckController::class, 'index'])->name('stock-checks.index');
-        Route::get('stock-checks/to-fix', [StockCheckController::class, 'toFix'])->name('stock-checks.to-fix');
         Route::get('stock-checks/{stockCheck}', [StockCheckController::class, 'show'])->whereNumber('stockCheck')->name('stock-checks.show');
         Route::get('stock-checks/{stockCheck}/print', [StockCheckController::class, 'print'])->whereNumber('stockCheck')->name('stock-checks.print');
-    });
-    Route::middleware(['permission:stock_checks.view', 'permission:stock_checks.count'])->group(function () {
-        Route::post('stock-checks', [StockCheckController::class, 'store'])->name('stock-checks.store');
         Route::get('stock-checks/{stockCheck}/next', [StockCheckController::class, 'next'])->name('stock-checks.next');
         Route::get('stock-checks/{stockCheck}/scan', [StockCheckController::class, 'scan'])->name('stock-checks.scan');
         Route::post('stock-checks/{stockCheck}/finish', [StockCheckController::class, 'finish'])->name('stock-checks.finish');
@@ -508,6 +509,13 @@ Route::middleware(['auth'])->group(function () {
             Route::post('stock-checks/{stockCheck}/lines/{line}/count', [StockCheckController::class, 'count'])->name('stock-checks.count');
             Route::post('stock-checks/{stockCheck}/lines/{line}/answer', [StockCheckController::class, 'answer'])->name('stock-checks.answer');
         });
+    });
+    Route::get('stock-checks/to-fix', [StockCheckController::class, 'toFix'])
+        ->middleware('permission:stock_checks.view')->name('stock-checks.to-fix');
+    // Starting one to count needs `count`; sending one needs `assign`.
+    Route::post('stock-checks', [StockCheckController::class, 'store'])
+        ->middleware(['permission:stock_checks.view', 'permission:stock_checks.count,stock_checks.assign'])->name('stock-checks.store');
+    Route::middleware(['permission:stock_checks.view', 'permission:stock_checks.count'])->group(function () {
         Route::post('stock-checks/lines/{line}/adjust', [StockCheckController::class, 'adjust'])->name('stock-checks.adjust');
         Route::post('stock-checks/lines/{line}/fixed', [StockCheckController::class, 'fixed'])->name('stock-checks.fixed');
     });

@@ -9,12 +9,14 @@ use App\Models\StockCheck;
 use App\Models\StockCheckLine;
 use App\Models\StockMovement;
 use App\Models\StockRoom;
+use App\Models\User;
 use App\Services\StockCheckService;
 use App\Support\Digits;
 use App\Support\MoneyInput;
 use App\Support\Sections;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use RuntimeException;
 
@@ -25,19 +27,30 @@ use RuntimeException;
  *
  * Rounds and the report under `stock_checks.view`; starting one and answering
  * in it under `stock_checks.count`; making the ADJ also needs
- * `stock_adjustments.create`, which the service checks.
+ * `stock_adjustments.create`, which the service checks. A round sent to
+ * someone (`stock_checks.assign`) is seen by them with `count` alone, and
+ * answered by them only — StockCheck::answerableBy().
  */
 class StockCheckController extends Controller
 {
     public function __construct(private StockCheckService $checks) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $user = $request->user();
+        $seesAll = $user->hasPermission('stock_checks.view');
+
         return view('stock-checks.index', [
-            'checks' => StockCheck::with(['category', 'room', 'user'])
+            // Without `view`, only the rounds sent to this person.
+            'checks' => StockCheck::with(['category', 'room', 'user', 'assignee'])
+                ->when(! $seesAll, fn ($q) => $q->where('assigned_to', $user->id))
                 ->orderByRaw('finished_at IS NULL DESC')->orderByDesc('id')
                 ->paginate(25),
-            'toFix' => StockCheckLine::where('status', StockCheckLine::WRONG)->where('fix', StockCheckLine::FIX_LATER)->count(),
+            'seesAll' => $seesAll,
+            'mayStart' => $seesAll && $user->hasPermission('stock_checks.count'),
+            'maySend' => $seesAll && $user->hasPermission('stock_checks.assign'),
+            'counters' => $seesAll && $user->hasPermission('stock_checks.assign') ? $this->counters($user) : collect(),
+            'toFix' => $seesAll ? StockCheckLine::where('status', StockCheckLine::WRONG)->where('fix', StockCheckLine::FIX_LATER)->count() : 0,
             'categories' => Category::orderBy('name')->get(['id', 'name']),
             'rooms' => Sections::isOn('stock_rooms') ? StockRoom::query()->inOrder()->get() : collect(),
         ]);
@@ -49,7 +62,16 @@ class StockCheckController extends Controller
             'scope' => ['required', 'in:'.implode(',', [StockCheck::SCOPE_ALL, StockCheck::SCOPE_CATEGORY, StockCheck::SCOPE_ROOM])],
             'category_id' => ['nullable', 'required_if:scope,category', 'exists:categories,id'],
             'room_id' => ['nullable', 'required_if:scope,room', 'exists:stock_rooms,id'],
+            'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
         ]);
+
+        $assignee = isset($data['assigned_to']) ? User::find($data['assigned_to']) : null;
+
+        // Starting one to count yourself needs `count`; sending one needs
+        // `assign`, which the service checks.
+        if ($assignee === null && ! $request->user()->hasPermission('stock_checks.count')) {
+            return back()->withInput()->with('error', __('Choose who to send it to.'));
+        }
 
         try {
             $check = $this->checks->start(
@@ -59,28 +81,38 @@ class StockCheckController extends Controller
                 $request->boolean('with_empty'),
                 $request->boolean('blind'),
                 $request->user(),
+                $assignee,
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', problem($e));
         }
 
-        return redirect()->route('stock-checks.next', $check);
+        // Sent: back to the round, to watch it. Started: straight to counting.
+        return $assignee
+            ? redirect()->route('stock-checks.show', $check)->with('success', __('Sent to :name.', ['name' => $assignee->name]))
+            : redirect()->route('stock-checks.next', $check);
     }
 
     /** The round's own page, which is also its report. */
     public function show(Request $request, StockCheck $stockCheck): View
     {
+        $this->maySee($request, $stockCheck);
+
         return view('stock-checks.show', $this->report($request, $stockCheck));
     }
 
     public function print(Request $request, StockCheck $stockCheck): View
     {
+        $this->maySee($request, $stockCheck);
+
         return view('print.stock-check', $this->report($request, $stockCheck));
     }
 
     /** On to the next product, or back to the round when there is none. */
-    public function next(StockCheck $stockCheck): RedirectResponse
+    public function next(Request $request, StockCheck $stockCheck): RedirectResponse
     {
+        $this->mayAnswer($request, $stockCheck);
+
         $line = $stockCheck->isFinished() ? null : $this->checks->next($stockCheck);
 
         return $line
@@ -91,6 +123,8 @@ class StockCheckController extends Controller
     /** Scan to open: a barcode or code typed in a round opens that product. */
     public function scan(Request $request, StockCheck $stockCheck): RedirectResponse
     {
+        $this->mayAnswer($request, $stockCheck);
+
         $code = Digits::english(trim($request->string('code')->toString()));
 
         $product = $code === '' ? null : Product::where('barcode', $code)->orWhere('sku', $code)->first();
@@ -108,6 +142,8 @@ class StockCheckController extends Controller
     /** One product, as the shelf is being counted. */
     public function line(Request $request, StockCheck $stockCheck, StockCheckLine $line): View
     {
+        $this->mayAnswer($request, $stockCheck);
+
         $product = $line->product;
 
         return view('stock-checks.line', [
@@ -116,8 +152,11 @@ class StockCheckController extends Controller
             'product' => $product->load('category'),
             'progress' => $stockCheck->progress(),
             'system' => $this->checks->systemQuantity($stockCheck, $product),
-            // A blind count shows the figure once the count has been typed.
-            'counted' => session('counted'),
+            // A blind count shows the figure once the count has been typed —
+            // and still after a reload, from the first count kept.
+            'counted' => session('counted') ?? ($stockCheck->blind && in_array($line->status, [StockCheckLine::PENDING, StockCheckLine::SKIPPED], true)
+                ? $line->first_count
+                : null),
             'rooms' => Sections::isOn('stock_rooms') && $stockCheck->scope !== StockCheck::SCOPE_ROOM
                 ? StockBatch::where('product_id', $product->id)->withStock()
                     ->selectRaw('room_id, SUM(quantity_remaining) as held')->groupBy('room_id')
@@ -140,12 +179,16 @@ class StockCheckController extends Controller
 
     public function confirm(Request $request, StockCheck $stockCheck, StockCheckLine $line): RedirectResponse
     {
+        $this->mayAnswer($request, $stockCheck);
+
         return $this->then($stockCheck, $line, fn () => $this->checks->confirm($line, $request->integer('seen'), $request->user()));
     }
 
-    public function skip(StockCheck $stockCheck, StockCheckLine $line): RedirectResponse
+    public function skip(Request $request, StockCheck $stockCheck, StockCheckLine $line): RedirectResponse
     {
-        return $this->then($stockCheck, $line, fn () => $this->checks->skip($line));
+        $this->mayAnswer($request, $stockCheck);
+
+        return $this->then($stockCheck, $line, fn () => $this->checks->skip($line, $request->user()));
     }
 
     /**
@@ -155,6 +198,8 @@ class StockCheckController extends Controller
      */
     public function count(Request $request, StockCheck $stockCheck, StockCheckLine $line): RedirectResponse
     {
+        $this->mayAnswer($request, $stockCheck);
+
         $data = $request->validate(['counted' => ['required', 'integer', 'min:0'], 'seen' => ['required', 'integer']]);
         $now = $this->checks->systemQuantity($stockCheck, $line->product);
 
@@ -169,12 +214,22 @@ class StockCheckController extends Controller
             return $this->then($stockCheck, $line, fn () => $this->checks->confirm($line, $now, $request->user()));
         }
 
+        // ⚠️ Kept before the figure is shown — PROJECT_DOC Section 9, the
+        // first count. The report sets it beside whatever is answered next.
+        try {
+            $this->checks->firstCount($line, (int) $data['counted'], $request->user());
+        } catch (RuntimeException $e) {
+            return redirect()->route('stock-checks.line', [$stockCheck, $line])->with('error', problem($e));
+        }
+
         return redirect()->route('stock-checks.line', [$stockCheck, $line])->with('counted', (int) $data['counted']);
     }
 
     /** Wrong: the count, and the ADJ now or the To fix list. */
     public function answer(Request $request, StockCheck $stockCheck, StockCheckLine $line): RedirectResponse
     {
+        $this->mayAnswer($request, $stockCheck);
+
         $data = $request->validate([
             'counted' => ['required', 'integer', 'min:0'],
             'seen' => ['required', 'integer'],
@@ -191,9 +246,13 @@ class StockCheckController extends Controller
         ), keepCount: (int) $data['counted']);
     }
 
-    public function finish(StockCheck $stockCheck): RedirectResponse
+    public function finish(Request $request, StockCheck $stockCheck): RedirectResponse
     {
-        $this->checks->finish($stockCheck);
+        try {
+            $this->checks->finish($stockCheck, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', problem($e));
+        }
 
         return redirect()->route('stock-checks.show', $stockCheck)->with('success', __('The stock check is finished.'));
     }
@@ -251,6 +310,33 @@ class StockCheckController extends Controller
         return redirect()->route('stock-checks.next', $check);
     }
 
+    /** A round's page: whoever may see stock checks, and the person it was sent to. */
+    private function maySee(Request $request, StockCheck $check): void
+    {
+        abort_unless($check->visibleTo($request->user()), 403, __('You do not have permission to do that.'));
+    }
+
+    /** ⚠️ A round sent to someone is answered by them alone. */
+    private function mayAnswer(Request $request, StockCheck $check): void
+    {
+        abort_unless($check->answerableBy($request->user()), 403, $check->isSent()
+            ? __('This stock check was sent to :name, and only they answer in it.', ['name' => $check->assignee?->name ?? '?'])
+            : __('You do not have permission to do that.'));
+    }
+
+    /**
+     * Who a round can be sent to: active, not the sender, and allowed to
+     * count. A handful of people in a shop, so asked one by one.
+     *
+     * @return Collection<int, User>
+     */
+    private function counters(User $sender): Collection
+    {
+        return User::where('is_active', true)->whereKeyNot($sender->id)->with('permissions')->orderBy('name')->get()
+            ->filter(fn (User $user) => $user->hasPermission('stock_checks.count'))
+            ->values();
+    }
+
     /** @return array<string, mixed> */
     private function report(Request $request, StockCheck $check): array
     {
@@ -264,6 +350,13 @@ class StockCheckController extends Controller
             'values' => $wrong->mapWithKeys(fn (StockCheckLine $line) => [$line->id => $this->checks->value($line)]),
             'unchecked' => $check->lines()->whereIn('status', [StockCheckLine::PENDING, StockCheckLine::SKIPPED])
                 ->with('product')->orderBy('position')->get(),
+            // A blind count answered differently from the first count typed.
+            'recounted' => $check->lines()->whereNotNull('first_count')
+                ->whereIn('status', [StockCheckLine::CONFIRMED, StockCheckLine::WRONG])
+                ->whereColumn('first_count', '!=', 'counted')
+                ->with(['product', 'checker'])->orderBy('position')->get(),
+            'mayFinish' => ! $check->isFinished() && $check->finishableBy($request->user()),
+            'mayAnswer' => ! $check->isFinished() && $check->answerableBy($request->user()),
             'seesCost' => $request->user()->seesRealCost(),
             'lens' => $request->user()->lens(),
         ];
