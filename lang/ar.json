@@ -2690,5 +2690,15 @@
     "No supplier matches that.": "لا يوجد مورّد مطابق.",
     ":count more — type to narrow the list.": ":count أخرى — اكتب لتضييق القائمة.",
     "Choose a customer from the list.": "اختر عميلًا من القائمة.",
-    "Choose a supplier from the list.": "اختر مورّدًا من القائمة."
+    "Choose a supplier from the list.": "اختر مورّدًا من القائمة.",
+    "Add to cart": "أضف إلى السلة",
+    "Before a product goes into the cart": "قبل أن يدخل المنتج إلى السلة",
+    "Line total": "إجمالي السطر",
+    "Never show it; every product goes straight in": "لا تُظهره أبداً؛ كل منتج يدخل مباشرة",
+    "Show it only for a product picked from the list; a scan goes straight in": "أظهره فقط للمنتج المختار من القائمة؛ المسح يدخل مباشرة",
+    "Show the price box for every product, scans too": "أظهر مربع السعر لكل منتج، والمسح أيضاً",
+    "That price is not a number. Type a figure, or a sum such as 25 × 1460.": "هذا السعر ليس رقماً. اكتب رقماً، أو عملية مثل 25 × 1460.",
+    "That was a barcode scanned into the box, not a price. Press Enter to add this product first, then scan the next one.": "هذا باركود مُسح داخل المربع، وليس سعراً. اضغط Enter لإضافة هذا المنتج أولاً، ثم امسح المنتج التالي.",
+    "The box shows the price and quantity, with a calculator, before the product is added to a sale or a purchase.": "يعرض المربع السعر والكمية، مع آلة حاسبة، قبل إضافة المنتج إلى البيع أو الشراء.",
+    "The quantity must be a whole number, 1 or more.": "يجب أن تكون الكمية عدداً صحيحاً، 1 أو أكثر."
 }

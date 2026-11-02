@@ -66,6 +66,8 @@ class SettingSeeder extends Seeder
         'purchase_currency' => null,
         'books_closed_before' => null,
         'low_stock_threshold' => '5',
+        // Soran, 2026-11-02: the add box opens for every product, scans too.
+        'cart_add_box' => 'always',
         'sku_prefix' => 'SS',
         'date_format' => 'Y-m-d',
 

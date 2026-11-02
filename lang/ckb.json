@@ -2690,5 +2690,15 @@
     "No supplier matches that.": "هیچ دابینکەرێک لەگەڵ ئەمە ناگونجێت.",
     ":count more — type to narrow the list.": ":count ی تر — بنووسە بۆ کورتکردنەوەی لیستەکە.",
     "Choose a customer from the list.": "کڕیارێک لە لیستەکە هەڵبژێرە.",
-    "Choose a supplier from the list.": "دابینکەرێک لە لیستەکە هەڵبژێرە."
+    "Choose a supplier from the list.": "دابینکەرێک لە لیستەکە هەڵبژێرە.",
+    "Add to cart": "زیادکردن بۆ سەبەتە",
+    "Before a product goes into the cart": "پێش ئەوەی کاڵایەک بچێتە ناو سەبەتە",
+    "Line total": "کۆی دێڕ",
+    "Never show it; every product goes straight in": "هەرگیز پیشانی مەدە؛ هەموو کاڵایەک ڕاستەوخۆ دەچێتە ناو سەبەتە",
+    "Show it only for a product picked from the list; a scan goes straight in": "تەنها بۆ کاڵایەک پیشانی بدە کە لە لیستەکە هەڵدەبژێردرێت؛ سکان ڕاستەوخۆ دەچێتە ناو سەبەتە",
+    "Show the price box for every product, scans too": "سندوقی نرخ بۆ هەموو کاڵایەک پیشان بدە، سکانیش",
+    "That price is not a number. Type a figure, or a sum such as 25 × 1460.": "ئەو نرخە ژمارە نییە. ژمارەیەک بنووسە، یان هاوکێشەیەکی وەک 25 × 1460.",
+    "That was a barcode scanned into the box, not a price. Press Enter to add this product first, then scan the next one.": "ئەوە بارکۆدێک بوو کە سکان کرا بۆ ناو سندوقەکە، نەک نرخ. سەرەتا Enter دابگرە بۆ زیادکردنی ئەم کاڵایە، پاشان کاڵای دواتر سکان بکە.",
+    "The box shows the price and quantity, with a calculator, before the product is added to a sale or a purchase.": "سندوقەکە نرخ و بڕ، لەگەڵ ژمێرەرێک، پیشان دەدات پێش ئەوەی کاڵاکە زیاد بکرێت بۆ فرۆشتن یان کڕین.",
+    "The quantity must be a whole number, 1 or more.": "بڕەکە دەبێت ژمارەیەکی تەواو بێت، 1 یان زیاتر."
 }

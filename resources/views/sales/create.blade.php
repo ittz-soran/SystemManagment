@@ -323,6 +323,8 @@
         </div>
     </form>
 
+    @include('partials.cart-add-box')
+
     @unless($editing)
         @can('customers.create')
             @include('partials.quick-person', [
@@ -676,7 +678,14 @@
                 return window.confirm(question) ? wanted : 0;
             }
 
-            function addProduct(product) {
+            /**
+             * A product into the cart: one at its own price, or what the add
+             * box agreed — a quantity, and a price that is the product's own
+             * unless somebody changed it (`answer.changed`). §2b's untouched
+             * rule: a price nobody touched keeps its base figure exactly; one
+             * typed under a foreign receipt follows the rate.
+             */
+            function addProduct(product, answer = null) {
                 const clash = clashesWithCart(product);
 
                 if (clash) {
@@ -690,7 +699,10 @@
                 // line rather than adding a second one." Two lines for one
                 // product at different prices is entered deliberately, by
                 // editing the price on an existing line.
-                const existing = cart.find((l) => l.id === product.id && l.price === product.sale_price);
+                const quantity = Math.max(1, answer?.quantity ?? 1);
+                const typed = answer?.changed && docCurrency() ? answer.price : null;
+                const price = answer?.changed ? Math.max(0, toBase(answer.price)) : product.sale_price;
+                const existing = cart.find((l) => l.id === product.id && l.price === price);
 
                 /*
                  * ⚠️ Asked before it happens, never after — Soran chose "yes,
@@ -704,7 +716,7 @@
                  * only about the first would have let the commonest of the two
                  * through in silence.
                  */
-                const wanted = (existing?.quantity ?? 0) + 1;
+                const wanted = (existing?.quantity ?? 0) + quantity;
 
                 if (agreedQuantity({
                     name: product.name,
@@ -720,7 +732,7 @@
                 }
 
                 if (existing) {
-                    existing.quantity += 1;
+                    existing.quantity += quantity;
                     existing.agreed = Math.max(existing.agreed ?? 0, wanted);
                 } else {
                     cart.push({
@@ -732,13 +744,14 @@
                         name: product.name,
                         sku: product.sku,
                         unit: product.unit,
-                        quantity: 1,
-                        price: product.sale_price,
+                        quantity,
+                        price,
+                        typed,
                         stock: product.quantity,
                         kind: product.kind,
                         condition: product.condition_note,
                         cost: product.next_batch_cost,
-                        belowCost: product.next_batch_cost !== null && product.sale_price < product.next_batch_cost,
+                        belowCost: product.next_batch_cost !== null && price < product.next_batch_cost,
 
                         // What this line is made of, so a piece of it cannot be
                         // added to the same cart.
@@ -792,7 +805,48 @@
                 scanner.input.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
 
-            async function runSearch(term) {
+            /**
+             * A product chosen — clicked in the list ('picked') or scanned
+             * ('scan', Enter on an exact code). Soran, 2026-11-02: the add box
+             * first, unless the setting says otherwise for this way in.
+             */
+            function take(product, how) {
+                const box = window.cartAddBox;
+                const ask = box && (box.mode === 'always' || (box.mode === 'picked' && how === 'picked'));
+
+                if (! ask) {
+                    addProduct(product);
+
+                    return;
+                }
+
+                clearSearch();
+                const currency = docCurrency();
+
+                box.open({
+                    name: product.name,
+                    note: product.kind === 'service'
+                        ? product.sku
+                        : `${product.sku} · ${format(product.quantity)} ${product.unit ?? ''} ${@json(__('in stock'))}`,
+                    price: fromBase(product.sale_price),
+                    places: currency ? currency.decimals : 0,
+                    mark: currency ? currency.mark : undefined,
+                }).then((answer) => {
+                    if (answer) {
+                        addProduct(product, answer);
+                    } else {
+                        goToScanner();
+                    }
+                });
+            }
+
+            // Each search numbered, so an answer that arrives after a newer
+            // one was asked is dropped rather than drawn over it.
+            let searchSeq = 0;
+
+            async function runSearch(term, how = 'typed') {
+                const seq = ++searchSeq;
+
                 // ⚠️ `rebuildable=1` is the till asking a question only the
                 // till asks: what could be put back together to sell. A
                 // purchase or an adjustment is not rebuilding anything, and the
@@ -801,14 +855,21 @@
                     headers: { 'Accept': 'application/json' },
                 });
 
-                if (! response.ok) return;
+                if (! response.ok || seq !== searchSeq) return;
 
                 const data = await response.json();
 
-                // An exact barcode or SKU match adds straight to the cart at
-                // qty 1; a partial name match shows a dropdown.
-                if (data.exact && data.products.length === 1) {
-                    addProduct(data.products[0]);
+                if (seq !== searchSeq) return;
+
+                /*
+                 * ⚠️ Typing only searches — Soran, 2026-11-02: "some time have
+                 * SS12 and SS123 and i want add SS123 but system auto add SS12".
+                 * The search runs whenever typing pauses, and an exact code used
+                 * to go straight in from there. Only Enter takes an exact code —
+                 * a scanner ends every scan with one; a person picks from the list.
+                 */
+                if (how === 'enter' && data.exact && data.products.length === 1) {
+                    take(data.products[0], 'scan');
                     return;
                 }
 
@@ -833,7 +894,7 @@
                                         : ''}</span>`}
                             <span class="fw-semibold">${format(product.sale_price)}</span>
                         </span>`;
-                    item.addEventListener('click', () => addProduct(product));
+                    item.addEventListener('click', () => take(product, 'picked'));
                     resultsBox.appendChild(item);
                 });
 
@@ -883,7 +944,7 @@
                     } else {
                         clearTimeout(searchTimer);
                         const term = searchInput.value.trim();
-                        if (term) runSearch(term);
+                        if (term) runSearch(term, 'enter');
                     }
                     }
                 });
@@ -1200,6 +1261,8 @@
                 // Not while the keypad is up, or F2 would save the document
                 // from under a half-typed price.
                 if (document.getElementById('number-pad')?.classList.contains('show')) return;
+                // Nor while the add box is up, for the same reason.
+                if (document.getElementById('cart-add-box')?.classList.contains('show')) return;
 
                 if (event.key === 'F2' && ! saveButtons[0].disabled) {
                     event.preventDefault();
