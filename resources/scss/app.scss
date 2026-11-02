@@ -802,12 +802,183 @@ th.money {
     // Comfortably bigger than the 44px a fingertip needs.
     min-height: 3rem;
     font-size: 1.25rem;
+    border-radius: 0.75rem;
   }
+}
+
+// The keys, from Soran's picture, 2026-11-02 (Section 9, "Its look"): figures
+// on the page's own white with a soft edge under them, the four sums tinted
+// with the shop's colour. Both keypads wear them — the add box and the one a
+// price field opens — so the shop has one calculator, not two.
+//
+// Variables, not colours: --bs-body-bg and --bs-primary-rgb follow dark mode
+// and the brand (partials/brand) without a rule for either.
+.number-key {
+  --bs-btn-bg: var(--bs-body-bg);
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-bg: var(--bs-tertiary-bg);
+  --bs-btn-hover-color: var(--bs-body-color);
+  --bs-btn-hover-border-color: var(--bs-border-color);
+  --bs-btn-active-bg: var(--bs-secondary-bg);
+  --bs-btn-active-color: var(--bs-body-color);
+  --bs-btn-active-border-color: var(--bs-border-color);
+  // A plain .btn names no focus colour, and an undefined one draws no ring.
+  --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+  box-shadow: 0 2px 0 rgba(var(--bs-body-color-rgb), 0.07);
+}
+
+// ⚠️ The symbol is the brand made readable (--app-primary-ink, partials/brand),
+// not the brand itself: a pale brand — the dev shop's yellow — drew ÷ × − +
+// yellow on white, which nobody can read. The tint behind stays the brand.
+.number-key-op {
+  --app-key-ink: var(--app-primary-ink, var(--bs-primary));
+  --bs-btn-bg: rgba(var(--bs-primary-rgb), 0.08);
+  --bs-btn-color: var(--app-key-ink);
+  --bs-btn-border-color: rgba(var(--bs-primary-rgb), 0.3);
+  --bs-btn-hover-bg: rgba(var(--bs-primary-rgb), 0.16);
+  --bs-btn-hover-color: var(--app-key-ink);
+  --bs-btn-hover-border-color: rgba(var(--bs-primary-rgb), 0.45);
+  --bs-btn-active-bg: rgba(var(--bs-primary-rgb), 0.24);
+  --bs-btn-active-color: var(--app-key-ink);
+  --bs-btn-active-border-color: rgba(var(--bs-primary-rgb), 0.55);
+  font-weight: 600;
 }
 
 // The tall equals key of every calculator, so the last row has room for 00 and 0.
 .number-pad-equals {
   grid-row: span 2;
+  font-weight: 600;
+}
+
+// ---------------------------------------------------------------------------
+// The add box (Section 9, the sale/purchase screen) — Soran's picture,
+// 2026-11-02: a rounded card over a blurred page, the product beside a round
+// badge, big figures, the line total on its own line, a wide Add to cart.
+// ---------------------------------------------------------------------------
+
+.cart-add-box {
+  --bs-modal-border-radius: 1.25rem;
+  --bs-modal-inner-border-radius: 1.25rem;
+  --bs-modal-border-width: 0;
+  --bs-modal-header-padding: 1.25rem 1.5rem;
+  --bs-modal-padding: 1.25rem 1.5rem;
+  // The fields, the currency and the two buttons all round to this.
+  --bs-border-radius-lg: 0.75rem;
+
+  // On the box itself rather than Bootstrap's backdrop: it fades in and out
+  // with the box, and blurs the shade as well as the page under it.
+  backdrop-filter: blur(4px);
+
+  .modal-content {
+    box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.25);
+  }
+
+  .cart-add-badge {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 50%;
+    font-size: 1.5rem;
+  }
+
+  .cart-add-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+
+    i {
+      font-size: 1.15em;
+    }
+  }
+
+  .cart-add-figure {
+    font-size: 1.6rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cart-add-mark {
+    justify-content: center;
+    min-width: 3.5rem;
+    background-color: var(--bs-tertiary-bg);
+    font-size: 1.1rem;
+  }
+
+  .cart-add-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1.25rem 0 1rem;
+    padding-top: 1rem;
+    border-top: var(--bs-border-width) solid var(--bs-border-color-translucent);
+
+    // A figure and its mark stay in that order inside a right-to-left page.
+    output {
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+  }
+
+  .number-pad-grid {
+    gap: 0.6rem;
+
+    .btn {
+      min-height: 3.25rem;
+      font-size: 1.5rem;
+    }
+  }
+
+  .modal-footer {
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
+  .cart-add-cancel {
+    min-width: 8rem;
+  }
+
+  // A 1366 × 768 counter screen leaves about 650px under the browser's bars:
+  // smaller keys and padding, so Add to cart is on the screen without a scroll.
+  @media (max-height: 760px) {
+    --bs-modal-header-padding: 0.75rem 1.25rem;
+    --bs-modal-padding: 0.75rem 1.25rem;
+
+    .modal-dialog {
+      margin-top: 0.75rem;
+      margin-bottom: 0.75rem;
+      min-height: calc(100% - 1.5rem);
+    }
+
+    .cart-add-badge {
+      width: 2.75rem;
+      height: 2.75rem;
+      font-size: 1.25rem;
+    }
+
+    .cart-add-total {
+      margin: 0.75rem 0 0.75rem;
+      padding-top: 0.75rem;
+    }
+
+    .number-pad-grid {
+      gap: 0.5rem;
+
+      .btn {
+        min-height: 2.75rem;
+        font-size: 1.35rem;
+      }
+    }
+
+    .modal-footer {
+      padding: 0.75rem 1.25rem 1rem;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

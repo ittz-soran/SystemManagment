@@ -4,7 +4,7 @@
     price or change then confirm."
 
     One per page, opened by the page's own script through window.cartAddBox:
-    open({ name, sku, note, price, places, mark }) gives back a promise of
+    open({ name, kind, note, price, places, mark }) gives back a promise of
     { price, changed, quantity }, or null when it was put back. The page
     decides what a price means — dinars, or dollars at the receipt's rate — and
     applies the untouched-field rule (Section 2b): `changed` false means the
@@ -14,75 +14,93 @@
 
     Outside the cart's <form>: nothing in here is posted.
 --}}
-<div class="modal fade" id="cart-add-box" tabindex="-1" aria-labelledby="cart-add-box-title" aria-hidden="true"
+{{-- Its look is Soran's own picture, 2026-11-02: "make calculator design like
+     this" — Section 9, "Its look". The keys are the shared .number-key, so
+     the keypad a price field opens looks the same. --}}
+<div class="modal fade cart-add-box" id="cart-add-box" tabindex="-1" aria-labelledby="cart-add-box-title" aria-hidden="true"
      data-mode="{{ setting('cart_add_box', 'always') }}" data-base-mark="{{ App\Support\Money::base()->mark() }}">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header py-2">
+            <div class="modal-header gap-3">
+                {{-- No product has a picture (PROJECT_DOC open question 2): a
+                     box for goods, a spanner for a service, set when it opens.
+                     text-bg-primary takes the shop's brand and the ink that
+                     reads on it (partials/brand). --}}
+                <span class="cart-add-badge text-bg-primary" aria-hidden="true">
+                    <i class="bi bi-box-seam" id="cart-add-box-icon"></i>
+                </span>
                 <div class="me-auto min-w-0">
-                    <h6 class="modal-title text-truncate" id="cart-add-box-title" dir="auto"></h6>
-                    <div class="small text-secondary" id="cart-add-box-note" dir="auto"></div>
+                    <h5 class="modal-title fw-semibold text-truncate" id="cart-add-box-title" dir="auto"></h5>
+                    <div class="text-secondary text-truncate" id="cart-add-box-note" dir="auto"></div>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                <button type="button" class="btn-close align-self-start" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
 
             <div class="modal-body">
-                <div class="row g-2">
+                <div class="row g-3">
                     <div class="col-7">
-                        <label for="cart-add-price" class="form-label small">{{ __('Price') }}</label>
-                        <div class="input-group">
+                        <label for="cart-add-price" class="cart-add-label">
+                            <i class="bi bi-tag" aria-hidden="true"></i>{{ __('Price') }}
+                        </label>
+                        <div class="input-group input-group-lg">
                             {{-- Text, not number: it takes a sum — 25 × 1460. --}}
                             <input id="cart-add-price" type="text" inputmode="decimal" autocomplete="off"
-                                   class="form-control form-control-lg text-end" dir="ltr" data-english-digits>
-                            <span class="input-group-text" id="cart-add-mark"></span>
+                                   class="form-control cart-add-figure text-end" dir="ltr" data-english-digits>
+                            {{-- The screen's currency, not a choice: Section 9,
+                                 "Its look" — the picture's arrow is left out. --}}
+                            <span class="input-group-text cart-add-mark" id="cart-add-mark"></span>
                         </div>
                     </div>
                     <div class="col-5">
-                        <label for="cart-add-qty" class="form-label small">{{ __('Quantity') }}</label>
+                        <label for="cart-add-qty" class="cart-add-label">
+                            <i class="bi bi-box" aria-hidden="true"></i>{{ __('Quantity') }}
+                        </label>
                         <input id="cart-add-qty" type="text" inputmode="numeric" autocomplete="off"
-                               class="form-control form-control-lg text-end" dir="ltr" data-english-digits>
+                               class="form-control form-control-lg cart-add-figure text-end" dir="ltr" data-english-digits>
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-baseline mt-2">
-                    <span class="text-secondary small">{{ __('Line total') }}</span>
-                    <output id="cart-add-total" class="fw-semibold fs-5" dir="ltr" data-cart-add-total>0</output>
+                <div class="cart-add-total">
+                    <span class="cart-add-label mb-0 text-secondary">
+                        <i class="bi bi-receipt" aria-hidden="true"></i>{{ __('Line total') }}
+                    </span>
+                    <output id="cart-add-total" class="fw-bold fs-4" dir="ltr" data-cart-add-total>0</output>
                 </div>
-                <div class="small text-danger d-none" id="cart-add-error" role="alert"></div>
+                <div class="small text-danger d-none mb-2" id="cart-add-error" role="alert"></div>
 
-                <div class="number-pad-grid mt-3" id="cart-add-keys">
-                    <button type="button" class="btn btn-outline-secondary" data-key="clear">{{ __('C') }}</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="back"
+                <div class="number-pad-grid" id="cart-add-keys">
+                    <button type="button" class="btn number-key" data-key="clear">{{ __('C') }}</button>
+                    <button type="button" class="btn number-key" data-key="back"
                             aria-label="{{ __('Backspace') }}"><i class="bi bi-backspace"></i></button>
-                    <button type="button" class="btn btn-outline-primary" data-key="÷" aria-label="{{ __('Divide') }}">÷</button>
-                    <button type="button" class="btn btn-outline-primary" data-key="×" aria-label="{{ __('Multiply') }}">×</button>
+                    <button type="button" class="btn number-key number-key-op" data-key="÷" aria-label="{{ __('Divide') }}">÷</button>
+                    <button type="button" class="btn number-key number-key-op" data-key="×" aria-label="{{ __('Multiply') }}">×</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-key="7">7</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="8">8</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="9">9</button>
-                    <button type="button" class="btn btn-outline-primary" data-key="−" aria-label="{{ __('Subtract') }}">−</button>
+                    <button type="button" class="btn number-key" data-key="7">7</button>
+                    <button type="button" class="btn number-key" data-key="8">8</button>
+                    <button type="button" class="btn number-key" data-key="9">9</button>
+                    <button type="button" class="btn number-key number-key-op" data-key="−" aria-label="{{ __('Subtract') }}">−</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-key="4">4</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="5">5</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="6">6</button>
-                    <button type="button" class="btn btn-outline-primary" data-key="+" aria-label="{{ __('Add') }}">+</button>
+                    <button type="button" class="btn number-key" data-key="4">4</button>
+                    <button type="button" class="btn number-key" data-key="5">5</button>
+                    <button type="button" class="btn number-key" data-key="6">6</button>
+                    <button type="button" class="btn number-key number-key-op" data-key="+" aria-label="{{ __('Add') }}">+</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-key="1">1</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="2">2</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="3">3</button>
+                    <button type="button" class="btn number-key" data-key="1">1</button>
+                    <button type="button" class="btn number-key" data-key="2">2</button>
+                    <button type="button" class="btn number-key" data-key="3">3</button>
                     <button type="button" class="btn btn-primary number-pad-equals" data-key="="
                             aria-label="{{ __('Equals') }}">=</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-key="00">00</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key="0">0</button>
-                    <button type="button" class="btn btn-outline-secondary" data-key=".">.</button>
+                    <button type="button" class="btn number-key" data-key="00">00</button>
+                    <button type="button" class="btn number-key" data-key="0">0</button>
+                    <button type="button" class="btn number-key" data-key=".">.</button>
                 </div>
             </div>
 
-            <div class="modal-footer py-2 d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
-                <button type="button" class="btn btn-primary flex-fill" id="cart-add-ok">
-                    <i class="bi bi-plus-lg me-1"></i>{{ __('Add to cart') }}
+            <div class="modal-footer flex-nowrap gap-3">
+                <button type="button" class="btn btn-lg btn-outline-secondary cart-add-cancel m-0" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="button" class="btn btn-lg btn-primary flex-fill m-0" id="cart-add-ok">
+                    <i class="bi bi-cart-plus me-2" aria-hidden="true"></i>{{ __('Add to cart') }}
                 </button>
             </div>
         </div>
@@ -349,6 +367,8 @@
                     document.getElementById('cart-add-box-title').textContent = product.name ?? '';
                     document.getElementById('cart-add-box-note').textContent = product.note ?? '';
                     document.getElementById('cart-add-mark').textContent = mark;
+                    document.getElementById('cart-add-box-icon').className =
+                        product.kind === 'service' ? 'bi bi-tools' : 'bi bi-box-seam';
 
                     price.value = String(round(original));
                     quantity.value = String(product.quantity ?? 1);

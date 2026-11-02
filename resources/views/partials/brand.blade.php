@@ -53,6 +53,11 @@
         --bs-link-color-rgb: {{ $primary['rgb'] }};
         --bs-link-hover-color: {{ $primary['hover'] }};
         --bs-focus-ring-color: rgba({{ $primary['rgb'] }}, .25);
+
+        /* The brand as words on the page, for a stylesheet rule that has no
+           Bootstrap variable to set — the keypad's ÷ × − + (Section 9, "Its
+           look"). The dark block below swaps it. */
+        --app-primary-ink: {{ $primary['on_light'] }};
     }
 
     /* Buttons carry their own compiled colours, so each one is named. */
@@ -198,6 +203,7 @@
         --bs-link-color-rgb: {{ $primary['on_dark_rgb'] }};
         --bs-link-hover-color: {{ $primary['hex'] }};
         --bs-primary-text-emphasis: {{ $primary['on_dark'] }};
+        --app-primary-ink: {{ $primary['on_dark'] }};
     }
 
     [data-bs-theme="dark"] .btn-outline-primary {

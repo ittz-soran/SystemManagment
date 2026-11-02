@@ -722,6 +722,7 @@
 
                 box.open({
                     name: product.name,
+                    kind: product.kind,
                     note: product.kind === 'service'
                         ? product.sku
                         : `${product.sku} · ${format(product.quantity)} ${product.unit ?? ''} ${@json(__('in stock'))}`,

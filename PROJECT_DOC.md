@@ -3194,6 +3194,19 @@ Soran uses this a hundred times a day. Every other page can be ordinary; this on
 - **A scan into the box is not a price.** A burst of keys faster than anybody types, ended by Enter, is the next product's barcode landing in the price: the price is put back and the box says to press Enter for this product first.
 - **Found in the browser:** a scanner's Enter can arrive while the box is still opening, and Bootstrap ignores a close asked for then — the box stayed open over a cart that had already taken the product. A close that comes early now waits for the box to finish opening.
 
+**Its look — Soran, 2026-11-02**, with a picture of the box he wanted: *"make calculator design like this"*.
+
+- The product in the top line beside a round blue badge, its code and stock under it. A service shows a spanner in the badge; anything else, a box. No product has a picture to show there (see the open question on product images).
+- **Price** and **Quantity** each under a small icon, in large figures; the screen's currency sits inside the price field, at its end.
+- **Line total** on its own line between two rules, its figure large and bold.
+- The keys: figures white with a soft edge, **÷ × − +** tinted blue, **=** solid blue and two rows tall, **00 0 .** on the bottom row.
+- **Cancel** beside a wide blue **Add to cart** with a cart on it. The page behind is blurred while the box is open.
+- The keypad a price field opens (Section 9b) gets the same keys, so the shop has one calculator, not two that look different.
+- ⚠️ **Not taken from the picture: the arrow beside the currency.** In the picture the currency looks like a list to choose from. Here it is not a choice: the box always shows the price in the screen's own currency. A different currency on one line would be a new feature, so the field shows the currency without the arrow.
+- ⚠️ **Found in the browser: the brand drew the four sums.** The dev shop's brand is yellow, and ÷ × − + came out yellow on white, which nobody can read. The symbols now use the brand made readable: `--app-primary-ink`, written by `partials/brand` from `brand_palette`'s `on_light` and `on_dark`, the same colours the outline buttons use. The tint behind them, the badge, **=** and **Add to cart** stay the brand itself, with the ink that reads on it.
+
+**Built 2026-11-02**: `partials/cart-add-box` restyled, and the shared `.number-key` / `.number-key-op` keys in `app.scss`, which `components/number-pad` wears too; two new icons (`tag`, `box`) in the subset. `CartAddBoxTest` gained two tests: both keypads carry the same keys, and the sums are readable on a pale brand on both themes. Six guards sabotaged and caught, the built stylesheet among them. Looked at in Chromium in the default blue and the dev shop's yellow; light and dark; English and Sorani right-to-left; on a 1366 × 657 screen, where the box fits with **Add to cart** showing; and at phone width. Suite: 1,736 tests, 3 skipped as before.
+
 **The customer and the supplier are searched, not scrolled** (Soran, 2026-11-02: *"add search for Customer&Supplier like "Scan or type…" input type to search and show all at empty or click on it"*). The box reads like the product search: click it or leave it empty and every customer (or supplier) is listed; type and the list narrows by name or phone, in any of the shop's digits. The choice is still the same field underneath, so the walk-in default, *New customer* and everything that reacts to the customer go on working.
 
 **Show the running total large and always visible.** It is the number Soran reads out to the customer.
