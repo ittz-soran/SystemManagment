@@ -2700,5 +2700,22 @@
     "That price is not a number. Type a figure, or a sum such as 25 × 1460.": "هذا السعر ليس رقماً. اكتب رقماً، أو عملية مثل 25 × 1460.",
     "That was a barcode scanned into the box, not a price. Press Enter to add this product first, then scan the next one.": "هذا باركود مُسح داخل المربع، وليس سعراً. اضغط Enter لإضافة هذا المنتج أولاً، ثم امسح المنتج التالي.",
     "The box shows the price and quantity, with a calculator, before the product is added to a sale or a purchase.": "يعرض المربع السعر والكمية، مع آلة حاسبة، قبل إضافة المنتج إلى البيع أو الشراء.",
-    "The quantity must be a whole number, 1 or more.": "يجب أن تكون الكمية عدداً صحيحاً، 1 أو أكثر."
+    "The quantity must be a whole number, 1 or more.": "يجب أن تكون الكمية عدداً صحيحاً، 1 أو أكثر.",
+    ":amount less than the purchase cost — a gain": ":amount أقل من كلفة الشراء — ربح",
+    ":amount more than the purchase cost — a loss": ":amount أكثر من كلفة الشراء — خسارة",
+    ":left is left on :document.": "المتبقي على :document هو :left فقط.",
+    "At today's rate, an estimate": "بسعر اليوم، تقديري",
+    "Dollar rate difference": "فرق سعر الدولار",
+    "Leaves the till": "يخرج من الصندوق",
+    "Money out of the till — paying the supplier. Money back from them goes through a purchase return.": "نقد يخرج من الصندوق — دفع للمورد. استرداد المال منه يتم عبر مرتجع شراء.",
+    "More than is owed": "أكثر من المستحق",
+    "Paid in :code": "مدفوع بـ :code",
+    "Rate it was paid at": "السعر الذي دُفع به",
+    "Settled of the purchase": "ما سُدّد من الشراء",
+    "Settles of this purchase, at its own rate": "يسدّد من هذا الشراء، بسعره الخاص",
+    "That comes to less than 1 :code.": "هذا أقل من 1 :code.",
+    "The rate on the day you paid. The purchase was written at :rate.": "السعر في يوم الدفع. كُتب الشراء بسعر :rate.",
+    "This purchase is not owed in another currency.": "هذا الشراء غير مستحق بعملة أخرى.",
+    "This purchase is owed in :code. Type what you paid in :code.": "هذا الشراء مستحق بـ :code. اكتب ما دفعته بـ :code.",
+    "at :rate": "بسعر :rate"
 }

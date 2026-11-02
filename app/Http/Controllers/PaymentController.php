@@ -3,15 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\AccountTransaction;
+use App\Models\Currency;
 use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Models\User;
 use App\Rules\Amount;
 use App\Services\LedgerService;
 use App\Services\PaymentService;
 use App\Support\DocumentLink;
+use App\Support\Money;
 use App\Support\MoneyInput;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -84,6 +87,7 @@ class PaymentController extends Controller
             'payable' => $payable,
             'payableType' => $request->string('payable_type')->toString(),
             'context' => $this->describe($payable),
+            'owed' => $this->owedInDollars($payable),
             'backUrl' => DocumentLink::url($payable, $request->user()),
         ]);
     }
@@ -114,6 +118,18 @@ class PaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $request->validate([
+            'payable_type' => ['required', Rule::in(['sale', 'purchase', 'sale_return', 'purchase_return'])],
+            'payable_id' => ['required', 'integer'],
+        ]);
+
+        $payable = $this->resolvePayable($request->string('payable_type')->toString(), $request->integer('payable_id'));
+
+        // Section 6: a purchase owed in dollars is paid in dollars.
+        if ($payable instanceof Purchase && $payable->owedIn() !== null) {
+            return $this->storeInDollars($request, $payable);
+        }
+
         $lens = $request->user()->lens();
 
         $data = $request->validate([
@@ -132,8 +148,6 @@ class PaymentController extends Controller
         // Section 2b: what the box held, as the base-currency integer stored.
         // A create has nothing that could be untouched, so no original.
         $data['amount'] = MoneyInput::fromRequest($request, 'amount', $lens);
-
-        $payable = $this->resolvePayable($data['payable_type'], (int) $data['payable_id']);
 
         try {
             DB::transaction(function () use ($data, $payable, $request) {
@@ -178,6 +192,7 @@ class PaymentController extends Controller
             'payment' => $payment,
             'payable' => $payable,
             'party' => $this->party($payable),
+            'owed' => $this->inDollars($payment) ? $this->owedInDollars($payable, $payment) : null,
             'backUrl' => $payable ? $this->documentUrl($payable) : route('payments.index'),
         ]);
     }
@@ -197,6 +212,10 @@ class PaymentController extends Controller
      */
     public function update(Request $request, Payment $payment): RedirectResponse
     {
+        if ($this->inDollars($payment)) {
+            return $this->updateInDollars($request, $payment);
+        }
+
         $lens = $request->user()->lens();
 
         $data = $request->validate([
@@ -237,7 +256,7 @@ class PaymentController extends Controller
                 $this->ledger->post(
                     account: $was,
                     type: AccountTransaction::TYPE_PAYMENT,
-                    amount: (int) $payment->amount,
+                    amount: $payment->settled(),
                     reference: $payable,
                     user: $request->user(),
                     notes: __('Reversal of :document', ['document' => $payment->document_no]),
@@ -270,6 +289,191 @@ class PaymentController extends Controller
         return redirect()
             ->route('payments.show', $payment)
             ->with('success', __('Payment saved'));
+    }
+
+    /**
+     * A payment on a purchase owed in dollars — Section 6, Soran, 2026-11-02:
+     * *"when i pay, then the system should keep the dinars against the
+     * dollars"*. Typed in dollars, at the rate of the day; the dinars that
+     * left are those dollars at that rate, and the supplier's account moves by
+     * the dinars of the purchase they settled. The rest is the payment's rate
+     * difference, which the profit report carries.
+     */
+    private function storeInDollars(Request $request, Purchase $purchase): RedirectResponse
+    {
+        $currency = $purchase->owedIn();
+        $data = $request->validate($this->dollarRules($currency));
+        $foreign = (int) Money::readAt($data['foreign_amount'], $currency->decimals);
+
+        try {
+            DB::transaction(function () use ($purchase, $data, $foreign, $request) {
+                // Locked, so two people paying the last dollar at once cannot
+                // both close it.
+                $locked = Purchase::whereKey($purchase->id)->lockForUpdate()->firstOrFail();
+                $split = $this->split($locked, $foreign, (int) $data['exchange_rate']);
+
+                $this->payments->record(
+                    payable: $locked,
+                    amount: $split['amount'],
+                    // Money back from the supplier goes through a purchase
+                    // return — on a dollar purchase a payment is money out.
+                    direction: Payment::DIRECTION_OUT,
+                    user: $request->user(),
+                    method: $data['payment_method'],
+                    paidAt: Carbon::parse($data['paid_at']),
+                    notes: $data['notes'] ?? null,
+                    foreignAmount: $foreign,
+                    exchangeRate: (int) $data['exchange_rate'],
+                    rateDifference: $split['difference'],
+                );
+
+                $this->bringTheLedgerTo($locked, $request->user(), $locked->document_no);
+            });
+        } catch (RuntimeException $e) {
+            return back()->withInput()->with('error', problem($e));
+        }
+
+        return redirect()
+            ->to($this->documentUrl($purchase))
+            ->with('success', __('Payment recorded'));
+    }
+
+    /**
+     * Correct a dollar payment: put back the dinars it settled, and settle
+     * again by the same rule, as if the others were all there were.
+     */
+    private function updateInDollars(Request $request, Payment $payment): RedirectResponse
+    {
+        /** @var Purchase $purchase */
+        $purchase = $payment->payable;
+        $currency = $purchase->owedIn();
+        $data = $request->validate($this->dollarRules($currency));
+        $foreign = (int) Money::readAt($data['foreign_amount'], $currency->decimals);
+        $paidAt = Carbon::parse($data['paid_at']);
+
+        foreach ([$payment->paid_at, $paidAt] as $date) {
+            if (books_closed_on($date)) {
+                return back()->withInput()->with('error', __('Locked: this date is in a closed period.'));
+            }
+        }
+
+        try {
+            DB::transaction(function () use ($payment, $purchase, $data, $foreign, $paidAt, $request) {
+                $locked = Purchase::whereKey($purchase->id)->lockForUpdate()->firstOrFail();
+
+                $split = $this->split($locked, $foreign, (int) $data['exchange_rate'], $payment);
+
+                $payment->forceFill([
+                    'amount' => $split['amount'],
+                    'foreign_amount' => $foreign,
+                    'exchange_rate' => (int) $data['exchange_rate'],
+                    'rate_difference' => $split['difference'],
+                    'payment_method' => $data['payment_method'],
+                    'paid_at' => $paidAt,
+                    'notes' => $data['notes'] ?? null,
+                ])->save();
+
+                $this->bringTheLedgerTo($locked, $request->user(), $payment->document_no);
+            });
+        } catch (RuntimeException $e) {
+            return back()->withInput()->with('error', problem($e));
+        }
+
+        return redirect()
+            ->route('payments.show', $payment)
+            ->with('success', __('Payment saved'));
+    }
+
+    /**
+     * Bring the supplier's account to what this dollar purchase still owes.
+     *
+     * ⚠️ **Not "post minus what the payment settled".** A supplier's balance
+     * stops at zero, so a payment that went past it only ever applied part of
+     * itself: PUR-00059's 24,000, paid before this, applied 23,360 against a
+     * supplier owed nothing else. Putting back the payment's own figure would
+     * invent 640 owed. So the purchase's postings are summed as the ledger
+     * applied them and moved to what is owed now — the purchase less what its
+     * payments settled — the way an edited purchase is re-posted. An old
+     * payment corrected here comes out right whichever way it went in.
+     */
+    private function bringTheLedgerTo(Purchase $purchase, User $user, string $notes): void
+    {
+        $supplier = $purchase->supplier()->firstOrFail();
+
+        $applied = (int) AccountTransaction::query()
+            ->where('accountable_type', 'supplier')
+            ->where('accountable_id', $supplier->id)
+            ->where('reference_type', 'purchase')
+            ->where('reference_id', $purchase->id)
+            ->sum('amount');
+
+        $this->ledger->post(
+            account: $supplier,
+            type: AccountTransaction::TYPE_PAYMENT,
+            amount: ($purchase->grand_total - $purchase->amountPaid()) - $applied,
+            reference: $purchase,
+            user: $user,
+            notes: $notes,
+        );
+    }
+
+    /** @return array{amount: int, settled: int, difference: int} */
+    private function split(Purchase $purchase, int $foreign, int $rate, ?Payment $except = null): array
+    {
+        $split = $purchase->settle($foreign, $rate, $except);
+
+        // A payment is at least one dinar — a cent at a rate of one is nothing.
+        if ($split['amount'] < 1) {
+            throw new RuntimeException(__('That comes to less than 1 :code.', ['code' => Money::base()->code]));
+        }
+
+        return $split;
+    }
+
+    /** @return array<string, array<int, mixed>> */
+    private function dollarRules(Currency $currency): array
+    {
+        return [
+            'foreign_amount' => ['required', 'numeric', 'gt:0', 'decimal:0,'.$currency->decimals],
+            'exchange_rate' => ['required', 'integer', 'min:1'],
+            'payment_method' => ['required', 'in:cash,bank,transfer'],
+            'paid_at' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    /** Money out on a purchase owed in dollars — the payments the dollar box edits. */
+    private function inDollars(Payment $payment): bool
+    {
+        return $payment->payable instanceof Purchase
+            && $payment->payable->owedIn() !== null
+            && $payment->direction === Payment::DIRECTION_OUT;
+    }
+
+    /**
+     * What a payment screen needs to take dollars: what is owed in them, and
+     * the two rates — the purchase's own, and today's, which the box starts at.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function owedInDollars(?Model $payable, ?Payment $except = null): ?array
+    {
+        if (! $payable instanceof Purchase || ($currency = $payable->owedIn()) === null) {
+            return null;
+        }
+
+        return [
+            'currency' => $currency,
+            'total' => $payable->foreign_total,
+            'paid' => $payable->foreignPaid($except),
+            'returned' => $payable->foreignCredited(),
+            'due' => (int) $payable->foreignDue($except),
+            // The dinars the closing payment settles — what the box's sum
+            // shows when the dollars typed reach what is owed.
+            'dueInDinars' => $payable->amountDue($except),
+            'purchaseRate' => (int) $payable->exchange_rate,
+            'todaysRate' => max(1, (int) round($currency->rate / Money::RATE_SCALE)),
+        ];
     }
 
     /**
@@ -318,6 +522,19 @@ class PaymentController extends Controller
 
         $payable = $payment->payable;
 
+        if ($this->inDollars($payment)) {
+            DB::transaction(function () use ($payment, $payable, $request) {
+                $locked = Purchase::whereKey($payable->id)->lockForUpdate()->firstOrFail();
+                $payment->delete();
+                $this->bringTheLedgerTo($locked, $request->user(),
+                    __('Reversal of :document', ['document' => $payment->document_no]));
+            });
+
+            return redirect()
+                ->to(after_delete(route('payments.show', $payment), $this->documentUrl($payable)))
+                ->with('success', __('Payment deleted'));
+        }
+
         DB::transaction(function () use ($payment, $payable, $request) {
             $account = $this->settlingAccount($payable, $payment->direction);
 
@@ -325,8 +542,9 @@ class PaymentController extends Controller
                 $this->ledger->post(
                     account: $account,
                     type: AccountTransaction::TYPE_PAYMENT,
-                    // The opposite of what recording it posted.
-                    amount: (int) $payment->amount,
+                    // The opposite of what recording it posted: what it
+                    // settled, which on a dollar purchase is not what left.
+                    amount: $payment->settled(),
                     reference: $payable,
                     user: $request->user(),
                     notes: __('Reversal of :document', ['document' => $payment->document_no]),

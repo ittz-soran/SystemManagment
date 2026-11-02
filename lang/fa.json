@@ -2700,5 +2700,22 @@
     "That price is not a number. Type a figure, or a sum such as 25 × 1460.": "این قیمت عدد نیست. یک عدد بنویسید، یا محاسبه‌ای مانند 25 × 1460.",
     "That was a barcode scanned into the box, not a price. Press Enter to add this product first, then scan the next one.": "این یک بارکد بود که داخل کادر اسکن شد، نه قیمت. اول Enter را بزنید تا این کالا اضافه شود، بعد کالای بعدی را اسکن کنید.",
     "The box shows the price and quantity, with a calculator, before the product is added to a sale or a purchase.": "کادر، قیمت و تعداد را همراه با ماشین‌حساب نشان می‌دهد، پیش از آنکه کالا به فروش یا خرید اضافه شود.",
-    "The quantity must be a whole number, 1 or more.": "تعداد باید عدد صحیح باشد، 1 یا بیشتر."
+    "The quantity must be a whole number, 1 or more.": "تعداد باید عدد صحیح باشد، 1 یا بیشتر.",
+    ":amount less than the purchase cost — a gain": ":amount کمتر از هزینهٔ خرید — سود",
+    ":amount more than the purchase cost — a loss": ":amount بیشتر از هزینهٔ خرید — زیان",
+    ":left is left on :document.": "روی :document فقط :left باقی مانده است.",
+    "At today's rate, an estimate": "با نرخ امروز، تخمینی",
+    "Dollar rate difference": "تفاوت نرخ دلار",
+    "Leaves the till": "از صندوق خارج می‌شود",
+    "Money out of the till — paying the supplier. Money back from them goes through a purchase return.": "پول از صندوق خارج می‌شود — پرداخت به تأمین‌کننده. پول برگشتی از او از راه برگشت از خرید ثبت می‌شود.",
+    "More than is owed": "بیشتر از بدهی",
+    "Paid in :code": "پرداخت‌شده به :code",
+    "Rate it was paid at": "نرخی که با آن پرداخت شد",
+    "Settled of the purchase": "آنچه از خرید تسویه شد",
+    "Settles of this purchase, at its own rate": "از این خرید تسویه می‌کند، با نرخ خودش",
+    "That comes to less than 1 :code.": "این کمتر از ۱ :code می‌شود.",
+    "The rate on the day you paid. The purchase was written at :rate.": "نرخ روزی که پرداخت کردید. خرید با نرخ :rate نوشته شده بود.",
+    "This purchase is not owed in another currency.": "این خرید به ارز دیگری بدهکار نیست.",
+    "This purchase is owed in :code. Type what you paid in :code.": "این خرید به :code بدهکار است. آنچه پرداخت کردید را به :code بنویسید.",
+    "at :rate": "با نرخ :rate"
 }

@@ -15,7 +15,9 @@
 @section('content')
     {{-- ⚠️ Both halves of this screen: the box takes the chosen currency and
          the figures on the right are read in it. What is stored is dinars. --}}
-    <x-lens-note :lens="$lens" />
+    @unless($owed)
+        <x-lens-note :lens="$lens" />
+    @endunless
 
     <div class="row g-3">
         <div class="col-lg-6">
@@ -26,6 +28,19 @@
                         <input type="hidden" name="payable_type" value="{{ $payableType }}">
                         <input type="hidden" name="payable_id" value="{{ $payable->id }}">
 
+                        @if($owed)
+                            {{-- Section 6: a purchase owed in dollars is paid in
+                                 dollars, at the rate of the day, and always out. --}}
+                            @include('payments.partials.in-dollars', [
+                                'owed' => $owed,
+                                'value' => max(0, $owed['due']),
+                                'rate' => $owed['todaysRate'],
+                            ])
+
+                            <div class="mb-3 small text-secondary">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>{{ __('Money out of the till — paying the supplier. Money back from them goes through a purchase return.') }}
+                            </div>
+                        @else
                         <div class="mb-3">
                             <label for="amount" class="form-label">{{ __('Amount') }}</label>
                             <x-money-input name="amount" :lens="$lens" :min="1"
@@ -49,6 +64,7 @@
                             </select>
                             <div class="form-text">{{ $context['hint'] }}</div>
                         </div>
+                        @endif
 
                         <div class="mb-3">
                             <label for="payment_method" class="form-label">{{ __('Method') }}</label>
@@ -81,6 +97,9 @@
         </div>
 
         <div class="col-lg-6">
+            @if($owed)
+                @include('payments.partials.owed-in-dollars', ['owed' => $owed, 'purchase' => $payable])
+            @else
             <div class="card">
                 <div class="card-header">{{ __('This document') }}</div>
                 <ul class="list-group list-group-flush">
@@ -112,6 +131,7 @@
                     @endif
                 </ul>
             </div>
+            @endif
         </div>
     </div>
 @endsection

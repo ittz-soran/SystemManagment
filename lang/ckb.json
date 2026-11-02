@@ -2700,5 +2700,22 @@
     "That price is not a number. Type a figure, or a sum such as 25 × 1460.": "ئەو نرخە ژمارە نییە. ژمارەیەک بنووسە، یان هاوکێشەیەکی وەک 25 × 1460.",
     "That was a barcode scanned into the box, not a price. Press Enter to add this product first, then scan the next one.": "ئەوە بارکۆدێک بوو کە سکان کرا بۆ ناو سندوقەکە، نەک نرخ. سەرەتا Enter دابگرە بۆ زیادکردنی ئەم کاڵایە، پاشان کاڵای دواتر سکان بکە.",
     "The box shows the price and quantity, with a calculator, before the product is added to a sale or a purchase.": "سندوقەکە نرخ و بڕ، لەگەڵ ژمێرەرێک، پیشان دەدات پێش ئەوەی کاڵاکە زیاد بکرێت بۆ فرۆشتن یان کڕین.",
-    "The quantity must be a whole number, 1 or more.": "بڕەکە دەبێت ژمارەیەکی تەواو بێت، 1 یان زیاتر."
+    "The quantity must be a whole number, 1 or more.": "بڕەکە دەبێت ژمارەیەکی تەواو بێت، 1 یان زیاتر.",
+    ":amount less than the purchase cost — a gain": ":amount کەمتر لە تێچووی کڕینەکە — قازانج",
+    ":amount more than the purchase cost — a loss": ":amount زیاتر لە تێچووی کڕینەکە — زەرەر",
+    ":left is left on :document.": "تەنها :left لەسەر :document ماوە.",
+    "At today's rate, an estimate": "بە نرخی ئەمڕۆ، خەمڵاندنە",
+    "Dollar rate difference": "جیاوازی نرخی دۆلار",
+    "Leaves the till": "لە سندوق دەردەچێت",
+    "Money out of the till — paying the supplier. Money back from them goes through a purchase return.": "پارە لە سندوق دەردەچێت — پارەدان بە دابینکەر. پارە گەڕانەوە لەوانەوە لە ڕێگەی گەڕاندنەوەی کڕینەوە دەبێت.",
+    "More than is owed": "زیاترە لەوەی قەرزە",
+    "Paid in :code": "دراوە بە :code",
+    "Rate it was paid at": "ئەو نرخەی پارەکەی پێدرا",
+    "Settled of the purchase": "ئەوەی لە کڕینەکە پاککرایەوە",
+    "Settles of this purchase, at its own rate": "لەم کڕینە پاکدەکاتەوە، بە نرخی خۆی",
+    "That comes to less than 1 :code.": "ئەوە دەکاتە کەمتر لە ١ :code.",
+    "The rate on the day you paid. The purchase was written at :rate.": "نرخی ئەو ڕۆژەی پارەت دا. کڕینەکە بە :rate نووسرابوو.",
+    "This purchase is not owed in another currency.": "ئەم کڕینە بە دراوێکی تر قەرز نییە.",
+    "This purchase is owed in :code. Type what you paid in :code.": "ئەم کڕینە بە :code قەرزە. ئەوەی داوتە بە :code بنووسە.",
+    "at :rate": "بە :rate"
 }

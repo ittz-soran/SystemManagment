@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 #[Fillable([
     'document_no', 'payable_type', 'payable_id', 'amount', 'direction',
+    'foreign_amount', 'exchange_rate', 'rate_difference',
     'payment_method', 'paid_at', 'user_id', 'notes',
 ])]
 class Payment extends Model
@@ -28,6 +29,18 @@ class Payment extends Model
 
     public const DIRECTION_OUT = 'out';
 
+    /**
+     * What a payment settled of its document, as SQL — Section 6, *A dollar
+     * purchase is owed in dollars*: the dinars that left, less what the rate
+     * cost beyond the document's own. Every payment not on a dollar purchase
+     * has no difference, and this is its amount.
+     *
+     * ⚠️ Cast, because `amount` is UNSIGNED and MySQL keeps an unsigned
+     * operand's result unsigned — see StockMovement::VALUE. SQLite has no
+     * unsigned types and would never say.
+     */
+    public const SETTLED = 'CAST(amount AS SIGNED) - rate_difference';
+
     /** Section 8c: the column an archived period is decided by. */
     public function archivePeriodColumn(): string
     {
@@ -36,7 +49,19 @@ class Payment extends Model
 
     protected function casts(): array
     {
-        return ['amount' => 'integer', 'paid_at' => 'datetime'];
+        return [
+            'amount' => 'integer',
+            'foreign_amount' => 'integer',
+            'exchange_rate' => 'integer',
+            'rate_difference' => 'integer',
+            'paid_at' => 'datetime',
+        ];
+    }
+
+    /** The dinars of its document this payment settled. */
+    public function settled(): int
+    {
+        return $this->amount - $this->rate_difference;
     }
 
     public function user(): BelongsTo

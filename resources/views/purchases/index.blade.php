@@ -116,6 +116,10 @@
                             <td class="money" data-label="{{ __('Grand total') }}">{{ money($purchase->grand_total, in: $lens) }}</td>
                             <td class="money {{ $purchase->amountDue() > 0 ? 'text-danger' : 'text-secondary' }}" data-label="{{ __('Due') }}">
                                 {{ money($purchase->amountDue(), in: $lens) }}
+                                {{-- Section 6: what a dollar purchase is really owed. --}}
+                                @if($purchase->owedIn() && $purchase->amountDue() !== 0)
+                                    <div class="small" dir="ltr">{{ $purchase->inItsCurrency((int) $purchase->foreignDue()) }}</div>
+                                @endif
                             </td>
                             <td class="list-card-actions text-end">
                                 <x-row-actions :print="route('purchases.print', $purchase)" />

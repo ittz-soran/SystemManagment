@@ -32,6 +32,9 @@ class PaymentService
         string $method = 'cash',
         ?Carbon $paidAt = null,
         ?string $notes = null,
+        ?int $foreignAmount = null,
+        ?int $exchangeRate = null,
+        int $rateDifference = 0,
     ): Payment {
         if (DB::transactionLevel() === 0) {
             throw new RuntimeException('Payments must be recorded inside a transaction.');
@@ -46,6 +49,12 @@ class PaymentService
             'payable_type' => $this->payableType($payable),
             'payable_id' => $payable->getKey(),
             'amount' => $amount,
+            // A payment on a dollar purchase — Section 6: the dollars typed,
+            // the rate they were paid at, and what that rate cost beyond the
+            // purchase's own. Null, null and nothing for every other payment.
+            'foreign_amount' => $foreignAmount,
+            'exchange_rate' => $exchangeRate,
+            'rate_difference' => $rateDifference,
             'direction' => $direction,
             'payment_method' => $method,
             'paid_at' => $paidAt ?? now(),

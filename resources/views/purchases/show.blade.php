@@ -162,7 +162,15 @@
                                         · {{ Str::headline($payment->payment_method) }}
                                     </span>
                                 </span>
-                                <span class="money">{{ money($payment->amount, false, $lens) }}</span>
+                                <span class="text-end">
+                                    <span class="money d-block">{{ money($payment->amount, false, $lens) }}</span>
+                                    {{-- Section 6: what was typed, and the rate of the day. --}}
+                                    @if($purchase->owedIn() && $payment->foreign_amount !== null)
+                                        <span class="small text-secondary">
+                                            <span class="money">{{ $purchase->inItsCurrency($payment->foreign_amount) }}</span> · {{ __('at :rate', ['rate' => number_format((int) $payment->exchange_rate)]) }}
+                                        </span>
+                                    @endif
+                                </span>
                             </li>
                         @endforeach
                     </ul>
@@ -179,10 +187,35 @@
                     </div>
                 @endif
 
-                <div class="card-footer d-flex justify-content-between fw-semibold">
-                    <span>{{ __('Due') }}</span>
-                    <span class="money">{{ money($purchase->amountDue(), in: $lens) }}</span>
-                </div>
+                {{-- ⚠️ Section 6, Soran, 2026-11-02: a dollar purchase is owed in
+                     dollars. Its dinars are only known on the day it is paid, so
+                     the remainder is said in dollars, with today's dinars beside
+                     it as an estimate; and what the rate cost on the payments
+                     so far is said here as well as on the profit report. --}}
+                @if($owedIn = $purchase->owedIn())
+                    @php($rateCost = $purchase->rateDifference())
+                    @if($rateCost !== 0)
+                        <div class="card-footer d-flex justify-content-between small border-bottom-0 {{ $rateCost > 0 ? 'text-danger' : 'text-success' }}">
+                            <span>{{ __('Dollar rate difference') }}</span>
+                            <span class="money">{{ $rateCost > 0 ? '−' : '+' }}{{ money(abs($rateCost), false, $lens) }}</span>
+                        </div>
+                    @endif
+                    <div class="card-footer d-flex justify-content-between fw-semibold {{ $purchase->dueAtTodaysRate() ? 'border-bottom-0' : '' }}">
+                        <span>{{ __('Due') }}</span>
+                        <span class="money">{{ $purchase->inItsCurrency((int) $purchase->foreignDue()) }}</span>
+                    </div>
+                    @if($estimate = $purchase->dueAtTodaysRate())
+                        <div class="card-footer d-flex justify-content-between small text-secondary pt-0">
+                            <span>{{ __('At today\'s rate, an estimate') }}</span>
+                            <span class="money" dir="ltr">≈ {{ money($estimate, in: $lens) }}</span>
+                        </div>
+                    @endif
+                @else
+                    <div class="card-footer d-flex justify-content-between fw-semibold">
+                        <span>{{ __('Due') }}</span>
+                        <span class="money">{{ money($purchase->amountDue(), in: $lens) }}</span>
+                    </div>
+                @endif
             </div>
 
             @if($purchase->returns->isNotEmpty())

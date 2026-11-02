@@ -711,6 +711,24 @@ Because `unit_price` becomes the batch cost, it must be a whole dinar that multi
 - **A purchase already saved** gets its `foreign_total` from its lines the same way, and the payments already made on it keep their dinars and settle at the purchase's own rate, with no difference — nothing written before this changes.
 - A purchase in the base currency is untouched: no foreign total, no rate, no difference.
 
+**Decided while building it (2026-11-02), each following from the above:**
+
+- `purchases.foreign_currency` names the currency beside `foreign_total` — both or neither — so a list of purchases can say *$16.00* without reading every line.
+- **The closing payment is the one whose dollars reach what is still owed.** A payment for less settles `dollars × the purchase's rate`, and never so much that the dinars run out while dollars are still owed.
+- **A payment saved with the purchase itself** is at the purchase's own rate: no difference beyond the rounding of the lines. If it covers the whole dollar total, it is the closing payment.
+- **On a dollar purchase a payment is money out.** Money back from the supplier goes through a purchase return; the payment screen offers only *Out* for one.
+- **A returned line's dollars** come off in proportion: the dinars the return took off × `foreign_total` ÷ `grand_total`. A return of everything takes off every dollar, and nothing is left owing by a rounding.
+- **Editing the purchase** keeps the rule edit already has in dinars: the new dollar total must still cover the dollars already paid.
+- **Editing or deleting a payment** puts back the dinars it settled — not the dinars that left — and an edit settles again by the same rule.
+- ⚠️ **The overpaid check** in *Check the data* counts what each payment settled. It also read a purchase's payments with the sale's direction — money in — so it could never flag a purchase at all; a purchase is settled by money out.
+
+**Built 2026-11-02**: migration `000064` (the columns, and the backfill from each purchase's own lines); `Purchase::settle()` holds the rule, `Payment::SETTLED` the sum; the payment screen takes dollars and a rate and shows, as they are typed, the dinars that leave, what they settle and the difference; the purchase page and list say what is owed in dollars, with today's dinars beside it as an estimate; *Dollar rate difference* on the profit report, on screen and printed. `DollarPurchaseTest`, 33 tests, sixteen guards sabotaged and each caught; run on MariaDB as well. Driven in Chromium on a copy of PUR-00059: $16 at 1,500 → 24,000 out, 23,360 settled, 640 a loss, due $0, supplier at 0, and the profit report's net 640 lower on the day it was paid.
+
+- ⚠️ **What hid it: the supplier's balance stops at zero.** Posting 24,000 against 23,360 left the supplier at 0 either way, so the 640 left no trace there. The tests that catch the ledger taking the cash rather than what was settled are the ones paid in parts, where the balance is not yet at zero.
+- ⚠️ **Found on the way:** the payment edit page asked the party for `displayName()`, which only a customer has. Editing any payment to a supplier failed with an error page; it now shows the supplier's name.
+- ⚠️ **A dollar payment moves the supplier's account to what the purchase still owes** — the purchase less what its payments settled — rather than by its own figure, the way an edited purchase is re-posted. Found while writing the line above: the balance stops at zero, so PUR-00059's old 24,000 only ever applied 23,360 against a supplier owed nothing else. Put back by its own figure, a correction would have left him owed 640 that nobody owes; owed on other purchases too, the 640 had come off one of them.
+- **PUR-00059 itself, and every dollar purchase paid before this**, keeps its dinars and settles at the purchase's own rate: PUR-00059 reads *−0.44 $* (paid too much), one paid when the dollar was cheaper reads a few cents still owed, and *Check the data* lists the overpaid ones. Which dollars and which rate they really were is known only to Soran — 22,400 dinars is $16 at 1,400 or $15.34 at 1,460 — so each is put right by hand: open the payment, **Edit**, type the dollars and the rate it was paid at (*$16 at 1,500*). The supplier's account comes out right whichever way the old payment went in.
+
 ## 7. Returns
 
 **Every return case is the same operation at a different scale.** Partial line, whole line, or whole sale — one form, one mechanism.
