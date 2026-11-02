@@ -1385,6 +1385,217 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 /**
+ * A customer or a supplier, chosen by searching — PROJECT_DOC Section 9, the
+ * sale/purchase screen. Soran, 2026-11-02: "add search for Customer&Supplier
+ * like "Scan or type…" input type to search and show all at empty or click on
+ * it".
+ *
+ * ⚠️ The <select> stays the field. It is hidden, never replaced: it is what the
+ * form posts, what the page's own scripts listen to for `change`, and what the
+ * New customer modal adds an option to. This box only reads it and sets it.
+ *
+ * ⚠️ A required select that is hidden cannot show the browser's "choose one"
+ * bubble, and a save that cannot say why it did nothing looks broken — so the
+ * requirement moves to the box that can be seen.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    // ٠١٢ and ۰۱۲ read as 012, so a phone number matches in any of the shop's digits.
+    const english = (text) => String(text).replace(/[٠-٩۰-۹]/g, (digit) => {
+        const code = digit.charCodeAt(0);
+
+        return String(code - (code >= 0x06f0 ? 0x06f0 : 0x0660));
+    });
+    const fold = (text) => english(text).toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+
+    // Drawn at once; past this the list says how many more and asks for a word.
+    const SHOWN = 200;
+
+    document.querySelectorAll('select[data-searchable]').forEach((select) => {
+        const words = select.dataset;
+        const required = select.required;
+
+        const box = document.createElement('div');
+        box.className = 'app-pick';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = `${select.id}-search`;
+        input.className = 'form-control';
+        input.autocomplete = 'off';
+        input.dir = 'auto';
+        input.placeholder = words.searchPlaceholder ?? '';
+        input.setAttribute('role', 'combobox');
+        input.setAttribute('aria-autocomplete', 'list');
+        input.setAttribute('aria-expanded', 'false');
+        input.setAttribute('aria-controls', `${select.id}-options`);
+        input.dataset.pickFor = select.id;
+
+        const list = document.createElement('div');
+        list.id = `${select.id}-options`;
+        list.className = 'list-group app-pick-list';
+        list.setAttribute('role', 'listbox');
+        list.hidden = true;
+
+        box.append(input, list);
+        select.after(box);
+        select.hidden = true;
+        select.required = false;
+        document.querySelectorAll(`label[for="${select.id}"]`).forEach((label) => { label.htmlFor = input.id; });
+
+        const options = () => [...select.options].filter((option) => option.value !== '' && ! option.disabled);
+        const chosen = () => (select.value !== '' ? select.selectedOptions[0] ?? null : null);
+        const name = (option) => option.textContent.replace(/\s+/g, ' ').trim();
+        const haystack = (option) => fold(`${name(option)} ${option.dataset.phone ?? ''}`);
+
+        let shown = [];
+        let active = -1;
+
+        const validity = () => input.setCustomValidity(required && ! chosen() ? (words.searchRequired ?? '') : '');
+
+        // What the box says when nobody is typing in it: the one chosen.
+        const sync = () => {
+            input.value = chosen() ? name(chosen()) : '';
+            validity();
+        };
+
+        const highlight = (index) => {
+            active = index;
+            [...list.querySelectorAll('[role="option"]')].forEach((item, i) => {
+                item.classList.toggle('active', i === active);
+                item.setAttribute('aria-selected', i === active ? 'true' : 'false');
+                if (i === active) item.scrollIntoView({ block: 'nearest' });
+            });
+        };
+
+        const close = () => {
+            list.hidden = true;
+            input.setAttribute('aria-expanded', 'false');
+            active = -1;
+        };
+
+        const choose = (option) => {
+            select.value = option.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            sync();
+            close();
+        };
+
+        const render = (query) => {
+            const wanted = fold(query).split(' ').filter(Boolean);
+            const matches = options().filter((option) => wanted.every((word) => haystack(option).includes(word)));
+
+            shown = matches.slice(0, SHOWN);
+            list.replaceChildren();
+
+            shown.forEach((option) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                item.setAttribute('role', 'option');
+                item.dir = 'auto';
+                item.textContent = name(option);
+
+                if (option.dataset.phone) {
+                    const phone = document.createElement('small');
+                    phone.className = 'text-secondary mx-2';
+                    phone.dir = 'ltr';
+                    phone.textContent = option.dataset.phone;
+                    item.append(phone);
+                }
+
+                // Before the box loses focus, or the blur would close the list
+                // under the pointer and the click would land on nothing.
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', () => choose(option));
+                list.append(item);
+            });
+
+            if (matches.length === 0) {
+                const none = document.createElement('div');
+                none.className = 'list-group-item text-secondary small';
+                none.textContent = words.searchEmpty ?? '';
+                list.append(none);
+            } else if (matches.length > shown.length) {
+                const more = document.createElement('div');
+                more.className = 'list-group-item text-secondary small';
+                more.textContent = (words.searchMore ?? '').replace(':count', String(matches.length - shown.length));
+                list.append(more);
+            }
+
+            list.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+            highlight(shown.indexOf(chosen()));
+        };
+
+        // Clicked or tabbed into: everybody, the chosen one marked, and the
+        // name selected so the first key typed replaces it.
+        let focusedByPointer = false;
+
+        input.addEventListener('mousedown', () => {
+            focusedByPointer = document.activeElement !== input;
+        });
+        input.addEventListener('focus', () => {
+            render('');
+            if (! focusedByPointer) input.select();
+        });
+        // ⚠️ Selected on the CLICK, not on focus: a pointer puts the caret where
+        // it lands after focus has run, and the next letter typed was added to
+        // the old name. And a box that still has focus from the last choice
+        // gets no focus event at all — found by typing into it in a browser.
+        input.addEventListener('click', () => {
+            if (focusedByPointer || list.hidden) {
+                input.select();
+                if (list.hidden) render('');
+            }
+            focusedByPointer = false;
+        });
+        input.addEventListener('input', () => {
+            render(input.value);
+            input.setCustomValidity('');
+        });
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+
+                if (list.hidden) {
+                    render('');
+
+                    return;
+                }
+
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                highlight(Math.max(0, Math.min(shown.length - 1, active + step)));
+            } else if (event.key === 'Enter') {
+                // Never the form's Enter: in a box that chooses, Enter chooses.
+                event.preventDefault();
+
+                if (! list.hidden && active >= 0 && shown[active]) {
+                    choose(shown[active]);
+                } else if (! list.hidden && shown.length === 1) {
+                    choose(shown[0]);
+                }
+            } else if (event.key === 'Escape' && ! list.hidden) {
+                event.preventDefault();
+                sync();
+                close();
+            }
+        });
+
+        // Typed something and walked away: it goes back to the one chosen.
+        input.addEventListener('blur', () => {
+            sync();
+            close();
+        });
+
+        // Chosen elsewhere — the New customer modal, the page's own scripts.
+        select.addEventListener('change', sync);
+
+        sync();
+    });
+});
+
+/**
  * Whether this screen can still reach the shop's own server.
  *
  * A browser that has lost the network looks exactly like one that has not,

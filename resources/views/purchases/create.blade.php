@@ -100,10 +100,16 @@
                                     </button>
                                 @endcan
                             </div>
-                            <select id="supplier_id" name="supplier_id" class="form-select" required>
+                            {{-- Searched, not scrolled — Soran, 2026-11-02 (app.js). --}}
+                            <select id="supplier_id" name="supplier_id" class="form-select" required data-searchable
+                                    data-search-placeholder="{{ __('Search by name or phone') }}"
+                                    data-search-empty="{{ __('No supplier matches that.') }}"
+                                    data-search-more="{{ __(':count more — type to narrow the list.') }}"
+                                    data-search-required="{{ __('Choose a supplier from the list.') }}">
                                 <option value="">{{ __('Choose…') }}</option>
                                 @foreach($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}"
+                                            data-phone="{{ $supplier->phone }}"
                                             @selected(old('supplier_id', $editing ? $purchase->supplier_id : null) == $supplier->id)>
                                         {{ $supplier->name }}
                                     </option>

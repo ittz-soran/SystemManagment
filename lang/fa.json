@@ -2684,5 +2684,11 @@
     "Start a round, or send one": "یک دور شروع کنید، یا یکی بفرستید",
     "This stock check was sent to :name, and only they answer in it.": "این بررسی موجودی برای :name فرستاده شده و فقط او در آن پاسخ می‌دهد.",
     "Waiting for :name": "در انتظار :name",
-    "You may not count in this stock check.": "شما نمی‌توانید در این بررسی موجودی بشمارید."
+    "You may not count in this stock check.": "شما نمی‌توانید در این بررسی موجودی بشمارید.",
+    "Search by name or phone": "جستجو با نام یا شماره تلفن",
+    "No customer matches that.": "هیچ مشتری‌ای با این مطابق نیست.",
+    "No supplier matches that.": "هیچ تأمین‌کننده‌ای با این مطابق نیست.",
+    ":count more — type to narrow the list.": ":count مورد دیگر — بنویسید تا فهرست کوتاه شود.",
+    "Choose a customer from the list.": "یک مشتری از فهرست انتخاب کنید.",
+    "Choose a supplier from the list.": "یک تأمین‌کننده از فهرست انتخاب کنید."
 }

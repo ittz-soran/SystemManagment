@@ -2684,5 +2684,11 @@
     "Start a round, or send one": "خولێک دەست پێبکە، یان یەکێک بنێرە",
     "This stock check was sent to :name, and only they answer in it.": "ئەم پشکنینی کۆگایە بۆ :name نێردراوە، و تەنها ئەو وەڵامی تێدا دەداتەوە.",
     "Waiting for :name": "چاوەڕێی :name",
-    "You may not count in this stock check.": "ناتوانیت لەم پشکنینی کۆگایەدا بژمێریت."
+    "You may not count in this stock check.": "ناتوانیت لەم پشکنینی کۆگایەدا بژمێریت.",
+    "Search by name or phone": "بە ناو یان ژمارەی مۆبایل بگەڕێ",
+    "No customer matches that.": "هیچ کڕیارێک لەگەڵ ئەمە ناگونجێت.",
+    "No supplier matches that.": "هیچ دابینکەرێک لەگەڵ ئەمە ناگونجێت.",
+    ":count more — type to narrow the list.": ":count ی تر — بنووسە بۆ کورتکردنەوەی لیستەکە.",
+    "Choose a customer from the list.": "کڕیارێک لە لیستەکە هەڵبژێرە.",
+    "Choose a supplier from the list.": "دابینکەرێک لە لیستەکە هەڵبژێرە."
 }

@@ -98,9 +98,15 @@
                                     </button>
                                 @endcan
                             </div>
-                            <select id="customer_id" name="customer_id" class="form-select">
+                            {{-- Searched, not scrolled — Soran, 2026-11-02 (app.js). --}}
+                            <select id="customer_id" name="customer_id" class="form-select" data-searchable
+                                    data-search-placeholder="{{ __('Search by name or phone') }}"
+                                    data-search-empty="{{ __('No customer matches that.') }}"
+                                    data-search-more="{{ __(':count more — type to narrow the list.') }}"
+                                    data-search-required="{{ __('Choose a customer from the list.') }}">
                                 @foreach($customers as $customer)
                                     <option value="{{ $customer->id }}"
+                                            data-phone="{{ $customer->phone }}"
                                             data-system="{{ $customer->is_system ? '1' : '0' }}"
                                             @selected(old('customer_id', $editing ? $sale->customer_id : $cashCustomer->id) == $customer->id)>
                                         {{ $customer->displayName() }}@if(! $customer->is_system && $customer->balance > 0)

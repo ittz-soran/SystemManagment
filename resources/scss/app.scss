@@ -2205,3 +2205,27 @@ a.stat-tile {
   --bs-btn-bg: rgba(var(--bs-primary-rgb), .1);
   font-weight: 500;
 }
+
+// ---------------------------------------------------------------------------
+// A customer or supplier chosen by searching (app.js, select[data-searchable]).
+// Soran, 2026-11-02. The list hangs under the box over whatever is below it,
+// scrolls on its own, and never widens the card.
+// ---------------------------------------------------------------------------
+
+.app-pick {
+  position: relative;
+}
+
+.app-pick-list {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 1030;
+  max-height: 18rem;
+  overflow-y: auto;
+  box-shadow: var(--bs-box-shadow);
+
+  .list-group-item {
+    text-align: start;
+  }
+}
