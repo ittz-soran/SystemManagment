@@ -207,6 +207,9 @@ class SettingController extends Controller
             )],
             'books_closed_before' => ['nullable', 'date'],
             'low_stock_threshold' => ['required', 'integer', 'min:0'],
+            // PROJECT_DOC Section 9, the sale/purchase screen — when the add
+            // box opens: every product, only one picked from the list, never.
+            'cart_add_box' => ['sometimes', 'required', Rule::in(['always', 'picked', 'never'])],
             'sku_prefix' => ['required', 'string', 'max:8'],
             'date_format' => ['required', 'string', 'max:32'],
 

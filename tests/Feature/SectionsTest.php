@@ -10,11 +10,14 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Setting;
 use App\Models\StockBatch;
+use App\Models\StockCheck;
 use App\Models\StockRoom;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\NotificationFeed;
 use App\Services\PurchaseService;
 use App\Services\RepairService;
+use App\Services\StockCheckService;
 use App\Support\Guide;
 use App\Support\Navigation;
 use App\Support\Notifications;
@@ -138,6 +141,7 @@ class SectionsTest extends TestCase
             'swaps' => [route('swaps.index')],
             // ⚠️ Opened with settings.manage — likewise.
             'currencies' => [route('currencies.index')],
+            'stock_checks' => [route('stock-checks.index'), route('stock-checks.to-fix')],
         ];
     }
 
@@ -457,6 +461,60 @@ class SectionsTest extends TestCase
         $this->assertSame('2 repair jobs are open. A customer\'s device is in the shop.', Sections::holds('repairs'));
     }
 
+    /** Soran, 2026-11-02: an open round holds the stock check — somebody is counting. */
+    public function test_an_open_stock_check_round_holds_stock_checks(): void
+    {
+        $this->assertNull(Sections::holds('stock_checks'));
+
+        $this->stockedProduct();
+        $round = app(StockCheckService::class)->start(StockCheck::SCOPE_ALL, null, null, false, false, $this->admin);
+
+        $this->assertSame('1 stock check round is open. Somebody is counting, or was sent a round to count.', Sections::holds('stock_checks'));
+
+        app(StockCheckService::class)->finish($round, $this->admin);
+        $this->assertNull(Sections::holds('stock_checks'));
+    }
+
+    /** Off, the stock check leaves no trace: the card, the product's line, the filter, the bell. */
+    public function test_without_stock_checks_nothing_of_it_shows(): void
+    {
+        $product = $this->stockedProduct();
+        $hawkar = User::create([
+            'name' => 'Hawkar', 'email' => 'hawkar@example.com', 'password' => 'a-strong-password-2026',
+            'role' => User::ROLE_USER, 'is_active' => true, 'language' => 'en', 'theme' => 'auto', 'items_per_page' => 25,
+        ]);
+        $hawkar->permissions()->sync(Permission::whereIn('key', ['stock_checks.count', 'dashboard.view'])->pluck('id')->all());
+        app(StockCheckService::class)->start(StockCheck::SCOPE_ALL, null, null, false, false, $this->admin, $hawkar);
+
+        $this->actingAs($hawkar)->get(route('dashboard'))->assertSee('data-sent-to-me', false);
+        $this->assertSame(1, app(NotificationFeed::class)->visible($hawkar)->where('module', 'stock_checks')->count());
+        $this->actingAs($this->admin)->get(route('products.show', $product))->assertSee('data-last-checked', false);
+        $this->actingAs($this->admin)->get(route('products.index'))->assertSee('id="unchecked"', false);
+
+        $this->off('stock_checks');
+
+        $this->actingAs($hawkar)->get(route('dashboard'))->assertOk()->assertDontSee('data-sent-to-me', false);
+        $this->assertSame(0, app(NotificationFeed::class)->visible($hawkar)->where('module', 'stock_checks')->count());
+        $this->actingAs($this->admin)->get(route('products.show', $product))->assertOk()->assertDontSee('data-last-checked', false);
+        $this->actingAs($this->admin)->get(route('products.index'))->assertOk()->assertDontSee('id="unchecked"', false);
+        $this->assertNotContains('stock-checks.index', array_column(Navigation::pagesFor($this->admin), 'route'));
+    }
+
+    private function stockedProduct(): Product
+    {
+        $product = Product::create([
+            'name' => 'Cable', 'sku' => 'CBL-1', 'category_id' => Category::firstOrFail()->id, 'unit' => 'pcs',
+            'purchase_price' => 1_000, 'sale_price' => 2_000, 'quantity' => 0,
+        ]);
+        app(PurchaseService::class)->create(
+            supplier: Supplier::create(['name' => 'Click Gaming']),
+            lines: [['product_id' => $product->id, 'quantity' => 3, 'unit_price' => 1_000]],
+            user: $this->admin, purchaseDate: now(),
+        );
+
+        return $product->fresh();
+    }
+
     // ---- the shop's own answer, for the panel ------------------------------
 
     public function test_shop_sections_answers_the_panel_in_json(): void
@@ -470,7 +528,7 @@ class SectionsTest extends TestCase
         $this->assertTrue($report['holds_checked']);
         $this->assertSame(['repair'], $report['unknown']);
         $this->assertSame(
-            ['stock_rooms' => false, 'second_hand' => false, 'repairs' => false, 'assemblies' => true, 'swaps' => true, 'currencies' => true],
+            ['stock_rooms' => false, 'second_hand' => false, 'repairs' => false, 'assemblies' => true, 'swaps' => true, 'currencies' => true, 'stock_checks' => true],
             array_column($report['sections'], 'on', 'key'),
         );
     }

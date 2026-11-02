@@ -219,6 +219,21 @@
                                        value="{{ old('low_stock_threshold', setting('low_stock_threshold')) }}" required>
                                 <div class="form-text">{{ __('Used when a product has no reorder level of its own.') }}</div>
                             </div>
+                            {{-- Soran, 2026-11-02: "show cacullator to confirm price or change
+                                 then confirm" — and when, chosen here. --}}
+                            <div class="col-12">
+                                <label for="cart_add_box" class="form-label">{{ __('Before a product goes into the cart') }}</label>
+                                @php
+                                    $addBox = old('cart_add_box', setting('cart_add_box', 'always'));
+                                @endphp
+                                <select id="cart_add_box" name="cart_add_box" class="form-select">
+                                    <option value="always" @selected($addBox === 'always')>{{ __('Show the price box for every product, scans too') }}</option>
+                                    <option value="picked" @selected($addBox === 'picked')>{{ __('Show it only for a product picked from the list; a scan goes straight in') }}</option>
+                                    <option value="never" @selected($addBox === 'never')>{{ __('Never show it; every product goes straight in') }}</option>
+                                </select>
+                                <div class="form-text">{{ __('The box shows the price and quantity, with a calculator, before the product is added to a sale or a purchase.') }}</div>
+                                @error('cart_add_box')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
                         </div>
 
                         <div class="mb-3">

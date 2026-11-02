@@ -20,7 +20,11 @@
         <form action="{{ route('payments.destroy', $payment) }}" method="POST"
               onsubmit="return confirm(@js(__('Delete :document? :amount goes back onto what is owed.', [
                   'document' => $payment->document_no,
-                  'amount' => money($payment->amount, in: $lens),
+                  // What goes back on is what it settled — on a dollar
+                  // purchase, its dollars.
+                  'amount' => $payment->foreign_amount !== null && $payment->payable instanceof App\Models\Purchase && $payment->payable->owedIn()
+                      ? $payment->payable->inItsCurrency($payment->foreign_amount)
+                      : money($payment->amount, in: $lens),
               ])))">
             @csrf
             @method('DELETE')
@@ -74,6 +78,31 @@
                             </dd>
                         @endif
 
+                        {{-- Section 6: a payment on a dollar purchase — what was
+                             typed, the rate of the day, and what that rate cost
+                             beyond the purchase's own. --}}
+                        @if($payment->foreign_amount !== null && $payment->payable instanceof App\Models\Purchase && $payment->payable->owedIn())
+                            <dt class="col-sm-4 text-secondary fw-normal">{{ __('Paid in :code', ['code' => $payment->payable->owedIn()->code]) }}</dt>
+                            <dd class="col-sm-8">
+                                <span class="money">{{ $payment->payable->inItsCurrency($payment->foreign_amount) }}</span>
+                                · {{ __('at :rate', ['rate' => number_format((int) $payment->exchange_rate)]) }}
+                            </dd>
+
+                            <dt class="col-sm-4 text-secondary fw-normal">{{ __('Settled of the purchase') }}</dt>
+                            <dd class="col-sm-8 money text-start">{{ money($payment->settled(), in: $lens) }}</dd>
+
+                            <dt class="col-sm-4 text-secondary fw-normal">{{ __('Dollar rate difference') }}</dt>
+                            <dd class="col-sm-8 {{ $payment->rate_difference > 0 ? 'text-danger' : ($payment->rate_difference < 0 ? 'text-success' : '') }}">
+                                @if($payment->rate_difference === 0)
+                                    {{ __('None') }}
+                                @elseif($payment->rate_difference > 0)
+                                    {{ __(':amount more than the purchase cost — a loss', ['amount' => money($payment->rate_difference, in: $lens)]) }}
+                                @else
+                                    {{ __(':amount less than the purchase cost — a gain', ['amount' => money(-$payment->rate_difference, in: $lens)]) }}
+                                @endif
+                            </dd>
+                        @endif
+
                         <dt class="col-sm-4 text-secondary fw-normal">{{ __('Method') }}</dt>
                         <dd class="col-sm-8">{{ Str::headline($payment->payment_method) }}</dd>
 
@@ -110,7 +139,13 @@
                         @if(method_exists($payment->payable, 'amountDue'))
                             <li class="list-group-item d-flex justify-content-between fw-semibold">
                                 <span>{{ __('Due') }}</span>
-                                <span class="money">{{ money($payment->payable->amountDue(), in: $lens) }}</span>
+                                <span class="money">
+                                    @if($payment->payable instanceof App\Models\Purchase && $payment->payable->owedIn())
+                                        {{ $payment->payable->inItsCurrency((int) $payment->payable->foreignDue()) }}
+                                    @else
+                                        {{ money($payment->payable->amountDue(), in: $lens) }}
+                                    @endif
+                                </span>
                             </li>
                         @endif
                     </ul>

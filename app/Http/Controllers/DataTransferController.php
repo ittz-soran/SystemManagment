@@ -34,7 +34,10 @@ class DataTransferController extends Controller
             'transfer' => $this->transfer,
             'archivedBefore' => $periods->cutoff(),
             // Everything up to the end of last month is the obvious suggestion.
-            'suggested' => now()->subMonth()->endOfMonth()->toDateString(),
+            // ⚠️ NoOverflow: on 31 October one month back is "31 September",
+            // which Carbon rolls on to 1 October — and the box then suggested
+            // this month, which the form refuses (Soran, 2026-11-02).
+            'suggested' => now()->subMonthNoOverflow()->endOfMonth()->toDateString(),
         ]);
     }
 

@@ -585,6 +585,20 @@ class ReportController extends Controller
 
         $expenses = (int) Expense::whereBetween('expense_date', [$from, $to])->sum('amount');
 
+        /*
+         * ⚠️ What the dollar cost beyond the rate it was bought at — Section 6,
+         * *A dollar purchase is owed in dollars*, Soran, 2026-11-02.
+         *
+         * PUR-00059 was $16 at 1,460 and paid at 1,500: 640 dinars more left
+         * the till than the goods cost. It is not the goods' cost — units
+         * already sold cannot have their profit changed afterwards — so it is
+         * its own line, in the period the payment was made. Above zero a loss,
+         * below it a gain.
+         */
+        $rateDifference = (int) Payment::where('payable_type', (new Purchase)->getMorphClass())
+            ->whereBetween('paid_at', [$from, $to])
+            ->sum('rate_difference');
+
         return [
             'sales' => $sales,
             'sale_returns' => $saleReturns,
@@ -596,7 +610,8 @@ class ReportController extends Controller
             'write_offs' => $writeOffs,
             'swaps' => $swaps,
             'expenses' => $expenses,
-            'net' => $grossProfit + $discountsReceived - $writeOffs - $swaps - $expenses,
+            'rate_difference' => $rateDifference,
+            'net' => $grossProfit + $discountsReceived - $writeOffs - $swaps - $expenses - $rateDifference,
             'purchases' => (int) Purchase::whereBetween('purchase_date', [$from, $to])->sum('grand_total'),
             'purchase_returns' => (int) PurchaseReturn::whereBetween('return_date', [$from, $to])->sum('total_amount'),
         ];

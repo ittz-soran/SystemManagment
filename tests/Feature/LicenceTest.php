@@ -11,6 +11,7 @@ use App\Services\Licence;
 use App\Support\Totp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
 /**
@@ -556,5 +557,37 @@ class LicenceTest extends TestCase
         config(['licence.public_key' => self::$public]);
 
         $this->artisan('licence:keys')->assertFailed();
+    }
+
+    /**
+     * Section 8f — a month is a calendar month (Soran, 2026-11-02). One month
+     * from 31 January used to run 31 days past the end of February, to 3 March.
+     */
+    public function test_one_month_ends_in_the_next_month_never_the_one_after(): void
+    {
+        $key = tempnam(sys_get_temp_dir(), 'seller');
+        file_put_contents($key, self::$private);
+
+        try {
+            foreach ([
+                '2027-01-31' => '2027-02-28',
+                '2027-01-29' => '2027-02-28',
+                '2028-01-31' => '2028-02-29',
+                '2026-10-31' => '2026-11-30',
+                '2026-11-02' => '2026-12-02',
+            ] as $today => $until) {
+                $this->travelTo(Carbon::parse($today.' 12:00'));
+
+                $this->assertSame(0, Artisan::call('licence:issue', ['shop' => 'Halabja Phone', '--months' => 1, '--key' => $key]));
+                $this->assertMatchesRegularExpression('/Valid until\W+'.$until.'\b/', Artisan::output(), "issued {$today}");
+            }
+
+            // Twelve months from 29 February is the last day of next February.
+            $this->travelTo(Carbon::parse('2028-02-29 12:00'));
+            Artisan::call('licence:issue', ['shop' => 'Halabja Phone', '--months' => 12, '--key' => $key]);
+            $this->assertMatchesRegularExpression('/Valid until\W+2029-02-28\b/', Artisan::output());
+        } finally {
+            unlink($key);
+        }
     }
 }

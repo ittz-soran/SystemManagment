@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -30,6 +31,16 @@ class TrendChartTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        /*
+         * ⚠️ A fixed day in the middle of a month. The trade below is dated
+         * from the start of this month (or a few days back), and the report
+         * shows this month: on the 1st and 2nd it fell in last month or the
+         * future and the test failed. Found by running the suite on 1 November,
+         * 1 March and 1 January (2026-11-02); pinned as AccountingAgreesTest is.
+         */
+        $this->travelTo(Carbon::create(2026, 10, 20, 12));
+
         $this->seed();
         $this->admin = User::where('email', 'admin@example.com')->firstOrFail();
         $this->trade();

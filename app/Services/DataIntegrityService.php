@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\DocumentCounter;
+use App\Models\Payment;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -600,14 +601,27 @@ final class DataIntegrityService
     {
         $failures = [];
 
+        /*
+         * ⚠️ Each side in the direction that settles it — Section 6, *A dollar
+         * purchase is owed in dollars*. A customer pays a sale with money in; a
+         * supplier is paid with money out. This read every document with the
+         * sale's direction, so a purchase's payments summed below zero and no
+         * purchase could ever be flagged.
+         *
+         * And what a payment SETTLED, not what left the till: $16 paid at
+         * 1,500 is 24,000 dinars against a 23,360 purchase, and is exactly
+         * paid — the 640 is the rate, on the profit report.
+         */
         foreach ([
-            ['sales', 'sale', 'total_amount', 'sales.show'],
-            ['purchases', 'purchase', 'grand_total', 'purchases.show'],
-        ] as [$table, $type, $column, $route]) {
+            ['sales', 'sale', 'total_amount', 'sales.show', 'in'],
+            ['purchases', 'purchase', 'grand_total', 'purchases.show', 'out'],
+        ] as [$table, $type, $column, $route, $settles]) {
+            $settled = Payment::SETTLED;
+
             $rows = DB::table($table.' as d')
                 ->joinSub(
                     DB::table('payments')->select('payable_id')
-                        ->selectRaw("SUM(case when direction = 'in' then amount else -amount end) as chk_paid")
+                        ->selectRaw("SUM(case when direction = '{$settles}' then {$settled} else -({$settled}) end) as chk_paid")
                         ->where('payable_type', $type)->whereNull('deleted_at')
                         ->groupBy('payable_id'),
                     'p',

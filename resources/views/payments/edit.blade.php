@@ -5,7 +5,10 @@
 @section('subheading')
     @if($payable)
         <x-document-link :document="$payable" :kind="false" />
-        @if($party) · {{ $party->displayName() ?? $party->name }} @endif
+        {{-- A supplier has no displayName(): only a customer can be the
+             walk-in. Asking a supplier for one took the page down on every
+             payment to a supplier. --}}
+        @if($party) · {{ $party instanceof App\Models\Customer ? $party->displayName() : $party->name }} @endif
     @endif
 @endsection
 
@@ -21,7 +24,9 @@
     {{-- ⚠️ An edit is where the untouched-field rule earns its keep: opened in
          dollars, saved with only the date changed, the amount must come back
          out of this box exactly as it went in. See App\Support\MoneyInput. --}}
-    <x-lens-note :lens="$lens" />
+    @unless($owed)
+        <x-lens-note :lens="$lens" />
+    @endunless
 
     {{-- Section 8: an edit reverses what the payment did to the ledger and
          posts it again with the new figures, so the balance ends where it would
@@ -46,6 +51,16 @@
                         </div>
                     @endif
 
+                    @if($owed)
+                        {{-- Section 6: corrected in dollars, as it was paid.
+                             The dinars it settled go back first, and it settles
+                             again as if the other payments were all there were. --}}
+                        @include('payments.partials.in-dollars', [
+                            'owed' => $owed,
+                            'value' => $payment->foreign_amount,
+                            'rate' => $payment->exchange_rate,
+                        ])
+                    @else
                     <div class="mb-3">
                         <label for="amount" class="form-label">{{ __('Amount') }}</label>
                         <x-money-input name="amount" :lens="$lens" :min="1" :value="$payment->amount"
@@ -66,6 +81,7 @@
                             </option>
                         </select>
                     </div>
+                    @endif
 
                     <div class="mb-3">
                         <label for="payment_method" class="form-label">{{ __('Method') }}</label>

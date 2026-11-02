@@ -22,6 +22,7 @@
             ['Written off', -$profit['write_offs'], false],
             ['Faulty goods replaced', -$profit['swaps'], false],
             ['Expenses', -$profit['expenses'], false],
+            ...($profit['rate_difference'] === 0 ? [] : [['Dollar rate difference', -$profit['rate_difference'], false]]),
             ['Net profit', $profit['net'], true],
         ] as [$label, $amount, $strong])
             <tr class="{{ $strong ? 'fw-bold border-top' : '' }}">

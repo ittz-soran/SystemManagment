@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AccountTransaction;
+use App\Models\Currency;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -11,6 +12,7 @@ use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -90,6 +92,7 @@ class PurchaseService
                 'grand_total' => $grandTotal,
                 'status' => Purchase::STATUS_ACTIVE,
                 'exchange_rate' => $exchangeRate,
+                ...$this->owedIn($lines, $exchangeRate, $discountAmount),
                 'purchase_date' => $purchaseDate,
             ]);
 
@@ -106,6 +109,8 @@ class PurchaseService
             );
 
             if ($amountPaid > 0) {
+                $paid = $this->paidWithIt($purchase, $amountPaid);
+
                 $this->payments->record(
                     payable: $purchase,
                     amount: $amountPaid,
@@ -115,13 +120,18 @@ class PurchaseService
                     user: $user,
                     method: $paymentMethod,
                     paidAt: $purchaseDate->copy()->setTimeFrom(now()),
+                    foreignAmount: $paid['foreign'],
+                    exchangeRate: $paid['foreign'] === null ? null : $exchangeRate,
+                    rateDifference: $amountPaid - $paid['settled'],
                 );
 
-                // Paying the supplier reduces what the shop owes.
+                // Paying the supplier reduces what the shop owes — by what the
+                // payment settled, which is all of it unless the purchase is
+                // owed in dollars.
                 $this->ledger->post(
                     account: $supplier,
                     type: AccountTransaction::TYPE_PAYMENT,
-                    amount: -$amountPaid,
+                    amount: -$paid['settled'],
                     reference: $purchase,
                     user: $user,
                     notes: $purchase->document_no,
@@ -188,12 +198,34 @@ class PurchaseService
 
             // Section 8 rule 4: the new grand total must still cover what has
             // already been paid, or the supplier would be owed a negative sum.
-            $alreadyPaid = $purchase->amountPaid();
+            $owedIn = $this->owedIn($lines, $exchangeRate, $discountAmount);
 
-            if ($grandTotal < $alreadyPaid) {
+            /*
+             * The same rule in dollars — Section 6, *A dollar purchase is owed
+             * in dollars*. A purchase paid $16 cannot become a $12 one by an
+             * edit, whatever the dinars say at a new rate.
+             */
+            $dollarsPaid = $purchase->foreignPaid();
+
+            if ($owedIn['foreign_total'] !== null && $owedIn['foreign_total'] < $dollarsPaid) {
+                $currency = Currency::cached()[$owedIn['foreign_currency']];
+                $written = fn (int $minor) => Money::writeAt($minor, $currency->decimals).' '.$currency->mark();
+
                 throw new RuntimeException(__(
                     'The new total of :total is less than the :paid already paid. Record a refund first.',
-                    ['total' => money($grandTotal), 'paid' => money($alreadyPaid)],
+                    ['total' => $written($owedIn['foreign_total']), 'paid' => $written($dollarsPaid)],
+                ));
+            }
+
+            // In dinars only for a purchase in dinars: a dollar purchase's
+            // payments settle again below, at whatever its rate now is, and
+            // the dollars above are what they must still cover.
+            $cashPaid = $purchase->cashPaid();
+
+            if ($owedIn['foreign_total'] === null && $grandTotal < $cashPaid) {
+                throw new RuntimeException(__(
+                    'The new total of :total is less than the :paid already paid. Record a refund first.',
+                    ['total' => money($grandTotal), 'paid' => money($cashPaid)],
                 ));
             }
 
@@ -218,17 +250,20 @@ class PurchaseService
                 'discount_amount' => $discountAmount,
                 'grand_total' => $grandTotal,
                 'exchange_rate' => $exchangeRate,
+                ...$owedIn,
                 'purchase_date' => $purchaseDate,
             ]);
 
             $this->applyLines($purchase, $lines, $user, $purchaseDate);
+
+            $this->resettle($purchase);
 
             // What is still owed after the edit: the new total less what was
             // already paid, posted as one figure so the ledger reads cleanly.
             $this->ledger->post(
                 account: $supplier,
                 type: AccountTransaction::TYPE_PURCHASE,
-                amount: $grandTotal - $alreadyPaid,
+                amount: $grandTotal - $purchase->amountPaid(),
                 reference: $purchase,
                 user: $user,
                 notes: $purchase->document_no,
@@ -313,6 +348,133 @@ class PurchaseService
         // transaction, never as an incremental adjustment.
         foreach ($productIds as $productId) {
             $this->fifo->syncProductQuantity(Product::findOrFail($productId));
+        }
+    }
+
+    /**
+     * The currency a purchase is owed in, and its total there — Section 6,
+     * *A dollar purchase is owed in dollars*.
+     *
+     * Each line's typed price times its quantity; a line nobody typed counts at
+     * its dinars over the document's rate, as the screen showed it; less the
+     * discount at the document's rate. Exact, because it is what the supplier's
+     * paper says, not the dinar total divided back. Both null for a purchase in
+     * the shop's own money, or one with no rate to be written at.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @return array{foreign_currency: string|null, foreign_total: int|null}
+     */
+    private function owedIn(array $lines, ?int $exchangeRate, int $discountAmount): array
+    {
+        $none = ['foreign_currency' => null, 'foreign_total' => null];
+
+        if (! $exchangeRate) {
+            return $none;
+        }
+
+        $base = Money::base()->code;
+        $currency = collect($lines)
+            ->map(fn (array $line) => (string) ($line['entered_currency'] ?? ''))
+            ->filter(fn (string $code) => $code !== '' && $code !== $base)
+            ->map(fn (string $code) => Currency::cached()[$code] ?? null)
+            ->first(fn (?Currency $currency) => $currency !== null);
+
+        if ($currency === null) {
+            return $none;
+        }
+
+        $per = $currency->minorPerMajor();
+        $foreign = fn (int $dinars): int => (int) round($dinars * $per / $exchangeRate);
+
+        $total = 0;
+
+        foreach ($lines as $line) {
+            $typed = $line['entered_amount'] ?? null;
+            $unit = ($typed === null || $typed === '') ? $foreign((int) $line['unit_price']) : (int) $typed;
+
+            $total += (int) $line['quantity'] * $unit;
+        }
+
+        return ['foreign_currency' => $currency->code, 'foreign_total' => $total - $foreign($discountAmount)];
+    }
+
+    /**
+     * A payment made with the purchase itself, at the purchase's own rate.
+     *
+     * In dinars it settles exactly what it is. In dollars, its dollars are the
+     * dinars over the rate; if they reach the whole dollar total it is the
+     * closing payment, and settles every dinar — the difference is then the
+     * rounding of the lines, and nothing is left owing by it.
+     *
+     * @return array{foreign: int|null, settled: int}
+     */
+    private function paidWithIt(Purchase $purchase, int $amountPaid): array
+    {
+        $currency = $purchase->owedIn();
+
+        if ($currency === null) {
+            return ['foreign' => null, 'settled' => $amountPaid];
+        }
+
+        $foreign = (int) round($amountPaid * $currency->minorPerMajor() / $purchase->exchange_rate);
+
+        if ($foreign >= $purchase->foreign_total || $amountPaid >= $purchase->grand_total) {
+            return ['foreign' => $purchase->foreign_total, 'settled' => $purchase->grand_total];
+        }
+
+        return ['foreign' => $foreign, 'settled' => min($amountPaid, $purchase->grand_total - 1)];
+    }
+
+    /**
+     * Settle an edited purchase's payments again, in the order they were made.
+     *
+     * ⚠️ A payment's settlement was worked out against the purchase as it
+     * stood. Edit the rate of a purchase paid $16 in full and its dinars move
+     * while the dollars do not: left alone, it would read as owing dinars and
+     * no dollars, and no payment could ever close it. So each payment settles
+     * again by the rule it was recorded under — the one that reaches what is
+     * still owed closes it — and a purchase no longer in dollars has no rate
+     * difference at all. The ledger needs nothing more: the edit has already
+     * reversed everything this purchase posted and posts what is owed after.
+     */
+    private function resettle(Purchase $purchase): void
+    {
+        $payments = $purchase->payments()->orderBy('paid_at')->orderBy('id')->get();
+        $currency = $purchase->owedIn();
+
+        if ($currency === null) {
+            $payments->each(fn (Payment $p) => $p->forceFill(['rate_difference' => 0])->save());
+
+            return;
+        }
+
+        $per = $currency->minorPerMajor();
+        $rate = (int) $purchase->exchange_rate;
+        $owedForeign = $purchase->foreign_total - $purchase->foreignCredited();
+        $owed = $purchase->grand_total - $purchase->creditedByReturns();
+
+        foreach ($payments as $payment) {
+            // A payment made before the purchase was in dollars is at the
+            // purchase's own rate, as the migration wrote the old ones.
+            $foreign = $payment->foreign_amount ?? (int) round($payment->amount * $per / $rate);
+
+            if ($payment->direction !== Payment::DIRECTION_OUT) {
+                $settled = $payment->amount;
+                $owedForeign += $foreign;
+                $owed += $settled;
+            } else {
+                $settled = $foreign >= $owedForeign
+                    ? max(0, $owed)
+                    : max(0, min((int) round($foreign * $rate / $per), $owed - 1));
+                $owedForeign -= $foreign;
+                $owed -= $settled;
+            }
+
+            $payment->forceFill([
+                'foreign_amount' => $foreign,
+                'exchange_rate' => $payment->exchange_rate ?? $rate,
+                'rate_difference' => $payment->amount - $settled,
+            ])->save();
         }
     }
 

@@ -100,10 +100,16 @@
                                     </button>
                                 @endcan
                             </div>
-                            <select id="supplier_id" name="supplier_id" class="form-select" required>
+                            {{-- Searched, not scrolled — Soran, 2026-11-02 (app.js). --}}
+                            <select id="supplier_id" name="supplier_id" class="form-select" required data-searchable
+                                    data-search-placeholder="{{ __('Search by name or phone') }}"
+                                    data-search-empty="{{ __('No supplier matches that.') }}"
+                                    data-search-more="{{ __(':count more — type to narrow the list.') }}"
+                                    data-search-required="{{ __('Choose a supplier from the list.') }}">
                                 <option value="">{{ __('Choose…') }}</option>
                                 @foreach($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}"
+                                            data-phone="{{ $supplier->phone }}"
                                             @selected(old('supplier_id', $editing ? $purchase->supplier_id : null) == $supplier->id)>
                                         {{ $supplier->name }}
                                     </option>
@@ -301,6 +307,7 @@
             </button>
         </div>
     </form>
+    @include('partials.cart-add-box')
     <x-leave-guard />
 @endsection
 
@@ -615,33 +622,41 @@
                 ? moneyBox(paidInput, document.getElementById('amount_paid'))
                 : { get: () => 0, set() {}, reprice() {}, recurrency() {} };
 
-            function addProduct(product) {
+            function addProduct(product, answer = null) {
                 // Section 9b: scanning the same product again increments its
                 // line rather than adding a second one — but only a line still
                 // at the price it arrived with. A line somebody has repriced is
                 // a deliberate second price, and folding a scan into it would
                 // silently change what that line says.
+                //
+                // The add box (Soran, 2026-11-02) may bring a quantity, and a
+                // price somebody changed: that is typed, exactly as if it had
+                // been typed into the line's own box, and joins only a line
+                // carrying the same typed figure.
+                const quantity = Math.max(1, answer?.quantity ?? 1);
+                const typed = answer?.changed ? answer.price : null;
+                const price = typed === null ? product.purchase_price : Math.max(0, toBase(typed));
                 const existing = cart.find((l) => l.id === product.id
-                    && l.typed === null
-                    && l.price === product.purchase_price);
+                    && l.typed === typed
+                    && l.price === price);
 
                 if (existing) {
-                    existing.quantity += 1;
+                    existing.quantity += quantity;
                 } else {
                     cart.push({
                         id: product.id,
                         name: product.name,
                         sku: product.sku,
                         unit: product.unit,
-                        quantity: 1,
-                        // Section 2b: nobody has typed a figure for this line
-                        // yet, so its box is drawn from the price below. See
-                        // moneyBox for why that distinction matters.
-                        typed: null,
+                        quantity,
+                        // Section 2b: a line nobody has typed a figure for is
+                        // drawn from the price below. See moneyBox for why that
+                        // distinction matters.
+                        typed,
                         // Section 9: the purchase cart defaults to the last
                         // purchase price. A first-time purchase has none, so it
                         // starts at 0 and must be typed.
-                        price: product.purchase_price,
+                        price,
                     });
                 }
 
@@ -687,7 +702,48 @@
                 scanner.input.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
 
-            async function runSearch(term) {
+            /**
+             * A product chosen — clicked in the list ('picked') or scanned
+             * ('scan', Enter on an exact code). Soran, 2026-11-02: the add box
+             * first, unless the setting says otherwise for this way in.
+             */
+            function take(product, how) {
+                const box = window.cartAddBox;
+                const ask = box && (box.mode === 'always' || (box.mode === 'picked' && how === 'picked'));
+
+                if (! ask) {
+                    addProduct(product);
+
+                    return;
+                }
+
+                clearSearch();
+                const code = invoiceCode();
+
+                box.open({
+                    name: product.name,
+                    note: product.kind === 'service'
+                        ? product.sku
+                        : `${product.sku} · ${format(product.quantity)} ${product.unit ?? ''} ${@json(__('in stock'))}`,
+                    price: fromBase(product.purchase_price),
+                    places: inBase() ? 0 : placesOf(code),
+                    mark: markOf(code),
+                }).then((answer) => {
+                    if (answer) {
+                        addProduct(product, answer);
+                    } else {
+                        goToScanner();
+                    }
+                });
+            }
+
+            // Each search numbered, so an answer that arrives after a newer
+            // one was asked is dropped rather than drawn over it.
+            let searchSeq = 0;
+
+            async function runSearch(term, how = 'typed') {
+                const seq = ++searchSeq;
+
                 // Ordinary stock only: a service has nothing to buy into stock, and a
                 // second-hand item is bought once through its own screen.
                 const response = await fetch(
@@ -695,12 +751,17 @@
                     headers: { 'Accept': 'application/json' },
                 });
 
-                if (! response.ok) return;
+                if (! response.ok || seq !== searchSeq) return;
 
                 const data = await response.json();
 
-                if (data.exact && data.products.length === 1) {
-                    addProduct(data.products[0]);
+                if (seq !== searchSeq) return;
+
+                // ⚠️ Typing only searches; only Enter takes an exact code — a
+                // scanner ends every scan with one (Soran, 2026-11-02: SS12 went
+                // in while SS123 was being typed). See the sale screen.
+                if (how === 'enter' && data.exact && data.products.length === 1) {
+                    take(data.products[0], 'scan');
                     return;
                 }
 
@@ -717,7 +778,7 @@
                             <span class="small text-secondary ms-2" dir="ltr">${escapeHtml(product.sku)}</span>
                         </span>
                         <span class="small text-secondary">${format(product.purchase_price)}</span>`;
-                    item.addEventListener('click', () => addProduct(product));
+                    item.addEventListener('click', () => take(product, 'picked'));
                     resultsBox.appendChild(item);
                 });
 
@@ -767,7 +828,7 @@
                         items[highlighted].click();
                     } else if (searchInput.value.trim()) {
                         clearTimeout(searchTimer);
-                        runSearch(searchInput.value.trim());
+                        runSearch(searchInput.value.trim(), 'enter');
                     }
                     }
                 });
@@ -905,6 +966,8 @@
                 // Not while the keypad is up, or F2 would save the document
                 // from under a half-typed price.
                 if (document.getElementById('number-pad')?.classList.contains('show')) return;
+                // Nor while the add box is up, for the same reason.
+                if (document.getElementById('cart-add-box')?.classList.contains('show')) return;
 
                 if (event.key === 'F2' && ! saveButtons[0].disabled) {
                     event.preventDefault();

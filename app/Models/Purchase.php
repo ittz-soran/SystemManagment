@@ -4,17 +4,20 @@ namespace App\Models;
 
 use App\Models\Concerns\CreditedByReturns;
 use App\Models\Concerns\HidesArchivedPeriod;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 #[Fillable([
     'document_no', 'supplier_id', 'room_id', 'user_id', 'supplier_invoice_no',
     'total_amount', 'discount_amount', 'grand_total', 'status',
-    'exchange_rate', 'purchase_date',
+    'exchange_rate', 'foreign_currency', 'foreign_total', 'purchase_date',
 ])]
 class Purchase extends Model
 {
@@ -39,6 +42,7 @@ class Purchase extends Model
             'discount_amount' => 'integer',
             'grand_total' => 'integer',
             'exchange_rate' => 'integer',
+            'foreign_total' => 'integer',
             'purchase_date' => 'date',
         ];
     }
@@ -119,7 +123,7 @@ class Purchase extends Model
     }
 
     /**
-     * What has been paid to the supplier so far.
+     * What has been paid to the supplier so far, in the dinars it settled.
      *
      * Section 4 gives the amount-due formula as
      * `grand_total - SUM(amount WHERE direction = 'in')`, but that sentence
@@ -127,26 +131,184 @@ class Purchase extends Model
      * "money leaving the till — a cash refund to a customer, or paying a
      * supplier", so on a purchase the settling payments are the outbound ones.
      * Reading `in` here would report every supplier payment as cash arriving.
+     *
+     * ⚠️ **Settled, not spent** — Section 6, *A dollar purchase is owed in
+     * dollars*. $16 paid at 1,500 is 24,000 dinars out of the till, and settles
+     * the 23,360 the purchase was written for at 1,460; the 640 between them is
+     * the payment's `rate_difference`, which the profit report carries. Every
+     * other payment has no difference, and this is the sum it always was.
+     *
+     * `$except` leaves one payment out — the one being edited.
      */
-    public function amountPaid(): int
+    public function amountPaid(?Payment $except = null): int
     {
         // What has actually been paid on this document: money out settles it,
         // and money the other way is money handed back — change across the
         // counter when the cart is edited down. Netted, or a document could
         // read as paid with the cash already returned.
-        return (int) $this->payments()->where('direction', Payment::DIRECTION_OUT)->sum('amount')
-            - (int) $this->payments()->where('direction', Payment::DIRECTION_IN)->sum('amount');
+        return $this->paidIn(Payment::SETTLED, $except);
+    }
+
+    /** The dinars that actually left the till for this purchase. */
+    public function cashPaid(): int
+    {
+        return $this->paidIn('amount');
+    }
+
+    /** What the rate cost on this purchase's payments: above zero a loss. */
+    public function rateDifference(): int
+    {
+        return $this->paidIn('rate_difference');
+    }
+
+    /** Money out less money back, summed over one expression of a payment. */
+    private function paidIn(string $expression, ?Payment $except = null): int
+    {
+        $sum = fn (string $direction) => (int) $this->payments()
+            ->where('direction', $direction)
+            ->when($except, fn ($q) => $q->whereKeyNot($except->getKey()))
+            ->sum(DB::raw($expression));
+
+        return $sum(Payment::DIRECTION_OUT) - $sum(Payment::DIRECTION_IN);
     }
 
     /**
-     * What the shop still owes on this purchase.
+     * What the shop still owes on this purchase, in dinars at the purchase's
+     * own rate.
      *
      * ⚠️ Returns come off it as well as payments — the mirror of the sale side,
      * and it had the same hole. See the trait.
      */
-    public function amountDue(): int
+    public function amountDue(?Payment $except = null): int
     {
-        return $this->grand_total - $this->amountPaid() - $this->creditedByReturns();
+        return $this->grand_total - $this->amountPaid($except) - $this->creditedByReturns();
+    }
+
+    /**
+     * The currency this purchase is OWED in — Section 6, Soran, 2026-11-02:
+     * *"i have inv all in usd"*. Null for a purchase in the shop's own money.
+     */
+    public function owedIn(): ?Currency
+    {
+        if ($this->foreign_total === null || ! $this->foreign_currency) {
+            return null;
+        }
+
+        return Currency::cached()[$this->foreign_currency] ?? null;
+    }
+
+    /**
+     * A count of the purchase's own currency's minor units, written as a
+     * figure with its mark — *16 $*. ⚠️ Not `money($x, in: $currency)`: that
+     * converts FROM dinars, and these are cents already.
+     */
+    public function inItsCurrency(int $minor): string
+    {
+        $currency = $this->owedIn();
+
+        return $currency === null
+            ? money($minor)
+            : Money::writeAt($minor, $currency->decimals).' '.$currency->mark();
+    }
+
+    /** Dollars paid, in cents: money out less money back. */
+    public function foreignPaid(?Payment $except = null): int
+    {
+        return $this->paidIn('COALESCE(foreign_amount, 0)', $except);
+    }
+
+    /**
+     * The dollars a return took off, in proportion to the dinars it took off —
+     * so a return of everything takes off every dollar.
+     */
+    public function foreignCredited(): int
+    {
+        if ((int) $this->grand_total <= 0 || $this->foreign_total === null) {
+            return 0;
+        }
+
+        return (int) round($this->creditedByReturns() * $this->foreign_total / $this->grand_total);
+    }
+
+    /**
+     * What is still owed in the purchase's own currency, in its minor units;
+     * null for a purchase in dinars. Below zero is paid too much.
+     *
+     * Settled in dinars means settled in dollars too: the closing payment
+     * settles the last dinars, so a cent left over by a rounding of a return is
+     * not a debt.
+     */
+    public function foreignDue(?Payment $except = null): ?int
+    {
+        if ($this->owedIn() === null) {
+            return null;
+        }
+
+        if ($this->amountDue($except) === 0) {
+            return 0;
+        }
+
+        return $this->foreign_total - $this->foreignPaid($except) - $this->foreignCredited();
+    }
+
+    /**
+     * What the dollars still owed would cost in dinars at TODAY's rate — an
+     * estimate, shown beside them and never saved. Null when nothing is owed.
+     */
+    public function dueAtTodaysRate(): ?int
+    {
+        $currency = $this->owedIn();
+        $due = $this->foreignDue();
+
+        if ($currency === null || $due === null || $due <= 0) {
+            return null;
+        }
+
+        return Money::toBase($due, $currency);
+    }
+
+    /**
+     * How a payment of `$foreign` (minor units) at `$rate` settles this
+     * purchase — Section 6. The dinars that leave, the dinars of the purchase
+     * they settle, and the difference between them.
+     *
+     * ⚠️ **The closing payment** — the one whose dollars reach what is still
+     * owed — settles every dinar still owed, so the purchase and the
+     * supplier's account close at exactly zero; its difference carries the
+     * rounding of the lines along with the rate. A payment for less settles
+     * dollars × the purchase's rate, and never so much that the dinars run out
+     * while dollars are still owed.
+     *
+     * @return array{amount: int, settled: int, difference: int}
+     *
+     * @throws RuntimeException more than is owed
+     */
+    public function settle(int $foreign, int $rate, ?Payment $except = null): array
+    {
+        $currency = $this->owedIn();
+
+        if ($currency === null) {
+            throw new RuntimeException(__('This purchase is not owed in another currency.'));
+        }
+
+        $due = (int) $this->foreignDue($except);
+
+        if ($foreign > $due) {
+            throw new RuntimeException(__(':left is left on :document.', [
+                'left' => $this->inItsCurrency(max(0, $due)),
+                'document' => $this->document_no,
+            ]));
+        }
+
+        $per = $currency->minorPerMajor();
+        $amount = (int) round($foreign * $rate / $per);
+        $owed = $this->amountDue($except);
+
+        $settled = $foreign === $due
+            ? max(0, $owed)
+            : max(0, min((int) round($foreign * $this->exchange_rate / $per), $owed - 1));
+
+        return ['amount' => $amount, 'settled' => $settled, 'difference' => $amount - $settled];
     }
 
     protected function returnReferenceType(): string

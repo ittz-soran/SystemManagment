@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Repair;
 use App\Models\StockBatch;
+use App\Models\StockCheck;
 use App\Models\StockRoom;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -77,6 +78,15 @@ final class Sections
             'permissions' => null,
             'paths' => ['settings/currencies', 'settings/currencies/*', 'preferences/currency'],
             'modules' => ['currencies'],
+            'testing' => false,
+        ],
+        // Soran, 2026-11-02: "add this new check stock to Sections in panel".
+        // On for every shop; an ADJ made from a round is an ordinary ADJ.
+        'stock_checks' => [
+            'name' => 'Stock check',
+            'permissions' => 'stock_checks',
+            'paths' => ['stock-checks', 'stock-checks/*'],
+            'modules' => ['stock_checks'],
             'testing' => false,
         ],
     ];
@@ -166,6 +176,17 @@ final class Sections
         return true;
     }
 
+    /**
+     * Every activity-log module of the sections that are off — for the bell's
+     * addressed entries, which are not filtered by the reader's module list.
+     *
+     * @return list<string>
+     */
+    public static function offModules(): array
+    {
+        return array_values(array_merge([], ...array_map(fn (string $key) => self::all()[$key]['modules'], self::off())));
+    }
+
     /** The section that is off and owns this address, if any. */
     public static function offFor(Request $request): ?string
     {
@@ -189,6 +210,7 @@ final class Sections
         return match ($key) {
             'stock_rooms' => self::stockOutsideMainRoom(),
             'repairs' => self::openRepairs(),
+            'stock_checks' => self::openStockChecks(),
             default => null,
         };
     }
@@ -289,6 +311,22 @@ final class Sections
             '%s %s open. A customer\'s device is in the shop.',
             number_format($open),
             $open === 1 ? 'repair job is' : 'repair jobs are',
+        );
+    }
+
+    /** Somebody is counting, or was sent a round to count. */
+    private static function openStockChecks(): ?string
+    {
+        $open = StockCheck::query()->whereNull('finished_at')->count();
+
+        if ($open === 0) {
+            return null;
+        }
+
+        return sprintf(
+            '%s %s open. Somebody is counting, or was sent a round to count.',
+            number_format($open),
+            $open === 1 ? 'stock check round is' : 'stock check rounds are',
         );
     }
 }

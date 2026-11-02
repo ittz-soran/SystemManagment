@@ -114,7 +114,9 @@ class BackupTest extends TestCase
             ->assertOk()
             ->assertSee(__('Backups'))
             ->assertSee(__('Back up now'))
-            ->assertDontSee(__('Never'));
+            // The badge, not the word: the same page offers "Never show it" for
+            // the add box, and a page-wide search for "Never" fails on that.
+            ->assertDontSee('<span class="badge text-bg-danger">'.__('Never').'</span>', false);
     }
 
     public function test_the_back_up_now_button_runs_a_backup(): void

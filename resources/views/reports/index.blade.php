@@ -237,6 +237,14 @@
                             ['−', __('Stock written off'), $profit['write_offs'], false],
                             ['−', __('Faulty goods replaced'), $profit['swaps'], false],
                             ['−', __('Expenses'), $profit['expenses'], false],
+                            // Only when a dollar purchase was paid at another
+                            // rate: a loss takes away, a gain adds.
+                            ...($profit['rate_difference'] === 0 ? [] : [[
+                                $profit['rate_difference'] > 0 ? '−' : '+',
+                                __('Dollar rate difference'),
+                                abs($profit['rate_difference']),
+                                false,
+                            ]]),
                             ['=', __('Net'), $profit['net'], true],
                         ] as [$sign, $label, $value, $strong])
                             <tr class="{{ $strong ? 'fw-semibold border-top' : '' }}">

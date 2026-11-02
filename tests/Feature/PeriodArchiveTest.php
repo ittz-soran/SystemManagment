@@ -14,6 +14,7 @@ use App\Services\PeriodArchiveService;
 use App\Services\PurchaseService;
 use App\Services\SaleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -339,5 +340,31 @@ class PeriodArchiveTest extends TestCase
         $this->actingAs($user)
             ->post(route('data.period.export'), ['to' => now()->toDateString()])
             ->assertOk();
+    }
+
+    /**
+     * The box suggests the end of last month — on its bad days too. On 31
+     * October one month back used to roll on to 1 October, so the box offered
+     * this month, which the form and the server refuse (Soran, 2026-11-02).
+     */
+    public function test_the_suggested_date_is_the_end_of_last_month_on_every_day(): void
+    {
+        foreach ([
+            '2026-10-31' => '2026-09-30',
+            '2027-03-29' => '2027-02-28',
+            '2027-03-31' => '2027-02-28',
+            '2028-03-30' => '2028-02-29',
+            '2026-12-31' => '2026-11-30',
+            '2026-11-02' => '2026-10-31',
+            '2027-01-15' => '2026-12-31',
+        ] as $today => $suggested) {
+            $this->travelTo(Carbon::parse($today.' 12:00'));
+
+            $page = $this->actingAs($this->admin)->get(route('data.index'))->assertOk()->getContent();
+
+            $this->assertSame(1, preg_match('/<input id="through"[^>]*value="([^"]+)"/', $page, $box), $today);
+            $this->assertSame($suggested, $box[1], "on {$today}");
+            $this->assertLessThan($today, $box[1], "on {$today} the suggestion must be a day the form accepts");
+        }
     }
 }
