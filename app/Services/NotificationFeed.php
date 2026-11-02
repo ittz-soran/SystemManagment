@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Support\Notifications;
+use App\Support\Sections;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -68,7 +69,12 @@ class NotificationFeed
                      * out, whatever its module, so a message to one person
                      * never becomes everybody's news.
                      */
-                    ->orWhere('recipient_id', $user->getKey());
+                    ->orWhere(function (Builder $addressed) use ($user) {
+                        $addressed->where('recipient_id', $user->getKey())
+                            // Section 8h: nothing from a section this shop has
+                            // switched off — its page would answer 404.
+                            ->whereNotIn('module', Sections::offModules());
+                    });
             })
             ->orderByDesc('id');
     }

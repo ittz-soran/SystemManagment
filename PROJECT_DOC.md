@@ -154,7 +154,7 @@ Read those together and they say something useful: the new dinar is worth 1,000 
 
 A `currencies` table — `code`, `name`, `symbol`, `decimals`, `rate`, `is_active` — and a `currency_base` setting naming which row the books are kept in. **A currency is a lens, not a second set of books.** A screen set to USD draws its figures in dollars and expects dollars in its boxes; what it saves is base-currency integers, the same ones it would have saved had they been typed in dinars.
 
-Nothing foreign is ever stored, which is exactly why there is **no exchange gain or loss to account for**: you never owe dollars, you owe what the dinars came to. Section 6b's rule survives intact — no currency column on money fields, no dual-currency balances, no historical rate lookup. This widens its calculator; it does not break its rule.
+Nothing foreign is ever stored, which is exactly why there is **no exchange gain or loss to account for**: you never owe dollars, you owe what the dinars came to. ⚠️ **Reversed for purchases, 2026-11-02** — a purchase written in dollars is owed in dollars; see *A dollar purchase is owed in dollars* at the end of Section 6b. Sales are unchanged. Section 6b's rule survives intact — no currency column on money fields, no dual-currency balances, no historical rate lookup. This widens its calculator; it does not break its rule.
 
 `rate` is how many base **minor** units one **major** unit of that currency is worth, × `Money::RATE_SCALE` (1,000). `1 USD = 1,320 IQD` is `1_320_000`. An integer, because Section 6 allows no decimal columns; scaled by a thousand so 1,320.125 survives and small enough that the largest amount this system can hold still converts inside a 64-bit integer. The base currency's own rate is `10^decimals × 1000`, which is what lets one formula serve every currency including the base.
 
@@ -694,6 +694,23 @@ Because `unit_price` becomes the batch cost, it must be a whole dinar that multi
 
 ---
 
+### A dollar purchase is owed in dollars — Soran, 2026-11-02
+
+*"INV currency rate need optimize, when i do purchase and USD save price at usd but rate save at payment, ex i have PUR-00059 Product A 4qty at 4$ total 16$ but i pay for this after 20days and curency are changed at this days"* — and, shown how it would work: *"نەخێر، من کڕینم کردوە هەمووی بە دۆلارە وە بەدۆلاریش لە سیستەم هەبێت، بەڵام کاتێک پارەدەدەم ئەوکات سیستەم دینار بەرامبەر دۆلار هەڵبگرێت"* (I bought it all in dollars, so it should be in dollars in the system too; but when I pay, then the system should keep the dinars against the dollars). Asked what becomes of the difference, and shown the answer below: *"بەڵێ، دروستی بکە"*. **Purchases only, for now.**
+
+**What was wrong.** PUR-00059 at $16 and 1,460 was owed as 23,360 dinars. Paid twenty days later at 1,500, the $16 came to 24,000: the purchase read *640 overpaid*, the supplier's balance stopped at zero, and the 640 vanished from the books.
+
+- **A purchase written in a foreign currency is owed in it.** `purchases.foreign_total` is its total in that currency, in its minor units, set whenever the purchase is saved: each line's typed price times its quantity — a line nobody typed counts at its base price over the document's rate, as the screen showed it — less the discount at the document's rate. Exact, because it is what the supplier's paper says, not dinars divided back.
+- **Until it is paid** the purchase shows its dollars, and beside them the dinars at **today's** rate, marked an estimate. Nothing is saved as the rate moves.
+- **A payment on it is typed in its currency, with the rate of the day it is paid** — filled in from the currencies page and changed if the money changer said otherwise. The payment keeps both: `foreign_amount`, `exchange_rate`, and `amount`, the dinars that left, as always.
+- ⚠️ **The difference.** At the purchase's own rate a payment settles `foreign × purchase rate` dinars of it; whatever else it cost is `payments.rate_difference` — positive when the dollar rose and it cost more (a loss), negative when it fell (a gain). The supplier's account moves by the dinars settled, so it closes at exactly zero when the dollars are paid; the cash is what really left. **When the last dollar is paid, the purchase closes exactly in dinars too**: that payment settles whatever dinars remain, and its difference carries the rounding of the lines along with the rate.
+- **The difference is one line on the profit report**, *Dollar rate difference*, in the period of the payment, beside expenses. Products keep the cost they were bought at (Section 1, rule 2): units already sold cannot have their profit changed afterwards, so the rate's cost is not added to theirs.
+- **Paying in parts** works the same way: each payment, its own rate and its own difference; what is still owed stays in dollars.
+- **More than is owed is refused**, in dollars: *$4.00 is left on PUR-00059*.
+- **What is owed in dollars** is the dollar total, less what has been paid in dollars, less the dollars of anything sent back on a purchase return.
+- **A purchase already saved** gets its `foreign_total` from its lines the same way, and the payments already made on it keep their dinars and settle at the purchase's own rate, with no difference — nothing written before this changes.
+- A purchase in the base currency is untouched: no foreign total, no rate, no difference.
+
 ## 7. Returns
 
 **Every return case is the same operation at a different scale.** Partial line, whole line, or whole sale — one form, one mechanism.
@@ -1209,7 +1226,9 @@ page to system and just want have for some store to test"*
 **Decided with Soran, 2026-10-19:**
 
 - **Six sections can be switched off**, and nothing else: stock rooms,
-  second-hand, repairs, take apart & build, swaps and currencies. Everything
+  second-hand, repairs, take apart & build, swaps and currencies. **A seventh,
+  the stock check, since 2026-11-02** — Soran: *"add this new check stock to
+  Sections in panel"*; on for every shop, switched off per shop. Everything
   else is the shop itself — selling, buying, returns, payments, products,
   people, reports, settings — and is always there.
 - **Repairs means the workshop only.** Services — a price line such as *Screen
@@ -1286,6 +1305,9 @@ running whether its screen is showing or not.
 | Take apart & build | `assemblies` | the take-apart and build screens | what they made is ordinary stock; the cart's bundle-or-pieces rule still holds | — |
 | Swaps | `swaps` | the swap answer at *Goods coming back*, the swap list | the counter offers the other two answers: a different product, or money back | — |
 | Currencies | `currencies` | the currency page, the reader's currency lens, the currency box on entry screens | everything is typed and read in the base currency; a document already written in another currency keeps its frozen rate and prints as it did | — |
+| Stock check | `stock_checks` | the rounds, the check screen, To fix, *Sent to you* on the dashboard, *last checked* on a product and the *not checked for 30 days* filter | adjustments already made from a round are ordinary ADJs; the stock is exactly what it was | **a round is open** — somebody is counting, or was sent a round to count |
+
+The panel needs nothing for the seventh: its Sections card shows whatever `shop:sections --json` lists, so a shop updated to this code shows the stock check there.
 
 **The refusals are the shop's to report and the panel's to enforce.** A section
 holding something live is shown with the reason on a disabled switch, never
@@ -3136,10 +3158,19 @@ Soran uses this a hundred times a day. Every other page can be ordinary; this on
 **Keyboard-first — a barcode scanner is a keyboard.**
 - Focus sits in the search box **by default and returns there after every add**. A scan then just works, with no clicking.
 - Scan or type → matches `barcode`, then `sku`, then name.
-- Exact barcode match adds straight to the cart at qty 1; a partial name match shows a dropdown.
+- ~~Exact barcode match adds straight to the cart at qty 1; a partial name match shows a dropdown.~~ ⚠️ **Typing never adds** (Soran, 2026-11-02 — below).
 - `Enter` adds · `↑ ↓` move rows · `Esc` clears search · `F2` (or similar) saves.
 - Qty and price are inline editable in the row — no modal to change a number.
 - Scanning the same product again increments its line rather than adding a second one.
+
+**Adding to the cart — Soran, 2026-11-02.** *"when i search for an sku don`t add automaticlly to cart some time have SS12 and SS123 and i want add SS123 but system auto add SS12 to cart!! … Every product before add to cart show cacullator to confirm price or change then confirm."*
+
+- ⚠️ **Typing only searches.** The search ran each time typing paused for 0.15 seconds, and an exact code then went straight into the cart — so typing *SS12*, pausing, then *3* added SS12. Now typing shows the matches and nothing else; a product goes in when it is **clicked**, or picked with ↑ ↓ and Enter (*"when type show results and i click on one of shows me"*).
+- **Enter on an exact code is a scan.** A scanner types the code and presses Enter; Enter with nothing highlighted and a code that is exactly one product's barcode or SKU takes that product, as a scan always has.
+- **The add box** opens before the product goes in, on the sale screen and the purchase screen: the product, its **price** (the sale price on a sale, the last cost on a purchase, in the screen's currency), the **quantity**, the **line total** as it is typed, and a **keypad with + − × ÷** to work a price out (*25 × 1,460*). Enter adds, Esc puts it back. Every rule the cart already has — the bundle question, a piece of a bundle, the below-cost warning — applies to what the box adds.
+- **When it opens is a setting** (Settings → *Before a product goes into the cart*): **every product, scans too** (the default), **only one picked from the list** — a scan goes straight in — or **never**, everything straight in. One setting for both screens.
+
+**The customer and the supplier are searched, not scrolled** (Soran, 2026-11-02: *"add search for Customer&Supplier like "Scan or type…" input type to search and show all at empty or click on it"*). The box reads like the product search: click it or leave it empty and every customer (or supplier) is listed; type and the list narrows by name or phone, in any of the shop's digits. The choice is still the same field underneath, so the walk-in default, *New customer* and everything that reacts to the customer go on working.
 
 **Show the running total large and always visible.** It is the number Soran reads out to the customer.
 
