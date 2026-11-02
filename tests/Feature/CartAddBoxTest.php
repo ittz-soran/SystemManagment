@@ -117,6 +117,57 @@ class CartAddBoxTest extends TestCase
         }
     }
 
+    /**
+     * Its look — Section 9, Soran's picture, 2026-11-02. One calculator, not
+     * two: the add box and the keypad a price field opens carry the same keys,
+     * four tinted sums each, and a box that says what it is adding.
+     */
+    public function test_both_keypads_wear_the_same_keys(): void
+    {
+        foreach (['sales.create', 'purchases.create'] as $route) {
+            $page = $this->actingAs($this->admin)->get(route($route))->assertOk()->getContent();
+
+            foreach (['cart-add-box' => 'id="cart-add-keys"', 'number-pad' => 'id="number-pad-dot"'] as $pad => $inside) {
+                $this->assertSame(1, preg_match('/<div[^>]*id="'.$pad.'"(.*?)'.preg_quote($inside, '/').'/s', $page, $match), "{$route}: no {$pad}");
+                $start = strpos($page, $match[0]);
+                $grid = substr($page, strpos($page, 'number-pad-grid', $start), 4000);
+                $grid = substr($grid, 0, strpos($grid, '</div>'));
+
+                $this->assertSame(4, substr_count($grid, 'class="btn number-key number-key-op"'), "{$route}: {$pad} has not four tinted sums");
+                $this->assertSame(0, preg_match('/btn-outline-/', $grid), "{$route}: {$pad} still has the old keys");
+            }
+
+            // The box shows a badge for the product and names it by kind.
+            $this->assertSame(1, preg_match('/kind: product\.kind,\s*note:/', $page), "{$route}: the box is not told the product's kind");
+        }
+    }
+
+    /**
+     * ⚠️ Found in the browser on the dev shop, whose brand is yellow: the sums
+     * were drawn in the brand itself, yellow on white, and could not be read.
+     * They take the brand made readable — the same one the outline buttons use
+     * — on either theme.
+     */
+    public function test_the_tinted_sums_are_readable_on_a_pale_brand(): void
+    {
+        Setting::put('primary_color', '#ffe500');
+        $palette = brand_palette('#ffe500');
+
+        $page = $this->actingAs($this->admin)->get(route('sales.create'))->assertOk()->getContent();
+
+        $this->assertNotSame('#ffe500', $palette['on_light']);
+        $this->assertSame(1, preg_match('/:root,[^{]*\{[^}]*--app-primary-ink: '.preg_quote($palette['on_light'], '/').';/', $page), 'the light ink is not the readable one');
+        $this->assertSame(1, preg_match('/\[data-bs-theme="dark"\] \{[^}]*--app-primary-ink: '.preg_quote($palette['on_dark'], '/').';/', $page), 'the dark ink is not the readable one');
+
+        $stylesheet = collect(glob(public_path('build/assets/*.css')))
+            ->map(fn (string $file) => file_get_contents($file))
+            ->implode('');
+
+        $this->assertSame(1, preg_match('/\.number-key-op\{([^}]*)\}/', $stylesheet, $rule), 'no tinted key in the built stylesheet');
+        $this->assertStringContainsString('--app-key-ink:var(--app-primary-ink', $rule[1]);
+        $this->assertStringContainsString('--bs-btn-color:var(--app-key-ink)', $rule[1]);
+    }
+
     private function settings(): array
     {
         return [

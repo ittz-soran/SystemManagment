@@ -26,34 +26,34 @@
                 <output id="number-pad-display" class="number-pad-display" dir="ltr">0</output>
 
                 <div class="number-pad-grid mt-3">
-                    <button type="button" class="btn btn-outline-secondary" data-pad="clear">{{ __('C') }}</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="back"
+                    <button type="button" class="btn number-key" data-pad="clear">{{ __('C') }}</button>
+                    <button type="button" class="btn number-key" data-pad="back"
                             aria-label="{{ __('Backspace') }}"><i class="bi bi-backspace"></i></button>
-                    <button type="button" class="btn btn-outline-primary" data-pad="/" aria-label="{{ __('Divide') }}">÷</button>
-                    <button type="button" class="btn btn-outline-primary" data-pad="*" aria-label="{{ __('Multiply') }}">×</button>
+                    <button type="button" class="btn number-key number-key-op" data-pad="/" aria-label="{{ __('Divide') }}">÷</button>
+                    <button type="button" class="btn number-key number-key-op" data-pad="*" aria-label="{{ __('Multiply') }}">×</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-pad="7">7</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="8">8</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="9">9</button>
-                    <button type="button" class="btn btn-outline-primary" data-pad="-" aria-label="{{ __('Subtract') }}">−</button>
+                    <button type="button" class="btn number-key" data-pad="7">7</button>
+                    <button type="button" class="btn number-key" data-pad="8">8</button>
+                    <button type="button" class="btn number-key" data-pad="9">9</button>
+                    <button type="button" class="btn number-key number-key-op" data-pad="-" aria-label="{{ __('Subtract') }}">−</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-pad="4">4</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="5">5</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="6">6</button>
-                    <button type="button" class="btn btn-outline-primary" data-pad="+" aria-label="{{ __('Add') }}">+</button>
+                    <button type="button" class="btn number-key" data-pad="4">4</button>
+                    <button type="button" class="btn number-key" data-pad="5">5</button>
+                    <button type="button" class="btn number-key" data-pad="6">6</button>
+                    <button type="button" class="btn number-key number-key-op" data-pad="+" aria-label="{{ __('Add') }}">+</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-pad="1">1</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="2">2</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="3">3</button>
+                    <button type="button" class="btn number-key" data-pad="1">1</button>
+                    <button type="button" class="btn number-key" data-pad="2">2</button>
+                    <button type="button" class="btn number-key" data-pad="3">3</button>
                     <button type="button" class="btn btn-primary number-pad-equals" data-pad="="
                             aria-label="{{ __('Equals') }}">=</button>
 
-                    <button type="button" class="btn btn-outline-secondary" data-pad="00">00</button>
-                    <button type="button" class="btn btn-outline-secondary" data-pad="0">0</button>
+                    <button type="button" class="btn number-key" data-pad="00">00</button>
+                    <button type="button" class="btn number-key" data-pad="0">0</button>
 
                     {{-- Only useful where a decimal is allowed, so it is hidden
                          unless the field asks for one. --}}
-                    <button type="button" class="btn btn-outline-secondary invisible" data-pad="." id="number-pad-dot">.</button>
+                    <button type="button" class="btn number-key invisible" data-pad="." id="number-pad-dot">.</button>
                 </div>
             </div>
 
