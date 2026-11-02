@@ -38,7 +38,9 @@ class LicenceIssue extends Command
         $expires = match (true) {
             (bool) $this->option('forever') => null,
             filled($this->option('until')) => Carbon::parse($this->option('until'))->toDateString(),
-            default => now()->addMonths((int) $this->option('months'))->toDateString(),
+            // A calendar month: from 31 January to 28 February, never on into
+            // March — PROJECT_DOC Section 8f, Soran, 2026-11-02.
+            default => now()->addMonthsNoOverflow((int) $this->option('months'))->toDateString(),
         };
 
         $payload = [
